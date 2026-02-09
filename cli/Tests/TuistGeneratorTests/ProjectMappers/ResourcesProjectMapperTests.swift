@@ -924,6 +924,41 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenProjectIsExternalDynamicFrameworkHasResourcesUsesFrameworkBundleAccessor() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
+        let target = Target.test(product: .framework, sources: ["/ViewController.swift"], resources: .init(resources))
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .external(hash: nil)
+        )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: External dynamic frameworks do NOT generate a separate resource bundle
+        // because resources are stored inside the framework bundle itself
+        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
+        #expect(gotProject.targets.count == 1)
+
+        let sideEffect = try #require(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            Issue.record("Expected file descriptor")
+            return
+        }
+        let contents = String(data: file.contents ?? Data(), encoding: .utf8) ?? ""
+        // External dynamic frameworks use the framework bundle accessor (Bundle(for: BundleFinder.self))
+        // since resources live inside the framework bundle itself.
+        #expect(contents.contains("Swift Bundle Accessor for Frameworks"))
+        #expect(contents.contains("static let module = Bundle(for: BundleFinder.self)"))
+        #expect(!contents.contains("fatalError"))
+        #expect(!contents.contains(".bundle"))
+    }
+
+    @Test
     func mapWhenProjectIsNotExternalTargetHasSwiftSourceAndResourceFiles() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.swift"]

@@ -315,8 +315,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.projectDescription.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .automation:
                 [
