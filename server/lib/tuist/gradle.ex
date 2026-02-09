@@ -67,7 +67,7 @@ defmodule Tuist.Gradle do
 
     IngestRepo.insert_all(Build, [build_entry])
 
-    unless Enum.empty?(tasks) do
+    if !Enum.empty?(tasks) do
       create_tasks(build_id, attrs.project_id, tasks, now)
     end
 

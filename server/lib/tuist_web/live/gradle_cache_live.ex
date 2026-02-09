@@ -238,5 +238,4 @@ defmodule TuistWeb.GradleCacheLive do
       fn -> Analytics.cache_event_analytics(project_id, opts) end
     ])
   end
-
 end
