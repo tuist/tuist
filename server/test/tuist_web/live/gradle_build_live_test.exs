@@ -11,6 +11,16 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
   @now NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
+  setup %{project: project, conn: conn} do
+    project =
+      project
+      |> Ecto.Changeset.change(build_system: :gradle)
+      |> Tuist.Repo.update!()
+
+    conn = Plug.Conn.assign(conn, :selected_project, project)
+    %{project: project, conn: conn}
+  end
+
   test "list_tasks with like filter works at the data layer", %{project: project} do
     build_id =
       GradleFixtures.build_fixture(
@@ -67,7 +77,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
       )
 
     {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/gradle-cache/builds/#{build_id}")
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}")
 
     assert has_element?(lv, "h1", "my-android-app")
     assert has_element?(lv, "td", ":app:compileKotlin")
@@ -94,7 +104,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     {:ok, _lv, html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/gradle-cache/builds/#{build_id}?tasks-filter=compileKotlin"
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tasks-filter=compileKotlin"
       )
 
     assert html =~ ":app:compileKotlin"
@@ -122,7 +132,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     {:ok, _lv, html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/gradle-cache/builds/#{build_id}?tasks-filter=compile"
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tasks-filter=compile"
       )
 
     assert html =~ ":app:compileKotlin"
@@ -148,7 +158,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     {:ok, _lv, html} =
       live(
         conn,
-        ~p"/#{organization.account.name}/#{project.name}/gradle-cache/builds/#{build_id}?tasks-filter=:app:"
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}?tasks-filter=:app:"
       )
 
     assert html =~ ":app:compileKotlin"
@@ -172,7 +182,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
       )
 
     {:ok, lv, _html} =
-      live(conn, ~p"/#{organization.account.name}/#{project.name}/gradle-cache/builds/#{build_id}")
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_id}")
 
     # All three tasks should be visible initially
     assert has_element?(lv, "td", ":app:compileKotlin")

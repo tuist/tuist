@@ -16,11 +16,13 @@ defmodule TuistWeb.GradleBuildLive do
 
   @table_page_size 25
 
-  def mount(
-        %{"gradle_build_id" => build_id},
-        _session,
-        %{assigns: %{selected_project: project, selected_account: account}} = socket
-      ) do
+  @doc """
+  Assigns gradle build data to the socket during mount.
+  Called from BuildRunLive when the project is a gradle project.
+  """
+  def assign_mount(socket, build_id) do
+    %{selected_project: project, selected_account: account} = socket.assigns
+
     build = Gradle.get_build(build_id)
 
     if is_nil(build) or build.project_id != project.id do
@@ -45,68 +47,59 @@ defmodule TuistWeb.GradleBuildLive do
     slug = "#{account.name}/#{project.name}"
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
-    socket =
-      socket
-      |> assign(:build, build)
-      |> assign(:build_started_at, build_started_at)
-      |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
-      |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
-      |> assign(:download_throughput, download_throughput)
-      |> assign(:upload_throughput, upload_throughput)
-      |> assign(:title, title)
-      |> assign(:head_title, "#{title} · #{slug} · Tuist")
-
-    {:ok, socket}
+    socket
+    |> assign(:build, build)
+    |> assign(:build_started_at, build_started_at)
+    |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
+    |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
+    |> assign(:download_throughput, download_throughput)
+    |> assign(:upload_throughput, upload_throughput)
+    |> assign(:title, title)
+    |> assign(:head_title, "#{title} · #{slug} · Tuist")
   end
 
-  def handle_params(params, _uri, socket) do
+  @doc """
+  Assigns gradle build tab data to the socket during handle_params.
+  Called from BuildRunLive when the project is a gradle project.
+  """
+  def assign_handle_params(socket, params) do
     selected_tab = params["tab"] || "overview"
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    socket =
-      socket
-      |> assign(:selected_tab, selected_tab)
-      |> assign(:uri, uri)
-      |> assign_tab_data(selected_tab, params)
+    socket
+    |> assign(:selected_tab, selected_tab)
+    |> assign(:uri, uri)
+    |> assign_tab_data(selected_tab, params)
+  end
 
-    {:noreply, socket}
+  defp build_run_path(socket) do
+    %{selected_account: account, selected_project: project, build: build} = socket.assigns
+    "/#{account.name}/#{project.name}/builds/build-runs/#{build.id}"
   end
 
   def handle_event("search-tasks", %{"search" => search}, socket) do
-    %{selected_account: account, selected_project: project, build: build, uri: uri} =
-      socket.assigns
-
     query =
-      uri.query
+      socket.assigns.uri.query
       |> Query.put("tasks-filter", search)
       |> Query.put("tasks-page", "1")
 
-    {:noreply,
-     push_patch(socket,
-       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{query}"
-     )}
+    {:noreply, push_patch(socket, to: "#{build_run_path(socket)}?#{query}")}
   end
 
   def handle_event("search-cacheable-tasks", %{"search" => search}, socket) do
-    %{selected_account: account, selected_project: project, build: build, uri: uri} =
-      socket.assigns
-
     query =
-      uri.query
+      socket.assigns.uri.query
       |> Query.put("cacheable-tasks-filter", search)
       |> Query.put("cacheable-tasks-page", "1")
 
-    {:noreply,
-     push_patch(socket,
-       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{query}"
-     )}
+    {:noreply, push_patch(socket, to: "#{build_run_path(socket)}?#{query}")}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    %{selected_account: account, selected_project: project, build: build, selected_tab: tab} =
-      socket.assigns
-
-    page_param = if tab == "gradle-cache", do: "cacheable-tasks-page", else: "tasks-page"
+    page_param =
+      if socket.assigns.selected_tab == "gradle-cache",
+        do: "cacheable-tasks-page",
+        else: "tasks-page"
 
     updated_params =
       filter_id
@@ -115,18 +108,16 @@ defmodule TuistWeb.GradleBuildLive do
 
     {:noreply,
      socket
-     |> push_patch(
-       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_params)}"
-     )
+     |> push_patch(to: "#{build_run_path(socket)}?#{URI.encode_query(updated_params)}")
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
 
   def handle_event("update_filter", params, socket) do
-    %{selected_account: account, selected_project: project, build: build, selected_tab: tab} =
-      socket.assigns
-
-    page_param = if tab == "gradle-cache", do: "cacheable-tasks-page", else: "tasks-page"
+    page_param =
+      if socket.assigns.selected_tab == "gradle-cache",
+        do: "cacheable-tasks-page",
+        else: "tasks-page"
 
     updated_query_params =
       params
@@ -135,9 +126,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     {:noreply,
      socket
-     |> push_patch(
-       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_query_params)}"
-     )
+     |> push_patch(to: "#{build_run_path(socket)}?#{URI.encode_query(updated_query_params)}")
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end

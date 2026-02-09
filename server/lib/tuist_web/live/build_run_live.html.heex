@@ -1,3 +1,6 @@
+<%= if Tuist.Projects.Project.gradle_project?(@selected_project) do %>
+  {TuistWeb.GradleBuildLive.render(assigns)}
+<% else %>
 <div id="build-run">
   <.button
     label={dgettext("dashboard_builds", "Build Runs")}
@@ -1505,3 +1508,4 @@
     </div>
   <% end %>
 </div>
+<% end %>

@@ -782,7 +782,6 @@ defmodule TuistWeb.Router do
       live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
       live "/gradle-cache", GradleCacheLive
-      live "/gradle-cache/builds/:gradle_build_id", GradleBuildLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
