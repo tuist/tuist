@@ -81,6 +81,7 @@ defmodule Cache.Registry.Metadata do
   """
 
   alias Cache.Config
+  alias Cache.Registry.KeyNormalizer
 
   require Logger
 
@@ -109,7 +110,7 @@ defmodule Cache.Registry.Metadata do
   """
   def get_package(scope, name, opts \\ []) do
     fresh = Keyword.get(opts, :fresh, false)
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     cache_key = cache_key(scope, name)
 
     if fresh do
@@ -137,7 +138,7 @@ defmodule Cache.Registry.Metadata do
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
   def put_package(scope, name, metadata) do
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
     json_body = Jason.encode!(metadata)
@@ -161,7 +162,7 @@ defmodule Cache.Registry.Metadata do
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
   def delete_package(scope, name) do
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
 
@@ -273,10 +274,6 @@ defmodule Cache.Registry.Metadata do
   defp s3_key(scope, name), do: "registry/metadata/#{scope}/#{name}/index.json"
 
   defp cache_key(scope, name), do: {scope, name}
-
-  defp normalize_scope_name(scope, name) do
-    {String.downcase(scope), name |> String.replace(".", "_") |> String.downcase()}
-  end
 
   defp bucket, do: Config.registry_bucket()
 

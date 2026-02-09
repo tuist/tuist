@@ -23,6 +23,33 @@ defmodule Cache.Registry.KeyNormalizer do
   end
 
   @doc """
+  Normalizes a package name by replacing dots with underscores and downcasing.
+
+  ## Examples
+
+      iex> Cache.Registry.KeyNormalizer.normalize_name("swift.argument.parser")
+      "swift_argument_parser"
+
+      iex> Cache.Registry.KeyNormalizer.normalize_name("SwiftNIO")
+      "swiftnio"
+  """
+  def normalize_name(name) when is_binary(name) do
+    name |> String.replace(".", "_") |> String.downcase()
+  end
+
+  @doc """
+  Normalizes a scope and name pair.
+
+  ## Examples
+
+      iex> Cache.Registry.KeyNormalizer.normalize_scope_name("Apple", "swift.argument.parser")
+      {"apple", "swift_argument_parser"}
+  """
+  def normalize_scope_name(scope, name) when is_binary(scope) and is_binary(name) do
+    {normalize_scope(scope), normalize_name(name)}
+  end
+
+  @doc """
   Normalizes a version string to semantic version format matching the server.
 
   - Strips leading "v" prefix
@@ -78,7 +105,8 @@ defmodule Cache.Registry.KeyNormalizer do
   The key format matches the server's `package_object_key/2` function exactly:
   `registry/swift/{scope}/{name}/{version}/{path}`
 
-  All components are downcased and the version is normalized.
+  All components are normalized (downcased, dots replaced with underscores in names)
+  and the version is normalized.
 
   ## Options
 
@@ -100,7 +128,7 @@ defmodule Cache.Registry.KeyNormalizer do
     version = Keyword.get(opts, :version)
     path = Keyword.get(opts, :path)
 
-    object_key = "registry/swift/#{String.downcase(scope)}/#{String.downcase(name)}"
+    object_key = "registry/swift/#{normalize_scope(scope)}/#{normalize_name(name)}"
 
     object_key =
       if is_nil(version) do

@@ -4,6 +4,7 @@ defmodule Cache.Registry.SwiftPackageIndex do
   """
 
   alias Cache.Registry.GitHub
+  alias Cache.Registry.KeyNormalizer
 
   require Logger
 
@@ -26,10 +27,11 @@ defmodule Cache.Registry.SwiftPackageIndex do
 
   defp package_from_full_handle(full_handle) do
     [scope, name] = String.split(full_handle, "/")
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
 
     %{
-      scope: String.downcase(scope),
-      name: name |> String.replace(".", "_") |> String.downcase(),
+      scope: scope,
+      name: name,
       repository_full_handle: full_handle
     }
   end

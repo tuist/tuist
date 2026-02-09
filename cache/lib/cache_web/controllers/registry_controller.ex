@@ -66,7 +66,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   def list_releases(conn, %{"scope" => scope, "name" => name}) do
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
 
     case Metadata.get_package(scope, name) do
       {:ok, metadata} ->
@@ -89,7 +89,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   def show_release(conn, %{"scope" => scope, "name" => name, "version" => version}) do
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
 
     if String.ends_with?(version, ".zip") do
       download_archive(conn, %{
@@ -136,7 +136,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   def download_archive(conn, %{"scope" => scope, "name" => name, "version" => version}) do
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     normalized_version = KeyNormalizer.normalize_version(version)
 
     key =
@@ -185,7 +185,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   def show_manifest(conn, %{"scope" => scope, "name" => name, "version" => version}) do
-    {scope, name} = normalize_scope_name(scope, name)
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     normalized_version = KeyNormalizer.normalize_version(version)
     swift_version = conn.query_params["swift-version"]
 
@@ -370,14 +370,8 @@ defmodule CacheWeb.RegistryController do
 
   defp scope_name_from_full_handle(repository_full_handle) do
     [scope, name] = String.split(repository_full_handle, "/")
+    {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
 
-    %{
-      scope: String.downcase(scope),
-      name: name |> String.replace(".", "_") |> String.downcase()
-    }
-  end
-
-  defp normalize_scope_name(scope, name) do
-    {String.downcase(scope), name |> String.replace(".", "_") |> String.downcase()}
+    %{scope: scope, name: name}
   end
 end

@@ -128,5 +128,46 @@ defmodule Cache.Registry.KeyNormalizerTest do
       result = KeyNormalizer.package_object_key(%{scope: "Apple", name: "Parser"})
       assert result == "registry/swift/apple/parser"
     end
+
+    test "replaces dots with underscores in name" do
+      result =
+        KeyNormalizer.package_object_key(
+          %{scope: "apple", name: "swift.argument.parser"},
+          version: "1.0.0",
+          path: "source_archive.zip"
+        )
+
+      assert result == "registry/swift/apple/swift_argument_parser/1.0.0/source_archive.zip"
+    end
+  end
+
+  describe "normalize_name/1" do
+    test "replaces dots with underscores" do
+      assert KeyNormalizer.normalize_name("swift.argument.parser") == "swift_argument_parser"
+    end
+
+    test "downcases name" do
+      assert KeyNormalizer.normalize_name("SwiftNIO") == "swiftnio"
+    end
+
+    test "handles name with dots and mixed case" do
+      assert KeyNormalizer.normalize_name("Swift.Argument.Parser") == "swift_argument_parser"
+    end
+
+    test "keeps already-normalized name unchanged" do
+      assert KeyNormalizer.normalize_name("swift-argument-parser") == "swift-argument-parser"
+    end
+  end
+
+  describe "normalize_scope_name/2" do
+    test "normalizes both scope and name" do
+      assert KeyNormalizer.normalize_scope_name("Apple", "swift.argument.parser") ==
+               {"apple", "swift_argument_parser"}
+    end
+
+    test "keeps already-normalized values" do
+      assert KeyNormalizer.normalize_scope_name("apple", "swift-nio") ==
+               {"apple", "swift-nio"}
+    end
   end
 end
