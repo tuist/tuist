@@ -42,8 +42,8 @@ defmodule Tuist.Builds.Build do
     field :is_ci, :boolean
     field :model_identifier, Ch, type: "Nullable(String)"
     field :scheme, Ch, type: "Nullable(String)"
-    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'unknown' = 127)"
-    field :category, Ch, type: "Enum8('clean' = 0, 'incremental' = 1, 'unknown' = 127)"
+    field :status, Ch, type: "LowCardinality(String)"
+    field :category, Ch, type: "LowCardinality(String)"
     field :configuration, Ch, type: "Nullable(String)"
     field :git_branch, Ch, type: "Nullable(String)"
     field :git_commit_sha, Ch, type: "Nullable(String)"
@@ -52,9 +52,7 @@ defmodule Tuist.Builds.Build do
     field :ci_project_handle, Ch, type: "Nullable(String)"
     field :ci_host, Ch, type: "Nullable(String)"
 
-    field :ci_provider, Ch,
-      type:
-        "Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5, 'unknown' = 127)"
+    field :ci_provider, Ch, type: "LowCardinality(String)"
 
     field :cacheable_task_remote_hits_count, Ch, type: "Int32", default: 0
     field :cacheable_task_local_hits_count, Ch, type: "Int32", default: 0
