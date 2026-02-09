@@ -60,6 +60,61 @@ defmodule TuistCommon.GitHubTest do
     end
   end
 
+  describe "get_repository_content/5" do
+    test "returns file content when response is a file" do
+      stub(Req, :request, fn opts ->
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/contents/Package.swift"
+        assert opts[:params] == %{ref: "main"}
+
+        content = Base.encode64("// Swift Package")
+
+        {:ok, %Req.Response{status: 200, body: %{"content" => content, "encoding" => "base64"}}}
+      end)
+
+      assert {:ok, {:file, "// Swift Package"}} =
+               GitHub.get_repository_content("tuist/tuist", "test-token", "Package.swift", "main")
+    end
+
+    test "returns directory listing when response is a list" do
+      stub(Req, :request, fn opts ->
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/contents/Sources"
+        assert opts[:params] == %{ref: "main"}
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{"path" => "Sources/Foo.swift", "type" => "file"},
+             %{"path" => "Sources/Bar", "type" => "dir"}
+           ]
+         }}
+      end)
+
+      assert {:ok, {:directory, contents}} =
+               GitHub.get_repository_content("tuist/tuist", "test-token", "Sources", "main")
+
+      assert length(contents) == 2
+    end
+
+    test "returns error for 404" do
+      stub(Req, :request, fn _opts ->
+        {:ok, %Req.Response{status: 404, body: %{}}}
+      end)
+
+      assert {:error, :not_found} =
+               GitHub.get_repository_content("tuist/tuist", "test-token", "nonexistent", "main")
+    end
+
+    test "returns error for invalid base64 content" do
+      stub(Req, :request, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: %{"content" => "not-valid-base64!!!", "encoding" => "base64"}}}
+      end)
+
+      assert {:error, :invalid_content} =
+               GitHub.get_repository_content("tuist/tuist", "test-token", "Package.swift", "main")
+    end
+  end
+
   describe "get_file_content/5" do
     test "returns decoded file content" do
       stub(Req, :request, fn opts ->

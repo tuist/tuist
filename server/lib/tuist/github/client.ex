@@ -180,35 +180,21 @@ defmodule Tuist.GitHub.Client do
     path = Keyword.get(opts, :path, "")
     reference = Keyword.get(opts, :reference, "HEAD")
 
-    case TuistCommon.GitHub.get_file_content(
+    case TuistCommon.GitHub.get_repository_content(
            repository_full_handle,
            token,
            path,
            reference,
            finch_opts()
          ) do
-      {:ok, content} ->
+      {:ok, {:file, content}} ->
         {:ok, %Content{path: path, content: content}}
 
+      {:ok, {:directory, directory_contents}} ->
+        {:ok, Enum.map(directory_contents, &%Content{path: &1["path"]})}
+
       {:error, :not_found} ->
-        case TuistCommon.GitHub.list_repository_contents(
-               repository_full_handle,
-               token,
-               reference,
-               finch_opts()
-             ) do
-          {:ok, directory_contents} ->
-            {:ok, Enum.map(directory_contents, &%Content{path: &1["path"]})}
-
-          {:error, :not_found} ->
-            {:error, :not_found}
-
-          {:error, {:http_error, status}} ->
-            {:error, "Unexpected status code: #{status} when getting contents."}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        {:error, :not_found}
 
       {:error, {:http_error, status}} ->
         {:error, "Unexpected status code: #{status} when getting contents."}

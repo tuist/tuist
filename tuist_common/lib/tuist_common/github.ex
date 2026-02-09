@@ -26,6 +26,47 @@ defmodule TuistCommon.GitHub do
   end
 
   @doc """
+  Gets repository content at a path using a single request.
+
+  Returns `{:ok, {:file, decoded_content}}` for files and
+  `{:ok, {:directory, entries}}` for directories, distinguishing
+  by the shape of the GitHub API response.
+
+  ## Options
+    * `:finch` - The Finch instance to use for requests (required)
+  """
+  @spec get_repository_content(String.t(), String.t() | nil, String.t(), String.t(), keyword()) ::
+          {:ok, {:file, binary()}} | {:ok, {:directory, list()}} | {:error, term()}
+  def get_repository_content(repository_full_handle, token, path, ref, opts \\ []) do
+    url = "#{@api_base}/repos/#{repository_full_handle}/contents/#{path}"
+
+    :get
+    |> request(url, token, Keyword.put(opts, :params, %{ref: ref}))
+    |> case do
+      {:ok, %{status: 200, body: %{"content" => content, "encoding" => "base64"}}} ->
+        content
+        |> String.replace("\n", "")
+        |> Base.decode64()
+        |> case do
+          {:ok, decoded} -> {:ok, {:file, decoded}}
+          :error -> {:error, :invalid_content}
+        end
+
+      {:ok, %{status: 200, body: body}} when is_list(body) ->
+        {:ok, {:directory, body}}
+
+      {:ok, %{status: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Lists the contents of a repository directory.
 
   ## Options
