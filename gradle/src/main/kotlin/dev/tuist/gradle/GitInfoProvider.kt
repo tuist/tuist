@@ -15,11 +15,16 @@ class ProcessGitInfoProvider : GitInfoProvider {
         val process = ProcessBuilder(listOf("git") + args)
             .redirectErrorStream(true)
             .start()
-        val output = process.inputStream.bufferedReader().readLine()?.trim()
-        val exitCode = process.waitFor()
-        if (exitCode != 0 || output.isNullOrBlank()) {
-            throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")
+        try {
+            val output = process.inputStream.bufferedReader().use { it.readLine()?.trim() }
+            val exitCode = process.waitFor()
+            if (exitCode != 0 || output.isNullOrBlank()) {
+                throw RuntimeException("git ${args.first()} failed (exit code $exitCode)")
+            }
+            return output
+        } catch (e: Exception) {
+            process.destroyForcibly()
+            throw e
         }
-        return output
     }
 }
