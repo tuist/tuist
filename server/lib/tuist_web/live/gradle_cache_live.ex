@@ -137,31 +137,7 @@ defmodule TuistWeb.GradleCacheLive do
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
 
     analytics_chart_data =
-      case analytics_selected_widget do
-        "cache_uploads" ->
-          %{
-            dates: cache_events.uploads.dates,
-            values: cache_events.uploads.values,
-            name: dgettext("dashboard_gradle", "Cache uploads"),
-            value_formatter: "fn:formatBytes"
-          }
-
-        "cache_downloads" ->
-          %{
-            dates: cache_events.downloads.dates,
-            values: cache_events.downloads.values,
-            name: dgettext("dashboard_gradle", "Cache downloads"),
-            value_formatter: "fn:formatBytes"
-          }
-
-        "cache_hit_rate" ->
-          %{
-            dates: hit_rate_analytics.dates,
-            values: hit_rate_analytics.values,
-            name: dgettext("dashboard_gradle", "Cache hit rate"),
-            value_formatter: "{value}%"
-          }
-      end
+      analytics_chart_data(analytics_selected_widget, hit_rate_analytics, cache_events)
 
     socket
     |> assign(:analytics_preset, preset)
@@ -178,6 +154,33 @@ defmodule TuistWeb.GradleCacheLive do
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:uri, uri)
+  end
+
+  defp analytics_chart_data("cache_uploads", _hit_rate_analytics, cache_events) do
+    %{
+      dates: cache_events.uploads.dates,
+      values: cache_events.uploads.values,
+      name: dgettext("dashboard_gradle", "Cache uploads"),
+      value_formatter: "fn:formatBytes"
+    }
+  end
+
+  defp analytics_chart_data("cache_downloads", _hit_rate_analytics, cache_events) do
+    %{
+      dates: cache_events.downloads.dates,
+      values: cache_events.downloads.values,
+      name: dgettext("dashboard_gradle", "Cache downloads"),
+      value_formatter: "fn:formatBytes"
+    }
+  end
+
+  defp analytics_chart_data(_cache_hit_rate, hit_rate_analytics, _cache_events) do
+    %{
+      dates: hit_rate_analytics.dates,
+      values: hit_rate_analytics.values,
+      name: dgettext("dashboard_gradle", "Cache hit rate"),
+      value_formatter: "{value}%"
+    }
   end
 
   defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")

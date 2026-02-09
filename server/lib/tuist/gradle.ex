@@ -167,7 +167,6 @@ defmodule Tuist.Gradle do
 
   Used as the reference point for computing "started after" offsets.
   """
-  @spec build_started_at(Ecto.UUID.t()) :: NaiveDateTime.t() | nil
   def build_started_at(build_id) do
     query =
       from(t in Task,
@@ -274,7 +273,6 @@ defmodule Tuist.Gradle do
   Returns `nil` if there are no cacheable tasks that were either
   cache hits or executed.
   """
-  @spec cache_hit_rate(Build.t()) :: float() | nil
   def cache_hit_rate(build) do
     from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     total = from_cache + (build.tasks_executed_count || 0)
