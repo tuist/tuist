@@ -141,81 +141,20 @@ defmodule Tuist.Builds.Build do
     end)
   end
 
-  def changeset(attrs) do
-    id = Map.get(attrs, :id) || UUIDv7.generate()
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :microsecond)
-
-    attrs
-    |> Map.put(:id, id)
-    |> Map.put_new(:inserted_at, now)
-    |> Map.put_new(:status, "success")
-    |> default_to_unknown([:status, :category, :ci_provider])
-    |> convert_datetime_field(:inserted_at)
-    |> normalize_custom_tags()
-    |> normalize_custom_values()
-    |> ensure_defaults()
-    |> ensure_all_fields()
-  end
-
-  defp convert_datetime_field(attrs, field) do
-    case Map.get(attrs, field) do
-      %DateTime{} = dt ->
-        Map.put(attrs, field, dt |> DateTime.to_naive() |> ensure_microsecond_precision())
-
-      %NaiveDateTime{} = ndt ->
-        Map.put(attrs, field, ensure_microsecond_precision(ndt))
-
-      _ ->
-        attrs
-    end
-  end
-
-  defp ensure_microsecond_precision(%NaiveDateTime{} = ndt) do
-    %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}
-  end
-
-  defp ensure_defaults(attrs) do
-    attrs
-    |> Map.put_new(:is_ci, false)
-    |> Map.put_new(:cacheable_task_remote_hits_count, 0)
-    |> Map.put_new(:cacheable_task_local_hits_count, 0)
-    |> Map.put_new(:cacheable_tasks_count, 0)
-    |> Map.put_new(:custom_tags, [])
-    |> Map.put_new(:custom_values, %{})
-  end
-
-  defp ensure_all_fields(attrs) do
-    struct = __struct__()
-
-    Enum.reduce(__schema__(:fields), attrs, fn field, acc ->
-      Map.put_new(acc, field, Map.get(struct, field))
+  def to_buffer_map(%__MODULE__{} = build) do
+    build
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+    |> Map.update(:id, UUIDv7.generate(), fn id -> id || UUIDv7.generate() end)
+    |> Map.update(:inserted_at, NaiveDateTime.utc_now(), fn
+      nil -> NaiveDateTime.utc_now()
+      %DateTime{} = dt -> DateTime.to_naive(dt)
+      other -> other
     end)
-  end
-
-  defp normalize_custom_tags(attrs) do
-    case Map.get(attrs, :custom_tags) do
-      nil -> attrs
-      tags when is_list(tags) -> Map.put(attrs, :custom_tags, Enum.filter(tags, &is_binary/1))
-      _ -> Map.put(attrs, :custom_tags, [])
-    end
-  end
-
-  defp normalize_custom_values(attrs) do
-    case Map.get(attrs, :custom_values) do
-      nil ->
-        attrs
-
-      values when is_map(values) ->
-        filtered =
-          for {key, value} <- values, is_binary(key) and is_binary(value), into: %{} do
-            {key, value}
-          end
-
-        Map.put(attrs, :custom_values, filtered)
-
-      _ ->
-        Map.put(attrs, :custom_values, %{})
-    end
+    |> Map.new(fn
+      {key, %NaiveDateTime{} = ndt} -> {key, %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}}
+      other -> other
+    end)
   end
 
   defp validate_custom_tags(changeset) do

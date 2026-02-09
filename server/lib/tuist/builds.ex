@@ -51,10 +51,10 @@ defmodule Tuist.Builds do
     changeset = Build.create_changeset(%Build{}, attrs)
 
     if changeset.valid? do
-      build_data = Build.changeset(attrs)
+      build = Ecto.Changeset.apply_changes(changeset)
+      build_map = Build.to_buffer_map(build)
 
-      {:ok, build_map} = Build.Buffer.insert(build_data)
-      build = struct(Build, build_map)
+      {:ok, build_map} = Build.Buffer.insert(build_map)
 
       Task.await_many(
         [
