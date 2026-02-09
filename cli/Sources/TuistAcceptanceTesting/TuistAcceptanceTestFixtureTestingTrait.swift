@@ -9,6 +9,7 @@ import TuistEnvironmentTesting
 import TuistEnvKey
 import TuistOrganizationCommand
 import TuistProjectCommand
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 @testable import TuistKit

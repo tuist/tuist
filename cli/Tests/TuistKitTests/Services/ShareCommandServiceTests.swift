@@ -11,6 +11,7 @@ import TuistConstants
 import TuistCore
 import TuistLoader
 import TuistServer
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import TuistUserInputReader

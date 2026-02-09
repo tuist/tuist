@@ -4,6 +4,7 @@ import Testing
 import TuistAcceptanceTesting
 import TuistCacheCommand
 import TuistEnvironment
+import TuistLoggerTesting
 import TuistTesting
 
 @testable import TuistKit

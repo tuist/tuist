@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistConfigLoader
+import TuistNooraTesting
 import TuistServer
 
 @testable import TuistProjectCommand

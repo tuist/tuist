@@ -7,6 +7,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistPlugin
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph

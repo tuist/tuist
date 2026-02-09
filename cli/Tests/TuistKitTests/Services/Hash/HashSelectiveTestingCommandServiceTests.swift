@@ -10,6 +10,7 @@ import TuistCore
 import TuistGenerator
 import TuistHasher
 import TuistLoader
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph

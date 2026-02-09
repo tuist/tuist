@@ -3,6 +3,8 @@ import Testing
 import TuistAcceptanceTesting
 import TuistLogging
 import TuistServer
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 

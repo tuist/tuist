@@ -6,6 +6,7 @@ import Testing
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
+import TuistNooraTesting
 import TuistOpener
 import TuistServer
 

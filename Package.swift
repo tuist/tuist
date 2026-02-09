@@ -597,6 +597,23 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistNooraTesting",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+            "TuistAlert",
+        ],
+        path: "cli/Sources/TuistNooraTesting"
+    ),
+    .target(
+        name: "TuistLoggerTesting",
+        dependencies: [
+            "TuistLogging",
+            "TuistEnvironment",
+            loggingDependency,
+        ],
+        path: "cli/Sources/TuistLoggerTesting"
+    ),
     // MARK: Cross-platform test targets
     .testTarget(
         name: "TuistConfigLoaderTests",
@@ -644,6 +661,7 @@ var targets: [Target] = [
             "TuistAccountCommand",
             "TuistServer",
             "TuistEnvironmentTesting",
+            "TuistNooraTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistAccountCommandTests"
@@ -654,6 +672,7 @@ var targets: [Target] = [
             "TuistProjectCommand",
             "TuistServer",
             "TuistEnvironmentTesting",
+            "TuistNooraTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistProjectCommandTests"
@@ -664,6 +683,7 @@ var targets: [Target] = [
             "TuistOrganizationCommand",
             "TuistServer",
             "TuistEnvironmentTesting",
+            "TuistNooraTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistOrganizationCommandTests"
@@ -674,6 +694,7 @@ var targets: [Target] = [
             "TuistBundleCommand",
             "TuistServer",
             "TuistEnvironmentTesting",
+            "TuistNooraTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistBundleCommandTests"
@@ -897,6 +918,8 @@ targets.append(contentsOf: [
             "TuistServer",
             "TuistHTTP",
             "TuistAlert",
+            "TuistNooraTesting",
+            "TuistLoggerTesting",
             "TuistEnvironmentTesting",
             xcodeGraphDependency,
             pathDependency,

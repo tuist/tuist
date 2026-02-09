@@ -10,6 +10,7 @@ import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistServer
+import TuistLoggerTesting
 import TuistSupport
 import XcodeGraph
 

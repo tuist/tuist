@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistCore
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 

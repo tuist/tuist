@@ -4,6 +4,7 @@ import Testing
 import TuistAcceptanceTesting
 import TuistEnvironment
 import TuistLogging
+import TuistLoggerTesting
 import TuistSupport
 import TuistTesting
 import XcodeProj

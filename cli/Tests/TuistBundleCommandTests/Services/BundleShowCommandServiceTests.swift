@@ -7,6 +7,7 @@ import TuistConfig
 import TuistConfigLoader
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistNooraTesting
 import TuistServer
 
 @testable import TuistBundleCommand

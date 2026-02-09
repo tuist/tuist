@@ -8,6 +8,7 @@
     import TuistHTTP
     import TuistLoader
     import TuistServer
+    import TuistNooraTesting
     import TuistSupport
     import TuistTesting
     @testable import TuistRegistryCommand

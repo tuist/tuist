@@ -10,6 +10,7 @@
     import TuistEnvironment
     import TuistLoader
     import TuistServer
+    import TuistNooraTesting
     import TuistSupport
     import TuistTesting
 

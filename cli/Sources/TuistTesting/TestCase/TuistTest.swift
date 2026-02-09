@@ -10,7 +10,9 @@ import TuistAlert
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistLoggerTesting
 import TuistLogging
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import XcodeProj

@@ -1,8 +1,9 @@
 import Foundation
 import Mockable
-import TuistConfigLoader
-import TuistServer
 import Testing
+import TuistConfigLoader
+import TuistNooraTesting
+import TuistServer
 
 @testable import TuistOrganizationCommand
 

@@ -4,6 +4,7 @@ import OpenAPIRuntime
 import Testing
 import TuistConfigLoader
 import TuistEnvironmentTesting
+import TuistNooraTesting
 import TuistServer
 
 @testable import TuistAccountCommand
