@@ -121,7 +121,7 @@ abstract class TuistBuildInsightsService :
     private var buildStartTime: Long = System.currentTimeMillis()
     @Volatile private var buildFailed = false
 
-    private var listenerManager: BuildOperationListenerManager? = null
+    internal var listenerManager: BuildOperationListenerManager? = null
     private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
     private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
     private val taskCacheMetadata = ConcurrentHashMap<String, TaskCacheMetadata>()
