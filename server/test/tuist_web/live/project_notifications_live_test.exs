@@ -47,6 +47,52 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
       {:ok, unchanged_rule} = Alerts.get_alert_rule(other_alert_rule.id)
       assert unchanged_rule.name == "Original Name"
     end
+
+    test "successfully updates an alert rule belonging to the current project", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: an alert rule on the current project
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, name: "Original Name")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When: the user updates the name via the edit form and saves
+      render_hook(lv, "update_edit_alert_form_name", %{"id" => alert_rule.id, "value" => "Updated Name"})
+      render_hook(lv, "update_alert_rule", %{"id" => alert_rule.id})
+
+      # Then: the alert rule should be updated
+      {:ok, updated_rule} = Alerts.get_alert_rule(alert_rule.id)
+      assert updated_rule.name == "Updated Name"
+    end
+
+    test "updates a rule that appeared after deleting another rule", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: project starts with rule A
+      rule_a = AlertsFixtures.alert_rule_fixture(project: project, name: "Rule A")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # And: another user creates rule B on the same project
+      rule_b = AlertsFixtures.alert_rule_fixture(project: project, name: "Rule B")
+
+      # When: the current user deletes rule A (which refreshes alert_rules from DB,
+      # now including rule B, but does NOT rebuild edit_alert_forms)
+      render_hook(lv, "delete_alert_rule", %{"alert_rule_id" => rule_a.id})
+
+      # And: the user opens rule B's edit modal and clicks Update without editing
+      render_hook(lv, "update_alert_rule", %{"id" => rule_b.id})
+
+      # Then: rule B should remain unchanged (no crash)
+      {:ok, unchanged_rule} = Alerts.get_alert_rule(rule_b.id)
+      assert unchanged_rule.name == "Rule B"
+    end
   end
 
   describe "create_alert_rule" do
