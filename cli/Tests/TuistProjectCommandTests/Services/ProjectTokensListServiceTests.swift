@@ -1,106 +1,85 @@
-#if os(macOS)
-    import Foundation
-    import Mockable
-    import TuistConfigLoader
-    import TuistLoader
-    import TuistServer
-    import TuistTesting
-    import XCTest
+import Foundation
+import Mockable
+import Testing
+import TuistConfigLoader
+import TuistServer
 
-    @testable import TuistProjectCommand
+@testable import TuistProjectCommand
 
-    final class ProjectTokensListServiceTests: TuistUnitTestCase {
-        private var listProjectTokensService: MockListProjectTokensServicing!
-        private var serverEnvironmentService: MockServerEnvironmentServicing!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
-        private var subject: ProjectTokensListService!
+struct ProjectTokensListServiceTests {
+    private let listProjectTokensService = MockListProjectTokensServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let configLoader = MockConfigLoading()
+    private let serverURL = URL(string: "https://test.tuist.dev")!
+    private let subject: ProjectTokensListService
 
-        override func setUp() {
-            super.setUp()
-
-            listProjectTokensService = .init()
-            serverEnvironmentService = .init()
-            configLoader = .init()
-            serverURL = URL(string: "https://test.tuist.dev")!
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(url: serverURL))
-            given(serverEnvironmentService)
-                .url(configServerURL: .value(serverURL))
-                .willReturn(serverURL)
-            subject = ProjectTokensListService(
-                listProjectTokensService: listProjectTokensService,
-                serverEnvironmentService: serverEnvironmentService,
-                configLoader: configLoader
-            )
-        }
-
-        override func tearDown() {
-            listProjectTokensService = nil
-            serverEnvironmentService = nil
-            configLoader = nil
-            serverURL = nil
-            subject = nil
-
-            super.tearDown()
-        }
-
-        func test_list_project_tokens() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(listProjectTokensService)
-                    .listProjectTokens(
-                        fullHandle: .value("tuist-org/tuist"),
-                        serverURL: .any
-                    )
-                    .willReturn(
-                        [
-                            .test(
-                                id: "project-token-one",
-                                insertedAt: Date(timeIntervalSince1970: 0)
-                            ),
-                            .test(
-                                id: "project-token-two",
-                                insertedAt: Date(timeIntervalSince1970: 10)
-                            ),
-                        ]
-                    )
-
-                // When
-                try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
-
-                // Then
-                XCTAssertStandardOutput(
-                    pattern: """
-                    ID                 Created at
-                    ─────────────────  ─────────────────────────
-                    project-token-one  1970-01-01 00:00:00 +0000
-                    project-token-two  1970-01-01 00:00:10 +0000
-                    """
-                )
-            }
-        }
-
-        func test_list_project_tokens_when_none_present() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(listProjectTokensService)
-                    .listProjectTokens(
-                        fullHandle: .value("tuist-org/tuist"),
-                        serverURL: .any
-                    )
-                    .willReturn([])
-
-                // When
-                try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
-
-                // Then
-                XCTAssertStandardOutput(
-                    pattern:
-                    "No project tokens found. Create one by running `tuist project tokens create tuist-org/tuist."
-                )
-            }
-        }
+    init() {
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(url: serverURL))
+        given(serverEnvironmentService)
+            .url(configServerURL: .value(serverURL))
+            .willReturn(serverURL)
+        subject = ProjectTokensListService(
+            listProjectTokensService: listProjectTokensService,
+            serverEnvironmentService: serverEnvironmentService,
+            configLoader: configLoader
+        )
     }
-#endif
+
+    @Test(.withMockedNoora) func list_project_tokens() async throws {
+        // Given
+        given(listProjectTokensService)
+            .listProjectTokens(
+                fullHandle: .value("tuist-org/tuist"),
+                serverURL: .any
+            )
+            .willReturn(
+                [
+                    .test(
+                        id: "project-token-one",
+                        insertedAt: Date(timeIntervalSince1970: 0)
+                    ),
+                    .test(
+                        id: "project-token-two",
+                        insertedAt: Date(timeIntervalSince1970: 10)
+                    ),
+                ]
+            )
+
+        // When
+        try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
+
+        // Then
+        #expect(
+            ui().contains(
+                """
+                ID                 Created at
+                \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+                project-token-one  1970-01-01 00:00:00 +0000
+                project-token-two  1970-01-01 00:00:10 +0000
+                """
+            )
+        )
+    }
+
+    @Test(.withMockedNoora) func list_project_tokens_when_none_present() async throws {
+        // Given
+        given(listProjectTokensService)
+            .listProjectTokens(
+                fullHandle: .value("tuist-org/tuist"),
+                serverURL: .any
+            )
+            .willReturn([])
+
+        // When
+        try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
+
+        // Then
+        #expect(
+            ui().contains(
+                "No project tokens found. Create one by running `tuist project tokens create tuist-org/tuist."
+            )
+        )
+    }
+}

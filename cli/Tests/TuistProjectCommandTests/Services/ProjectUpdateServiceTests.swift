@@ -1,138 +1,114 @@
-#if os(macOS)
-    import Foundation
-    import Mockable
-    import TuistConfigLoader
-    import TuistConstants
-    import TuistLoader
-    import TuistOpener
-    import TuistServer
-    import TuistSupport
-    import TuistTesting
+import Foundation
+import Mockable
+import Testing
+import TuistConfigLoader
+import TuistConstants
+import TuistOpener
+import TuistServer
 
-    @testable import TuistProjectCommand
+@testable import TuistProjectCommand
 
-    final class ProjectUpdateServiceTests: TuistUnitTestCase {
-        private var opener: MockOpening!
-        private var configLoader: MockConfigLoading!
-        private var serverEnvironmentService: MockServerEnvironmentServicing!
-        private var updateProjectService: MockUpdateProjectServicing!
-        private var subject: ProjectUpdateService!
+struct ProjectUpdateServiceTests {
+    private let opener = MockOpening()
+    private let configLoader = MockConfigLoading()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let updateProjectService = MockUpdateProjectServicing()
+    private let subject: ProjectUpdateService
 
-        override func setUp() async throws {
-            try await super.setUp()
+    init() {
+        subject = ProjectUpdateService(
+            opener: opener,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            updateProjectService: updateProjectService
+        )
 
-            opener = MockOpening()
-            configLoader = MockConfigLoading()
-            serverEnvironmentService = MockServerEnvironmentServicing()
-            updateProjectService = MockUpdateProjectServicing()
-            subject = ProjectUpdateService(
-                opener: opener,
-                configLoader: configLoader,
-                serverEnvironmentService: serverEnvironmentService,
-                updateProjectService: updateProjectService
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(Constants.URLs.production)
+
+        given(updateProjectService)
+            .updateProject(
+                fullHandle: .any,
+                serverURL: .any,
+                defaultBranch: .any,
+                visibility: .any
+            )
+            .willReturn(.test())
+    }
+
+    @Test(.withMockedNoora) func run_when_full_handle_is_not_provided() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    fullHandle: "tuist/tuist"
+                )
             )
 
-            given(serverEnvironmentService)
-                .url(configServerURL: .any)
-                .willReturn(Constants.URLs.production)
+        // When
+        try await subject.run(
+            fullHandle: nil,
+            defaultBranch: "new-default-branch",
+            visibility: .public,
+            path: nil
+        )
 
-            given(updateProjectService)
-                .updateProject(
-                    fullHandle: .any,
-                    serverURL: .any,
-                    defaultBranch: .any,
-                    visibility: .any
-                )
-                .willReturn(.test())
-        }
-
-        override func tearDown() {
-            opener = nil
-            configLoader = nil
-            serverEnvironmentService = nil
-            updateProjectService = nil
-            subject = nil
-            super.tearDown()
-        }
-
-        func test_run_when_full_handle_is_not_provided() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(configLoader)
-                    .loadConfig(path: .any)
-                    .willReturn(
-                        .test(
-                            fullHandle: "tuist/tuist"
-                        )
-                    )
-
-                // When
-                try await subject.run(
-                    fullHandle: nil,
-                    defaultBranch: "new-default-branch",
-                    visibility: .public,
-                    path: nil
-                )
-
-                // Then
-                verify(updateProjectService)
-                    .updateProject(
-                        fullHandle: .value("tuist/tuist"),
-                        serverURL: .any,
-                        defaultBranch: .value("new-default-branch"),
-                        visibility: .value(.public)
-                    )
-                    .called(1)
-            }
-        }
-
-        func test_run_when_full_handle_is_not_provided_and_is_not_in_config() async throws {
-            // Given
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(
-                    .test(
-                        fullHandle: nil
-                    )
-                )
-
-            // When / Then
-            await XCTAssertThrowsSpecific(
-                try await subject.run(
-                    fullHandle: nil,
-                    defaultBranch: "new-default-branch",
-                    visibility: nil,
-                    path: nil
-                ),
-                ProjectUpdateServiceError.missingFullHandle
+        // Then
+        verify(updateProjectService)
+            .updateProject(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                defaultBranch: .value("new-default-branch"),
+                visibility: .value(.public)
             )
-        }
+            .called(1)
+    }
 
-        func test_run_when_full_handle_is_provided() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(configLoader)
-                    .loadConfig(path: .any)
-                    .willReturn(.test())
-
-                // When
-                try await subject.run(
-                    fullHandle: "tuist/tuist",
-                    defaultBranch: "new-default-branch",
-                    visibility: nil,
-                    path: nil
+    @Test func run_when_full_handle_is_not_provided_and_is_not_in_config() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    fullHandle: nil
                 )
+            )
 
-                // Then
-                verify(updateProjectService)
-                    .updateProject(
-                        fullHandle: .value("tuist/tuist"),
-                        serverURL: .any,
-                        defaultBranch: .value("new-default-branch"),
-                        visibility: .value(nil)
-                    )
-                    .called(1)
-            }
+        // When / Then
+        await #expect(throws: ProjectUpdateServiceError.missingFullHandle) {
+            try await subject.run(
+                fullHandle: nil,
+                defaultBranch: "new-default-branch",
+                visibility: nil,
+                path: nil
+            )
         }
     }
-#endif
+
+    @Test(.withMockedNoora) func run_when_full_handle_is_provided() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            defaultBranch: "new-default-branch",
+            visibility: nil,
+            path: nil
+        )
+
+        // Then
+        verify(updateProjectService)
+            .updateProject(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                defaultBranch: .value("new-default-branch"),
+                visibility: .value(nil)
+            )
+            .called(1)
+    }
+}

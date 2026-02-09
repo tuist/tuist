@@ -1,80 +1,67 @@
-#if os(macOS)
-    import Foundation
-    import Mockable
-    import TuistConfigLoader
-    import TuistLoader
-    import TuistServer
-    import TuistTesting
-    import XCTest
+import Foundation
+import Mockable
+import TuistConfigLoader
+import TuistServer
+import Testing
 
-    @testable import TuistOrganizationCommand
+@testable import TuistOrganizationCommand
 
-    final class OrganizationListServiceTests: TuistUnitTestCase {
-        private var listOrganizationsService: MockListOrganizationsServicing!
-        private var subject: OrganizationListService!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
+struct OrganizationListServiceTests {
+    private let listOrganizationsService: MockListOrganizationsServicing
+    private let subject: OrganizationListService
+    private let configLoader: MockConfigLoading
+    private let serverURL: URL
 
-        override func setUp() {
-            super.setUp()
+    init() {
+        listOrganizationsService = MockListOrganizationsServicing()
+        configLoader = MockConfigLoading()
+        serverURL = URL(string: "https://test.tuist.dev")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
 
-            listOrganizationsService = .init()
-            configLoader = MockConfigLoading()
-            serverURL = URL(string: "https://test.tuist.dev")!
-            given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
-
-            subject = OrganizationListService(
-                listOrganizationsService: listOrganizationsService,
-                configLoader: configLoader
-            )
-        }
-
-        override func tearDown() {
-            listOrganizationsService = nil
-            subject = nil
-
-            super.tearDown()
-        }
-
-        func test_organization_list() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(listOrganizationsService).listOrganizations(serverURL: .any)
-                    .willReturn(
-                        [
-                            "test-one",
-                            "test-two",
-                        ]
-                    )
-
-                // When
-                try await subject.run(json: false, directory: nil)
-
-                // Then
-                XCTAssertPrinterOutputContains(
-                    """
-                    Listing all your organizations:
-                      • test-one
-                      • test-two
-                    """
-                )
-            }
-        }
-
-        func test_organization_list_when_none() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(listOrganizationsService).listOrganizations(serverURL: .any)
-                    .willReturn([])
-
-                // When
-                try await subject.run(json: false, directory: nil)
-
-                // Then
-                XCTAssertPrinterOutputContains(
-                    "You currently have no Cloud organizations. Create one by running `tuist organization create`."
-                )
-            }
-        }
+        subject = OrganizationListService(
+            listOrganizationsService: listOrganizationsService,
+            configLoader: configLoader
+        )
     }
-#endif
+
+    @Test(.withMockedNoora) func organization_list() async throws {
+        // Given
+        given(listOrganizationsService).listOrganizations(serverURL: .any)
+            .willReturn(
+                [
+                    "test-one",
+                    "test-two",
+                ]
+            )
+
+        // When
+        try await subject.run(json: false, directory: nil)
+
+        // Then
+        #expect(
+            ui().contains(
+                """
+                Listing all your organizations:
+                  \u{2022} test-one
+                  \u{2022} test-two
+                """
+            )
+        )
+    }
+
+    @Test(.withMockedNoora) func organization_list_when_none() async throws {
+        // Given
+        given(listOrganizationsService).listOrganizations(serverURL: .any)
+            .willReturn([])
+
+        // When
+        try await subject.run(json: false, directory: nil)
+
+        // Then
+        #expect(
+            ui().contains(
+                "You currently have no Cloud organizations. Create one by running `tuist organization create`."
+            )
+        )
+    }
+}

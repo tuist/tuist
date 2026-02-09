@@ -1,74 +1,52 @@
-#if os(macOS)
-    import Foundation
-    import Mockable
-    import TuistConfigLoader
-    import TuistLoader
-    import TuistServer
-    import TuistTesting
-    import XCTest
+import Foundation
+import Mockable
+import Testing
+import TuistConfigLoader
+import TuistServer
 
-    @testable import TuistProjectCommand
+@testable import TuistProjectCommand
 
-    final class ProjectTokensRevokeServiceTests: TuistUnitTestCase {
-        private var revokeProjectTokenService: MockRevokeProjectTokenServicing!
-        private var serverEnvironmentService: MockServerEnvironmentServicing!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
-        private var subject: ProjectTokensRevokeService!
+struct ProjectTokensRevokeServiceTests {
+    private let revokeProjectTokenService = MockRevokeProjectTokenServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let configLoader = MockConfigLoading()
+    private let serverURL = URL(string: "https://test.tuist.dev")!
+    private let subject: ProjectTokensRevokeService
 
-        override func setUp() {
-            super.setUp()
-
-            revokeProjectTokenService = .init()
-            serverEnvironmentService = .init()
-            configLoader = .init()
-            serverURL = URL(string: "https://test.tuist.dev")!
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(url: serverURL))
-            given(serverEnvironmentService)
-                .url(configServerURL: .value(serverURL))
-                .willReturn(serverURL)
-            subject = ProjectTokensRevokeService(
-                revokeProjectTokenService: revokeProjectTokenService,
-                serverEnvironmentService: serverEnvironmentService,
-                configLoader: configLoader
-            )
-        }
-
-        override func tearDown() {
-            revokeProjectTokenService = nil
-            serverEnvironmentService = nil
-            configLoader = nil
-            serverURL = nil
-            subject = nil
-
-            super.tearDown()
-        }
-
-        func test_revoke_project_token() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(revokeProjectTokenService)
-                    .revokeProjectToken(
-                        projectTokenId: .value("project-token-id"),
-                        fullHandle: .value("tuist-org/tuist"),
-                        serverURL: .any
-                    )
-                    .willReturn()
-
-                // When
-                try await subject.run(
-                    projectTokenId: "project-token-id",
-                    fullHandle: "tuist-org/tuist",
-                    directory: nil
-                )
-
-                // Then
-                XCTAssertStandardOutput(
-                    pattern: "The project token project-token-id was successfully revoked."
-                )
-            }
-        }
+    init() {
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(url: serverURL))
+        given(serverEnvironmentService)
+            .url(configServerURL: .value(serverURL))
+            .willReturn(serverURL)
+        subject = ProjectTokensRevokeService(
+            revokeProjectTokenService: revokeProjectTokenService,
+            serverEnvironmentService: serverEnvironmentService,
+            configLoader: configLoader
+        )
     }
-#endif
+
+    @Test(.withMockedNoora) func revoke_project_token() async throws {
+        // Given
+        given(revokeProjectTokenService)
+            .revokeProjectToken(
+                projectTokenId: .value("project-token-id"),
+                fullHandle: .value("tuist-org/tuist"),
+                serverURL: .any
+            )
+            .willReturn()
+
+        // When
+        try await subject.run(
+            projectTokenId: "project-token-id",
+            fullHandle: "tuist-org/tuist",
+            directory: nil
+        )
+
+        // Then
+        #expect(
+            ui().contains("The project token project-token-id was successfully revoked.")
+        )
+    }
+}

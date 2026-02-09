@@ -1,67 +1,45 @@
-#if os(macOS)
-    import Foundation
-    import Mockable
-    import TuistConfigLoader
-    import TuistLoader
-    import TuistServer
-    import TuistTesting
-    import XCTest
+import Foundation
+import Mockable
+import Testing
+import TuistConfigLoader
+import TuistServer
 
-    @testable import TuistProjectCommand
+@testable import TuistProjectCommand
 
-    final class ProjectTokensCreateServiceTests: TuistUnitTestCase {
-        private var createProjectTokenService: MockCreateProjectTokenServicing!
-        private var serverEnvironmentService: MockServerEnvironmentServicing!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
-        private var subject: ProjectTokensCreateService!
+struct ProjectTokensCreateServiceTests {
+    private let createProjectTokenService = MockCreateProjectTokenServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let configLoader = MockConfigLoading()
+    private let serverURL = URL(string: "https://test.tuist.dev")!
+    private let subject: ProjectTokensCreateService
 
-        override func setUp() {
-            super.setUp()
-
-            createProjectTokenService = .init()
-            serverEnvironmentService = .init()
-            configLoader = .init()
-            serverURL = URL(string: "https://test.tuist.dev")!
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(.test(url: serverURL))
-            given(serverEnvironmentService)
-                .url(configServerURL: .value(serverURL))
-                .willReturn(serverURL)
-            subject = ProjectTokensCreateService(
-                createProjectTokenService: createProjectTokenService,
-                serverEnvironmentService: serverEnvironmentService,
-                configLoader: configLoader
-            )
-        }
-
-        override func tearDown() {
-            createProjectTokenService = nil
-            serverEnvironmentService = nil
-            configLoader = nil
-            serverURL = nil
-            subject = nil
-
-            super.tearDown()
-        }
-
-        func test_create_project_token() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(createProjectTokenService)
-                    .createProjectToken(
-                        fullHandle: .value("tuist-org/tuist"),
-                        serverURL: .any
-                    )
-                    .willReturn("new-token")
-
-                // When
-                try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
-
-                // Then
-                XCTAssertStandardOutput(pattern: "new-token")
-            }
-        }
+    init() {
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(url: serverURL))
+        given(serverEnvironmentService)
+            .url(configServerURL: .value(serverURL))
+            .willReturn(serverURL)
+        subject = ProjectTokensCreateService(
+            createProjectTokenService: createProjectTokenService,
+            serverEnvironmentService: serverEnvironmentService,
+            configLoader: configLoader
+        )
     }
-#endif
+
+    @Test(.withMockedNoora) func create_project_token() async throws {
+        // Given
+        given(createProjectTokenService)
+            .createProjectToken(
+                fullHandle: .value("tuist-org/tuist"),
+                serverURL: .any
+            )
+            .willReturn("new-token")
+
+        // When
+        try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
+
+        // Then
+        #expect(ui().contains("new-token"))
+    }
+}

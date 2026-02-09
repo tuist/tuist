@@ -1,66 +1,52 @@
-#if os(macOS)
-    import Foundation
-    import Mockable
-    import TuistConfigLoader
-    import TuistLoader
-    import TuistServer
-    import TuistTesting
-    import XCTest
+import Foundation
+import Mockable
+import TuistConfigLoader
+import TuistServer
+import Testing
 
-    @testable import TuistOrganizationCommand
+@testable import TuistOrganizationCommand
 
-    final class OrganizationRemoveSSOServiceTests: TuistUnitTestCase {
-        private var updateOrganizationService: MockUpdateOrganizationServicing!
-        private var subject: OrganizationRemoveSSOService!
-        private var configLoader: MockConfigLoading!
-        private var serverURL: URL!
+struct OrganizationRemoveSSOServiceTests {
+    private let updateOrganizationService: MockUpdateOrganizationServicing
+    private let subject: OrganizationRemoveSSOService
+    private let configLoader: MockConfigLoading
+    private let serverURL: URL
 
-        override func setUp() {
-            super.setUp()
+    init() {
+        updateOrganizationService = MockUpdateOrganizationServicing()
+        configLoader = MockConfigLoading()
+        serverURL = URL(string: "https://test.tuist.dev")!
+        given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
 
-            updateOrganizationService = .init()
-            configLoader = MockConfigLoading()
-            serverURL = URL(string: "https://test.tuist.dev")!
-            given(configLoader).loadConfig(path: .any).willReturn(.test(url: serverURL))
-
-            subject = OrganizationRemoveSSOService(
-                updateOrganizationService: updateOrganizationService,
-                configLoader: configLoader
-            )
-        }
-
-        override func tearDown() {
-            updateOrganizationService = nil
-            configLoader = nil
-            subject = nil
-
-            super.tearDown()
-        }
-
-        func test_organization_remove_sso() async throws {
-            try await withMockedDependencies {
-                // Given
-                given(updateOrganizationService)
-                    .updateOrganization(
-                        organizationName: .value("tuist"),
-                        serverURL: .value(serverURL),
-                        ssoOrganization: .value(nil)
-                    )
-                    .willReturn(.test())
-
-                // When
-                try await subject.run(
-                    organizationName: "tuist",
-                    directory: nil
-                )
-
-                // Then
-                XCTAssertPrinterOutputContains(
-                    """
-                    SSO for tuist was removed.
-                    """
-                )
-            }
-        }
+        subject = OrganizationRemoveSSOService(
+            updateOrganizationService: updateOrganizationService,
+            configLoader: configLoader
+        )
     }
-#endif
+
+    @Test(.withMockedNoora) func organization_remove_sso() async throws {
+        // Given
+        given(updateOrganizationService)
+            .updateOrganization(
+                organizationName: .value("tuist"),
+                serverURL: .value(serverURL),
+                ssoOrganization: .value(nil)
+            )
+            .willReturn(.test())
+
+        // When
+        try await subject.run(
+            organizationName: "tuist",
+            directory: nil
+        )
+
+        // Then
+        #expect(
+            ui().contains(
+                """
+                SSO for tuist was removed.
+                """
+            )
+        )
+    }
+}

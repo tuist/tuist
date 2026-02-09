@@ -643,10 +643,8 @@ var targets: [Target] = [
         dependencies: [
             "TuistAccountCommand",
             "TuistServer",
+            "TuistEnvironmentTesting",
             mockableDependency,
-            .target(name: "TuistTesting", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Tests/TuistAccountCommandTests"
     ),
@@ -655,11 +653,8 @@ var targets: [Target] = [
         dependencies: [
             "TuistProjectCommand",
             "TuistServer",
+            "TuistEnvironmentTesting",
             mockableDependency,
-            .target(name: "TuistTesting", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCore", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Tests/TuistProjectCommandTests"
     ),
@@ -668,10 +663,8 @@ var targets: [Target] = [
         dependencies: [
             "TuistOrganizationCommand",
             "TuistServer",
+            "TuistEnvironmentTesting",
             mockableDependency,
-            .target(name: "TuistTesting", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Tests/TuistOrganizationCommandTests"
     ),
@@ -680,11 +673,8 @@ var targets: [Target] = [
         dependencies: [
             "TuistBundleCommand",
             "TuistServer",
+            "TuistEnvironmentTesting",
             mockableDependency,
-            .target(name: "TuistTesting", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCore", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Tests/TuistBundleCommandTests"
     ),
