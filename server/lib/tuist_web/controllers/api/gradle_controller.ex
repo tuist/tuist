@@ -82,7 +82,7 @@ defmodule TuistWeb.API.GradleController do
              }
            }
          },
-         required: [:duration_ms, :status]
+         required: [:duration_ms, :status, :tasks]
        }},
     responses: %{
       created:
@@ -101,7 +101,7 @@ defmodule TuistWeb.API.GradleController do
 
   def create_build(%{assigns: %{selected_project: project, selected_account: account}, body_params: body} = conn, _params) do
     tasks =
-      Enum.map(body[:tasks] || [], fn task ->
+      Enum.map(body.tasks, fn task ->
         %{
           task_path: task.task_path,
           task_type: task[:task_type],
@@ -129,17 +129,11 @@ defmodule TuistWeb.API.GradleController do
       tasks: tasks
     }
 
-    case Gradle.create_build(attrs) do
-      {:ok, build_id} ->
-        conn
-        |> put_status(:created)
-        |> json(%{id: build_id})
+    {:ok, build_id} = Gradle.create_build(attrs)
 
-      {:error, reason} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "Failed to create build: #{inspect(reason)}"})
-    end
+    conn
+    |> put_status(:created)
+    |> json(%{id: build_id})
   end
 
   operation(:list_builds,

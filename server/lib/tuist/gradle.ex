@@ -33,7 +33,6 @@ defmodule Tuist.Gradle do
 
   ## Returns
     * `{:ok, build_id}` on success
-    * `{:error, reason}` on failure
   """
   def create_build(attrs) do
     now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
@@ -66,17 +65,13 @@ defmodule Tuist.Gradle do
       inserted_at: now
     }
 
-    case IngestRepo.insert_all(Build, [build_entry]) do
-      {1, _} ->
-        if length(tasks) > 0 do
-          create_tasks(build_id, attrs.project_id, tasks, now)
-        end
+    IngestRepo.insert_all(Build, [build_entry])
 
-        {:ok, build_id}
-
-      _ ->
-        {:error, :insert_failed}
+    if length(tasks) > 0 do
+      create_tasks(build_id, attrs.project_id, tasks, now)
     end
+
+    {:ok, build_id}
   end
 
   defp compute_task_counts(tasks) do
