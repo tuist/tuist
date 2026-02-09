@@ -115,39 +115,13 @@ defmodule TuistWeb.QASettingsLive do
         %{"id" => id} = _params,
         %{assigns: %{selected_project: selected_project}} = socket
       ) do
-    {:ok, _} =
-      selected_project.qa_launch_argument_groups
-      |> Enum.find(&(&1.id == id))
-      |> QA.delete_launch_argument_group()
+    case Enum.find(selected_project.qa_launch_argument_groups, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
 
-    selected_project =
-      Repo.preload(socket.assigns.selected_project, :qa_launch_argument_groups, force: true)
+      launch_argument_group ->
+        {:ok, _} = QA.delete_launch_argument_group(launch_argument_group)
 
-    edit_launch_argument_forms =
-      Map.new(selected_project.qa_launch_argument_groups, fn group ->
-        form =
-          group
-          |> LaunchArgumentGroup.update_changeset(%{})
-          |> to_form(as: :launch_argument_group)
-
-        {group.id, form}
-      end)
-
-    socket =
-      socket
-      |> assign(:selected_project, selected_project)
-      |> assign(:edit_launch_argument_forms, edit_launch_argument_forms)
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("update_launch_argument_group", %{"id" => id, "launch_argument_group" => params}, socket) do
-    launch_argument_group =
-      Enum.find(socket.assigns.selected_project.qa_launch_argument_groups, &(&1.id == id))
-
-    case QA.update_launch_argument_group(launch_argument_group, params) do
-      {:ok, _launch_argument_group} ->
         selected_project =
           Repo.preload(socket.assigns.selected_project, :qa_launch_argument_groups, force: true)
 
@@ -165,19 +139,55 @@ defmodule TuistWeb.QASettingsLive do
           socket
           |> assign(:selected_project, selected_project)
           |> assign(:edit_launch_argument_forms, edit_launch_argument_forms)
-          |> push_event("close-modal", %{id: "edit-launch-argument-modal-#{id}"})
 
         {:noreply, socket}
-
-      {:error, changeset} ->
-        updated_forms = Map.put(socket.assigns.edit_launch_argument_forms, id, to_form(changeset))
-        {:noreply, assign(socket, edit_launch_argument_forms: updated_forms)}
     end
   end
 
   @impl true
-  def handle_event("close_edit_launch_argument_modal", %{"id" => id} = _params, socket) do
+  def handle_event("update_launch_argument_group", %{"id" => id, "launch_argument_group" => params}, socket) do
+    case Enum.find(socket.assigns.selected_project.qa_launch_argument_groups, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      launch_argument_group ->
+        case QA.update_launch_argument_group(launch_argument_group, params) do
+          {:ok, _launch_argument_group} ->
+            selected_project =
+              Repo.preload(socket.assigns.selected_project, :qa_launch_argument_groups, force: true)
+
+            edit_launch_argument_forms =
+              Map.new(selected_project.qa_launch_argument_groups, fn group ->
+                form =
+                  group
+                  |> LaunchArgumentGroup.update_changeset(%{})
+                  |> to_form(as: :launch_argument_group)
+
+                {group.id, form}
+              end)
+
+            socket =
+              socket
+              |> assign(:selected_project, selected_project)
+              |> assign(:edit_launch_argument_forms, edit_launch_argument_forms)
+              |> push_event("close-modal", %{id: "edit-launch-argument-modal-#{id}"})
+
+            {:noreply, socket}
+
+          {:error, changeset} ->
+            updated_forms = Map.put(socket.assigns.edit_launch_argument_forms, id, to_form(changeset))
+            {:noreply, assign(socket, edit_launch_argument_forms: updated_forms)}
+        end
+    end
+  end
+
+  @impl true
+  def handle_event("close_edit_launch_argument_modal", %{"id" => id}, socket) do
     socket = push_event(socket, "close-modal", %{id: "edit-launch-argument-modal-#{id}"})
+    {:noreply, socket}
+  end
+
+  def handle_event("close_edit_launch_argument_modal", _params, socket) do
     {:noreply, socket}
   end
 
