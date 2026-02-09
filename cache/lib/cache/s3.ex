@@ -39,13 +39,27 @@ defmodule Cache.S3 do
 
   def exists?(key) when is_binary(key) do
     bucket = Application.get_env(:cache, :s3)[:bucket]
+    start_time = System.monotonic_time()
 
-    case bucket
-         |> ExAws.S3.head_object(key)
-         |> ExAws.request(http_opts: [receive_timeout: 2_000]) do
-      {:ok, _response} -> true
-      {:error, {:http_error, 404, _}} -> false
-      {:error, _reason} -> false
+    result =
+      bucket
+      |> ExAws.S3.head_object(key)
+      |> ExAws.request(http_opts: [receive_timeout: 2_000])
+
+    duration = System.monotonic_time() - start_time
+
+    case result do
+      {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
+        true
+
+      {:error, {:http_error, 404, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
+        false
+
+      {:error, _reason} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
+        false
     end
   end
 
@@ -79,18 +93,27 @@ defmodule Cache.S3 do
   defp upload_file(key, local_path) do
     if File.exists?(local_path) do
       bucket = Application.get_env(:cache, :s3)[:bucket]
+      start_time = System.monotonic_time()
 
-      case local_path
-           |> Upload.stream_file()
-           |> ExAws.S3.upload(bucket, key, timeout: 120_000)
-           |> ExAws.request() do
+      result =
+        local_path
+        |> Upload.stream_file()
+        |> ExAws.S3.upload(bucket, key, timeout: 120_000)
+        |> ExAws.request()
+
+      duration = System.monotonic_time() - start_time
+
+      case result do
         {:ok, _response} ->
+          :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
           :ok
 
         {:error, {:http_error, 429, _}} ->
+          :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
           {:error, :rate_limited}
 
         {:error, reason} ->
+          :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :error})
           {:error, reason}
       end
     else
@@ -138,14 +161,31 @@ defmodule Cache.S3 do
 
   defp check_exists(key) do
     bucket = Application.get_env(:cache, :s3)[:bucket]
+    start_time = System.monotonic_time()
 
-    case bucket
-         |> ExAws.S3.head_object(key)
-         |> ExAws.request() do
-      {:ok, _response} -> {:ok, true}
-      {:error, {:http_error, 404, _}} -> {:ok, false}
-      {:error, {:http_error, 429, _}} -> {:error, :rate_limited}
-      {:error, _reason} -> {:ok, false}
+    result =
+      bucket
+      |> ExAws.S3.head_object(key)
+      |> ExAws.request()
+
+    duration = System.monotonic_time() - start_time
+
+    case result do
+      {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
+        {:ok, true}
+
+      {:error, {:http_error, 404, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
+        {:ok, false}
+
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
+        {:error, :rate_limited}
+
+      {:error, _reason} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
+        {:ok, false}
     end
   end
 
@@ -154,16 +194,26 @@ defmodule Cache.S3 do
 
     local_path |> Path.dirname() |> File.mkdir_p!()
 
-    case bucket
-         |> ExAws.S3.download_file(key, local_path)
-         |> ExAws.request() do
+    start_time = System.monotonic_time()
+
+    result =
+      bucket
+      |> ExAws.S3.download_file(key, local_path)
+      |> ExAws.request()
+
+    duration = System.monotonic_time() - start_time
+
+    case result do
       {:ok, :done} ->
+        :telemetry.execute([:cache, :s3, :download], %{duration: duration}, %{result: :ok})
         :ok
 
       {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :download], %{duration: duration}, %{result: :rate_limited})
         {:error, :rate_limited}
 
       {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :download], %{duration: duration}, %{result: :error})
         {:error, reason}
     end
   end
@@ -179,12 +229,18 @@ defmodule Cache.S3 do
 
     Logger.info("Deleting all S3 objects with prefix: #{prefix}")
 
+    start_time = System.monotonic_time()
+
     case list_and_delete_objects(bucket, prefix, 0) do
       {:ok, count} ->
+        duration = System.monotonic_time() - start_time
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: count}, %{result: :ok})
         Logger.info("Successfully deleted #{count} objects from S3 with prefix: #{prefix}")
         {:ok, count}
 
       {:error, reason} = error ->
+        duration = System.monotonic_time() - start_time
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :error})
         Logger.error("Failed to delete S3 objects with prefix #{prefix}: #{inspect(reason)}")
         error
     end

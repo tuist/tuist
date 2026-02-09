@@ -3064,6 +3064,672 @@
         "x": 0,
         "y": 103
       },
+      "id": 84,
+      "panels": [],
+      "title": "S3 Operations",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/found.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/not_found.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/error.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 104
+      },
+      "id": 85,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance, result) (rate(cache_s3_head_requests_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{result}} - {{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "S3 HEAD Request Rate by Result",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 2000
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 104
+      },
+      "id": 86,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le, instance) (rate(cache_s3_head_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p50 - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (le, instance) (rate(cache_s3_head_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p90 - {{instance}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le, instance) (rate(cache_s3_head_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p99 - {{instance}}",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "S3 HEAD Latency Percentiles",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/ok.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/rate_limited.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/error.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 112
+      },
+      "id": 87,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance, result) (rate(cache_s3_upload_requests_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Upload {{result}} - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance, result) (rate(cache_s3_download_requests_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Download {{result}} - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "S3 Upload & Download Rate by Result",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 112
+      },
+      "id": 88,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le, instance) (rate(cache_s3_upload_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "Upload p50 - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (le, instance) (rate(cache_s3_upload_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "Upload p90 - {{instance}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le, instance) (rate(cache_s3_download_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "Download p50 - {{instance}}",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (le, instance) (rate(cache_s3_download_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "Download p90 - {{instance}}",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "S3 Upload & Download Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 120
+      },
+      "id": 89,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum(rate(cache_s3_head_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) + sum(rate(cache_s3_upload_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) + sum(rate(cache_s3_download_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) + sum(rate(cache_s3_delete_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval]))",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "S3 Total Error Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 120
+      },
+      "id": 90,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance, result) (rate(cache_s3_delete_requests_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{result}} - {{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "S3 Delete Rate by Result",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 128
+      },
       "id": 19,
       "panels": [],
       "title": "Phoenix Response Times by Path",
@@ -3123,7 +3789,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 104
+        "y": 129
       },
       "id": 20,
       "options": {
@@ -3279,7 +3945,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 104
+        "y": 129
       },
       "id": 21,
       "options": {
@@ -3316,7 +3982,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 112
+        "y": 137
       },
       "id": 22,
       "panels": [],
@@ -3381,7 +4047,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 113
+        "y": 138
       },
       "id": 23,
       "options": {
@@ -3494,7 +4160,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 113
+        "y": 138
       },
       "id": 24,
       "options": {
@@ -3583,7 +4249,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 113
+        "y": 138
       },
       "id": 25,
       "options": {
@@ -3628,7 +4294,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 121
+        "y": 146
       },
       "id": 26,
       "panels": [],
@@ -3703,7 +4369,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 122
+        "y": 147
       },
       "id": 27,
       "options": {
@@ -3805,7 +4471,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 122
+        "y": 147
       },
       "id": 28,
       "options": {
@@ -3912,7 +4578,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 130
+        "y": 155
       },
       "id": 29,
       "options": {
@@ -4022,7 +4688,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 130
+        "y": 155
       },
       "id": 30,
       "options": {
@@ -4067,7 +4733,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 138
+        "y": 163
       },
       "id": 60,
       "panels": [],
@@ -4132,7 +4798,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 139
+        "y": 164
       },
       "id": 61,
       "options": {
@@ -4169,7 +4835,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 147
+        "y": 172
       },
       "id": 70,
       "panels": [],
@@ -4280,7 +4946,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 148
+        "y": 173
       },
       "id": 71,
       "options": {
@@ -4344,7 +5010,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 148
+        "y": 173
       },
       "id": 72,
       "options": {
@@ -4408,7 +5074,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 148
+        "y": 173
       },
       "id": 73,
       "options": {
@@ -4497,7 +5163,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 156
+        "y": 181
       },
       "id": 74,
       "options": {
@@ -4578,7 +5244,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 156
+        "y": 181
       },
       "id": 75,
       "options": {
@@ -4678,7 +5344,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 164
+        "y": 189
       },
       "id": 76,
       "panels": [],
@@ -4775,7 +5441,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 165
+        "y": 190
       },
       "id": 77,
       "options": {
@@ -4850,7 +5516,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 165
+        "y": 190
       },
       "id": 78,
       "options": {
@@ -4941,7 +5607,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 173
+        "y": 198
       },
       "id": 82,
       "options": {
@@ -5055,7 +5721,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 181
+        "y": 206
       },
       "id": 83,
       "options": {
