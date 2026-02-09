@@ -190,7 +190,7 @@ class TuistCommandConfigurationProvider(
             return Gson().fromJson(output, TuistCacheConfiguration::class.java)
                 ?: throw RuntimeException("tuist cache config returned invalid JSON")
         } finally {
-            tempDir.delete()
+            tempDir.deleteRecursively()
         }
     }
 }
