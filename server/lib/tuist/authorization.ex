@@ -566,43 +566,6 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :gradle do
-    action :create do
-      desc("Allows users of a project to create Gradle builds.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to create Gradle builds.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to create Gradle builds if it matches the project.")
-      allow([:authenticated_as_project, :projects_match])
-
-      desc("Allows an account token with project:gradle:write scope to create Gradle builds.")
-      allow([:authenticated_as_account, scopes_permit: "project:gradle:write"])
-    end
-
-    action :read do
-      desc("Allows the authenticated subject to read a project's Gradle builds if the project is public.")
-      allow(:public_project)
-
-      desc("Allows users of a project to read Gradle builds.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of a project to read Gradle builds.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc("Allows the authenticated project to read Gradle builds if it matches the project.")
-      allow([:authenticated_as_project, :projects_match])
-
-      desc("Allows users with ops access to read any Gradle builds.")
-      allow([:authenticated_as_user, :ops_access])
-
-      desc("Allows an account token with project:gradle:read or project:gradle:write scope to read Gradle builds.")
-      allow([:authenticated_as_account, scopes_permit: "project:gradle:read"])
-      allow([:authenticated_as_account, scopes_permit: "project:gradle:write"])
-    end
-  end
-
   object :ops do
     action :read do
       desc("Allows ops access for authorized users.")

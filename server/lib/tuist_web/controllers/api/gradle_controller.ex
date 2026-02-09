@@ -12,7 +12,7 @@ defmodule TuistWeb.API.GradleController do
   )
 
   plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :gradle)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
 
   tags ["Gradle"]
 
