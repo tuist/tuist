@@ -10,10 +10,30 @@ defmodule TuistWeb.GradleOverviewLive do
   alias TuistWeb.Utilities.Query
 
   @doc """
-  Assigns gradle-specific analytics data to the socket.
+  Assigns gradle-specific handle_params data to the socket.
   Called from OverviewLive when the project is a gradle project.
   """
-  def assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
+  def assign_handle_params(socket, params, uri_path) do
+    uri =
+      URI.new!(
+        "?" <>
+          (params
+           |> Map.take([
+             "analytics-environment",
+             "analytics-date-range",
+             "analytics-start-date",
+             "analytics-end-date"
+           ])
+           |> URI.encode_query())
+      )
+
+    socket
+    |> assign_analytics(params)
+    |> assign(:uri, uri)
+    |> assign(:uri_path, uri_path)
+  end
+
+  defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
 
@@ -41,6 +61,10 @@ defmodule TuistWeb.GradleOverviewLive do
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
+    |> assign(
+      :cache_hit_rate,
+      cache_hit_rate_analytics.avg_hit_rate |> Decimal.from_float() |> Decimal.round(1)
+    )
     |> assign(:cache_hit_rate_analytics, cache_hit_rate_analytics)
     |> assign(:build_duration_analytics, build_duration_analytics)
   end

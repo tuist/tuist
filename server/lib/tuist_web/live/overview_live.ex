@@ -94,25 +94,9 @@ defmodule TuistWeb.OverviewLive do
     full_uri = URI.parse(request_uri)
 
     if Project.gradle_project?(project) do
-      uri =
-        URI.new!(
-          "?" <>
-            (params
-             |> Map.take([
-               "analytics-environment",
-               "analytics-date-range",
-               "analytics-start-date",
-               "analytics-end-date"
-             ])
-             |> URI.encode_query())
-        )
-
       {
         :noreply,
-        socket
-        |> TuistWeb.GradleOverviewLive.assign_analytics(params)
-        |> assign(:uri, uri)
-        |> assign(:uri_path, full_uri.path)
+        TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
       }
     else
       uri =

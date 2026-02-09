@@ -4,10 +4,6 @@
     icon="chart_arcs"
     data-part="analytics"
   >
-    <% cache_hit_rate =
-      @cache_hit_rate_analytics.avg_hit_rate
-      |> Decimal.from_float()
-      |> Decimal.round(1) %>
     <:actions>
       <.dropdown
         id="gradle-analytics-environment-dropdown"
@@ -96,7 +92,7 @@
             "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
           )
         }
-        value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: cache_hit_rate)}
+        value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate)}
         id="widget-cache-hit-rate"
         trend_value={@cache_hit_rate_analytics.trend}
         trend_label={@analytics_trend_label}
@@ -130,7 +126,7 @@
         <div data-part="legends">
           <.legend
             title={dgettext("dashboard_gradle", "Cache hit rate")}
-            value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: cache_hit_rate)}
+            value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate)}
             style="primary"
           />
         </div>

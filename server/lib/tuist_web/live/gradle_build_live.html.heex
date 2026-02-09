@@ -269,11 +269,6 @@
         data-part="cache-summary-card"
       >
         <.card_section data-part="widgets-card-section">
-          <% local_hits = @build.tasks_local_hit_count || 0 %>
-          <% remote_hits = @build.tasks_remote_hit_count || 0 %>
-          <% from_cache = local_hits + remote_hits %>
-          <% cacheable = @build.cacheable_tasks_count || 0 %>
-          <% misses = cacheable - from_cache %>
           <.widget
             title={dgettext("dashboard_gradle", "Task hits")}
             description={
@@ -282,7 +277,7 @@
                 "Cacheable tasks that were retrieved from cache (local + remote)."
               )
             }
-            value={from_cache}
+            value={@from_cache}
             id="widget-task-hits"
           />
           <.widget
@@ -290,7 +285,7 @@
             description={
               dgettext("dashboard_gradle", "Cacheable tasks that were not found in cache.")
             }
-            value={misses}
+            value={@cache_misses}
             id="widget-task-misses"
           />
           <.widget
