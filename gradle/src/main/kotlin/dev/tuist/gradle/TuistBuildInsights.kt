@@ -121,6 +121,7 @@ abstract class TuistBuildInsightsService :
     private var buildStartTime: Long = System.currentTimeMillis()
     @Volatile private var buildFailed = false
 
+    private var listenerManager: BuildOperationListenerManager? = null
     private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
     private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
     private val taskCacheMetadata = ConcurrentHashMap<String, TaskCacheMetadata>()
@@ -268,6 +269,10 @@ abstract class TuistBuildInsightsService :
     }
 
     override fun close() {
+        try {
+            listenerManager?.removeListener(this)
+        } catch (_: Exception) {}
+
         try {
             sendReport()
         } catch (e: Exception) {
@@ -419,8 +424,9 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
 
             try {
                 val gradleInternal = project.gradle as GradleInternal
-                val listenerManager = gradleInternal.services.get(BuildOperationListenerManager::class.java)
-                listenerManager.addListener(service)
+                val manager = gradleInternal.services.get(BuildOperationListenerManager::class.java)
+                manager.addListener(service)
+                service.listenerManager = manager
             } catch (e: Exception) {
                 logger.warn("Tuist: Could not register build operation listener. Cache metadata may be incomplete.")
             }
