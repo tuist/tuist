@@ -4,7 +4,6 @@ defmodule Tuist.Gradle.Analytics do
 
   Provides Gradle-native metrics following Develocity conventions:
   - Cache hit rate: (LOCAL_HIT + REMOTE_HIT) / CACHEABLE for cacheable tasks
-  - Avoidance rate: (LOCAL_HIT + REMOTE_HIT + UP_TO_DATE) / total_tasks
   - Task outcome breakdown
   - Cache event analytics
   """
