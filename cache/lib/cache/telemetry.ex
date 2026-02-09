@@ -7,15 +7,11 @@ defmodule Cache.Telemetry do
   Attaches telemetry handlers for CAS and Gradle events.
   """
   def attach do
-    cas_events =
-      for type <- [:cas, :xcode_cas],
-          event <- [
-            [:cache, type, :download, :disk_hit],
-            [:cache, type, :download, :s3_hit],
-            [:cache, type, :upload, :success]
-          ] do
-        event
-      end
+    cas_events = [
+      [:cache, :cas, :download, :disk_hit],
+      [:cache, :cas, :download, :s3_hit],
+      [:cache, :cas, :upload, :success]
+    ]
 
     gradle_events = [
       [:cache, :gradle, :download, :disk_hit],
@@ -30,18 +26,15 @@ defmodule Cache.Telemetry do
     )
   end
 
-  def handle_event([:cache, type, :download, :disk_hit], measurements, metadata, _config)
-      when type in [:cas, :xcode_cas] do
+  def handle_event([:cache, :cas, :download, :disk_hit], measurements, metadata, _config) do
     push_cas_event("download", measurements, metadata)
   end
 
-  def handle_event([:cache, type, :download, :s3_hit], measurements, metadata, _config)
-      when type in [:cas, :xcode_cas] do
+  def handle_event([:cache, :cas, :download, :s3_hit], measurements, metadata, _config) do
     push_cas_event("download", measurements, metadata)
   end
 
-  def handle_event([:cache, type, :upload, :success], measurements, metadata, _config)
-      when type in [:cas, :xcode_cas] do
+  def handle_event([:cache, :cas, :upload, :success], measurements, metadata, _config) do
     push_cas_event("upload", measurements, metadata)
   end
 
