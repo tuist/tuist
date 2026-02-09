@@ -203,7 +203,7 @@ defmodule TuistWeb.API.GradleController do
     limit = Map.get(params, :limit, 50)
     offset = Map.get(params, :offset, 0)
 
-    builds = Gradle.list_builds(project.id, limit: limit, offset: offset)
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: limit, page: div(offset, limit) + 1})
 
     json(conn, %{
       builds:

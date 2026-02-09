@@ -4,6 +4,16 @@ defmodule Tuist.Gradle.Build do
   """
   use Ecto.Schema
 
+  @derive {
+    Flop.Schema,
+    filterable: [:project_id, :status, :is_ci, :git_branch, :root_project_name],
+    sortable: [:inserted_at, :duration_ms, :status],
+    default_order: %{
+      order_by: [:inserted_at],
+      order_directions: [:desc]
+    }
+  }
+
   @primary_key false
   schema "gradle_builds" do
     field :id, Ch, type: "UUID"

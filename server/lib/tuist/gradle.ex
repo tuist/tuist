@@ -130,43 +130,13 @@ defmodule Tuist.Gradle do
   end
 
   @doc """
-  Lists Gradle builds for a project.
+  Lists Gradle builds for a project with Flop-based pagination.
 
-  ## Options
-    * `:start_datetime` - Filter builds after this datetime
-    * `:end_datetime` - Filter builds before this datetime
-    * `:limit` - Maximum number of builds to return (default: 50)
-    * `:offset` - Number of builds to skip (default: 0)
+  Returns `{builds, meta}` where `meta` contains pagination info.
   """
-  def list_builds(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime)
-    end_datetime = Keyword.get(opts, :end_datetime)
-    limit = Keyword.get(opts, :limit, 50)
-    offset = Keyword.get(opts, :offset, 0)
-
-    query =
-      from(b in Build,
-        where: b.project_id == ^project_id,
-        order_by: [desc: b.inserted_at],
-        limit: ^limit,
-        offset: ^offset
-      )
-
-    query =
-      if start_datetime do
-        from(b in query, where: b.inserted_at >= ^start_datetime)
-      else
-        query
-      end
-
-    query =
-      if end_datetime do
-        from(b in query, where: b.inserted_at <= ^end_datetime)
-      else
-        query
-      end
-
-    ClickHouseRepo.all(query)
+  def list_builds(project_id, flop_params \\ %{}) do
+    base_query = from(b in Build, where: b.project_id == ^project_id)
+    ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
   end
 
   @doc """

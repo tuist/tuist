@@ -191,10 +191,8 @@ defmodule TuistWeb.GradleCacheLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
-    builds =
-      project.id
-      |> Gradle.list_builds(limit: 40)
-      |> Repo.preload(:built_by_account)
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: 40})
+    builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =
       builds
