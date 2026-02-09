@@ -2,7 +2,6 @@ defmodule Tuist.GitHub.ClientTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Tuist.Base64
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Client
   alias Tuist.VCS
@@ -330,7 +329,7 @@ defmodule Tuist.GitHub.ClientTest do
 
       # Then
       assert got ==
-               {:error, {:http_error, 404}}
+               {:error, :not_found}
     end
   end
 
