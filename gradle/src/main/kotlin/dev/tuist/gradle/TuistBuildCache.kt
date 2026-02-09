@@ -46,7 +46,7 @@ object TuistVersion {
  * Build cache configuration type for Tuist.
  */
 open class TuistBuildCache : AbstractBuildCache() {
-    var fullHandle: String = ""
+    var project: String = ""
     var executablePath: String? = null
     var url: String? = null
     var allowInsecureProtocol: Boolean = false
@@ -62,14 +62,14 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
     ): BuildCacheService {
         describer
             .type("Tuist")
-            .config("fullHandle", configuration.fullHandle)
+            .config("project", configuration.project)
 
         val resolvedCommand = resolveCommand(configuration)
 
         validateTuistVersion(resolvedCommand)
 
         val configurationProvider = TuistCommandConfigurationProvider(
-            fullHandle = configuration.fullHandle,
+            project = configuration.project,
             command = resolvedCommand,
             url = configuration.url
         )
@@ -132,14 +132,14 @@ interface ConfigurationProvider {
  * Default configuration provider that runs `tuist cache config` command.
  */
 class TuistCommandConfigurationProvider(
-    private val fullHandle: String,
+    private val project: String,
     private val command: List<String>,
     private val url: String? = null
 ) : ConfigurationProvider {
 
     override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? {
         val baseArgs = buildList {
-            addAll(listOf("cache", "config", fullHandle, "--json"))
+            addAll(listOf("cache", "config", project, "--json"))
             if (!url.isNullOrBlank()) {
                 addAll(listOf("--url", url))
             }

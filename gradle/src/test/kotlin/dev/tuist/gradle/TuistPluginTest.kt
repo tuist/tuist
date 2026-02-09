@@ -31,7 +31,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
             }
 
             rootProject.name = "test-project"
@@ -55,7 +55,7 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin gracefully handles missing fullHandle`() {
+    fun `plugin gracefully handles missing project`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
@@ -84,14 +84,14 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin warns when fullHandle is blank`() {
+    fun `plugin warns when project is blank`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
             }
 
             tuist {
-                fullHandle = ""
+                project = ""
             }
 
             rootProject.name = "test-project"
@@ -112,7 +112,7 @@ class TuistPluginTest {
             .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
-        assertTrue(result.output.contains("fullHandle not configured"))
+        assertTrue(result.output.contains("project not configured"))
     }
 
     @Test
@@ -123,7 +123,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildCache {
                     enabled = false
@@ -159,7 +159,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
                 executablePath = "/usr/local/bin/tuist"
 
                 buildCache {
@@ -195,7 +195,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildCache {
                     enabled = true
@@ -231,7 +231,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildCache {
                     enabled = true
@@ -267,7 +267,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildInsights {
                     enabled = false
@@ -303,7 +303,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
                 url = "https://custom.server.dev"
 
                 buildInsights {
@@ -339,7 +339,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "my-org/my-project"
+                project = "my-org/my-project"
 
                 buildCache {
                     enabled = false
@@ -379,7 +379,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "my-org/my-project"
+                project = "my-org/my-project"
 
                 buildCache {
                     enabled = true

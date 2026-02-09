@@ -18,7 +18,7 @@ import org.gradle.api.logging.Logging
  * }
  *
  * tuist {
- *     fullHandle = "account/project"
+ *     project = "account/project"
  *
  *     buildCache {
  *         enabled = true
@@ -49,9 +49,9 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configure(settings: Settings, extension: TuistExtension) {
-        val fullHandle = extension.fullHandle
-        if (fullHandle.isBlank()) {
-            logger.warn("Tuist: fullHandle not configured. Tuist features will be disabled.")
+        val project = extension.project
+        if (project.isBlank()) {
+            logger.warn("Tuist: project not configured. Tuist features will be disabled.")
             return
         }
 
@@ -67,10 +67,10 @@ class TuistPlugin : Plugin<Settings> {
 
         settings.gradle.rootProject {
             extensions.extraProperties.set("tuist.url", extension.url)
-            extensions.extraProperties.set("tuist.fullHandle", extension.fullHandle)
+            extensions.extraProperties.set("tuist.project", extension.project)
             extensions.extraProperties.set("tuist.executablePath", extension.executablePath ?: "tuist")
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            logger.lifecycle("Tuist: Build insights configured for ${extension.fullHandle}")
+            logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
         }
     }
 
@@ -83,7 +83,7 @@ class TuistPlugin : Plugin<Settings> {
 
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
-                this.fullHandle = extension.fullHandle
+                this.project = extension.project
                 this.executablePath = extension.executablePath
                 this.url = extension.url
                 isPush = buildCacheConfig.push
@@ -92,7 +92,7 @@ class TuistPlugin : Plugin<Settings> {
         }
 
         settings.gradle.rootProject {
-            logger.lifecycle("Tuist: Remote build cache configured for ${extension.fullHandle}")
+            logger.lifecycle("Tuist: Remote build cache configured for ${extension.project}")
         }
     }
 }
@@ -102,10 +102,10 @@ class TuistPlugin : Plugin<Settings> {
  */
 open class TuistExtension {
     /**
-     * The full handle of the project in format "account/project".
+     * The project identifier in format "account/project".
      * This is required for all Tuist features.
      */
-    var fullHandle: String = ""
+    var project: String = ""
 
     /**
      * Path to the tuist executable. When null, the plugin will look for

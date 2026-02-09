@@ -23,7 +23,7 @@ plugins {
 }
 
 tuist {
-    fullHandle = "tuist/android-app"
+    project = "tuist/android-app"
     executablePath = System.getenv("TUIST_EXECUTABLE")
     url = System.getenv("TUIST_SERVER_URL") ?: "https://tuist.dev"
 

@@ -169,7 +169,7 @@ abstract class TuistBuildInsightsService :
 
     interface Params : BuildServiceParameters {
         val url: Property<String>
-        val fullHandle: Property<String>
+        val project: Property<String>
         val executablePath: Property<String>
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
@@ -321,16 +321,16 @@ abstract class TuistBuildInsightsService :
     }
 
     private fun sendReport() {
-        val fullHandle = parameters.fullHandle.get()
-        val parts = fullHandle.split("/")
+        val projectValue = parameters.project.get()
+        val parts = projectValue.split("/")
         if (parts.size != 2) {
-            println("Tuist: Warning - Invalid fullHandle format for build insights: $fullHandle")
+            println("Tuist: Warning - Invalid project format for build insights: $projectValue")
             return
         }
         val (accountHandle, projectHandle) = parts
 
         val configProvider = TuistCommandConfigurationProvider(
-            fullHandle = fullHandle,
+            project = projectValue,
             command = listOf(parameters.executablePath.orNull ?: "tuist"),
             url = parameters.url.get()
         )
@@ -398,7 +398,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         if (project !== project.rootProject) return
 
         val url = project.findProperty("tuist.url") as? String ?: "https://tuist.dev"
-        val fullHandle = project.findProperty("tuist.fullHandle") as? String ?: ""
+        val tuistProject = project.findProperty("tuist.project") as? String ?: ""
         val executablePath = project.findProperty("tuist.executablePath") as? String ?: "tuist"
         val gradleVersion = project.gradle.gradleVersion
 
@@ -407,7 +407,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             TuistBuildInsightsService::class.java
         ) {
             parameters.url.set(url)
-            parameters.fullHandle.set(fullHandle)
+            parameters.project.set(tuistProject)
             parameters.executablePath.set(executablePath)
             parameters.gradleVersion.set(gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
