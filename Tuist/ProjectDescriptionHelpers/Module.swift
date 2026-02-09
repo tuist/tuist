@@ -331,8 +331,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.projectDescription.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
+                    .external(name: "Command"),
                 ]
             case .automation:
                 [
@@ -879,8 +881,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
                     .external(name: "Algorithms"),
                     .external(name: "FileSystem"),
+                    .external(name: "Logging"),
                     .external(name: "XCLogParser"),
                     .external(name: "SwiftToolsSupport"),
                 ]
@@ -931,8 +935,10 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.xcActivityLog.targetName),
+                    .target(name: Module.logging.targetName),
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
+                    .external(name: "Logging"),
                 ]
             case .cas:
                 [
