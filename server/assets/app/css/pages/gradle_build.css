@@ -117,6 +117,10 @@
     gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-8);
 
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+
     & [data-part="filters"] {
       display: flex;
       gap: var(--noora-spacing-6);
@@ -164,6 +168,10 @@
     gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-8);
 
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+
     & > [data-part="cacheable-tasks-card-section"] {
       gap: var(--noora-spacing-5);
 
@@ -196,6 +204,11 @@
 
       & > * {
         flex-grow: 1;
+      }
+
+      & .tuist-widget[data-empty="true"] [data-part="empty-label"] {
+        padding-top: 0;
+        padding-bottom: 0;
       }
 
       @media (max-width: 768px) {
