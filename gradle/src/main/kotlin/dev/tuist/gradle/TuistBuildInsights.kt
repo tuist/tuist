@@ -27,6 +27,7 @@ import org.gradle.tooling.events.task.TaskFailureResult
 import org.gradle.tooling.events.task.TaskSkippedResult
 import org.gradle.tooling.events.task.TaskSuccessResult
 import com.google.gson.Gson
+import org.gradle.api.logging.Logging
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -109,6 +110,8 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
     }
+
+    private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
 
     internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
@@ -268,7 +271,7 @@ abstract class TuistBuildInsightsService :
         try {
             sendReport()
         } catch (e: Exception) {
-            println("Tuist: Warning - Failed to send build insights: ${e.message}")
+            logger.warn("Tuist: Failed to send build insights: ${e.message}")
         }
     }
 
@@ -276,7 +279,7 @@ abstract class TuistBuildInsightsService :
         val projectValue = parameters.project.get()
         val parts = projectValue.split("/")
         if (parts.size != 2) {
-            println("Tuist: Warning - Invalid project format for build insights: $projectValue")
+            logger.warn("Tuist: Invalid project format for build insights: $projectValue")
             return
         }
         val (accountHandle, projectHandle) = parts
@@ -354,9 +357,9 @@ abstract class TuistBuildInsightsService :
         }
 
         if (response != null) {
-            println("Tuist: Build insights reported successfully (build ${response.id})")
+            logger.lifecycle("Tuist: Build insights reported successfully (build ${response.id})")
         } else {
-            println("Tuist: Warning - Failed to report build insights.")
+            logger.warn("Tuist: Failed to report build insights.")
         }
     }
 }
@@ -366,6 +369,7 @@ abstract class TuistBuildInsightsService :
 internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     private val eventsListenerRegistry: BuildEventsListenerRegistry
 ) : Plugin<Project> {
+    private val logger = Logging.getLogger(TuistBuildInsightsPlugin::class.java)
 
     override fun apply(project: Project) {
         if (project !== project.rootProject) return
@@ -404,7 +408,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
                 val listenerManager = gradleInternal.services.get(BuildOperationListenerManager::class.java)
                 listenerManager.addListener(service)
             } catch (e: Exception) {
-                println("Tuist: Warning - Could not register build operation listener. Cache metadata may be incomplete.")
+                logger.warn("Tuist: Could not register build operation listener. Cache metadata may be incomplete.")
             }
         }
     }

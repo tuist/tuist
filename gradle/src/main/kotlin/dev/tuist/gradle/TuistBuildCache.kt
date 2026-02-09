@@ -1,6 +1,7 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import org.gradle.api.logging.Logging
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
@@ -56,6 +57,8 @@ open class TuistBuildCache : AbstractBuildCache() {
  * Factory that creates TuistBuildCacheService instances.
  */
 class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> {
+    private val logger = Logging.getLogger(TuistBuildCacheServiceFactory::class.java)
+
     override fun createBuildCacheService(
         configuration: TuistBuildCache,
         describer: BuildCacheServiceFactory.Describer
@@ -92,7 +95,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             // Version check failed, but the executable exists.
             // This can happen when running in a Tuist project directory where
             // dependencies haven't been installed. Log a warning but don't fail.
-            println("Tuist: Warning - Could not determine Tuist version. Proceeding without version validation.")
+            logger.warn("Tuist: Could not determine Tuist version. Proceeding without version validation.")
             return
         }
 
