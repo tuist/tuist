@@ -1402,6 +1402,81 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
             resource: "Resources/MacPlugin.bundle"
         )
     }
+
+    /// Tests that external local Swift packages configured as dynamic frameworks
+    /// generate the correct bundle accessor that uses `Bundle(for: BundleFinder.self)`
+    /// instead of searching for a separate `.bundle` file.
+    /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
+    func test_app_with_external_dynamic_framework_with_resources() async throws {
+        try await setUpFixture("generated_app_with_mac_bundle")
+
+        // Modify the Tuist/Package.swift to use dynamic framework for ResourcesFramework
+        let packageSwiftPath = fixturePath.appending(components: "Tuist", "Package.swift")
+        let dynamicFrameworkPackageSwift = """
+        // swift-tools-version: 6.0
+        @preconcurrency import PackageDescription
+
+        #if TUIST
+            import struct ProjectDescription.PackageSettings
+
+            let packageSettings = PackageSettings(
+                productTypes: ["ResourcesFramework": .framework]
+            )
+        #endif
+
+        let package = Package(
+            name: "App",
+            dependencies: [
+                .package(path: "../ResourcesFramework"),
+            ]
+        )
+        """
+        try FileHandler.shared.write(dynamicFrameworkPackageSwift, path: packageSwiftPath, atomically: true)
+
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+
+        // Verify the generated bundle accessor uses the framework bundle accessor
+        // (Bundle(for: BundleFinder.self)) instead of searching for a .bundle file
+        let bundleAccessorPath = fixturePath.appending(
+            components: "ResourcesFramework", "Derived", "Sources", "TuistBundle+ResourcesFramework.swift"
+        )
+        let bundleAccessorContents = try await fileSystem.readTextFile(at: bundleAccessorPath)
+
+        // The bundle accessor should use the framework bundle accessor pattern for dynamic frameworks
+        XCTAssertTrue(
+            bundleAccessorContents.contains("Swift Bundle Accessor for Frameworks"),
+            "External dynamic frameworks should use the framework bundle accessor"
+        )
+        XCTAssertTrue(
+            bundleAccessorContents.contains("static let module = Bundle(for: BundleFinder.self)"),
+            "External dynamic frameworks should return Bundle(for: BundleFinder.self)"
+        )
+        XCTAssertFalse(
+            bundleAccessorContents.contains("fatalError"),
+            "External dynamic frameworks should not have fatalError in bundle accessor"
+        )
+        XCTAssertFalse(
+            bundleAccessorContents.contains(".bundle"),
+            "External dynamic frameworks should not search for .bundle files"
+        )
+
+        // Build to verify everything compiles and links correctly
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+
+        // Verify the dynamic framework is embedded correctly
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "Frameworks/ResourcesFramework.framework"
+        )
+        // For dynamic frameworks, resources should be inside the framework bundle
+        try await XCTAssertProductWithDestinationContainsResource(
+            "App.app",
+            destination: "Debug-iphonesimulator",
+            resource: "Frameworks/ResourcesFramework.framework/greeting.txt"
+        )
+    }
 }
 
 final class GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies: TuistAcceptanceTestCase {

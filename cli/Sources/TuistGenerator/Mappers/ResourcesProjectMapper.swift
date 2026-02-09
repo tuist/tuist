@@ -261,6 +261,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let isExternalProject = if case .external = project.type { true } else { false }
         let bundleAccessor = if target.product == .staticFramework, !isExternalProject {
             swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
+        } else if supportsResources, target.product == .framework {
+            // Dynamic frameworks (both local and external) store resources in the framework bundle itself
+            swiftFrameworkBundleAccessorString(for: target)
         } else if supportsResources, !isExternalProject {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
