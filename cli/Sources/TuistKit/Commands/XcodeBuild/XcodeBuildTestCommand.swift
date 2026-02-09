@@ -11,7 +11,7 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
         )
     }
 
-    var analyticsRequired: Bool { true }
+    public var analyticsRequired: Bool { true }
 
     public init() {}
 

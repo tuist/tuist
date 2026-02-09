@@ -53,13 +53,13 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Develop",
                     subcommands: [
                         HashCommand.self,
-                        TuistKit.BuildCommand.self,
+                        BuildCommand.self,
                         CacheCommand.self,
                         CacheStartCommand.self,
                         CleanCommand.self,
                         DumpCommand.self,
                         EditCommand.self,
-                        TuistKit.GenerateCommand.self,
+                        GenerateCommand.self,
                         GraphCommand.self,
                         InstallCommand.self,
                         MigrationCommand.self,
@@ -68,7 +68,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         RunCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
-                        TuistKit.TestCommand.self,
+                        TestCommand.self,
                         InspectCommand.self,
                         XcodeBuildCommand.self,
                     ]
@@ -93,10 +93,10 @@ public struct TuistCommand: AsyncParsableCommand {
             groups.append(CommandGroup(
                 name: "Develop",
                 subcommands: [
-                    TuistBuildCommand.BuildCommand.self,
+                    BuildCommand.self,
                     CacheCommand.self,
-                    TuistGenerateCommand.GenerateCommand.self,
-                    TuistTestCommand.TestCommand.self,
+                    GenerateCommand.self,
+                    TestCommand.self,
                 ]
             ))
         #endif

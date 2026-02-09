@@ -12,7 +12,7 @@ public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCom
         )
     }
 
-    var analyticsRequired: Bool { true }
+    public var analyticsRequired: Bool { true }
 
     public init() {}
 

@@ -303,6 +303,18 @@ tuistConfigLoaderTestDependencies.append(contentsOf: [
 tuistRegistryCommandDependencies.append(contentsOf: [
     "TuistGenerator", "TuistLoader", "TuistSupport",
 ])
+tuistBuildCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistSupport", "TuistExtension", "TuistServer",
+    xcodeGraphDependency,
+])
+tuistGenerateCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAlert", "TuistConfig", "TuistCore",
+    "TuistExtension", "TuistServer", "TuistSupport",
+])
+tuistTestCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistBuildCommand", "TuistCore",
+    "TuistExtension", "TuistServer", "TuistSupport",
+])
 #endif
 
 var targets: [Target] = [
@@ -822,9 +834,6 @@ targets.append(contentsOf: [
             "TuistCacheCommand",
             "TuistAuthCommand",
             "TuistVersionCommand",
-            "TuistBuildCommand",
-            "TuistGenerateCommand",
-            "TuistTestCommand",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistCAS",
@@ -917,6 +926,9 @@ targets.append(contentsOf: [
             "TuistCore",
             "TuistSupport",
             "TuistTesting",
+            "TuistBuildCommand",
+            "TuistGenerateCommand",
+            "TuistTestCommand",
             "TuistOrganizationCommand",
             "TuistProjectCommand",
             xcodeProjDependency,
