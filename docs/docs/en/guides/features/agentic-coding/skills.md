@@ -21,6 +21,15 @@ SKILL_NAME=tuist-migrate
 SKILL_URL=https://tuist.dev/skills/migrate/SKILL.md
 ```
 
+### Debug Flaky Tests
+
+Debugs flaky tests in Tuist projects by analyzing failure patterns, identifying root causes, and applying fixes. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
+
+```bash
+SKILL_NAME=tuist-debug-flaky-tests
+SKILL_URL=https://tuist.dev/skills/debug-flaky-tests/SKILL.md
+```
+
 ## Installation
 
 Each coding agent has its own mechanism for loading skills. Below you will find instructions for the most popular ones. The examples use `$SKILL_NAME` and `$SKILL_URL` variables listed alongside each skill above.

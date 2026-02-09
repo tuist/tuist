@@ -8,6 +8,8 @@ struct TestCaseCommand: ParsableCommand {
             abstract: "A set of commands to manage test cases.",
             subcommands: [
                 TestCaseListCommand.self,
+                TestCaseShowCommand.self,
+                TestCaseRunCommand.self,
             ]
         )
     }

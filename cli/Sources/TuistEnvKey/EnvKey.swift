@@ -193,6 +193,30 @@ public enum EnvKey: String, CaseIterable {
     case testCaseListPageSize = "TUIST_TEST_CASE_LIST_PAGE_SIZE"
     case testCaseListJson = "TUIST_TEST_CASE_LIST_JSON"
 
+    // TEST CASE SHOW
+
+    case testCaseShowId = "TUIST_TEST_CASE_SHOW_ID"
+    case testCaseShowFullHandle = "TUIST_TEST_CASE_SHOW_FULL_HANDLE"
+    case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
+    case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"
+
+    // TEST CASE RUN LIST
+
+    case testCaseRunListIdentifier = "TUIST_TEST_CASE_RUN_LIST_IDENTIFIER"
+    case testCaseRunListFullHandle = "TUIST_TEST_CASE_RUN_LIST_FULL_HANDLE"
+    case testCaseRunListPath = "TUIST_TEST_CASE_RUN_LIST_PATH"
+    case testCaseRunListFlaky = "TUIST_TEST_CASE_RUN_LIST_FLAKY"
+    case testCaseRunListPage = "TUIST_TEST_CASE_RUN_LIST_PAGE"
+    case testCaseRunListPageSize = "TUIST_TEST_CASE_RUN_LIST_PAGE_SIZE"
+    case testCaseRunListJson = "TUIST_TEST_CASE_RUN_LIST_JSON"
+
+    // TEST CASE RUN SHOW
+
+    case testCaseRunShowId = "TUIST_TEST_CASE_RUN_SHOW_ID"
+    case testCaseRunShowFullHandle = "TUIST_TEST_CASE_RUN_SHOW_FULL_HANDLE"
+    case testCaseRunShowPath = "TUIST_TEST_CASE_RUN_SHOW_PATH"
+    case testCaseRunShowJson = "TUIST_TEST_CASE_RUN_SHOW_JSON"
+
     // ORGANIZATION BILLING
 
     case organizationBillingOrganizationName = "TUIST_ORGANIZATION_BILLING_ORGANIZATION_NAME"
