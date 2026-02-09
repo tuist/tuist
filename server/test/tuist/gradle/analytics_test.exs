@@ -5,9 +5,9 @@ defmodule Tuist.Gradle.AnalyticsTest do
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  @now ~N[2024-04-30 10:20:30]
-  @start_datetime ~U[2024-04-28 00:00:00Z]
-  @end_datetime ~U[2024-04-30 23:59:59Z]
+  @now ~N[2026-01-15 10:20:30]
+  @start_datetime ~U[2026-01-13 00:00:00Z]
+  @end_datetime ~U[2026-01-15 23:59:59Z]
 
   describe "cache_hit_rate/4" do
     test "calculates cache hit rate from build data" do
@@ -118,7 +118,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
 
       assert got.avg_hit_rate == 0.0
       assert got.trend == 0.0
-      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.dates == [~D[2026-01-13], ~D[2026-01-14], ~D[2026-01-15]]
       assert got.values == [0.0, 0.0, 0.0]
     end
   end
