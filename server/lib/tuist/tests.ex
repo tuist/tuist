@@ -38,18 +38,22 @@ defmodule Tuist.Tests do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def get_test(id, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
+    with {:ok, uuid} <- Ecto.UUID.cast(id) do
+      preload = Keyword.get(opts, :preload, [])
 
-    query =
-      from(t in Test,
-        where: t.id == ^id,
-        order_by: [desc: t.inserted_at],
-        limit: 1
-      )
+      query =
+        from(t in Test,
+          where: t.id == ^uuid,
+          order_by: [desc: t.inserted_at],
+          limit: 1
+        )
 
-    case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      test -> {:ok, Repo.preload(test, preload)}
+      case ClickHouseRepo.one(query) do
+        nil -> {:error, :not_found}
+        test -> {:ok, Repo.preload(test, preload)}
+      end
+    else
+      :error -> {:error, :not_found}
     end
   end
 
