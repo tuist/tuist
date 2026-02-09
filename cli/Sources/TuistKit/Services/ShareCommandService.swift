@@ -7,6 +7,7 @@ import TuistAutomation
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistEncodable
 import TuistLoader
 import TuistLogging
 import TuistServer

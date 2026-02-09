@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistEnvironment
+import TuistLoggerTesting
 import TuistLogging
 import TuistSupport
 import TuistTesting

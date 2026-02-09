@@ -38,6 +38,14 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistAuthCommand",
     "TuistCacheCommand",
     "TuistVersionCommand",
+    "TuistAccountCommand",
+    "TuistProjectCommand",
+    "TuistOrganizationCommand",
+    "TuistBundleCommand",
+    "TuistRegistryCommand",
+    "TuistBuildCommand",
+    "TuistGenerateCommand",
+    "TuistTestCommand",
     argumentParserDependency,
     "TuistServer",
     pathDependency,
@@ -116,6 +124,141 @@ var tuistCASDependencies: [Target.Dependency] = [
     mockableDependency,
     pathDependency,
 ]
+var tuistAccountCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAlert",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistProjectCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistEncodable",
+    "TuistOpener",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistOrganizationCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistConfigLoader",
+    "TuistEncodable",
+    "TuistOpener",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistBundleCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+    .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+]
+var tuistRegistryCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAlert",
+    "TuistNooraExtension",
+    "TuistHTTP",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistBuildCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistGenerateCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistTestCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
 var tuistConfigLoaderDependencies: [Target.Dependency] = [
     pathDependency,
     fileSystemDependency,
@@ -156,6 +299,21 @@ tuistConfigLoaderDependencies.append(contentsOf: [
 tuistConfigLoaderTestDependencies.append(contentsOf: [
     "TuistLoader", "TuistTesting",
     "TuistSupport", "ProjectDescription",
+])
+tuistRegistryCommandDependencies.append(contentsOf: [
+    "TuistLoader", "TuistSupport",
+])
+tuistBuildCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistSupport", "TuistExtension", "TuistServer",
+    xcodeGraphDependency,
+])
+tuistGenerateCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAlert", "TuistConfig", "TuistCore",
+    "TuistExtension", "TuistServer", "TuistSupport",
+])
+tuistTestCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistBuildCommand", "TuistCore",
+    "TuistExtension", "TuistServer", "TuistSupport",
 ])
 #endif
 
@@ -301,6 +459,70 @@ var targets: [Target] = [
         path: "cli/Sources/TuistVersionCommand"
     ),
     .target(
+        name: "TuistAccountCommand",
+        dependencies: tuistAccountCommandDependencies,
+        path: "cli/Sources/TuistAccountCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistProjectCommand",
+        dependencies: tuistProjectCommandDependencies,
+        path: "cli/Sources/TuistProjectCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistOrganizationCommand",
+        dependencies: tuistOrganizationCommandDependencies,
+        path: "cli/Sources/TuistOrganizationCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistBundleCommand",
+        dependencies: tuistBundleCommandDependencies,
+        path: "cli/Sources/TuistBundleCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistRegistryCommand",
+        dependencies: tuistRegistryCommandDependencies,
+        path: "cli/Sources/TuistRegistryCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistBuildCommand",
+        dependencies: tuistBuildCommandDependencies,
+        path: "cli/Sources/TuistBuildCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistGenerateCommand",
+        dependencies: tuistGenerateCommandDependencies,
+        path: "cli/Sources/TuistGenerateCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistTestCommand",
+        dependencies: tuistTestCommandDependencies,
+        path: "cli/Sources/TuistTestCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistServer",
         dependencies: tuistServerDependencies,
         path: "cli/Sources/TuistServer",
@@ -375,6 +597,26 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistNooraTesting",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+            loggingDependency,
+            "TuistAlert",
+            "TuistLogging",
+            "TuistLoggerTesting",
+        ],
+        path: "cli/Sources/TuistNooraTesting"
+    ),
+    .target(
+        name: "TuistLoggerTesting",
+        dependencies: [
+            "TuistLogging",
+            "TuistEnvironment",
+            loggingDependency,
+        ],
+        path: "cli/Sources/TuistLoggerTesting"
+    ),
     // MARK: Cross-platform test targets
     .testTarget(
         name: "TuistConfigLoaderTests",
@@ -415,6 +657,84 @@ var targets: [Target] = [
             "TuistUserInputReader",
         ],
         path: "cli/Tests/TuistUserInputReaderTests"
+    ),
+    .testTarget(
+        name: "TuistAccountCommandTests",
+        dependencies: [
+            "TuistAccountCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistAccountCommandTests"
+    ),
+    .testTarget(
+        name: "TuistProjectCommandTests",
+        dependencies: [
+            "TuistProjectCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistProjectCommandTests"
+    ),
+    .testTarget(
+        name: "TuistOrganizationCommandTests",
+        dependencies: [
+            "TuistOrganizationCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistOrganizationCommandTests"
+    ),
+    .testTarget(
+        name: "TuistBundleCommandTests",
+        dependencies: [
+            "TuistBundleCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistBundleCommandTests"
+    ),
+    .testTarget(
+        name: "TuistRegistryCommandTests",
+        dependencies: [
+            "TuistRegistryCommand",
+            "TuistServer",
+            "TuistConfigLoader",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistRegistryCommandTests"
+    ),
+    .testTarget(
+        name: "TuistBuildCommandTests",
+        dependencies: [
+            "TuistBuildCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistBuildCommandTests"
+    ),
+    .testTarget(
+        name: "TuistTestCommandTests",
+        dependencies: [
+            "TuistTestCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistTestCommandTests"
     ),
 ]
 
@@ -596,6 +916,8 @@ targets.append(contentsOf: [
             "TuistServer",
             "TuistHTTP",
             "TuistAlert",
+            "TuistNooraTesting",
+            "TuistLoggerTesting",
             "TuistEnvironmentTesting",
             xcodeGraphDependency,
             pathDependency,
@@ -615,6 +937,13 @@ targets.append(contentsOf: [
             "TuistCore",
             "TuistSupport",
             "TuistTesting",
+            "TuistAccountCommand",
+            "TuistBuildCommand",
+            "TuistGenerateCommand",
+            "TuistTestCommand",
+            "TuistOrganizationCommand",
+            "TuistProjectCommand",
+            "TuistRegistryCommand",
             xcodeProjDependency,
             fileSystemDependency,
             "ProjectDescription",

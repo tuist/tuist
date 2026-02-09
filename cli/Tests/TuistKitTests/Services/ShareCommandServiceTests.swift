@@ -10,6 +10,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistLoader
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import TuistTesting

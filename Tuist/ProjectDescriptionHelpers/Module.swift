@@ -54,6 +54,16 @@ public enum Module: String, CaseIterable {
     case opener = "TuistOpener"
     case config = "TuistConfig"
     case configLoader = "TuistConfigLoader"
+    case nooraTesting = "TuistNooraTesting"
+    case loggerTesting = "TuistLoggerTesting"
+    case accountCommand = "TuistAccountCommand"
+    case organizationCommand = "TuistOrganizationCommand"
+    case projectCommand = "TuistProjectCommand"
+    case bundleCommand = "TuistBundleCommand"
+    case registryCommand = "TuistRegistryCommand"
+    case buildCommand = "TuistBuildCommand"
+    case generateCommand = "TuistGenerateCommand"
+    case testCommand = "TuistTestCommand"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -142,6 +152,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
@@ -178,6 +189,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: "TuistCacheEE"),
@@ -283,7 +296,9 @@ public enum Module: String, CaseIterable {
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
-             .tuistExtension, .config:
+             .tuistExtension, .config, .nooraTesting, .loggerTesting,
+             .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
+             .registryCommand, .buildCommand, .generateCommand, .testCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -313,6 +328,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.projectDescription.targetName),
@@ -324,6 +340,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
@@ -335,6 +352,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.cacheCommand.targetName),
@@ -347,6 +366,8 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
@@ -396,7 +417,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:cli")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("domain:cli-tools")
-        case .testing, .acceptanceTesting, .environmentTesting:
+        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("domain:testing")
         case .automation:
             moduleTags.append("domain:automation")
@@ -408,7 +429,9 @@ public enum Module: String, CaseIterable {
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
             .http, .har, .configLoader:
             moduleTags.append("domain:infrastructure")
-        case .cacheCommand, .authCommand, .envKey, .versionCommand:
+        case .cacheCommand, .authCommand, .envKey, .versionCommand,
+             .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
+             .registryCommand, .buildCommand, .generateCommand, .testCommand:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -424,7 +447,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
-        case .testing, .acceptanceTesting, .environmentTesting:
+        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("layer:testing")
         default:
             moduleTags.append("layer:feature")
@@ -449,6 +472,22 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .external(name: "Path"),
                 ]
+            case .nooraTesting:
+                [
+                    .external(name: "Noora"),
+                    .external(name: "Logging"),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .xctest,
+                ]
+            case .loggerTesting:
+                [
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.environment.targetName),
+                    .external(name: "Logging"),
+                    .xctest,
+                ]
             case .logging:
                 [
                     .target(name: Module.constants.targetName),
@@ -466,6 +505,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.logging.targetName),
@@ -487,9 +528,17 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.accountCommand.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
+                    .target(name: Module.organizationCommand.targetName),
+                    .target(name: Module.projectCommand.targetName),
+                    .target(name: Module.registryCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.environment.targetName),
@@ -511,6 +560,14 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.accountCommand.targetName),
+                    .target(name: Module.organizationCommand.targetName),
+                    .target(name: Module.projectCommand.targetName),
+                    .target(name: Module.bundleCommand.targetName),
+                    .target(name: Module.registryCommand.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
@@ -1025,6 +1082,150 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .external(name: "XcodeGraph"),
                 ]
+            case .accountCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .organizationCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.encodable.targetName),
+                    .target(name: Module.opener.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .projectCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.encodable.targetName),
+                    .target(name: Module.opener.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .bundleCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "OpenAPIURLSession"),
+                ]
+            case .registryCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .buildCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.tuistExtension.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "XcodeGraph"),
+                ]
+            case .generateCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.tuistExtension.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .testCommand:
+                [
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.tuistExtension.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -1036,9 +1237,11 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
-                 .constants, .environment, .logging,
+                 .constants, .environment, .logging, .nooraTesting, .loggerTesting,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
-                 .uniqueIDGenerator, .opener, .config:
+                 .uniqueIDGenerator, .opener, .config,
+                 .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
+                 .registryCommand, .buildCommand, .generateCommand, .testCommand:
                 []
             case .configLoader:
                 [
@@ -1127,6 +1330,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.generator.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.projectAutomation.targetName),
@@ -1146,6 +1351,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cas.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
+                    .target(name: Module.organizationCommand.targetName),
+                    .target(name: Module.projectCommand.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.environment.targetName),
@@ -1223,6 +1433,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.constants.targetName),
@@ -1250,6 +1461,7 @@ public enum Module: String, CaseIterable {
             case .migration:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.support.targetName),
                 ]
             case .dependencies:
