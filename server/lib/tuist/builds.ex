@@ -5,7 +5,6 @@ defmodule Tuist.Builds do
 
   import Ecto.Query
 
-  alias Tuist.Accounts.Account
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
@@ -336,42 +335,9 @@ defmodule Tuist.Builds do
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
-    results = maybe_preload_accounts(results, preload)
+    results = Repo.preload(results, preload)
 
     {results, meta}
-  end
-
-  defp maybe_preload_accounts(builds, preload) when is_list(preload) do
-    if :ran_by_account in preload do
-      preload_ran_by_accounts(builds)
-    else
-      builds
-    end
-  end
-
-  defp maybe_preload_accounts(builds, _), do: builds
-
-  defp preload_ran_by_accounts(builds) do
-    account_ids =
-      builds
-      |> Enum.map(& &1.account_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    accounts_map =
-      if Enum.empty?(account_ids) do
-        %{}
-      else
-        Account
-        |> where([a], a.id in ^account_ids)
-        |> Repo.all()
-        |> Map.new(&{&1.id, &1})
-      end
-
-    Enum.map(builds, fn build ->
-      account = Map.get(accounts_map, build.account_id)
-      %{build | ran_by_account: account}
-    end)
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
