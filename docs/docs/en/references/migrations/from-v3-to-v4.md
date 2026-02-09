@@ -29,7 +29,7 @@ If you decide to embrace the determinism that Mise brings across the board, we r
 
 ::: info HOMEBREW IS SUPPORTED
 <!-- -->
-Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/tutorials/xcode/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+Note that you can still install Tuist using Homebrew, which is a popular package manager for macOS. You can find the instructions on how to install Tuist using Homebrew in the <LocalizedLink href="/guides/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
 <!-- -->
 :::
 

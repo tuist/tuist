@@ -412,7 +412,7 @@ export default withMermaid(
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
-/guide/introduction/installation /guides/quick-start/install-tuist 301
+/guide/introduction/installation /guides/install-tuist 301
 /guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
 /guide/introduction/adopting-tuist/swift-package /guides/start/swift-package 301
 /guide/introduction/adopting-tuist/migrate-from-xcodeproj /guides/start/migrate/xcode-project 301
@@ -483,10 +483,15 @@ export default withMermaid(
 /:locale/guides/examples/generated-projects /:locale/references/examples/generated-projects 301
 /:locale/guides/examples/generated-projects/* /:locale/references/examples/generated-projects/:splat 301
 /:locale/references/examples /:locale/references/examples/generated-projects 301
-/:locale/guides/quick-start/install-tuist /:locale/tutorials/xcode/install-tuist 301
-/:locale/guides/quick-start/get-started /:locale/tutorials/xcode/get-started 301
-/:locale/guides/quick-start/add-dependencies /:locale/tutorials/xcode/add-dependencies 301
-/:locale/guides/quick-start/gather-insights /:locale/tutorials/xcode/gather-insights 301
+/:locale/guides/quick-start/install-tuist /:locale/guides/install-tuist 301
+/:locale/tutorials/xcode/install-tuist /:locale/guides/install-tuist 301
+/:locale/tutorials/install-tuist /:locale/guides/install-tuist 301
+/:locale/guides/quick-start/get-started /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/guides/quick-start/add-dependencies /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/guides/quick-start/gather-insights /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/tutorials/xcode/get-started /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/tutorials/xcode/add-dependencies /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/tutorials/xcode/gather-insights /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/cli/logging /:locale/cli/debugging 301
 ${cliLocaleRedirects}
 ${projectDescriptionLocaleRedirects}

@@ -275,6 +275,18 @@ export function contributorsSidebar(locale) {
 export async function guidesSidebar(locale) {
   return [
     {
+      text: localizedString(locale, "sidebars.guides.text"),
+      items: [
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.install-tuist.text",
+          )}</span>`,
+          link: `/${locale}/guides/install-tuist`,
+        },
+      ],
+    },
+    {
       text: localizedString(locale, "sidebars.tutorials.text"),
       items: [
         {
@@ -282,35 +294,13 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.tutorials.items.xcode.text",
           ),
-          collapsed: true,
           items: [
             {
               text: localizedString(
                 locale,
-                "sidebars.tutorials.items.xcode.items.install-tuist.text",
+                "sidebars.tutorials.items.xcode.items.create-a-generated-project.text",
               ),
-              link: `/${locale}/tutorials/xcode/install-tuist`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.tutorials.items.xcode.items.get-started.text",
-              ),
-              link: `/${locale}/tutorials/xcode/get-started`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.tutorials.items.xcode.items.add-dependencies.text",
-              ),
-              link: `/${locale}/tutorials/xcode/add-dependencies`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.tutorials.items.xcode.items.gather-insights.text",
-              ),
-              link: `/${locale}/tutorials/xcode/gather-insights`,
+              link: `/${locale}/tutorials/xcode/create-a-generated-project`,
             },
           ],
         },

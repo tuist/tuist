@@ -222,25 +222,8 @@
         "xcode": {
           "text": "Xcode",
           "items": {
-            "install-tuist": {
-              "text": "Install Tuist"
-            },
-            "get-started": {
-              "text": "Get started"
-            },
-            "add-dependencies": {
-              "text": "Add dependencies"
-            },
-            "gather-insights": {
-              "text": "Gather insights"
-            }
-          }
-        },
-        "gradle": {
-          "text": "Gradle",
-          "items": {
-            "get-started": {
-              "text": "Get started"
+            "create-a-generated-project": {
+              "text": "Create a generated project"
             }
           }
         }
@@ -249,6 +232,9 @@
     "guides": {
       "text": "Guides",
       "items": {
+        "install-tuist": {
+          "text": "Install Tuist"
+        },
         "tuist": {
           "text": "Tuist",
           "items": {

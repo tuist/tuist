@@ -24,11 +24,16 @@
 /guides/develop/projects/plugins /en/guides/develop/projects/plugins 301
 /guides/develop/test/flakiness /en/guides/develop/test/flakiness 301
 /guides/develop/test /en/guides/develop/test 301
-/guides/quick-start/add-dependencies /en/tutorials/xcode/add-dependencies 301
-/guides/quick-start/create-a-project /en/tutorials/xcode/get-started 301
-/guides/quick-start/optimize-workflows /en/tutorials/xcode/gather-insights 301
-/guides/quick-start/gather-insights /en/tutorials/xcode/gather-insights 301
-/guides/quick-start/install-tuist /en/tutorials/xcode/install-tuist 301
+/guides/quick-start/add-dependencies /en/tutorials/xcode/create-a-generated-project 301
+/guides/quick-start/create-a-project /en/tutorials/xcode/create-a-generated-project 301
+/guides/quick-start/optimize-workflows /en/tutorials/xcode/create-a-generated-project 301
+/guides/quick-start/gather-insights /en/tutorials/xcode/create-a-generated-project 301
+/tutorials/xcode/get-started /en/tutorials/xcode/create-a-generated-project 301
+/tutorials/xcode/add-dependencies /en/tutorials/xcode/create-a-generated-project 301
+/tutorials/xcode/gather-insights /en/tutorials/xcode/create-a-generated-project 301
+/guides/quick-start/install-tuist /en/guides/install-tuist 301
+/tutorials/xcode/install-tuist /en/guides/install-tuist 301
+/tutorials/install-tuist /en/guides/install-tuist 301
 /guides/start/migrate/xcode-project /en/guides/start/migrate/xcode-project 301
 /guides/start/migrate/bazel-project /en/guides/start/migrate/bazel-project 301
 /guides/start/migrate/xcodegen-project /en/guides/start/migrate/xcodegen-project 301
@@ -285,6 +290,6 @@
 /references/project-description/typealiases/runactionoptions.simulatedlocation /en/references/project-description/typealiases/runactionoptions.simulatedlocation 301
 /references/project-description/typealiases/settingvalue.booleanliteraltype /en/references/project-description/typealiases/settingvalue.booleanliteraltype 301
 /references/project-description/typealiases/settingsdictionary /en/references/project-description/typealiases/settingsdictionary 301
-/:locale/guides/quick-start/create-a-project /:locale/tutorials/xcode/get-started 301
-/:locale/guides/quick-start/optimize-workflows /:locale/tutorials/xcode/gather-insights 301
+/:locale/guides/quick-start/create-a-project /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/guides/quick-start/optimize-workflows /:locale/tutorials/xcode/create-a-generated-project 301
 /en 301
