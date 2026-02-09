@@ -72,7 +72,7 @@ msgstr ""
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:222
+#: lib/tuist_web/components/app_layout_components.ex:225
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -80,7 +80,7 @@ msgstr ""
 #: lib/tuist_web/components/runs/ran_by_badge.ex:15
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
-#: lib/tuist_web/components/runs/ran_by_badge.ex:84
+#: lib/tuist_web/components/runs/ran_by_badge.ex:90
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
@@ -250,7 +250,7 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:210
+#: lib/tuist_web/components/app_layout_components.ex:213
 #: lib/tuist_web/components/layouts/ops.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "QA"
@@ -261,7 +261,7 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:234
+#: lib/tuist_web/components/app_layout_components.ex:237
 #: lib/tuist_web/components/layouts/account.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -370,8 +370,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:261
-#: lib/tuist_web/components/app_layout_components.ex:288
+#: lib/tuist_web/components/app_layout_components.ex:264
+#: lib/tuist_web/components/app_layout_components.ex:291
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -387,7 +387,8 @@ msgid "Unauthorized"
 msgstr ""
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
-#: lib/tuist_web/components/runs/ran_by_badge.ex:98
+#: lib/tuist_web/components/runs/ran_by_badge.ex:77
+#: lib/tuist_web/components/runs/ran_by_badge.ex:104
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
