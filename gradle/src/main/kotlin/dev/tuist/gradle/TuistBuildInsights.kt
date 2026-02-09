@@ -134,17 +134,7 @@ class DefaultBuildInsightsHttpClient : BuildInsightsHttpClient {
 // --- CI Detection ---
 
 object CIDetector {
-    fun isCi(): Boolean {
-        return System.getenv("CI") != null ||
-            System.getenv("JENKINS_URL") != null ||
-            System.getenv("GITHUB_ACTIONS") != null ||
-            System.getenv("GITLAB_CI") != null ||
-            System.getenv("CIRCLECI") != null ||
-            System.getenv("BITBUCKET_BUILD_NUMBER") != null ||
-            System.getenv("BUILDKITE") != null ||
-            System.getenv("TRAVIS") != null ||
-            System.getenv("TF_BUILD") != null
-    }
+    fun isCi(): Boolean = System.getenv("CI") != null
 }
 
 // --- Git Info ---
