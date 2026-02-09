@@ -1108,10 +1108,14 @@ defmodule Tuist.Builds.Analytics do
         opts
       )
 
+    # For cache hit rate, higher is better, so we invert the percentile:
+    # quantile(1 - p) on ascending data ≡ percentile_cont(p) on descending data.
+    inverted_percentile = 1 - percentile
+
     query = """
     SELECT
       toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
-      quantileOrNull(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
+      quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at >= {start_dt:DateTime64(6)}
@@ -1153,8 +1157,11 @@ defmodule Tuist.Builds.Analytics do
   defp cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
     {filter_clauses, filter_params} = build_filter_clauses(opts)
 
+    # ClickHouse quantile uses "lower-is-better" convention, so we invert for hit rate where higher is better
+    inverted_percentile = 1 - percentile
+
     query = """
-    SELECT quantileOrNull(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
+    SELECT quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at >= {start_dt:DateTime64(6)}
