@@ -64,22 +64,18 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp sync_release(scope, name, full_handle, tag, version, token) do
-    tmp_dir = temp_dir()
+    {:ok, tmp_dir} = Briefly.create(directory: true)
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
-    try do
-      with :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
-           {:ok, checksum} <- checksum_for_file(archive_path),
-           :ok <- upload_source_archive(scope, name, version, archive_path),
-           {:ok, manifests} <- fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
-        update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
-      else
-        {:error, reason} ->
-          Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
-          {:error, reason}
-      end
-    after
-      File.rm_rf(tmp_dir)
+    with :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
+         {:ok, checksum} <- checksum_for_file(archive_path),
+         :ok <- upload_source_archive(scope, name, version, archive_path),
+         {:ok, manifests} <- fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
+      update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
+    else
+      {:error, reason} ->
+        Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
@@ -333,13 +329,5 @@ defmodule Cache.Registry.ReleaseWorker do
       |> Base.encode16(case: :lower)
 
     {:ok, hash}
-  end
-
-  defp temp_dir do
-    base = System.tmp_dir!()
-    unique = :erlang.unique_integer([:positive, :monotonic])
-    path = Path.join(base, "tuist-registry-#{unique}")
-    File.mkdir_p!(path)
-    path
   end
 end

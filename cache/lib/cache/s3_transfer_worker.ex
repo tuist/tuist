@@ -65,6 +65,8 @@ defmodule Cache.S3TransferWorker do
 
   defp execute_transfer(:upload, %{key: key}), do: S3.upload(key)
 
+  defp execute_transfer(:download, %{artifact_type: :registry, key: key}), do: S3.download(key, type: :registry)
+
   defp execute_transfer(:download, %{key: key}), do: S3.download(key)
 
   defp handle_result(_type, {:ok, {transfer, :ok}}), do: transfer.id

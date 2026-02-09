@@ -137,93 +137,69 @@ defmodule Cache.S3 do
   @doc """
   Downloads an artifact from S3 to local disk.
 
+  ## Options
+
+    * `:type` - The storage type, either `:cache` (default) or `:registry`
+
   Returns :ok on success, {:error, :rate_limited} on 429 errors (should be retried),
   or {:error, reason} on other failures.
   If the artifact does not exist in S3, returns {:ok, :miss}.
   """
-  def download(key) do
+  def download(key, opts \\ []) do
+    type = Keyword.get(opts, :type, :cache)
+    bucket = bucket_for_type(type)
+    local_path = Cache.Disk.artifact_path(key)
+
     Logger.info("Starting S3 download for artifact: #{key}")
 
-    case check_exists(key) do
-      {:ok, true} ->
-        local_path = Cache.Disk.artifact_path(key)
-
-        case download_file(key, local_path) do
-          :ok ->
-            {:ok, :hit}
-
-          {:error, :rate_limited} = error ->
-            Logger.warning("S3 download rate limited for artifact: #{key}")
-            error
-
-          {:error, reason} ->
-            Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
-            {:error, reason}
-        end
-
-      {:ok, false} ->
-        Logger.info("Artifact not found in S3, skipping download: #{key}")
-        {:ok, :miss}
-
-      {:error, :rate_limited} = error ->
-        Logger.warning("S3 exists check rate limited for artifact: #{key}")
-        error
-    end
-  end
-
-  defp check_exists(key) do
-    bucket = Config.cache_bucket()
-
-    {duration, result} =
+    {head_duration, head_result} =
       :timer.tc(fn ->
         bucket
         |> ExAws.S3.head_object(key)
         |> ExAws.request()
       end)
 
-    case result do
+    case head_result do
       {:ok, _response} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
-        {:ok, true}
+        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :found})
+
+        local_path |> Path.dirname() |> File.mkdir_p!()
+
+        {dl_duration, dl_result} =
+          :timer.tc(fn ->
+            bucket
+            |> ExAws.S3.download_file(key, local_path)
+            |> ExAws.request()
+          end)
+
+        case dl_result do
+          {:ok, :done} ->
+            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :ok})
+            {:ok, :hit}
+
+          {:error, {:http_error, 429, _}} ->
+            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :rate_limited})
+            Logger.warning("S3 download rate limited for artifact: #{key}")
+            {:error, :rate_limited}
+
+          {:error, reason} ->
+            :telemetry.execute([:cache, :s3, :download], %{duration: dl_duration}, %{result: :error})
+            Logger.error("S3 download failed for artifact #{key}: #{inspect(reason)}")
+            {:error, reason}
+        end
 
       {:error, {:http_error, 404, _}} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
-        {:ok, false}
+        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :not_found})
+        {:ok, :miss}
 
       {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
+        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :rate_limited})
+        Logger.warning("S3 exists check rate limited for artifact: #{key}")
         {:error, :rate_limited}
 
       {:error, _reason} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
-        {:ok, false}
-    end
-  end
-
-  defp download_file(key, local_path) do
-    bucket = Config.cache_bucket()
-
-    local_path |> Path.dirname() |> File.mkdir_p!()
-
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.download_file(key, local_path)
-        |> ExAws.request()
-      end)
-
-    case result do
-      {:ok, :done} ->
-        :telemetry.execute([:cache, :s3, :download], %{duration: duration}, %{result: :ok})
-        :ok
-
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :download], %{duration: duration}, %{result: :rate_limited})
-        {:error, :rate_limited}
-
-      {:error, reason} ->
-        :telemetry.execute([:cache, :s3, :download], %{duration: duration}, %{result: :error})
-        {:error, reason}
+        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :error})
+        {:ok, :miss}
     end
   end
 

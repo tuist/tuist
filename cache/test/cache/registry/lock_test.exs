@@ -107,11 +107,15 @@ defmodule Cache.Registry.LockTest do
     end
 
     test "returns ok even if delete fails" do
+      import ExUnit.CaptureLog
+
       expect(ExAws, :request, fn %{http_method: :delete} ->
         {:error, {:http_error, 500, ""}}
       end)
 
-      assert :ok = Lock.release(:sync)
+      assert capture_log(fn ->
+               assert :ok = Lock.release(:sync)
+             end) =~ "Failed to release registry lock"
     end
   end
 

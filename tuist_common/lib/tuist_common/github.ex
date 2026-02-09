@@ -175,6 +175,9 @@ defmodule TuistCommon.GitHub do
             end
         end
 
+      {:ok, %{status: status}} when status in [403, 429] ->
+        {:error, {:rate_limited, status}}
+
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
 

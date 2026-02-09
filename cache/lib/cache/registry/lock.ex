@@ -32,12 +32,16 @@ defmodule Cache.Registry.Lock do
     lock_key = lock_key(key)
     bucket = bucket()
 
-    _ =
-      bucket
-      |> ExAws.S3.delete_object(lock_key)
-      |> ExAws.request()
+    case bucket
+         |> ExAws.S3.delete_object(lock_key)
+         |> ExAws.request() do
+      {:ok, _} ->
+        :ok
 
-    :ok
+      {:error, reason} ->
+        Logger.warning("Failed to release registry lock #{lock_key}: #{inspect(reason)}")
+        :ok
+    end
   end
 
   defp maybe_replace_expired(lock_key, body, now) do
