@@ -9,8 +9,8 @@ defmodule TuistWeb.GradleCacheLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Gradle
-  alias Tuist.Repo
   alias Tuist.Gradle.Analytics
+  alias Tuist.Repo
   alias Tuist.Tasks
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Helpers.DatePicker
@@ -89,8 +89,7 @@ defmodule TuistWeb.GradleCacheLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
-    {:noreply,
-     push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/gradle-cache?#{query_params}")}
+    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/gradle-cache?#{query_params}")}
   end
 
   def handle_info({:gradle_build_created, _build}, socket) do
@@ -115,18 +114,20 @@ defmodule TuistWeb.GradleCacheLive do
     analytics_environment = params["analytics-environment"] || "any"
 
     opts =
-      [
-        project_id: project.id,
-        start_datetime: start_datetime,
-        end_datetime: end_datetime
-      ]
-      |> then(fn opts ->
-        case analytics_environment do
-          "ci" -> Keyword.put(opts, :is_ci, true)
-          "local" -> Keyword.put(opts, :is_ci, false)
-          _ -> opts
+      then(
+        [
+          project_id: project.id,
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
+        ],
+        fn opts ->
+          case analytics_environment do
+            "ci" -> Keyword.put(opts, :is_ci, true)
+            "local" -> Keyword.put(opts, :is_ci, false)
+            _ -> opts
+          end
         end
-      end)
+      )
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
@@ -191,7 +192,8 @@ defmodule TuistWeb.GradleCacheLive do
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
     builds =
-      Gradle.list_builds(project.id, limit: 40)
+      project.id
+      |> Gradle.list_builds(limit: 40)
       |> Repo.preload(:built_by_account)
 
     recent_builds_chart_data =
@@ -244,5 +246,4 @@ defmodule TuistWeb.GradleCacheLive do
       Float.round(from_cache / cacheable * 100.0, 1)
     end
   end
-
 end

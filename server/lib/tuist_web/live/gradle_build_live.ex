@@ -116,8 +116,7 @@ defmodule TuistWeb.GradleBuildLive do
     {:noreply,
      socket
      |> push_patch(
-       to:
-         "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_params)}"
+       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_params)}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
@@ -137,8 +136,7 @@ defmodule TuistWeb.GradleBuildLive do
     {:noreply,
      socket
      |> push_patch(
-       to:
-         "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_query_params)}"
+       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_query_params)}"
      )
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
@@ -186,8 +184,7 @@ defmodule TuistWeb.GradleBuildLive do
     sort_order = params["cacheable-tasks-sort-order"] || "desc"
 
     flop_params = %{
-      filters:
-        [%{field: :cacheable, op: :==, value: true}] ++ text_filters ++ dropdown_filters,
+      filters: [%{field: :cacheable, op: :==, value: true}] ++ text_filters ++ dropdown_filters,
       page: String.to_integer(params["cacheable-tasks-page"] || "1"),
       page_size: @table_page_size,
       order_by: [sort_by],
@@ -242,10 +239,8 @@ defmodule TuistWeb.GradleBuildLive do
   defp build_task_flop_filters(filters) do
     filters
     |> Enum.map(fn filter ->
-      case filter.id do
-        "outcome" ->
-          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
-      end
+      "outcome" = filter.id
+      %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
     end)
     |> Filter.Operations.convert_filters_to_flop()
   end
@@ -277,17 +272,14 @@ defmodule TuistWeb.GradleBuildLive do
   defp build_cacheable_task_flop_filters(filters) do
     filters
     |> Enum.map(fn filter ->
-      case filter.id do
-        "outcome" ->
-          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
-      end
+      "outcome" = filter.id
+      %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
     end)
     |> Filter.Operations.convert_filters_to_flop()
   end
 
-  defp ensure_allowed_cacheable_sort_by(value)
-       when value in ["duration_ms", "cache_artifact_size"],
-       do: String.to_existing_atom(value)
+  defp ensure_allowed_cacheable_sort_by(value) when value in ["duration_ms", "cache_artifact_size"],
+    do: String.to_existing_atom(value)
 
   defp ensure_allowed_cacheable_sort_by(_), do: :duration_ms
 

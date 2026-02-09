@@ -222,16 +222,12 @@ defmodule Tuist.Gradle do
         select: %{
           cache_download_bytes:
             coalesce(
-              sum(
-                fragment("if(? = 'remote_hit', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)
-              ),
+              sum(fragment("if(? = 'remote_hit', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)),
               0
             ),
           cache_upload_bytes:
             coalesce(
-              sum(
-                fragment("if(? = 'executed', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)
-              ),
+              sum(fragment("if(? = 'executed', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)),
               0
             ),
           download_duration_ms:
@@ -306,12 +302,9 @@ defmodule Tuist.Gradle do
 
   defp to_naive_datetime(nil), do: nil
 
-  defp to_naive_datetime(%DateTime{} = dt),
-    do: dt |> DateTime.to_naive() |> ensure_usec_precision()
+  defp to_naive_datetime(%DateTime{} = dt), do: dt |> DateTime.to_naive() |> ensure_usec_precision()
 
-  defp to_naive_datetime(%NaiveDateTime{} = ndt),
-    do: ensure_usec_precision(ndt)
+  defp to_naive_datetime(%NaiveDateTime{} = ndt), do: ensure_usec_precision(ndt)
 
-  defp ensure_usec_precision(%NaiveDateTime{microsecond: {usec, _}} = ndt),
-    do: %{ndt | microsecond: {usec, 6}}
+  defp ensure_usec_precision(%NaiveDateTime{microsecond: {usec, _}} = ndt), do: %{ndt | microsecond: {usec, 6}}
 end

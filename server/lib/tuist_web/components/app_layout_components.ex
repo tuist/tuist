@@ -5,9 +5,9 @@ defmodule TuistWeb.AppLayoutComponents do
   use TuistWeb, :live_component
   use Noora
 
-  alias Tuist.Projects.Project
-
   import TuistWeb.AccountDropdown
+
+  alias Tuist.Projects.Project
 
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
@@ -206,7 +206,10 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={Project.xcode_project?(@selected_project) and FunWithFlags.enabled?(:qa, for: @selected_account)}
+        :if={
+          Project.xcode_project?(@selected_project) and
+            FunWithFlags.enabled?(:qa, for: @selected_account)
+        }
         label={dgettext("dashboard", "QA")}
         icon="checkup_list"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}

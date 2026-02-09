@@ -205,10 +205,7 @@
             label={dgettext("dashboard_gradle", "Task")}
             patch={
               @tasks_sort_by == "task_path" &&
-                "?#{@uri.query
-                |> Query.put("tasks-sort-by", "task_path")
-                |> Query.put("tasks-sort-order", sort_order_patch_value("task_path", @tasks_sort_by, @tasks_sort_order))
-                |> Query.drop("tasks-page")}"
+                "?#{@uri.query |> Query.put("tasks-sort-by", "task_path") |> Query.put("tasks-sort-order", sort_order_patch_value("task_path", @tasks_sort_by, @tasks_sort_order)) |> Query.drop("tasks-page")}"
             }
             icon={@tasks_sort_by == "task_path" && sort_icon(@tasks_sort_order)}
           >
@@ -226,10 +223,7 @@
             label={dgettext("dashboard_gradle", "Started after")}
             patch={
               @tasks_sort_by == "started_at" &&
-                "?#{@uri.query
-                |> Query.put("tasks-sort-by", "started_at")
-                |> Query.put("tasks-sort-order", sort_order_patch_value("started_at", @tasks_sort_by, @tasks_sort_order))
-                |> Query.drop("tasks-page")}"
+                "?#{@uri.query |> Query.put("tasks-sort-by", "started_at") |> Query.put("tasks-sort-order", sort_order_patch_value("started_at", @tasks_sort_by, @tasks_sort_order)) |> Query.drop("tasks-page")}"
             }
             icon={@tasks_sort_by == "started_at" && sort_icon(@tasks_sort_order)}
           >
@@ -240,10 +234,7 @@
             label={dgettext("dashboard_gradle", "Duration")}
             patch={
               @tasks_sort_by == "duration_ms" &&
-                "?#{@uri.query
-                |> Query.put("tasks-sort-by", "duration_ms")
-                |> Query.put("tasks-sort-order", sort_order_patch_value("duration_ms", @tasks_sort_by, @tasks_sort_order))
-                |> Query.drop("tasks-page")}"
+                "?#{@uri.query |> Query.put("tasks-sort-by", "duration_ms") |> Query.put("tasks-sort-order", sort_order_patch_value("duration_ms", @tasks_sort_by, @tasks_sort_order)) |> Query.drop("tasks-page")}"
             }
             icon={@tasks_sort_by == "duration_ms" && sort_icon(@tasks_sort_order)}
           >
@@ -324,7 +315,10 @@
           <.widget
             title={dgettext("dashboard_gradle", "Cache downloads")}
             description={
-              dgettext("dashboard_gradle", "Total size of cache artifacts downloaded from remote cache.")
+              dgettext(
+                "dashboard_gradle",
+                "Total size of cache artifacts downloaded from remote cache."
+              )
             }
             value={ByteFormatter.format_bytes(@cache_download_bytes)}
             id="widget-cache-downloads"
@@ -332,7 +326,10 @@
           <.widget
             title={dgettext("dashboard_gradle", "Cache uploads")}
             description={
-              dgettext("dashboard_gradle", "Total size of cache artifacts uploaded to remote cache.")
+              dgettext(
+                "dashboard_gradle",
+                "Total size of cache artifacts uploaded to remote cache."
+              )
             }
             value={ByteFormatter.format_bytes(@cache_upload_bytes)}
             id="widget-cache-uploads"
@@ -593,12 +590,12 @@
               label={dgettext("dashboard_gradle", "Size")}
               patch={
                 @cacheable_tasks_sort_by == "cache_artifact_size" &&
-                  "?#{@uri.query
-                  |> Query.put("cacheable-tasks-sort-by", "cache_artifact_size")
-                  |> Query.put("cacheable-tasks-sort-order", sort_order_patch_value("cache_artifact_size", @cacheable_tasks_sort_by, @cacheable_tasks_sort_order))
-                  |> Query.drop("cacheable-tasks-page")}"
+                  "?#{@uri.query |> Query.put("cacheable-tasks-sort-by", "cache_artifact_size") |> Query.put("cacheable-tasks-sort-order", sort_order_patch_value("cache_artifact_size", @cacheable_tasks_sort_by, @cacheable_tasks_sort_order)) |> Query.drop("cacheable-tasks-page")}"
               }
-              icon={@cacheable_tasks_sort_by == "cache_artifact_size" && sort_icon(@cacheable_tasks_sort_order)}
+              icon={
+                @cacheable_tasks_sort_by == "cache_artifact_size" &&
+                  sort_icon(@cacheable_tasks_sort_order)
+              }
             >
               <.text_cell label={
                 if task.cache_artifact_size,
@@ -611,12 +608,12 @@
               label={dgettext("dashboard_gradle", "Duration")}
               patch={
                 @cacheable_tasks_sort_by == "duration_ms" &&
-                  "?#{@uri.query
-                  |> Query.put("cacheable-tasks-sort-by", "duration_ms")
-                  |> Query.put("cacheable-tasks-sort-order", sort_order_patch_value("duration_ms", @cacheable_tasks_sort_by, @cacheable_tasks_sort_order))
-                  |> Query.drop("cacheable-tasks-page")}"
+                  "?#{@uri.query |> Query.put("cacheable-tasks-sort-by", "duration_ms") |> Query.put("cacheable-tasks-sort-order", sort_order_patch_value("duration_ms", @cacheable_tasks_sort_by, @cacheable_tasks_sort_order)) |> Query.drop("cacheable-tasks-page")}"
               }
-              icon={@cacheable_tasks_sort_by == "duration_ms" && sort_icon(@cacheable_tasks_sort_order)}
+              icon={
+                @cacheable_tasks_sort_by == "duration_ms" &&
+                  sort_icon(@cacheable_tasks_sort_order)
+              }
             >
               <.text_cell label={format_duration(task.duration_ms)} icon="history" />
             </:col>

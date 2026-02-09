@@ -23,19 +23,19 @@ defmodule Tuist.Gradle.Analytics do
   """
   def cache_hit_rate(project_id, start_datetime, end_datetime, opts \\ []) do
     query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            b.inserted_at <= ^DateTime.to_naive(end_datetime) and
-            b.cacheable_tasks_count > 0,
-        select: %{
-          local_hit: sum(b.tasks_local_hit_count),
-          remote_hit: sum(b.tasks_remote_hit_count),
-          cacheable: sum(b.cacheable_tasks_count)
-        }
+      maybe_filter_ci(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime) and b.cacheable_tasks_count > 0,
+          select: %{
+            local_hit: sum(b.tasks_local_hit_count),
+            remote_hit: sum(b.tasks_remote_hit_count),
+            cacheable: sum(b.cacheable_tasks_count)
+          }
+        ),
+        opts
       )
-      |> maybe_filter_ci(opts)
 
     result = ClickHouseRepo.one(query)
 
@@ -97,22 +97,22 @@ defmodule Tuist.Gradle.Analytics do
 
   defp cache_hit_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
-      from(b in Build,
-        group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            b.inserted_at <= ^DateTime.to_naive(end_datetime) and
-            b.cacheable_tasks_count > 0,
-        select: %{
-          date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
-          local_hit: sum(b.tasks_local_hit_count),
-          remote_hit: sum(b.tasks_remote_hit_count),
-          cacheable: sum(b.cacheable_tasks_count)
-        },
-        order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+      maybe_filter_ci(
+        from(b in Build,
+          group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime) and b.cacheable_tasks_count > 0,
+          select: %{
+            date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+            local_hit: sum(b.tasks_local_hit_count),
+            remote_hit: sum(b.tasks_remote_hit_count),
+            cacheable: sum(b.cacheable_tasks_count)
+          },
+          order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+        ),
+        opts
       )
-      |> maybe_filter_ci(opts)
 
     query
     |> ClickHouseRepo.all()
@@ -285,19 +285,16 @@ defmodule Tuist.Gradle.Analytics do
 
   defp cache_event_stats(project_id, start_datetime, end_datetime, opts) do
     query =
-      from(e in CacheEvent,
-        where:
-          e.project_id == ^project_id and
-            e.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            e.inserted_at <= ^DateTime.to_naive(end_datetime),
-        group_by: e.action,
-        select: %{
-          action: e.action,
-          total_size: sum(e.size),
-          count: count(e.id)
-        }
+      maybe_filter_ci(
+        from(e in CacheEvent,
+          where:
+            e.project_id == ^project_id and e.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              e.inserted_at <= ^DateTime.to_naive(end_datetime),
+          group_by: e.action,
+          select: %{action: e.action, total_size: sum(e.size), count: count(e.id)}
+        ),
+        opts
       )
-      |> maybe_filter_ci(opts)
 
     results = ClickHouseRepo.all(query)
 
@@ -314,20 +311,17 @@ defmodule Tuist.Gradle.Analytics do
 
   defp cache_events_over_time(project_id, action, start_datetime, end_datetime, date_format, opts) do
     query =
-      from(e in CacheEvent,
-        group_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
-        where:
-          e.project_id == ^project_id and
-            e.action == ^action and
-            e.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            e.inserted_at <= ^DateTime.to_naive(end_datetime),
-        select: %{
-          date: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
-          size: sum(e.size)
-        },
-        order_by: [asc: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format)]
+      maybe_filter_ci(
+        from(e in CacheEvent,
+          group_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
+          where:
+            e.project_id == ^project_id and e.action == ^action and e.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              e.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: %{date: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format), size: sum(e.size)},
+          order_by: [asc: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format)]
+        ),
+        opts
       )
-      |> maybe_filter_ci(opts)
 
     ClickHouseRepo.all(query)
   end
@@ -374,14 +368,15 @@ defmodule Tuist.Gradle.Analytics do
 
   defp average_build_duration(project_id, start_datetime, end_datetime, opts) do
     query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            b.inserted_at <= ^DateTime.to_naive(end_datetime),
-        select: avg(b.duration_ms)
+      maybe_filter_ci(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: avg(b.duration_ms)
+        ),
+        opts
       )
-      |> maybe_filter_ci(opts)
 
     case ClickHouseRepo.one(query) do
       nil -> 0.0
@@ -391,19 +386,17 @@ defmodule Tuist.Gradle.Analytics do
 
   defp build_durations_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
-      from(b in Build,
-        group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            b.inserted_at <= ^DateTime.to_naive(end_datetime),
-        select: %{
-          date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
-          duration: avg(b.duration_ms)
-        },
-        order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+      maybe_filter_ci(
+        from(b in Build,
+          group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: %{date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format), duration: avg(b.duration_ms)},
+          order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+        ),
+        opts
       )
-      |> maybe_filter_ci(opts)
 
     ClickHouseRepo.all(query)
   end
@@ -418,7 +411,6 @@ defmodule Tuist.Gradle.Analytics do
       %{date: date, duration: Map.get(data_map, date_str, 0.0)}
     end)
   end
-
 
   defp trend(previous_value, current_value) when is_nil(previous_value) or previous_value == 0 do
     if current_value > 0, do: 100.0, else: 0.0

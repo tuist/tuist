@@ -353,10 +353,13 @@ android_app_project =
       project
 
     {:error, _} ->
-      Projects.create_project!(%{
-        name: "android-app",
-        account: %{id: organization.account.id}
-      }, build_system: :gradle)
+      Projects.create_project!(
+        %{
+          name: "android-app",
+          account: %{id: organization.account.id}
+        },
+        build_system: :gradle
+      )
   end
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
@@ -2461,7 +2464,7 @@ Enum.each(1..gradle_build_count, fn _i ->
   is_ci = Enum.random([true, false])
   status = Enum.random(["success", "success", "success", "failure", "cancelled"])
   day_offset = Enum.random(0..60)
-  base_time = DateTime.utc_now() |> DateTime.add(-day_offset * 86400, :second)
+  base_time = DateTime.add(DateTime.utc_now(), -day_offset * 86_400, :second)
 
   # Build start time with second precision
   build_start_naive =
@@ -2497,7 +2500,8 @@ Enum.each(1..gradle_build_count, fn _i ->
 
   # Build tasks with started_at timestamps (accumulating from build start)
   {tasks, _current_offset} =
-    Enum.zip(selected_tasks, Enum.shuffle(cacheable_outcomes) ++ non_cacheable_outcomes)
+    selected_tasks
+    |> Enum.zip(Enum.shuffle(cacheable_outcomes) ++ non_cacheable_outcomes)
     |> Enum.map_reduce(0, fn {task_path, outcome}, offset_ms ->
       duration = Enum.random(50..8000)
       started_at_naive = NaiveDateTime.add(build_start_naive, offset_ms, :millisecond)
@@ -2514,13 +2518,11 @@ Enum.each(1..gradle_build_count, fn _i ->
         started_at: started_at_usec,
         cache_key:
           if(is_cacheable,
-            do: SeedHelpers.random_hex(64),
-            else: nil
+            do: SeedHelpers.random_hex(64)
           ),
         cache_artifact_size:
           if(is_cacheable,
-            do: Enum.random(10_000..5_000_000),
-            else: nil
+            do: Enum.random(10_000..5_000_000)
           )
       }
 
@@ -2529,7 +2531,7 @@ Enum.each(1..gradle_build_count, fn _i ->
       {task, next_offset}
     end)
 
-  build_duration = Enum.random(3000..30000)
+  build_duration = Enum.random(3000..30_000)
 
   attrs = %{
     project_id: gradle_project_id,

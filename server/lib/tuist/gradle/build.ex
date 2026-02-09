@@ -28,6 +28,5 @@ defmodule Tuist.Gradle.Build do
     field :tasks_no_source_count, Ch, type: "UInt32"
     field :cacheable_tasks_count, Ch, type: "UInt32"
     field :inserted_at, Ch, type: "DateTime"
-
   end
 end

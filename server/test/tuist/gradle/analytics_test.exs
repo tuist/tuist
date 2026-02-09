@@ -241,5 +241,4 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert is_number(got.downloads.trend)
     end
   end
-
 end

@@ -369,5 +369,4 @@ defmodule TuistWeb.API.GradleController do
       Float.round(from_cache / total * 100.0, 1)
     end
   end
-
 end

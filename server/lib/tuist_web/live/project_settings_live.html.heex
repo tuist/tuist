@@ -31,7 +31,10 @@
   <h2 data-part="subtitle">
     {dgettext("dashboard_projects", "General")}
   </h2>
-  <.card_section :if={Tuist.Projects.Project.xcode_project?(@selected_project)} data-part="preview-access-card-section">
+  <.card_section
+    :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+    data-part="preview-access-card-section"
+  >
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_projects", "Preview access")}
