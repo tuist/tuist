@@ -12,15 +12,6 @@ defmodule Tuist.Builds.Build do
   @category_values ["clean", "incremental"]
   @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
-  @ci_provider_by_index %{
-    0 => "github",
-    1 => "gitlab",
-    2 => "bitrise",
-    3 => "circleci",
-    4 => "buildkite",
-    5 => "codemagic"
-  }
-
   @derive {
     Flop.Schema,
     filterable: [
@@ -51,8 +42,8 @@ defmodule Tuist.Builds.Build do
     field :is_ci, :boolean
     field :model_identifier, Ch, type: "Nullable(String)"
     field :scheme, Ch, type: "Nullable(String)"
-    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
-    field :category, Ch, type: "Nullable(Enum8('clean' = 0, 'incremental' = 1))"
+    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'unknown' = 127)"
+    field :category, Ch, type: "Enum8('clean' = 0, 'incremental' = 1, 'unknown' = 127)"
     field :configuration, Ch, type: "Nullable(String)"
     field :git_branch, Ch, type: "Nullable(String)"
     field :git_commit_sha, Ch, type: "Nullable(String)"
@@ -62,7 +53,8 @@ defmodule Tuist.Builds.Build do
     field :ci_host, Ch, type: "Nullable(String)"
 
     field :ci_provider, Ch,
-      type: "Nullable(Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5))"
+      type:
+        "Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5, 'unknown' = 127)"
 
     field :cacheable_task_remote_hits_count, Ch, type: "Int32", default: 0
     field :cacheable_task_local_hits_count, Ch, type: "Int32", default: 0
@@ -81,15 +73,7 @@ defmodule Tuist.Builds.Build do
   def create_changeset(build \\ %__MODULE__{}, attrs) do
     attrs
     |> normalize_datetime_attr(:inserted_at)
-    |> normalize_enum_attr(:status, @status_values, %{
-      0 => "success",
-      1 => "failure"
-    })
-    |> normalize_enum_attr(:category, @category_values, %{
-      0 => "clean",
-      1 => "incremental"
-    })
-    |> normalize_enum_attr(:ci_provider, @ci_provider_values, @ci_provider_by_index)
+    |> default_to_unknown([:status, :category, :ci_provider])
     |> then(fn attrs ->
       build
       |> cast(attrs, [
@@ -127,9 +111,9 @@ defmodule Tuist.Builds.Build do
         :account_id,
         :status
       ])
-      |> validate_inclusion(:status, @status_values)
-      |> validate_inclusion(:category, @category_values)
-      |> validate_inclusion(:ci_provider, @ci_provider_values)
+      |> validate_inclusion(:status, ["unknown" | @status_values])
+      |> validate_inclusion(:category, ["unknown" | @category_values])
+      |> validate_inclusion(:ci_provider, ["unknown" | @ci_provider_values])
       |> validate_custom_tags()
       |> validate_custom_values()
     end)
@@ -148,33 +132,14 @@ defmodule Tuist.Builds.Build do
     end
   end
 
-  defp normalize_enum_attr(attrs, field, allowed_values, by_index) do
-    case Map.fetch(attrs, field) do
-      :error ->
-        attrs
-
-      {:ok, nil} ->
-        attrs
-
-      {:ok, value} ->
-        normalized = coerce_enum_value(value, allowed_values, by_index)
-        if normalized == value, do: attrs, else: Map.put(attrs, field, normalized)
-    end
+  defp default_to_unknown(attrs, fields) do
+    Enum.reduce(fields, attrs, fn field, acc ->
+      case Map.fetch(acc, field) do
+        {:ok, nil} -> Map.put(acc, field, "unknown")
+        _ -> acc
+      end
+    end)
   end
-
-  defp coerce_enum_value(value, allowed_values, by_index) when is_atom(value) do
-    value |> Atom.to_string() |> coerce_enum_value(allowed_values, by_index)
-  end
-
-  defp coerce_enum_value(value, _allowed_values, by_index) when is_integer(value) do
-    Map.get(by_index, value) || Integer.to_string(value)
-  end
-
-  defp coerce_enum_value(value, allowed_values, _by_index) when is_binary(value) do
-    if value in allowed_values, do: value
-  end
-
-  defp coerce_enum_value(_value, _allowed_values, _by_index), do: nil
 
   def changeset(attrs) do
     id = Map.get(attrs, :id) || UUIDv7.generate()
@@ -182,60 +147,15 @@ defmodule Tuist.Builds.Build do
 
     attrs
     |> Map.put(:id, id)
-    |> Map.put(:inserted_at, Map.get(attrs, :inserted_at) || now)
-    |> normalize_status()
-    |> normalize_category()
-    |> normalize_ci_provider()
+    |> Map.put_new(:inserted_at, now)
+    |> Map.put_new(:status, "success")
+    |> default_to_unknown([:status, :category, :ci_provider])
     |> convert_datetime_field(:inserted_at)
     |> normalize_custom_tags()
     |> normalize_custom_values()
     |> ensure_defaults()
     |> ensure_all_fields()
   end
-
-  defp normalize_status(attrs) do
-    if Map.has_key?(attrs, :status) do
-      case Map.get(attrs, :status) do
-        :success -> Map.put(attrs, :status, "success")
-        :failure -> Map.put(attrs, :status, "failure")
-        "success" -> attrs
-        "failure" -> attrs
-        0 -> Map.put(attrs, :status, "success")
-        1 -> Map.put(attrs, :status, "failure")
-        _ -> Map.put(attrs, :status, nil)
-      end
-    else
-      Map.put(attrs, :status, "success")
-    end
-  end
-
-  defp normalize_category(attrs) do
-    case Map.get(attrs, :category) do
-      nil -> attrs
-      :clean -> Map.put(attrs, :category, "clean")
-      :incremental -> Map.put(attrs, :category, "incremental")
-      "clean" -> attrs
-      "incremental" -> attrs
-      0 -> Map.put(attrs, :category, "clean")
-      1 -> Map.put(attrs, :category, "incremental")
-      _ -> Map.put(attrs, :category, nil)
-    end
-  end
-
-  defp normalize_ci_provider(attrs) do
-    value = Map.get(attrs, :ci_provider)
-    normalized = coerce_ci_provider(value)
-    if normalized == value, do: attrs, else: Map.put(attrs, :ci_provider, normalized)
-  end
-
-  defp coerce_ci_provider(nil), do: nil
-  defp coerce_ci_provider(value) when is_atom(value), do: value |> Atom.to_string() |> validate_ci_provider()
-  defp coerce_ci_provider(value) when is_integer(value), do: Map.get(@ci_provider_by_index, value)
-  defp coerce_ci_provider(value) when is_binary(value), do: validate_ci_provider(value)
-  defp coerce_ci_provider(_), do: nil
-
-  defp validate_ci_provider(value) when value in @ci_provider_values, do: value
-  defp validate_ci_provider(_), do: nil
 
   defp convert_datetime_field(attrs, field) do
     case Map.get(attrs, field) do
@@ -297,15 +217,6 @@ defmodule Tuist.Builds.Build do
         Map.put(attrs, :custom_values, %{})
     end
   end
-
-  def valid_status?(status) when status in @status_values, do: true
-  def valid_status?(_), do: false
-
-  def valid_category?(category) when category in @category_values, do: true
-  def valid_category?(_), do: false
-
-  def valid_ci_provider?(provider) when provider in @ci_provider_values, do: true
-  def valid_ci_provider?(_), do: false
 
   defp validate_custom_tags(changeset) do
     changeset

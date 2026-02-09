@@ -28,8 +28,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
       `is_ci` Bool DEFAULT false,
       `model_identifier` Nullable(String),
       `scheme` Nullable(String),
-      `status` Enum8('success' = 0, 'failure' = 1),
-      `category` Nullable(Enum8('clean' = 0, 'incremental' = 1)),
+      `status` Enum8('success' = 0, 'failure' = 1, 'unknown' = 127),
+      `category` Enum8('clean' = 0, 'incremental' = 1, 'unknown' = 127),
       `configuration` Nullable(String),
       `git_branch` Nullable(String),
       `git_commit_sha` Nullable(String),
@@ -37,7 +37,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
       `ci_run_id` Nullable(String),
       `ci_project_handle` Nullable(String),
       `ci_host` Nullable(String),
-      `ci_provider` Nullable(Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5)),
+      `ci_provider` Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5, 'unknown' = 127),
       `cacheable_task_remote_hits_count` Int32 DEFAULT 0,
       `cacheable_task_local_hits_count` Int32 DEFAULT 0,
       `cacheable_tasks_count` Int32 DEFAULT 0,
@@ -101,7 +101,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
       model_identifier,
       scheme,
       CASE status WHEN 0 THEN 'success' WHEN 1 THEN 'failure' ELSE 'success' END AS status,
-      CASE category WHEN 0 THEN 'clean' WHEN 1 THEN 'incremental' ELSE NULL END AS category,
+      CASE category WHEN 0 THEN 'clean' WHEN 1 THEN 'incremental' ELSE 'unknown' END AS category,
       configuration,
       git_branch,
       git_commit_sha,
@@ -116,7 +116,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
         WHEN 3 THEN 'circleci'
         WHEN 4 THEN 'buildkite'
         WHEN 5 THEN 'codemagic'
-        ELSE NULL
+        ELSE 'unknown'
       END AS ci_provider,
       coalesce(cacheable_task_remote_hits_count, 0) AS cacheable_task_remote_hits_count,
       coalesce(cacheable_task_local_hits_count, 0) AS cacheable_task_local_hits_count,
