@@ -130,7 +130,7 @@ defmodule TuistWeb.GradleCacheLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50, task_breakdown, cache_events] =
+    [hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50, cache_events] =
       combined_analytics(project.id, opts)
 
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
@@ -171,7 +171,6 @@ defmodule TuistWeb.GradleCacheLive do
     |> assign(:hit_rate_p99, hit_rate_p99)
     |> assign(:hit_rate_p90, hit_rate_p90)
     |> assign(:hit_rate_p50, hit_rate_p50)
-    |> assign(:task_breakdown, task_breakdown)
     |> assign(:cache_events, cache_events)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
     |> assign(:analytics_chart_data, analytics_chart_data)
@@ -231,7 +230,6 @@ defmodule TuistWeb.GradleCacheLive do
       fn -> Analytics.cache_hit_rate_percentile(project_id, 0.99, opts) end,
       fn -> Analytics.cache_hit_rate_percentile(project_id, 0.9, opts) end,
       fn -> Analytics.cache_hit_rate_percentile(project_id, 0.5, opts) end,
-      fn -> Analytics.task_outcome_breakdown(project_id, opts) end,
       fn -> Analytics.cache_event_analytics(project_id, opts) end
     ])
   end

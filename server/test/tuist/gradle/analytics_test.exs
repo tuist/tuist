@@ -166,60 +166,6 @@ defmodule Tuist.Gradle.AnalyticsTest do
     end
   end
 
-  describe "task_outcome_breakdown/2" do
-    test "returns counts for each outcome" do
-      project = ProjectsFixtures.project_fixture()
-
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: @now,
-        tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
-          %{task_path: ":app:compileJava", outcome: "local_hit", cacheable: true},
-          %{task_path: ":app:resources", outcome: "up_to_date", cacheable: false},
-          %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true},
-          %{task_path: ":app:test", outcome: "failed", cacheable: true},
-          %{task_path: ":app:lint", outcome: "skipped", cacheable: false},
-          %{task_path: ":app:noOp", outcome: "no_source", cacheable: false}
-        ]
-      )
-
-      got =
-        Analytics.task_outcome_breakdown(
-          project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
-        )
-
-      assert got.local_hit == 2
-      assert got.remote_hit == 0
-      assert got.up_to_date == 1
-      assert got.executed == 1
-      assert got.failed == 1
-      assert got.skipped == 1
-      assert got.no_source == 1
-    end
-
-    test "returns zeros when no data exists" do
-      project = ProjectsFixtures.project_fixture()
-
-      got =
-        Analytics.task_outcome_breakdown(
-          project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
-        )
-
-      assert got.local_hit == 0
-      assert got.remote_hit == 0
-      assert got.up_to_date == 0
-      assert got.executed == 0
-      assert got.failed == 0
-      assert got.skipped == 0
-      assert got.no_source == 0
-    end
-  end
-
   describe "cache_event_analytics/2" do
     test "returns upload and download statistics" do
       project = ProjectsFixtures.project_fixture()

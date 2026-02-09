@@ -4,7 +4,6 @@ defmodule Tuist.Gradle.Analytics do
 
   Provides Gradle-native metrics following Develocity conventions:
   - Cache hit rate: (LOCAL_HIT + REMOTE_HIT) / CACHEABLE for cacheable tasks
-  - Task outcome breakdown
   - Cache event analytics
   """
 
@@ -232,46 +231,6 @@ defmodule Tuist.Gradle.Analytics do
     |> Enum.map(fn row ->
       %{date: row.date, hit_rate: row.percentile_hit_rate || 0.0}
     end)
-  end
-
-  @doc """
-  Gets task outcome breakdown for a project over a time period.
-
-  ## Returns
-    A map with counts for each outcome:
-    - `:local_hit` - Tasks restored from local cache
-    - `:remote_hit` - Tasks restored from remote cache
-    - `:up_to_date` - Tasks that were up to date
-    - `:executed` - Tasks that were executed
-    - `:failed` - Tasks that failed
-    - `:skipped` - Tasks that were skipped
-    - `:no_source` - Tasks with no source
-  """
-  def task_outcome_breakdown(project_id, opts \\ []) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            b.inserted_at <= ^DateTime.to_naive(end_datetime),
-        select: %{
-          local_hit: sum(b.tasks_local_hit_count),
-          remote_hit: sum(b.tasks_remote_hit_count),
-          up_to_date: sum(b.tasks_up_to_date_count),
-          executed: sum(b.tasks_executed_count),
-          failed: sum(b.tasks_failed_count),
-          skipped: sum(b.tasks_skipped_count),
-          no_source: sum(b.tasks_no_source_count)
-        }
-      )
-      |> maybe_filter_ci(opts)
-
-    result = ClickHouseRepo.one(query)
-
-    Map.new(result, fn {key, value} -> {key, value || 0} end)
   end
 
   @doc """
