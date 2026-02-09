@@ -3,8 +3,13 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
+import TuistBuildCommand
 import TuistEnvironment
 import TuistEnvKey
+import TuistGenerateCommand
+import TuistOrganizationCommand
+import TuistProjectCommand
+import TuistTestCommand
 import TuistVersionCommand
 @testable import TuistAuthCommand
 @testable import TuistCacheCommand

@@ -8,8 +8,8 @@ import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistEnvKey
 import TuistNooraTesting
-import TuistOrganizationCommand
-import TuistProjectCommand
+@_exported import TuistOrganizationCommand
+@_exported import TuistProjectCommand
 import TuistSupport
 import TuistTesting
 @testable import TuistKit
