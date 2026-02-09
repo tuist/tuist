@@ -617,7 +617,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_run_id == "1234567890"
       assert build.ci_project_handle == "tuist/tuist"
       assert build.ci_host == nil
-      assert build.ci_provider == :github
+      assert build.ci_provider == "github"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
@@ -661,7 +661,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_run_id == "987654321"
       assert build.ci_project_handle == "group/project"
       assert build.ci_host == "gitlab.example.com"
-      assert build.ci_provider == :gitlab
+      assert build.ci_provider == "gitlab"
 
       assert response == %{
                "type" => "build",
