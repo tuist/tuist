@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Path
 import Testing
@@ -1404,8 +1405,7 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
     }
 
     /// Tests that external local Swift packages configured as dynamic frameworks
-    /// generate the correct bundle accessor that uses `Bundle(for: BundleFinder.self)`
-    /// instead of searching for a separate `.bundle` file.
+    /// compile and run without crashing when accessing Bundle.module.
     /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
     func test_app_with_external_dynamic_framework_with_resources() async throws {
         try await setUpFixture("generated_app_with_mac_bundle")
@@ -1435,46 +1435,49 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
 
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-
-        // Verify the generated bundle accessor uses the framework bundle accessor
-        // (Bundle(for: BundleFinder.self)) instead of searching for a .bundle file
-        let bundleAccessorPath = fixturePath.appending(
-            components: "ResourcesFramework", "Derived", "Sources", "TuistBundle+ResourcesFramework.swift"
-        )
-        let bundleAccessorContents = try await fileSystem.readTextFile(at: bundleAccessorPath)
-
-        // The bundle accessor should use the framework bundle accessor pattern for dynamic frameworks
-        XCTAssertTrue(
-            bundleAccessorContents.contains("Swift Bundle Accessor for Frameworks"),
-            "External dynamic frameworks should use the framework bundle accessor"
-        )
-        XCTAssertTrue(
-            bundleAccessorContents.contains("static let module = Bundle(for: BundleFinder.self)"),
-            "External dynamic frameworks should return Bundle(for: BundleFinder.self)"
-        )
-        XCTAssertFalse(
-            bundleAccessorContents.contains("fatalError"),
-            "External dynamic frameworks should not have fatalError in bundle accessor"
-        )
-        XCTAssertFalse(
-            bundleAccessorContents.contains(".bundle"),
-            "External dynamic frameworks should not search for .bundle files"
-        )
-
-        // Build to verify everything compiles and links correctly
         try await run(BuildCommand.self, "App", "--platform", "ios")
 
-        // Verify the dynamic framework is embedded correctly
-        try await XCTAssertProductWithDestinationContainsResource(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            resource: "Frameworks/ResourcesFramework.framework"
-        )
-        // For dynamic frameworks, resources should be inside the framework bundle
-        try await XCTAssertProductWithDestinationContainsResource(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            resource: "Frameworks/ResourcesFramework.framework/greeting.txt"
+        // Launch app on simulator to verify it doesn't crash when accessing Bundle.module
+        let commandRunner = CommandRunner()
+        let simulatorId = UUID().uuidString
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
+        ).pipedStream().awaitCompletion()
+
+        defer {
+            Task {
+                try? await commandRunner.run(
+                    arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
+                ).pipedStream().awaitCompletion()
+            }
+        }
+
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
+        ).pipedStream().awaitCompletion()
+
+        let appPath = derivedDataPath
+            .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
+
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
+        ).pipedStream().awaitCompletion()
+
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
+        ).pipedStream().awaitCompletion()
+
+        // Wait for app to initialize and potentially crash
+        try await Task.sleep(for: .seconds(2))
+
+        // Verify the app is still running (didn't crash due to bundle accessor issue)
+        let listOutput = try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
+        ).concatenatedString()
+
+        XCTAssertTrue(
+            listOutput.contains("UIKitApplication:dev.tuist.App"),
+            "App should still be running. If it crashed, the bundle accessor for external dynamic frameworks with resources may be broken."
         )
     }
 }
