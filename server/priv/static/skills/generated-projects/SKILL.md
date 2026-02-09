@@ -57,14 +57,6 @@ let target = Target(
 )
 ```
 
-When focusing on a specific area, map it to a tag or a concrete list of targets. You can obtain targets and their relationships using:
-
-```bash
-tuist graph --format json
-```
-
-The graph can be large, so filter it before sharing or processing it.
-
 When working on a focused area, generate only what you need:
 
 ```bash
