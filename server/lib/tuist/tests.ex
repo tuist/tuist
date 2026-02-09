@@ -52,22 +52,12 @@ defmodule Tuist.Tests do
         {:error, :not_found}
 
       test ->
-        {build_run_preload, other_preloads} =
-          if is_list(preload) do
-            {Enum.member?(preload, :build_run), Enum.reject(preload, &(&1 == :build_run))}
-          else
-            {preload == :build_run, []}
-          end
-
-        test = Repo.preload(test, other_preloads)
+        {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 == :build_run))
 
         test =
-          if build_run_preload and test.build_run_id do
-            build_run = Tuist.Builds.get_build(test.build_run_id)
-            %{test | build_run: build_run}
-          else
-            test
-          end
+          test
+          |> Repo.preload(pg_preloads)
+          |> ClickHouseRepo.preload(ch_preloads)
 
         {:ok, test}
     end
