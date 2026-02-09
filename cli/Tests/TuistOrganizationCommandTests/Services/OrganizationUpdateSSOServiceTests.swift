@@ -45,7 +45,7 @@ struct OrganizationUpdateSSOServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 tuist now uses Google SSO with tuist.io. Users authenticated with the tuist.io SSO organization will automatically have access to the tuist projects.
                 """
@@ -73,7 +73,7 @@ struct OrganizationUpdateSSOServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 tuist now uses Okta SSO with tuist.okta.com. Users authenticated with the tuist.okta.com SSO organization will automatically have access to the tuist projects.
                 """

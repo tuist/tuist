@@ -41,12 +41,14 @@ public func resetUI() {
 
 public func ui() -> String {
     AlertController.current.print()
-    let nooraOutput = Noora.mocked?.description ?? ""
-    let loggerOutput = Logger.testingLogHandler.collected[.warning, >=]
-    let combined = [nooraOutput, loggerOutput].filter { !$0.isEmpty }.joined(separator: "\n")
-    return combined.replacingOccurrences(
+    let output = Noora.mocked?.description ?? ""
+    return output.replacingOccurrences(
         of: #"\[[0-9]+(?:\.[0-9]+)?s\]"#,
         with: "[0.0s]",
         options: .regularExpression
     )
+}
+
+public func logOutput() -> String {
+    Logger.testingLogHandler.collected[.warning, >=]
 }

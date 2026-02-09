@@ -47,7 +47,7 @@ struct ProjectTokensRevokeServiceTests {
 
         // Then
         #expect(
-            ui().contains("The project token project-token-id was successfully revoked.")
+            logOutput().contains("The project token project-token-id was successfully revoked.")
         )
     }
 }

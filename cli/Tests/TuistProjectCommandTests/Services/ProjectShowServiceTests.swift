@@ -111,7 +111,7 @@ struct ProjectShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Full handle: tuist/tuist
                 Default branch: main
@@ -141,7 +141,7 @@ struct ProjectShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Visibility: public
                 """
@@ -170,7 +170,7 @@ struct ProjectShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Visibility: private
                 """
@@ -201,7 +201,7 @@ struct ProjectShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Full handle: tuist/tuist
                 Repository: https://github.com/tuist/tuist
@@ -237,7 +237,7 @@ struct ProjectShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Full handle: tuist/tuist
                 Default branch: main

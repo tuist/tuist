@@ -40,7 +40,7 @@ struct OrganizationListServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Listing all your organizations:
                   \u{2022} test-one
@@ -60,7 +60,7 @@ struct OrganizationListServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 "You currently have no Cloud organizations. Create one by running `tuist organization create`."
             )
         )

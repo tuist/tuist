@@ -70,7 +70,7 @@ struct OrganizationShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
                 Name: test-one
@@ -116,7 +116,7 @@ struct OrganizationShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
                 Name: test-one
@@ -151,7 +151,7 @@ struct OrganizationShowServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 \(TerminalStyle.bold.open)Organization\(TerminalStyle.reset.open)
                 Name: test-one

@@ -48,7 +48,7 @@ struct OrganizationInviteServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 tuist@test.io was successfully invited to the tuist organization 🎉
 

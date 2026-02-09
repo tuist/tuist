@@ -37,7 +37,7 @@ struct ProjectListServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 Listing all your projects:
                   \u{2022} tuist/test-one
@@ -58,7 +58,7 @@ struct ProjectListServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 "You currently have no Tuist projects. Create one by running `tuist project create`."
             )
         )

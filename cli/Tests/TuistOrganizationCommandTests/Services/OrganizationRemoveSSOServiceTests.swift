@@ -43,7 +43,7 @@ struct OrganizationRemoveSSOServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 """
                 SSO for tuist was removed.
                 """

@@ -41,6 +41,6 @@ struct ProjectTokensCreateServiceTests {
         try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
 
         // Then
-        #expect(ui().contains("new-token"))
+        #expect(logOutput().contains("new-token"))
     }
 }

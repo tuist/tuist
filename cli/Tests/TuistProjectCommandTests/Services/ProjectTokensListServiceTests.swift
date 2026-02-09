@@ -73,7 +73,7 @@ struct ProjectTokensListServiceTests {
 
         // Then
         #expect(
-            ui().contains(
+            logOutput().contains(
                 "No project tokens found. Create one by running `tuist project tokens create tuist-org/tuist."
             )
         )
