@@ -64,7 +64,7 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
       inserted_at: now
     }
 
-    {1, _} = IngestRepo.insert_all(CacheEvent, [event])
+    IngestRepo.insert_all(CacheEvent, [event])
 
     event
   end

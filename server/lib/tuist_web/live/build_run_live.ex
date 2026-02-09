@@ -17,8 +17,7 @@ defmodule TuistWeb.BuildRunLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
-  def mount(params, session, %{assigns: %{selected_project: project}} = socket)
-      when is_struct(project) do
+  def mount(params, session, %{assigns: %{selected_project: project}} = socket) when is_struct(project) do
     if Project.gradle_project?(project) do
       mount_gradle(params, session, socket)
     else
@@ -176,8 +175,7 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
-      when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and
-             is_struct(project) do
+      when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and is_struct(project) do
     if Project.gradle_project?(project) do
       TuistWeb.GradleBuildLive.handle_event(event, params, socket)
     else
@@ -280,7 +278,8 @@ defmodule TuistWeb.BuildRunLive do
   defp handle_event_xcode(
          "search-cacheable-tasks",
          %{"search" => search},
-         %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+         %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} =
+           socket
        ) do
     socket =
       push_patch(
