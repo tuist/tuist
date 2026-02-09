@@ -66,7 +66,7 @@ class TuistPlugin : Plugin<Settings> {
         }
 
         settings.gradle.rootProject {
-            extensions.extraProperties.set("tuist.serverUrl", extension.serverUrl)
+            extensions.extraProperties.set("tuist.url", extension.url)
             extensions.extraProperties.set("tuist.fullHandle", extension.fullHandle)
             extensions.extraProperties.set("tuist.executablePath", extension.executablePath ?: "tuist")
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
@@ -85,7 +85,7 @@ class TuistPlugin : Plugin<Settings> {
             remote(TuistBuildCache::class.java) {
                 this.fullHandle = extension.fullHandle
                 this.executablePath = extension.executablePath
-                this.serverUrl = extension.serverUrl
+                this.url = extension.url
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
@@ -114,9 +114,9 @@ open class TuistExtension {
     var executablePath: String? = null
 
     /**
-     * The Tuist server URL. Defaults to https://tuist.dev.
+     * The base URL that points to the Tuist server. Defaults to https://tuist.dev.
      */
-    var serverUrl: String = "https://tuist.dev"
+    var url: String = "https://tuist.dev"
 
     /**
      * Build cache configuration.

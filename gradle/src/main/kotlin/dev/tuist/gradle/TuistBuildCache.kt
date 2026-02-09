@@ -48,7 +48,7 @@ object TuistVersion {
 open class TuistBuildCache : AbstractBuildCache() {
     var fullHandle: String = ""
     var executablePath: String? = null
-    var serverUrl: String? = null
+    var url: String? = null
     var allowInsecureProtocol: Boolean = false
 }
 
@@ -71,7 +71,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
         val configurationProvider = TuistCommandConfigurationProvider(
             fullHandle = configuration.fullHandle,
             command = resolvedCommand,
-            serverUrl = configuration.serverUrl
+            url = configuration.url
         )
 
         return TuistBuildCacheService(
@@ -134,14 +134,14 @@ interface ConfigurationProvider {
 class TuistCommandConfigurationProvider(
     private val fullHandle: String,
     private val command: List<String>,
-    private val serverUrl: String? = null
+    private val url: String? = null
 ) : ConfigurationProvider {
 
     override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? {
         val baseArgs = buildList {
             addAll(listOf("cache", "config", fullHandle, "--json"))
-            if (!serverUrl.isNullOrBlank()) {
-                addAll(listOf("--url", serverUrl))
+            if (!url.isNullOrBlank()) {
+                addAll(listOf("--url", url))
             }
         }
         val args = if (forceRefresh) baseArgs + "--force-refresh" else baseArgs

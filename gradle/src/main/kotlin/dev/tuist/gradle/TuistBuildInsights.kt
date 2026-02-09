@@ -168,7 +168,7 @@ abstract class TuistBuildInsightsService :
     AutoCloseable {
 
     interface Params : BuildServiceParameters {
-        val serverUrl: Property<String>
+        val url: Property<String>
         val fullHandle: Property<String>
         val executablePath: Property<String>
         val gradleVersion: Property<String>
@@ -332,7 +332,7 @@ abstract class TuistBuildInsightsService :
         val configProvider = TuistCommandConfigurationProvider(
             fullHandle = fullHandle,
             command = listOf(parameters.executablePath.orNull ?: "tuist"),
-            serverUrl = parameters.serverUrl.get()
+            url = parameters.url.get()
         )
 
         val config = configProvider.getConfiguration()
@@ -374,8 +374,8 @@ abstract class TuistBuildInsightsService :
             }
         )
 
-        val serverUrl = parameters.serverUrl.get().trimEnd('/')
-        val url = URI("$serverUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
+        val baseUrl = parameters.url.get().trimEnd('/')
+        val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
 
         val httpClient: BuildInsightsHttpClient = DefaultBuildInsightsHttpClient()
         val response = httpClient.postBuildReport(url, config.token, report)
@@ -397,7 +397,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     override fun apply(project: Project) {
         if (project !== project.rootProject) return
 
-        val serverUrl = project.findProperty("tuist.serverUrl") as? String ?: "https://tuist.dev"
+        val url = project.findProperty("tuist.url") as? String ?: "https://tuist.dev"
         val fullHandle = project.findProperty("tuist.fullHandle") as? String ?: ""
         val executablePath = project.findProperty("tuist.executablePath") as? String ?: "tuist"
         val gradleVersion = project.gradle.gradleVersion
@@ -406,7 +406,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
-            parameters.serverUrl.set(serverUrl)
+            parameters.url.set(url)
             parameters.fullHandle.set(fullHandle)
             parameters.executablePath.set(executablePath)
             parameters.gradleVersion.set(gradleVersion)

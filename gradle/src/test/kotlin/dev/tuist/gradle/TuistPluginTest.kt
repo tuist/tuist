@@ -304,7 +304,7 @@ class TuistPluginTest {
 
             tuist {
                 fullHandle = "test-account/test-project"
-                serverUrl = "https://custom.server.dev"
+                url = "https://custom.server.dev"
 
                 buildInsights {
                     enabled = false
