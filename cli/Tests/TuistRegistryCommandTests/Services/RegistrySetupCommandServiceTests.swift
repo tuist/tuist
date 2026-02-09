@@ -16,8 +16,6 @@
         private let configLoader = MockConfigLoading()
         private let fileSystem = FileSystem()
         private let manifestFilesLocator = MockManifestFilesLocating()
-        private let swiftPackageManagerController = MockSwiftPackageManagerControlling()
-        private let createAccountTokenService = MockCreateAccountTokenServicing()
         private let defaultsController = MockDefaultsControlling()
         private let subject: RegistrySetupCommandService
 
@@ -27,21 +25,9 @@
                 configLoader: configLoader,
                 fileSystem: fileSystem,
                 manifestFilesLocator: manifestFilesLocator,
-                swiftPackageManagerController: swiftPackageManagerController,
-                createAccountTokenService: createAccountTokenService,
                 defaultsController: defaultsController
             )
 
-            given(createAccountTokenService)
-                .createAccountToken(
-                    accountHandle: .any,
-                    scopes: .any,
-                    name: .any,
-                    expiresAt: .any,
-                    projectHandles: .any,
-                    serverURL: .any
-                )
-                .willReturn(.init(id: "token-id", token: "token"))
             given(defaultsController)
                 .setPackageDendencySCMToRegistryTransformation(.any)
                 .willReturn()

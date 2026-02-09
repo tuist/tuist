@@ -301,7 +301,7 @@ tuistConfigLoaderTestDependencies.append(contentsOf: [
     "TuistSupport", "ProjectDescription",
 ])
 tuistRegistryCommandDependencies.append(contentsOf: [
-    "TuistGenerator", "TuistLoader", "TuistSupport",
+    "TuistLoader", "TuistSupport",
 ])
 tuistBuildCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistSupport", "TuistExtension", "TuistServer",
