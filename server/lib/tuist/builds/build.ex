@@ -71,7 +71,7 @@ defmodule Tuist.Builds.Build do
   def create_changeset(build \\ %__MODULE__{}, attrs) do
     attrs
     |> normalize_datetime_attr(:inserted_at)
-    |> default_to_unknown([:status, :category, :ci_provider])
+    |> default_to_empty_string([:status, :category, :ci_provider])
     |> then(fn attrs ->
       build
       |> cast(attrs, [
@@ -109,9 +109,9 @@ defmodule Tuist.Builds.Build do
         :account_id,
         :status
       ])
-      |> validate_inclusion(:status, ["unknown" | @status_values])
-      |> validate_inclusion(:category, ["unknown" | @category_values])
-      |> validate_inclusion(:ci_provider, ["unknown" | @ci_provider_values])
+      |> validate_inclusion(:status, ["" | @status_values])
+      |> validate_inclusion(:category, ["" | @category_values])
+      |> validate_inclusion(:ci_provider, ["" | @ci_provider_values])
       |> validate_custom_tags()
       |> validate_custom_values()
     end)
@@ -130,10 +130,10 @@ defmodule Tuist.Builds.Build do
     end
   end
 
-  defp default_to_unknown(attrs, fields) do
+  defp default_to_empty_string(attrs, fields) do
     Enum.reduce(fields, attrs, fn field, acc ->
       case Map.fetch(acc, field) do
-        {:ok, nil} -> Map.put(acc, field, "unknown")
+        {:ok, nil} -> Map.put(acc, field, "")
         _ -> acc
       end
     end)
