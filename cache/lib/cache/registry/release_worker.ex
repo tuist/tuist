@@ -258,7 +258,8 @@ defmodule Cache.Registry.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        {:error, :already_locked}
+        Logger.info("Metadata update skipped for #{scope}/#{name}@#{version}: lock held by another node")
+        :ok
     end
   end
 
