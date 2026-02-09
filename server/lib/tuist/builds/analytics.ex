@@ -5,6 +5,7 @@ defmodule Tuist.Builds.Analytics do
   import Ecto.Query
 
   alias Postgrex.Interval
+  alias Tuist.Builds.Build
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
@@ -15,34 +16,29 @@ defmodule Tuist.Builds.Analytics do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
-    category_column =
+    category_field =
       case category do
-        :xcode_version -> "xcode_version"
-        :model_identifier -> "model_identifier"
-        :macos_version -> "macos_version"
+        :xcode_version -> dynamic([b], b.xcode_version)
+        :model_identifier -> dynamic([b], b.model_identifier)
+        :macos_version -> dynamic([b], b.macos_version)
       end
 
-    query = """
-    SELECT #{category_column} as category, avgOrNull(duration) as value
-    FROM build_runs
-    WHERE project_id = {project_id:Int64}
-      AND inserted_at > {start_dt:DateTime64(6)}
-      AND inserted_at < {end_dt:DateTime64(6)}
-    GROUP BY #{category_column}
-    """
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        where: b.inserted_at > ^start_datetime,
+        where: b.inserted_at < ^end_datetime,
+        group_by: ^category_field,
+        select: %{
+          category: ^category_field,
+          value: fragment("avgOrNull(?)", b.duration)
+        }
+      )
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
-
-    Enum.map(rows, fn [cat, val] ->
-      %{
-        category: cat,
-        value: if(is_nil(val), do: 0, else: val)
-      }
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
+      %{category: row.category, value: row.value || 0}
     end)
   end
 
