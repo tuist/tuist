@@ -46,7 +46,7 @@ defmodule TuistCommon.GitHubTest do
         {:ok, %Req.Response{status: 404, body: %{}}}
       end)
 
-      assert {:error, :not_found} = GitHub.list_tags("tuist/nonexistent", "test-token")
+      assert {:error, {:http_error, 404}} = GitHub.list_tags("tuist/nonexistent", "test-token")
     end
 
     test "returns http_error for other status codes" do

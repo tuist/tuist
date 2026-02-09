@@ -329,7 +329,7 @@ defmodule Tuist.GitHub.ClientTest do
 
       # Then
       assert got ==
-               {:error, :not_found}
+               {:error, {:http_error, 404}}
     end
   end
 

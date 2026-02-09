@@ -175,9 +175,6 @@ defmodule TuistCommon.GitHub do
             end
         end
 
-      {:ok, %{status: 404}} ->
-        {:error, :not_found}
-
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}
 
