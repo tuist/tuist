@@ -60,18 +60,13 @@ defmodule TuistWeb.GradleBuildLive do
     from_cache = local_hits + remote_hits
     cacheable = build.cacheable_tasks_count || 0
 
-    cache_hit_rate =
-      if cacheable > 0,
-        do: Float.round(from_cache / cacheable * 100.0, 1),
-        else: 0.0
-
     socket
     |> assign(:build, build)
     |> assign(:build_started_at, build_started_at)
     |> assign(:from_cache, from_cache)
     |> assign(:cache_misses, cacheable - from_cache)
     |> assign(:cacheable_count, cacheable)
-    |> assign(:cache_hit_rate, cache_hit_rate)
+    |> assign(:cache_hit_rate, Gradle.cache_hit_rate(build))
     |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
     |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
     |> assign(:download_throughput, download_throughput)

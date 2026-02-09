@@ -532,7 +532,7 @@
             <.text_cell label={
               dgettext("dashboard_gradle", "%{hit_rate}%",
                 hit_rate:
-                  cache_hit_rate(build)
+                  (Gradle.cache_hit_rate(build) || 0.0)
                   |> Decimal.from_float()
                   |> Decimal.round(1)
               )

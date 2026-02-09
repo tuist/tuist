@@ -201,7 +201,7 @@ defmodule TuistWeb.GradleCacheLive do
       builds
       |> Enum.reverse()
       |> Enum.map(fn build ->
-        hit_rate = cache_hit_rate(build)
+        hit_rate = Gradle.cache_hit_rate(build)
 
         %{
           value: hit_rate,
@@ -237,14 +237,4 @@ defmodule TuistWeb.GradleCacheLive do
     ])
   end
 
-  def cache_hit_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    cacheable = build.cacheable_tasks_count || 0
-
-    if cacheable == 0 do
-      0.0
-    else
-      Float.round(from_cache / cacheable * 100.0, 1)
-    end
-  end
 end
