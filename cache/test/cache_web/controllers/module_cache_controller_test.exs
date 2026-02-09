@@ -75,11 +75,6 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         :ok
       end)
 
-      expect(S3, :exists?, fn key ->
-        assert key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
-        true
-      end)
-
       expect(S3, :presign_download_url, fn key ->
         assert key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
         {:ok, "https://example.com/bucket/#{key}?token=abc"}
@@ -125,10 +120,6 @@ defmodule CacheWeb.ModuleCacheControllerTest do
 
       expect(CacheArtifacts, :track_artifact_access, fn _key ->
         :ok
-      end)
-
-      expect(S3, :exists?, fn _key ->
-        true
       end)
 
       expect(S3, :presign_download_url, fn _key ->
