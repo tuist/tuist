@@ -15,10 +15,12 @@ public struct RegistryCommand: ParsableCommand {
     private static var subcommands: [ParsableCommand.Type] {
         var commands: [ParsableCommand.Type] = [
             RegistrySetupCommand.self,
-            RegistryLogoutCommand.self,
         ]
         #if os(macOS)
-            commands.append(RegistryLoginCommand.self)
+            commands.append(contentsOf: [
+                RegistryLoginCommand.self,
+                RegistryLogoutCommand.self,
+            ])
         #endif
         return commands
     }
