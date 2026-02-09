@@ -306,12 +306,8 @@ defmodule TuistWeb.BuildRunLive do
 
   defp module_breakdown_filters(run, params, available_filters, search) do
     base_filters =
-      map_filter_status_value(
-        [%{field: :build_run_id, op: :==, value: run.id}] ++
-          Filter.Operations.convert_filters_to_flop(
-            Filter.Operations.decode_filters_from_query(params, available_filters)
-          )
-      )
+      [%{field: :build_run_id, op: :==, value: run.id}] ++
+        Filter.Operations.convert_filters_to_flop(Filter.Operations.decode_filters_from_query(params, available_filters))
 
     if search && search != "" do
       base_filters ++
@@ -467,24 +463,6 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:module_breakdown_sort_order, module_breakdown_sort_order)
     |> assign(:module_breakdown_modules_meta, modules_meta)
     |> assign(:module_breakdown_active_filters, filters)
-  end
-
-  defp map_filter_status_value(filters) do
-    map_value = fn filter ->
-      case filter.value do
-        :success -> %{filter | value: 0}
-        :failure -> %{filter | value: 1}
-        _ -> filter
-      end
-    end
-
-    Enum.map(filters, fn filter ->
-      if filter.field == :status do
-        map_value.(filter)
-      else
-        filter
-      end
-    end)
   end
 
   attr(:issues, :list, required: true)
