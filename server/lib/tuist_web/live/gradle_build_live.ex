@@ -258,7 +258,7 @@ defmodule TuistWeb.GradleBuildLive do
   defp define_cacheable_task_filters do
     [
       %Filter.Filter{
-        id: "status",
+        id: "outcome",
         field: :outcome,
         display_name: dgettext("dashboard_gradle", "Status"),
         type: :option,
@@ -266,7 +266,7 @@ defmodule TuistWeb.GradleBuildLive do
         options_display_names: %{
           local_hit: dgettext("dashboard_gradle", "Local"),
           remote_hit: dgettext("dashboard_gradle", "Remote"),
-          executed: dgettext("dashboard_gradle", "Upload")
+          executed: dgettext("dashboard_gradle", "Missed")
         },
         operator: :==,
         value: nil
@@ -278,7 +278,7 @@ defmodule TuistWeb.GradleBuildLive do
     filters
     |> Enum.map(fn filter ->
       case filter.id do
-        "status" ->
+        "outcome" ->
           %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
       end
     end)

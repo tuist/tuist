@@ -577,26 +577,20 @@
             </:col>
             <:col :let={task} label={dgettext("dashboard_gradle", "Status")}>
               <.badge_cell
+                :if={task.outcome == "local_hit"}
+                label={dgettext("dashboard_gradle", "Local")}
+                color="secondary"
+                style="light-fill"
+              />
+              <.badge_cell
                 :if={task.outcome == "remote_hit"}
                 label={dgettext("dashboard_gradle", "Remote")}
                 color="focus"
                 style="light-fill"
               />
               <.badge_cell
-                :if={task.outcome == "local_hit"}
-                label={dgettext("dashboard_gradle", "Local")}
-                color="success"
-                style="light-fill"
-              />
-              <.badge_cell
-                :if={task.outcome == "executed"}
-                label={dgettext("dashboard_gradle", "Upload")}
-                color="secondary"
-                style="light-fill"
-              />
-              <.badge_cell
-                :if={task.outcome not in ["remote_hit", "local_hit", "executed"]}
-                label={dgettext("dashboard_gradle", "Miss")}
+                :if={task.outcome not in ["remote_hit", "local_hit"]}
+                label={dgettext("dashboard_gradle", "Missed")}
                 color="warning"
                 style="light-fill"
               />
