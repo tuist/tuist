@@ -121,7 +121,12 @@
                     }
                 },
                 "xcode": {
-                    "text": "Xcode"
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Wygenerowane projekty"
+                        }
+                    }
                 }
             }
         },
@@ -468,6 +473,9 @@
                         }
                     },
                     "text": "Serwer"
+                },
+                "install-tuist": {
+                    "text": "Instalacja Tuist"
                 }
             }
         },
