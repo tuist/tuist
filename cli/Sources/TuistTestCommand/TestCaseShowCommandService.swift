@@ -115,6 +115,6 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
         info.append("Duration: \(Formatters.formatDuration(testCase.last_duration))")
         info.append("Ran At: \(Formatters.formatTimestamp(testCase.last_ran_at))")
 
-        return info.joined(separator: "\n")
+        return info.joined(separator: "\n") + "\n"
     }
 }

@@ -821,15 +821,23 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
   """
   def list_test_cases(project_id, attrs) do
-    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+    filters = Map.get(attrs, :filters, [])
+    has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
 
     latest_subquery =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
-        where: test_case.last_ran_at >= ^two_weeks_ago,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
+
+    latest_subquery =
+      if has_name_filter do
+        latest_subquery
+      else
+        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+        where(latest_subquery, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
+      end
 
     base_query =
       from(test_case in TestCase,

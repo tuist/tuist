@@ -125,6 +125,7 @@ struct TestCaseRunShowCommandServiceTests {
         #expect(ui().contains("feature/auth"))
         #expect(ui().contains("abc1234"))
         #expect(ui().contains("App"))
+        #expect(ui().contains("Test Run: test-run-id"))
     }
 
     @Test(

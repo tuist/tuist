@@ -5650,6 +5650,13 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  test_run_id:
+                    description: The test run ID.
+                    format: uuid
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
                 required:
                   - id
                   - name

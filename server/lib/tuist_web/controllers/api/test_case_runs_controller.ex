@@ -176,6 +176,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
            properties: %{
              id: %Schema{type: :string, format: :uuid, description: "The test case run ID."},
              test_case_id: %Schema{type: :string, format: :uuid, nullable: true, description: "The test case ID."},
+             test_run_id: %Schema{type: :string, format: :uuid, nullable: true, description: "The test run ID."},
              name: %Schema{type: :string, description: "Name of the test case."},
              module_name: %Schema{type: :string, description: "Module name."},
              suite_name: %Schema{type: :string, nullable: true, description: "Suite name."},
@@ -242,6 +243,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
           json(conn, %{
             id: run.id,
             test_case_id: run.test_case_id,
+            test_run_id: run.test_run_id,
             name: run.name,
             module_name: run.module_name,
             suite_name: run.suite_name,
@@ -288,7 +290,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
   defp format_ran_at(nil), do: nil
 
   defp format_ran_at(%NaiveDateTime{} = ran_at) do
-    ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+    ran_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
   end
 
   defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)

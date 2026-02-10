@@ -96,7 +96,8 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
             scheme: String? = "App",
             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
             suiteName: String? = "ExampleTests",
-            testCaseId: String? = "test-case-id"
+            testCaseId: String? = "test-case-id",
+            testRunId: String? = "test-run-id"
         ) -> Self {
             .init(
                 duration: duration,
@@ -114,7 +115,8 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
                 scheme: scheme,
                 status: status,
                 suite_name: suiteName,
-                test_case_id: testCaseId
+                test_case_id: testCaseId,
+                test_run_id: testRunId
             )
         }
     }

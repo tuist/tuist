@@ -11480,6 +11480,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/test_case_id`.
                         public var test_case_id: Swift.String?
+                        /// The test run ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/test_run_id`.
+                        public var test_run_id: Swift.String?
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -11499,6 +11503,7 @@ public enum Operations {
                         ///   - status: Run status.
                         ///   - suite_name: Suite name.
                         ///   - test_case_id: The test case ID.
+                        ///   - test_run_id: The test run ID.
                         public init(
                             duration: Swift.Int,
                             failures: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.failuresPayload,
@@ -11515,7 +11520,8 @@ public enum Operations {
                             scheme: Swift.String? = nil,
                             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload,
                             suite_name: Swift.String? = nil,
-                            test_case_id: Swift.String? = nil
+                            test_case_id: Swift.String? = nil,
+                            test_run_id: Swift.String? = nil
                         ) {
                             self.duration = duration
                             self.failures = failures
@@ -11533,6 +11539,7 @@ public enum Operations {
                             self.status = status
                             self.suite_name = suite_name
                             self.test_case_id = test_case_id
+                            self.test_run_id = test_run_id
                         }
                         public enum CodingKeys: String, CodingKey {
                             case duration
@@ -11551,6 +11558,7 @@ public enum Operations {
                             case status
                             case suite_name
                             case test_case_id
+                            case test_run_id
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/application\/json`.

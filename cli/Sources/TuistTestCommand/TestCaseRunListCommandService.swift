@@ -111,7 +111,7 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         let initialRows = initialRuns.map { formatRunRow($0) }
 
         try await Noora.current.paginatedTable(
-            headers: ["Status", "Duration", "CI", "Flaky", "Branch", "Commit", "Ran At"],
+            headers: ["ID", "Status", "Duration", "CI", "Flaky", "Branch", "Commit", "Ran At"],
             pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -138,6 +138,7 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         .test_case_runsPayloadPayload) -> [String]
     {
         [
+            run.id,
             run.status.rawValue,
             Formatters.formatDuration(run.duration),
             run.is_ci ? "Yes" : "No",

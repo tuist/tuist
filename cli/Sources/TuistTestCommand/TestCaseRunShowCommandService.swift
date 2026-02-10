@@ -87,6 +87,10 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         info.append("CI: \(run.is_ci ? "Yes" : "No")")
         info.append("Flaky: \(run.is_flaky ? "Yes" : "No")")
 
+        if let testRunId = run.test_run_id, !testRunId.isEmpty {
+            info.append("Test Run: \(testRunId)")
+        }
+
         if let scheme = run.scheme, !scheme.isEmpty {
             info.append("Scheme: \(scheme)")
         }
@@ -140,6 +144,6 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
             }
         }
 
-        return info.joined(separator: "\n")
+        return info.joined(separator: "\n") + "\n"
     }
 }

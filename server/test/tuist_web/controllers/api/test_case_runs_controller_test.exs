@@ -216,6 +216,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["is_flaky"] == true
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc1234"
+      assert response["test_run_id"] == test_case_run.test_run_id
 
       assert length(response["failures"]) == 1
       failure_response = hd(response["failures"])

@@ -4,8 +4,9 @@ import Path
 import TuistEnvKey
 import TuistNooraExtension
 
-struct TestCaseRunShowCommand: AsyncParsableCommand, NooraReadyCommand {
-    static var configuration: CommandConfiguration {
+public struct TestCaseRunShowCommand: AsyncParsableCommand, NooraReadyCommand {
+    public init() {}
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "show",
             abstract: "Shows information about a test case run."
@@ -39,9 +40,9 @@ struct TestCaseRunShowCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var json: Bool = false
 
-    var jsonThroughNoora: Bool = true
+    public var jsonThroughNoora: Bool = true
 
-    func run() async throws {
+    public func run() async throws {
         try await TestCaseRunShowCommandService().run(
             project: project,
             testCaseRunId: testCaseRunId,
