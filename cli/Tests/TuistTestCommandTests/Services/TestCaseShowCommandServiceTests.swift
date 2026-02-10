@@ -35,7 +35,7 @@ struct TestCaseShowCommandServiceTests {
         // When/Then
         await #expect(throws: TestCaseShowCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
-                fullHandle: nil,
+                project: nil,
                 testCaseId: "test-case-id",
                 path: nil,
                 json: false
@@ -66,7 +66,7 @@ struct TestCaseShowCommandServiceTests {
 
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             testCaseId: "test-case-id",
             path: nil,
             json: true
@@ -106,7 +106,7 @@ struct TestCaseShowCommandServiceTests {
 
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             testCaseId: "tc-123",
             path: nil,
             json: false
@@ -141,7 +141,7 @@ struct TestCaseShowCommandServiceTests {
 
         // When
         try await subject.run(
-            fullHandle: explicitFullHandle,
+            project: explicitFullHandle,
             testCaseId: "tc-123",
             path: nil,
             json: false
@@ -179,7 +179,7 @@ struct TestCaseShowCommandServiceTests {
 
         // When
         try await subject.run(
-            fullHandle: nil,
+            project: nil,
             testCaseId: "tc-456",
             path: nil,
             json: false

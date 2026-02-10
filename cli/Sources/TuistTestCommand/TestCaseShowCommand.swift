@@ -23,7 +23,7 @@ struct TestCaseShowCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
         envKey: .testCaseShowFullHandle
     )
-    var fullHandle: String?
+    var project: String?
 
     @Option(
         name: .shortAndLong,
@@ -43,7 +43,7 @@ struct TestCaseShowCommand: AsyncParsableCommand, NooraReadyCommand {
 
     func run() async throws {
         try await TestCaseShowCommandService().run(
-            fullHandle: fullHandle,
+            project: project,
             testCaseId: testCaseId,
             path: path,
             json: json

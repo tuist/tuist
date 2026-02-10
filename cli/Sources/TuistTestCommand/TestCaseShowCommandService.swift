@@ -8,7 +8,7 @@ import TuistServer
 
 protocol TestCaseShowCommandServicing {
     func run(
-        fullHandle: String?,
+        project: String?,
         testCaseId: String,
         path: String?,
         json: Bool
@@ -21,7 +21,7 @@ enum TestCaseShowCommandServiceError: Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            return "We couldn't show the test case because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return "We couldn't show the test case because the project is missing. You can pass either its value or a path to a Tuist project."
         }
     }
 }
@@ -42,7 +42,7 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
     }
 
     func run(
-        fullHandle: String?,
+        project: String?,
         testCaseId: String,
         path: String?,
         json: Bool
@@ -50,7 +50,7 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
+        guard let resolvedFullHandle = project ?? config.fullHandle else {
             throw TestCaseShowCommandServiceError.missingFullHandle
         }
 

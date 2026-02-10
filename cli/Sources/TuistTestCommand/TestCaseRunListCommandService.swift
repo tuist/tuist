@@ -25,7 +25,7 @@ enum TestCaseRunListCommandServiceError: Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
-            return "We couldn't list test case runs because the full handle is missing. You can pass either its value or a path to a Tuist project."
+            return "We couldn't list test case runs because the project is missing. You can pass either its value or a path to a Tuist project."
         case let .invalidIdentifier(identifier):
             return "Invalid test case identifier '\(identifier)'. Expected format: Module/Suite/TestCase or Module/TestCase."
         }
