@@ -268,7 +268,11 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       end)
 
       # When
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases?name=testSpecific&suite_name=MySuite")
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases?name=testSpecific&suite_name=MySuite"
+        )
 
       # Then
       response = json_response(conn, :ok)
