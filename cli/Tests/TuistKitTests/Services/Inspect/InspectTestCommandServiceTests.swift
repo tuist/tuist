@@ -199,6 +199,49 @@ struct InspectTestCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_ignores_DERIVED_DATA_DIR_when_equal_to_default() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+
+        let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
+        mockedEnvironment.variables["DERIVED_DATA_DIR"] = defaultDerivedDataDirectory.pathString
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .value(projectPath))
+            .willReturn(derivedDataPath)
+
+        let resultBundlePath = derivedDataPath.appending(components: "Logs", "Test", "Test.xcresult")
+        given(xcResultService)
+            .mostRecentXCResultFile(projectDerivedDataDirectory: .value(derivedDataPath))
+            .willReturn(resultBundlePath)
+
+        // When
+        try await subject.run(path: temporaryDirectory.pathString)
+
+        // Then
+        verify(derivedDataLocator)
+            .locate(for: .any)
+            .called(1)
+
+        verify(inspectResultBundleService)
+            .inspectResultBundle(
+                resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .value(derivedDataPath),
+                config: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func run_throws_when_no_result_bundle_found() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
