@@ -4613,6 +4613,52 @@ defmodule Tuist.TestsTest do
       assert "test1" in names
       assert "test2" in names
     end
+
+    test "excludes test cases whose latest version is no longer quarantined" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      # Old version: quarantined
+      old_version =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "wasQuarantined",
+          is_quarantined: true,
+          inserted_at: ~N[2024-01-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [old_version |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Newer version: no longer quarantined (e.g. after unquarantine or re-ingestion)
+      new_version =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "wasQuarantined",
+          is_quarantined: false,
+          inserted_at: ~N[2024-01-02 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [new_version |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-01-01 00:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_id,
+        event_type: "unquarantined",
+        inserted_at: ~N[2024-01-02 00:00:00.000000]
+      )
+
+      {quarantined_tests, meta} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_tests == []
+      assert meta.total_count == 0
+    end
   end
 
   describe "get_quarantine_actors/1" do

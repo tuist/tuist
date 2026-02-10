@@ -1057,7 +1057,7 @@ defmodule Tuist.Tests do
 
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        where: test_case.project_id == ^project_id,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -1115,7 +1115,7 @@ defmodule Tuist.Tests do
        ) do
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        where: test_case.project_id == ^project_id,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
