@@ -555,6 +555,48 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func createsBuild_uses_DERIVED_DATA_DIR_env_for_derived_data() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+
+        let customDerivedDataPath = temporaryDirectory.appending(component: "custom-derived-data")
+        mockedEnvironment.variables["DERIVED_DATA_DIR"] = customDerivedDataPath.pathString
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let buildLogsPath = customDerivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(customDerivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(derivedDataLocator)
+            .locate(for: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func createsBuild_with_custom_metadata_from_TUIST_BUILD_TAGS() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
