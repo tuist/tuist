@@ -76,6 +76,9 @@
                     "text": "Dziennik zmian"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Samouczki"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "Z wersji v3 do v4"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -462,6 +468,19 @@
                         }
                     },
                     "text": "Serwer"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Samouczki",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Utwórz wygenerowany projekt"
+                        }
+                    }
                 }
             }
         }
