@@ -121,7 +121,12 @@
                     }
                 },
                 "xcode": {
-                    "text": "Xcode"
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "專案生成"
+                        }
+                    }
                 }
             }
         },
