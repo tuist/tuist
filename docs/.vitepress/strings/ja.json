@@ -76,6 +76,9 @@
                     "text": "変更履歴"
                 }
             }
+        },
+        "tutorials": {
+            "text": "チュートリアル"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "v3 から v4 へ"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -462,6 +468,19 @@
                         }
                     },
                     "text": "サーバー"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "チュートリアル",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "生成されたプロジェクトを作成する"
+                        }
+                    }
                 }
             }
         }
