@@ -2,7 +2,10 @@ import FileSystem
 import FileSystemTesting
 import Path
 import Testing
+import TuistBuildCommand
+import TuistGenerateCommand
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
 @testable import TuistKit
 
@@ -81,44 +84,138 @@ struct BuildAcceptanceTests {
 
 /// Build projects using Tuist build
 struct BuildAcceptanceTestWithTemplates {
-    @Test(.inTemporaryDirectory, .withMockedDependencies)
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func with_templates() async throws {
-        let fileSystem = FileSystem()
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let initAnswers = InitPromptAnswers(
+            workflowType: .createGeneratedProject,
+            integrateWithServer: false,
+            generatedProjectPlatform: "ios",
+            generatedProjectName: "MyApp",
+            accountType: .createOrganizationAccount,
+            newOrganizationAccountHandle: "organization"
+        )
+        try await TuistTest.run(
+            InitCommand.self,
+            [
+                "--answers",
+                initAnswers.base64EncodedJSONString(),
+                "--path",
+                temporaryDirectory.pathString,
+            ]
+        )
+        let fixturePath = temporaryDirectory.appending(component: "MyApp")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["--path", fixturePath.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["MyApp", "--path", fixturePath.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "MyApp",
+                "--configuration",
+                "Debug",
+                "--path",
+                fixturePath.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "MyApp",
+                "--path",
+                fixturePath.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+                "--",
+                "-parallelizeTargets",
+                "-enableAddressSanitizer",
+                "YES",
+            ]
+        )
+    }
+}
 
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            let initAnswers = InitPromptAnswers(
-                workflowType: .createGeneratedProject,
-                integrateWithServer: false,
-                generatedProjectPlatform: "ios",
-                generatedProjectName: "MyApp",
-                accountType: .createOrganizationAccount,
-                newOrganizationAccountHandle: "organization"
-            )
+struct BuildAcceptanceTestInvalidArguments {
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func with_invalid_arguments() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let initAnswers = InitPromptAnswers(
+            workflowType: .createGeneratedProject,
+            integrateWithServer: false,
+            generatedProjectPlatform: "ios",
+            generatedProjectName: "MyApp",
+            accountType: .createOrganizationAccount,
+            newOrganizationAccountHandle: "organization"
+        )
+        try await TuistTest.run(
+            InitCommand.self,
+            [
+                "--answers",
+                initAnswers.base64EncodedJSONString(),
+                "--path",
+                temporaryDirectory.pathString,
+            ]
+        )
+        let fixturePath = temporaryDirectory.appending(component: "MyApp")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")) {
             try await TuistTest.run(
-                InitCommand.self,
+                BuildCommand.self,
                 [
-                    "--answers",
-                    initAnswers.base64EncodedJSONString(),
+                    "MyApp",
                     "--path",
-                    temporaryDirectory.pathString,
+                    fixturePath.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-scheme",
+                    "MyApp",
                 ]
             )
-            let fixturePath = temporaryDirectory.appending(component: "MyApp")
-            try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
-            try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-project")) {
             try await TuistTest.run(
                 BuildCommand.self,
-                ["--path", fixturePath.pathString, "--derived-data-path", derivedDataPath.pathString]
+                [
+                    "MyApp",
+                    "--path",
+                    fixturePath.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-project",
+                    "MyApp",
+                ]
             )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")) {
             try await TuistTest.run(
                 BuildCommand.self,
-                ["MyApp", "--path", fixturePath.pathString, "--derived-data-path", derivedDataPath.pathString]
+                [
+                    "MyApp",
+                    "--path",
+                    fixturePath.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-workspace",
+                    "MyApp",
+                ]
             )
-            try await TuistTest.run(
-                BuildCommand.self,
-                ["MyApp", "--configuration", "Debug", "--path", fixturePath.pathString, "--derived-data-path", derivedDataPath.pathString]
-            )
+        }
+        await #expect(throws: Error.self) {
             try await TuistTest.run(
                 BuildCommand.self,
                 [
@@ -129,119 +226,27 @@ struct BuildAcceptanceTestWithTemplates {
                     derivedDataPath.pathString,
                     "--",
                     "-parallelizeTargets",
-                    "-enableAddressSanitizer",
                     "YES",
+                    "-enableAddressSanitizer",
                 ]
             )
         }
-    }
-}
-
-struct BuildAcceptanceTestInvalidArguments {
-    @Test(.inTemporaryDirectory, .withMockedDependencies)
-    func with_invalid_arguments() async throws {
-        let fileSystem = FileSystem()
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
-
-        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
-            let initAnswers = InitPromptAnswers(
-                workflowType: .createGeneratedProject,
-                integrateWithServer: false,
-                generatedProjectPlatform: "ios",
-                generatedProjectName: "MyApp",
-                accountType: .createOrganizationAccount,
-                newOrganizationAccountHandle: "organization"
-            )
+        await #expect(throws: Error.self) {
             try await TuistTest.run(
-                InitCommand.self,
+                BuildCommand.self,
                 [
-                    "--answers",
-                    initAnswers.base64EncodedJSONString(),
+                    "MyApp",
+                    "--configuration",
+                    "Debug",
                     "--path",
-                    temporaryDirectory.pathString,
+                    fixturePath.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-configuration",
+                    "Debug",
                 ]
             )
-            let fixturePath = temporaryDirectory.appending(component: "MyApp")
-            try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
-            try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
-            await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")) {
-                try await TuistTest.run(
-                    BuildCommand.self,
-                    [
-                        "MyApp",
-                        "--path",
-                        fixturePath.pathString,
-                        "--derived-data-path",
-                        derivedDataPath.pathString,
-                        "--",
-                        "-scheme",
-                        "MyApp",
-                    ]
-                )
-            }
-            await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-project")) {
-                try await TuistTest.run(
-                    BuildCommand.self,
-                    [
-                        "MyApp",
-                        "--path",
-                        fixturePath.pathString,
-                        "--derived-data-path",
-                        derivedDataPath.pathString,
-                        "--",
-                        "-project",
-                        "MyApp",
-                    ]
-                )
-            }
-            await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")) {
-                try await TuistTest.run(
-                    BuildCommand.self,
-                    [
-                        "MyApp",
-                        "--path",
-                        fixturePath.pathString,
-                        "--derived-data-path",
-                        derivedDataPath.pathString,
-                        "--",
-                        "-workspace",
-                        "MyApp",
-                    ]
-                )
-            }
-            await #expect(throws: Error.self) {
-                try await TuistTest.run(
-                    BuildCommand.self,
-                    [
-                        "MyApp",
-                        "--path",
-                        fixturePath.pathString,
-                        "--derived-data-path",
-                        derivedDataPath.pathString,
-                        "--",
-                        "-parallelizeTargets",
-                        "YES",
-                        "-enableAddressSanitizer",
-                    ]
-                )
-            }
-            await #expect(throws: Error.self) {
-                try await TuistTest.run(
-                    BuildCommand.self,
-                    [
-                        "MyApp",
-                        "--configuration",
-                        "Debug",
-                        "--path",
-                        fixturePath.pathString,
-                        "--derived-data-path",
-                        derivedDataPath.pathString,
-                        "--",
-                        "-configuration",
-                        "Debug",
-                    ]
-                )
-            }
         }
     }
 }
@@ -321,7 +326,7 @@ struct BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory
         let debugPath = fixturePath.appending(
             try RelativePath(validating: "Builds/debug-iphonesimulator")
         )
-        try expectDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
+        try await expectDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
         try await TuistTest.run(
             BuildCommand.self,
             [
@@ -336,11 +341,11 @@ struct BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory
                 derivedDataPath.pathString,
             ]
         )
-        try expectDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
+        try await expectDirectoryContentEqual(debugPath, ["App.app", "App.swiftmodule", "FrameworkA.framework"])
         let releasePath = fixturePath.appending(
             try RelativePath(validating: "Builds/release-iphonesimulator")
         )
-        try expectDirectoryContentEqual(
+        try await expectDirectoryContentEqual(
             releasePath,
             [
                 "App.app",
@@ -383,11 +388,27 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         try await TuistTest.run(
             BuildCommand.self,
-            ["Framework", "--platform", "macos", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "Framework",
+                "--platform",
+                "macos",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             BuildCommand.self,
-            ["Framework", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "Framework",
+                "--platform",
+                "ios",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
     }
 }
@@ -401,7 +422,15 @@ struct BuildAcceptanceTestMultiplatformAppWithSDK {
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         try await TuistTest.run(
             BuildCommand.self,
-            ["App", "--platform", "macos", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "App",
+                "--platform",
+                "macos",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             BuildCommand.self,
@@ -419,11 +448,27 @@ struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencie
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         try await TuistTest.run(
             BuildCommand.self,
-            ["ExampleApp", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "ExampleApp",
+                "--platform",
+                "ios",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             TestCommand.self,
-            ["ModuleA", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "ModuleA",
+                "--platform",
+                "ios",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
     }
 }

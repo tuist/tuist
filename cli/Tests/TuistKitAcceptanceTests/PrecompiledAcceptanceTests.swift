@@ -1,6 +1,9 @@
 import FileSystem
 import FileSystemTesting
+import Path
 import Testing
+import TuistBuildCommand
+import TuistGenerateCommand
 import TuistSupport
 import TuistTesting
 
@@ -48,23 +51,63 @@ struct PrecompiledAcceptanceTests {
         )
         try await TuistTest.run(
             BuildCommand.self,
-            ["Framework1-iOS", "--platform", "iOS", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "Framework1-iOS",
+                "--platform",
+                "iOS",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             BuildCommand.self,
-            ["Framework1-macOS", "--platform", "macOS", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "Framework1-macOS",
+                "--platform",
+                "macOS",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             BuildCommand.self,
-            ["Framework1Tests-iOS", "--platform", "iOS", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "Framework1Tests-iOS",
+                "--platform",
+                "iOS",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             BuildCommand.self,
-            ["Framework1Tests-macOS", "--platform", "macOS", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "Framework1Tests-macOS",
+                "--platform",
+                "macOS",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
         try await TuistTest.run(
             BuildCommand.self,
-            ["StaticFramework1", "--platform", "iOS", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "StaticFramework1",
+                "--platform",
+                "iOS",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
     }
 
@@ -152,5 +195,9 @@ private func expectProductDoesNotContainHeaders(
     let fileSystem = FileSystem()
     let productPath = try await productPath(for: product, destination: destination)
     let headers = try await fileSystem.glob(directory: productPath, include: ["**/*.h"]).collect()
-    #expect(headers.isEmpty, "Product with name \(product) and destination \(destination) contains headers", sourceLocation: sourceLocation)
+    #expect(
+        headers.isEmpty,
+        "Product with name \(product) and destination \(destination) contains headers",
+        sourceLocation: sourceLocation
+    )
 }

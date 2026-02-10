@@ -1,3 +1,4 @@
+import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistSupport
@@ -10,7 +11,7 @@ struct EditAcceptanceTests {
     func ios_app_with_helpers() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
         try build(scheme: "Manifests", workspacePath: workspacePath)
     }
 
@@ -18,7 +19,7 @@ struct EditAcceptanceTests {
     func plugin() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
         try build(scheme: "Plugins", workspacePath: workspacePath)
     }
 
@@ -27,7 +28,7 @@ struct EditAcceptanceTests {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
         try build(scheme: "Manifests", workspacePath: workspacePath)
         try build(scheme: "Plugins", workspacePath: workspacePath)
         try build(scheme: "LocalPlugin", workspacePath: workspacePath)
@@ -37,7 +38,7 @@ struct EditAcceptanceTests {
     func app_with_spm_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
         try build(scheme: "Manifests", workspacePath: workspacePath)
     }
 
@@ -45,7 +46,7 @@ struct EditAcceptanceTests {
     func spm_package() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
         try build(scheme: "Manifests", workspacePath: workspacePath)
     }
 }

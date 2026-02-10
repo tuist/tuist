@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import TuistAcceptanceTesting
+import TuistAccountCommand
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting

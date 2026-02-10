@@ -1,13 +1,18 @@
 import Command
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
 import TuistCacheCommand
+import TuistGenerateCommand
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
+import TuistRegistryCommand
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
 
 @testable import TuistKit
@@ -362,7 +367,6 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
             "SVProgressHUD_SVProgressHUD.bundle should not exist; resources live inside the framework itself"
         )
 
-
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
         ).pipedStream().awaitCompletion()
@@ -468,7 +472,7 @@ struct DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions 
 }
 
 struct DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies {
-    @Test(.withFixture("generated_ios_app_with_spm_dependencies"), .withMockedDependencies)
+    @Test(.withFixture("generated_ios_app_with_spm_dependencies"), .withMockedDependencies())
     func test() async throws {
         let fileSystem = FileSystem()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

@@ -1,7 +1,7 @@
 import Command
 import FileSystem
-import Foundation
 import FileSystemTesting
+import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
@@ -12,6 +12,9 @@ import TuistSupport
 import TuistTesting
 import XcodeProj
 
+import TuistBuildCommand
+import TuistGenerateCommand
+import TuistTestCommand
 @testable import TuistKit
 
 struct GeneratorAcceptanceTests {
@@ -95,7 +98,7 @@ struct GenerateAcceptanceTestiOSAppWithTests {
     @Test(.withFixture("generated_ios_app_with_tests"), .inTemporaryDirectory)
     func focused_targets() async throws {
         let fixturePath = try fixtureDirectory()
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
 
         func generatedTargets() throws -> [String] {
             try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj.nativeTargets.map(\.name).sorted()
@@ -239,7 +242,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
-        try expectDirectoryContentEqual(
+        try await expectDirectoryContentEqual(
             fixturePath.appending(components: "App", "Derived", "Sources"),
             [
                 "TuistBundle+App.swift",
@@ -249,7 +252,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
                 "TuistPlists+App.swift",
             ]
         )
-        try expectDirectoryContentEqual(
+        try await expectDirectoryContentEqual(
             fixturePath.appending(components: "StaticFramework3", "Derived", "Sources"),
             [
                 "TuistAssets+StaticFramework3.swift",
@@ -260,7 +263,7 @@ struct GenerateAcceptanceTestiOSAppWithFrameworkAndResources {
             "App.app",
             destination: "Debug-iphonesimulator"
         )
-        try expectDirectoryContentEqual(
+        try await expectDirectoryContentEqual(
             fixturePath.appending(components: "App", "Derived", "PrivacyManifests", "App"),
             [
                 "PrivacyInfo.xcprivacy",
@@ -283,7 +286,7 @@ struct GenerateAcceptanceTestiOSAppWithOnDemandResources {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let pbxprojPath = xcodeprojPath.appending(component: "project.pbxproj")
         let data = try Data(contentsOf: pbxprojPath.url)
         let pbxProj = try PBXProj(data: data)
@@ -315,7 +318,7 @@ struct GenerateAcceptanceTestiOSAppWithPrivacyManifest {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
-        try expectDirectoryContentEqual(
+        try await expectDirectoryContentEqual(
             fixturePath.appending(components: "Derived", "PrivacyManifests", "MyApp"),
             [
                 "PrivacyInfo.xcprivacy",
@@ -516,7 +519,7 @@ struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
 }
 
 struct GenerateAcceptanceTestiOSAppWithIncompatibleXcode {
-    @Test(.withFixture("generated_ios_app_with_incompatible_xcode"), .withMockedDependencies)
+    @Test(.withFixture("generated_ios_app_with_incompatible_xcode"), .withMockedDependencies())
     func ios_app_with_incompatible_xcode() async throws {
         do {
             try await run(GenerateCommand.self)
@@ -629,7 +632,7 @@ struct GenerateAcceptanceTestiOSAppWithExtensions {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -785,14 +788,14 @@ struct GenerateAcceptanceTestiOSAppWithAppClip {
             appClip: "AppClip1",
             architecture: "arm64"
         )
-        try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
         try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
             "App.app",
             destination: "Debug-iphonesimulator",
             appClip: "AppClip1",
             architecture: "arm64"
         )
-        try XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
         try await XCTAssertProductWithDestinationContainsExtension(
             "AppClip1.app",
             destination: "Debug-iphonesimulator",
@@ -867,7 +870,7 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -881,7 +884,7 @@ struct GenerateAcceptanceTestmacOSAppWithCopyFiles {
 }
 
 struct GenerateAcceptanceTestManifestWithLogs {
-    @Test(.withFixture("generated_manifest_with_logs"), .withMockedDependencies)
+    @Test(.withFixture("generated_manifest_with_logs"), .withMockedDependencies())
     func manifest_with_logs() async throws {
         try await run(GenerateCommand.self)
         TuistTest.expectLogs("Target name - App", at: .info, <=)
@@ -894,7 +897,7 @@ struct GenerateAcceptanceTestsProjectWithClassPrefix {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -910,7 +913,7 @@ struct GenerateAcceptanceTestProjectWithFileHeaderTemplate {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let exists = try await fileSystem.exists(
             xcodeprojPath.appending(
                 components: [
@@ -929,7 +932,7 @@ struct GenerateAcceptanceTestProjectWithInlineFileHeaderTemplate {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let exists = try await fileSystem.exists(
             xcodeprojPath.appending(
                 components: [
@@ -948,7 +951,7 @@ struct GenerateAcceptanceTestWorkspaceWithFileHeaderTemplate {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixturePath)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath)
         let exists = try await fileSystem.exists(
             workspacePath.appending(
                 components: [
@@ -967,7 +970,7 @@ struct GenerateAcceptanceTestWorkspaceWithInlineFileHeaderTemplate {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixturePath)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath)
         let exists = try await fileSystem.exists(
             workspacePath.appending(
                 components: [
@@ -1054,7 +1057,7 @@ struct GenerateAcceptanceTestiOSAppWithNoneLinkingStatusFramework {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -1081,7 +1084,7 @@ struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -1147,7 +1150,7 @@ struct GenerateAcceptanceTestAppWithDefaultConfigurationSettings {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -1165,7 +1168,7 @@ struct GenerateAcceptanceTestAppWithCustomScheme {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(
             pathString: xcodeprojPath.pathString
         )
@@ -1210,7 +1213,7 @@ struct GenerateAcceptanceTestsAppWithMetalOptions {
         let fixturePath = try fixtureDirectory()
         try await run(GenerateCommand.self)
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         try XCTAssertContainsMetalOptions(
             xcodeprojPath: xcodeprojPath,
             scheme: "CustomMetalConfig",
@@ -1247,7 +1250,7 @@ struct GenerateAcceptanceTestAppWithGlobs {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
         let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
         let allFileReferences = xcodeproj.pbxproj.fileReferences
         let allFilePaths = allFileReferences.compactMap(\.path)
@@ -1307,7 +1310,7 @@ struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
 
-        let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixturePath)
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath)
         let workspacePackageResolved = workspacePath.appending(
             try RelativePath(validating: "xcshareddata/swiftpm/Package.resolved")
         )
@@ -1546,7 +1549,7 @@ struct GenerateAcceptanceTestAppWithSignedXCFrameworkDependencies {
         try await run(GenerateCommand.self)
     }
 
-    @Test(.withFixture("generated_app_with_signed_xcframework_dependencies_mismatching_signature"), .withMockedDependencies)
+    @Test(.withFixture("generated_app_with_signed_xcframework_dependencies_mismatching_signature"), .withMockedDependencies())
     func app_with_mismatching_signed_xcframework_dependencies() async throws {
         do {
             try await run(GenerateCommand.self)
@@ -1617,7 +1620,7 @@ private func sourceRootPath(sourceLocation: SourceLocation = #_sourceLocation) t
 }
 
 private func run(
-    _ command: GenerateCommand.Type,
+    _: GenerateCommand.Type,
     _ arguments: [String] = [],
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
@@ -1637,7 +1640,7 @@ private func run(
 }
 
 private func run(
-    _ command: InstallCommand.Type,
+    _: InstallCommand.Type,
     _ arguments: [String] = [],
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
@@ -1657,7 +1660,7 @@ private func run(
 }
 
 private func run(
-    _ command: BuildCommand.Type,
+    _: BuildCommand.Type,
     _ arguments: [String] = [],
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
@@ -1684,7 +1687,7 @@ private func run(
 }
 
 private func run(
-    _ command: TestCommand.Type,
+    _: TestCommand.Type,
     _ arguments: [String] = [],
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
@@ -1768,7 +1771,7 @@ private func XCTAssertSchemeContainsBuildSettings(
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
     let fixturePath = try fixtureDirectory(sourceLocation: sourceLocation)
-    let workspacePath = try TuistAcceptanceTest.xcworkspacePath(in: fixturePath, sourceLocation: sourceLocation)
+    let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath, sourceLocation: sourceLocation)
     let buildSettings = try await System.shared.runAndCollectOutput(
         [
             "/usr/bin/xcodebuild",
@@ -1872,7 +1875,7 @@ private func XCTAssertProductWithDestinationContainsResource(
     resource: String,
     sourceLocation: SourceLocation = #_sourceLocation
 ) async throws {
-    let _ = try await resourcePath(
+    _ = try await resourcePath(
         for: product,
         destination: destination,
         resource: resource,
@@ -1941,10 +1944,10 @@ private func XCTAssertFrameworkEmbedded(
     _ framework: String,
     by targetName: String,
     sourceLocation: SourceLocation = #_sourceLocation
-) throws {
+) async throws {
     let fixturePath = try fixtureDirectory(sourceLocation: sourceLocation)
-    let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixturePath, sourceLocation: sourceLocation)
-    try TuistAcceptanceTest.expectFrameworkEmbedded(
+    let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath, sourceLocation: sourceLocation)
+    try await TuistAcceptanceTest.expectFrameworkEmbedded(
         framework,
         by: targetName,
         xcodeprojPath: xcodeprojPath,
@@ -2093,5 +2096,5 @@ private func XCTUnwrapTarget(
     in xcodeproj: XcodeProj,
     sourceLocation: SourceLocation = #_sourceLocation
 ) throws -> PBXTarget {
-    try TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+    try await TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
 }

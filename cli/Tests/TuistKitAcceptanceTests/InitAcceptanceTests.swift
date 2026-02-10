@@ -1,12 +1,15 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
 import Testing
+import TuistBuildCommand
+import TuistGenerateCommand
 import TuistSupport
 import TuistTesting
 @testable import TuistKit
 
 struct InitAcceptanceTests {
-    @Test(.inTemporaryDirectory, .withMockedDependencies)
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func generated_macos_app() async throws {
         let fileSystem = FileSystem()
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -44,7 +47,7 @@ struct InitAcceptanceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies)
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func generated_ios_app() async throws {
         let fileSystem = FileSystem()
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -82,7 +85,7 @@ struct InitAcceptanceTests {
         }
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies, .withFixture("xcode_project_ios_app"))
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withFixture("xcode_project_ios_app"))
     func xcode_project_ios_app() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try #require(TuistTest.fixtureDirectory)
