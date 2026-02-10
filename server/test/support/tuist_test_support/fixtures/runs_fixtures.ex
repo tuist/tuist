@@ -203,7 +203,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 
-    {1, _} = IngestRepo.insert_all(TestCaseFailure, [test_case_failure])
+    IngestRepo.insert_all(TestCaseFailure, [test_case_failure])
 
     test_case_failure
   end
@@ -219,7 +219,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 
-    {1, _} = IngestRepo.insert_all(TestCaseRunRepetition, [test_case_run_repetition])
+    IngestRepo.insert_all(TestCaseRunRepetition, [test_case_run_repetition])
 
     test_case_run_repetition
   end
