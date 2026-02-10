@@ -162,7 +162,12 @@
                     }
                 },
                 "xcode": {
-                    "text": "Xcode"
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "المشروع المُنشأ"
+                        }
+                    }
                 }
             }
         },
