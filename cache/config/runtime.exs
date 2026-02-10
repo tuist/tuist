@@ -66,6 +66,8 @@ if config_env() == :prod do
   s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("AWS_SECRET_ACCESS_KEY")
   s3_region = System.get_env("S3_REGION") || System.get_env("AWS_REGION")
 
+  otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
+
   config :cache, Cache.Guardian,
     issuer: "tuist",
     secret_key: System.get_env("GUARDIAN_SECRET_KEY")
@@ -112,4 +114,17 @@ if config_env() == :prod do
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Cache.Finch
+
+  if otel_endpoint do
+    config :opentelemetry,
+      span_processor: :batch,
+      resource: [
+        service: [name: "tuist-cache", namespace: "tuist"],
+        deployment: [environment: System.get_env("DEPLOY_ENV") || "production"]
+      ]
+
+    config :opentelemetry_exporter,
+      otlp_protocol: :grpc,
+      otlp_endpoint: otel_endpoint
+  end
 end
