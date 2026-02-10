@@ -9,6 +9,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `docs/` - Documentation and guides - see `docs/AGENTS.md`
+- `skills/` - Agent Skills NPM package (@tuist/skills)
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -26,6 +27,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
+- `skills` - Changes to the Agent Skills NPM package
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
@@ -34,6 +36,7 @@ Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
 
 # Tuist CLI (Swift)
