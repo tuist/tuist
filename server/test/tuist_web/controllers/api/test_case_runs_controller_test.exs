@@ -3,6 +3,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
   use Mimic
 
   alias Tuist.Tests
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -32,7 +33,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
         )
 
       stub(Tests, :list_test_case_runs_by_test_case_id, fn _test_case_id, _options ->
-        {[%{struct(Tuist.Tests.TestCaseRun, test_case_run) | status: :success}],
+        {[%{struct(TestCaseRun, test_case_run) | status: :success}],
          %{
            has_next_page?: false,
            has_previous_page?: false,
@@ -184,7 +185,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
         )
 
       run_struct = %{
-        struct(Tuist.Tests.TestCaseRun, test_case_run)
+        struct(TestCaseRun, test_case_run)
         | status: :failure,
           git_commit_sha: "abc1234"
       }
@@ -252,11 +253,9 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
       test_case_run =
-        RunsFixtures.test_case_run_fixture(
-          project_id: other_project.id
-        )
+        RunsFixtures.test_case_run_fixture(project_id: other_project.id)
 
-      run_struct = %{struct(Tuist.Tests.TestCaseRun, test_case_run) | status: :success, failures: [], repetitions: []}
+      run_struct = %{struct(TestCaseRun, test_case_run) | status: :success, failures: [], repetitions: []}
 
       stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:ok, run_struct} end)
 
