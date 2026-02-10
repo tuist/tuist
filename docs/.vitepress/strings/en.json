@@ -63,6 +63,9 @@
     "server": {
       "text": "Server"
     },
+    "tutorials": {
+      "text": "Tutorials"
+    },
     "resources": {
       "text": "Resources",
       "items": {
@@ -103,6 +106,14 @@
     "references": {
       "text": "References",
       "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "generated-projects": {
+              "text": "Generated Projects"
+            }
+          }
+        },
         "examples": {
           "text": "Examples"
         },
@@ -205,9 +216,25 @@
         }
       }
     },
+    "tutorials": {
+      "text": "Tutorials",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "create-a-generated-project": {
+              "text": "Create a generated project"
+            }
+          }
+        }
+      }
+    },
     "guides": {
       "text": "Guides",
       "items": {
+        "install-tuist": {
+          "text": "Install Tuist"
+        },
         "tuist": {
           "text": "Tuist",
           "items": {
