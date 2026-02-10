@@ -145,8 +145,13 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         if !run.repetitions.isEmpty {
             info.append("")
             info.append("Repetitions (\(run.repetitions.count))".bold())
-            for repetition in run.repetitions.sorted(by: { $0.repetition_number < $1.repetition_number }) {
-                info.append("  #\(repetition.repetition_number): \(repetition.status.rawValue)  \(Formatters.formatDuration(repetition.duration))")
+            for repetition in run.repetitions
+                .sorted(by: { $0.repetition_number < $1.repetition_number })
+            {
+                let num = repetition.repetition_number
+                let status = repetition.status.rawValue
+                let duration = Formatters.formatDuration(repetition.duration)
+                info.append("  #\(num): \(status)  \(duration)")
             }
         }
 
