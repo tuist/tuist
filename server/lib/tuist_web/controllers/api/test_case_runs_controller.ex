@@ -18,7 +18,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
   tags ["Test Case Runs"]
 
   operation(:index,
-    summary: "List test case runs by name components.",
+    summary: "List runs for a test case.",
     operation_id: "listTestCaseRuns",
     parameters: [
       account_handle: [
@@ -33,22 +33,11 @@ defmodule TuistWeb.API.TestCaseRunsController do
         required: true,
         description: "The handle of the project."
       ],
-      module_name: [
-        in: :query,
-        type: :string,
+      test_case_id: [
+        in: :path,
+        schema: %Schema{type: :string, format: :uuid},
         required: true,
-        description: "The module name of the test case."
-      ],
-      name: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The name of the test case."
-      ],
-      suite_name: [
-        in: :query,
-        type: :string,
-        description: "The suite name of the test case (optional)."
+        description: "The ID of the test case."
       ],
       flaky: [
         in: :query,
@@ -112,19 +101,22 @@ defmodule TuistWeb.API.TestCaseRunsController do
 
   def index(
         %{
-          assigns: %{selected_project: selected_project},
-          params: %{module_name: module_name, name: name, page_size: page_size, page: page} = params
+          assigns: %{selected_project: _selected_project},
+          params: %{test_case_id: test_case_id, page_size: page_size, page: page} = params
         } = conn,
         _params
       ) do
-    query_params =
-      %{module_name: module_name, name: name}
-      |> maybe_put(:suite_name, Map.get(params, :suite_name))
-      |> maybe_put_flaky(Map.get(params, :flaky))
+    filters = build_run_filters(params)
 
-    pagination = %{page: page, page_size: page_size}
+    options = %{
+      filters: filters,
+      order_by: [:ran_at],
+      order_directions: [:desc],
+      page: page,
+      page_size: page_size
+    }
 
-    {runs, meta} = Tests.list_test_case_runs_by_name(selected_project.id, query_params, pagination)
+    {runs, meta} = Tests.list_test_case_runs_by_test_case_id(test_case_id, options)
 
     json(conn, %{
       test_case_runs:
@@ -304,10 +296,11 @@ defmodule TuistWeb.API.TestCaseRunsController do
 
   defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_unix(ran_at)
 
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp maybe_put_flaky(map, nil), do: map
-  defp maybe_put_flaky(map, true), do: Map.put(map, :is_flaky, true)
-  defp maybe_put_flaky(map, false), do: map
+  defp build_run_filters(params) do
+    if Map.get(params, :flaky) do
+      [%{field: :is_flaky, op: :==, value: true}]
+    else
+      []
+    end
+  end
 end

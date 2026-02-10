@@ -33,15 +33,18 @@ enum TestCaseRunListCommandServiceError: Equatable, LocalizedError {
 }
 
 struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
+    private let getTestCaseService: GetTestCaseServicing
     private let listTestCaseRunsService: ListTestCaseRunsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
     init(
+        getTestCaseService: GetTestCaseServicing = GetTestCaseService(),
         listTestCaseRunsService: ListTestCaseRunsServicing = ListTestCaseRunsService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
+        self.getTestCaseService = getTestCaseService
         self.listTestCaseRunsService = listTestCaseRunsService
         self.serverEnvironmentService = serverEnvironmentService
         self.configLoader = configLoader
@@ -65,7 +68,19 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let (moduleName, suiteName, testName) = try parseIdentifier(testCaseIdentifier)
+        let testCaseId: String
+        if testCaseIdentifier.contains("/") {
+            let (moduleName, suiteName, testName) = try parseIdentifier(testCaseIdentifier)
+            testCaseId = try await getTestCaseService.resolveTestCaseId(
+                fullHandle: resolvedFullHandle,
+                moduleName: moduleName,
+                name: testName,
+                suiteName: suiteName,
+                serverURL: serverURL
+            )
+        } else {
+            testCaseId = testCaseIdentifier
+        }
 
         let pageSize = pageSize ?? 10
         let startPage = (page ?? 1) - 1
@@ -73,9 +88,7 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         let initialPage = try await listTestCaseRunsService.listTestCaseRuns(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
-            moduleName: moduleName,
-            name: testName,
-            suiteName: suiteName,
+            testCaseId: testCaseId,
             flaky: flaky ? true : nil,
             page: startPage + 1,
             pageSize: pageSize
@@ -112,9 +125,7 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
                 let runsPage = try await listTestCaseRunsService.listTestCaseRuns(
                     fullHandle: resolvedFullHandle,
                     serverURL: serverURL,
-                    moduleName: moduleName,
-                    name: testName,
-                    suiteName: suiteName,
+                    testCaseId: testCaseId,
                     flaky: flaky ? true : nil,
                     page: pageIndex + 1,
                     pageSize: pageSize

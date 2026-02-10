@@ -8,9 +8,7 @@ public protocol ListTestCaseRunsServicing {
     func listTestCaseRuns(
         fullHandle: String,
         serverURL: URL,
-        moduleName: String,
-        name: String,
-        suiteName: String?,
+        testCaseId: String,
         flaky: Bool?,
         page: Int?,
         pageSize: Int
@@ -49,9 +47,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
     public func listTestCaseRuns(
         fullHandle: String,
         serverURL: URL,
-        moduleName: String,
-        name: String,
-        suiteName: String?,
+        testCaseId: String,
         flaky: Bool?,
         page: Int?,
         pageSize: Int
@@ -63,12 +59,10 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle
+                    project_handle: handles.projectHandle,
+                    test_case_id: testCaseId
                 ),
                 query: .init(
-                    module_name: moduleName,
-                    name: name,
-                    suite_name: suiteName,
                     flaky: flaky,
                     page_size: pageSize,
                     page: page
