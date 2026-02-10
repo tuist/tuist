@@ -8,6 +8,8 @@ All notable changes to this project will be documented in this file.
 * make server commands available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9377](https://github.com/tuist/tuist/pull/9377)
 ### 🐛 Bug Fixes
 
+* don't retry non-retryable errors in module cache download by [@fortmarek](https://github.com/fortmarek) in [#9394](https://github.com/tuist/tuist/pull/9394)
+* restore asset symbol generation for external static frameworks by [@pepicrft](https://github.com/pepicrft) in [#9382](https://github.com/tuist/tuist/pull/9382)
 * use correct bundle accessor for external dynamic frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9381](https://github.com/tuist/tuist/pull/9381)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.141.1...4.142.0
