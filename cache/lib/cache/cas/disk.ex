@@ -100,7 +100,7 @@ defmodule Cache.CAS.Disk do
   physical CAS storage directory.
   """
   def local_accel_path(account_handle, project_handle, id) do
-    "/internal/local/" <> key(account_handle, project_handle, id)
+    Disk.local_base_path() <> key(account_handle, project_handle, id)
   end
 
   @doc """

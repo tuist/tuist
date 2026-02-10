@@ -54,6 +54,19 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Returns the base path prefix used for nginx internal X-Accel-Redirect responses.
+
+  All domain-specific `local_accel_path` functions prepend this to their cache key
+  so the literal lives in one place.
+
+  ## Examples
+
+      iex> Cache.Disk.local_base_path()
+      "/internal/local/"
+  """
+  def local_base_path, do: "/internal/local/"
+
+  @doc """
   Lists all artifact paths on disk.
   """
   def list_artifact_paths(dir \\ storage_dir()) do

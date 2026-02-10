@@ -146,6 +146,6 @@ defmodule Cache.Module.Disk do
   physical module storage directory.
   """
   def local_accel_path(account_handle, project_handle, category, hash, name) do
-    "/internal/local/" <> key(account_handle, project_handle, category, hash, name)
+    Disk.local_base_path() <> key(account_handle, project_handle, category, hash, name)
   end
 end

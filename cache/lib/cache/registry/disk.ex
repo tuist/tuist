@@ -109,6 +109,6 @@ defmodule Cache.Registry.Disk do
       "/internal/local/registry/swift/apple/parser/1.0.0/source_archive.zip"
   """
   def local_accel_path(scope, name, version, filename) do
-    "/internal/local/" <> key(scope, name, version, filename)
+    Disk.local_base_path() <> key(scope, name, version, filename)
   end
 end

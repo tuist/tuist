@@ -100,6 +100,6 @@ defmodule Cache.Gradle.Disk do
   physical storage directory.
   """
   def local_accel_path(account_handle, project_handle, cache_key) do
-    "/internal/local/" <> key(account_handle, project_handle, cache_key)
+    Disk.local_base_path() <> key(account_handle, project_handle, cache_key)
   end
 end
