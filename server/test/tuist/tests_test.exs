@@ -1139,6 +1139,51 @@ defmodule Tuist.TestsTest do
       assert Enum.at(test_cases_desc, 0).name == "slowTest"
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
     end
+
+    test "preserves is_quarantined when a new test run is ingested" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert test_case.is_quarantined == false
+
+      # When - quarantine the test case, then ingest a new test run
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+
+      {:ok, _test_run2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      # Then - the test case should still be quarantined
+      {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert updated_test_case.is_quarantined == true
+    end
   end
 
   describe "get_test_case_by_id/1" do
@@ -4240,6 +4285,50 @@ defmodule Tuist.TestsTest do
       quarantined_test = hd(quarantined_tests)
       assert quarantined_test.name == "quarantinedTest"
       assert quarantined_test.module_name == "QuarantineModule"
+    end
+
+    test "does not return duplicates when quarantined and marked_flaky events share the same timestamp" do
+      # Given - simulate auto-quarantine which sets both is_flaky and is_quarantined
+      # at the same time, creating two events with the same inserted_at
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "autoQuarantinedTest",
+          module_name: "FlakyModule",
+          is_quarantined: true,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Create both events with the same timestamp (as update_test_case does)
+      now = NaiveDateTime.utc_now()
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: now
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "marked_flaky",
+        inserted_at: now
+      )
+
+      # When - filter by quarantined_by: :tuist to force the quarantine_info LEFT JOIN
+      # to be evaluated (ClickHouse may optimize away unused joins otherwise)
+      {quarantined_tests, meta} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :quarantined_by, op: :==, value: :tuist}]
+        })
+
+      # Then - should return exactly 1, not 2
+      assert length(quarantined_tests) == 1
+      assert meta.total_count == 1
+      assert hd(quarantined_tests).name == "autoQuarantinedTest"
     end
 
     test "supports pagination" do
