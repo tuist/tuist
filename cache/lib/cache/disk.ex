@@ -11,58 +11,6 @@ defmodule Cache.Disk do
   require Logger
 
   @doc """
-  Checks if a Xcode compilation cache (CAS) artifact exists on disk.
-
-  ## Examples
-
-      iex> Cache.Disk.xcode_cas_exists?("account", "project", "abc123")
-      true
-  """
-  def xcode_cas_exists?(account_handle, project_handle, id) do
-    account_handle
-    |> xcode_cas_key(project_handle, id)
-    |> artifact_path()
-    |> File.exists?()
-  end
-
-  @doc """
-  Writes Xcode compilation cache (CAS) artifact data to disk for given account, project, and artifact ID.
-
-  Accepts either binary data or a file path. For file paths, file is moved
-  into place without reading into memory (efficient for large uploads).
-
-  Creates parent directories if they don't exist.
-
-  ## Examples
-
-      iex> Cache.Disk.xcode_cas_put("account", "project", "abc123", <<1, 2, 3>>)
-      :ok
-
-      iex> Cache.Disk.xcode_cas_put("account", "project", "abc123", {:file, "/tmp/upload-123"})
-      :ok
-  """
-  def xcode_cas_put(account_handle, project_handle, id, {:file, tmp_path}) do
-    path = account_handle |> xcode_cas_key(project_handle, id) |> artifact_path()
-
-    with :ok <- ensure_directory(path) do
-      move_file(tmp_path, path)
-    end
-  end
-
-  def xcode_cas_put(account_handle, project_handle, id, data) when is_binary(data) do
-    path = account_handle |> xcode_cas_key(project_handle, id) |> artifact_path()
-
-    with :ok <- ensure_directory(path),
-         :ok <- File.write(path, data) do
-      :ok
-    else
-      {:error, reason} = error ->
-        Logger.error("Failed to write CAS artifact to #{path}: #{inspect(reason)}")
-        error
-    end
-  end
-
-  @doc """
   Converts a cache key to an absolute file system path.
 
   ## Examples
@@ -72,22 +20,6 @@ defmodule Cache.Disk do
   """
   def artifact_path(key) do
     Path.join(storage_dir(), key)
-  end
-
-  @doc """
-  Constructs a sharded Xcode compilation cache (CAS) key from account handle, project handle, and artifact ID.
-
-  Uses a two-level directory sharding based on the first 4 characters of the artifact ID
-  to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
-
-  ## Examples
-
-      iex> Cache.Disk.xcode_cas_key("account", "project", "ABCD1234")
-      "account/project/cas/AB/CD/ABCD1234"
-  """
-  def xcode_cas_key(account_handle, project_handle, id) do
-    {shard1, shard2} = shards_for_id(id)
-    "#{account_handle}/#{project_handle}/cas/#{shard1}/#{shard2}/#{id}"
   end
 
   @doc """
@@ -107,55 +39,12 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Build the internal X-Accel-Redirect path for a Xcode compilation cache (CAS) artifact.
-
-  The returned path maps to the nginx internal location that aliases the
-  physical CAS storage directory.
-  """
-  def xcode_cas_local_accel_path(account_handle, project_handle, id) do
-    "/internal/local/" <> xcode_cas_key(account_handle, project_handle, id)
-  end
-
-  @doc """
   Returns the configured storage directory for cache artifacts.
 
   Defaults to "tmp/cas" if not configured.
   """
   def storage_dir do
     Application.get_env(:cache, :storage_dir)
-  end
-
-  @doc """
-  Returns local file path for a given Xcode compilation cache (CAS) artifact if the file exists.
-
-  ## Examples
-
-      iex> Cache.Disk.xcode_cas_get_local_path("account", "project", "ABCD1234")
-      {:ok, "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"}
-  """
-  def xcode_cas_get_local_path(account_handle, project_handle, id) do
-    path = account_handle |> xcode_cas_key(project_handle, id) |> artifact_path()
-
-    if File.exists?(path) do
-      {:ok, path}
-    else
-      {:error, :not_found}
-    end
-  end
-
-  @doc """
-  Returns file stat information for a Xcode compilation cache (CAS) artifact.
-
-  ## Examples
-
-      iex> Cache.Disk.xcode_cas_stat("account", "project", "ABCD1234")
-      {:ok, %File.Stat{size: 1024, ...}}
-  """
-  def xcode_cas_stat(account_handle, project_handle, id) do
-    account_handle
-    |> xcode_cas_key(project_handle, id)
-    |> artifact_path()
-    |> File.stat()
   end
 
   @doc """
