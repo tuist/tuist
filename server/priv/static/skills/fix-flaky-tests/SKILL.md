@@ -63,6 +63,7 @@ Key fields:
 - `failures[].line_number` — exact line of failure
 - `failures[].issue_type` — type of issue (assertion_failure, etc.)
 - `repetitions` — if present, shows retry behavior (pass/fail sequence)
+- `test_run_id` — the broader test run this execution belongs to
 
 ## Code Analysis
 
