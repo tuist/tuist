@@ -133,19 +133,12 @@ struct InspectTestCommandService {
 
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
         Logger.current.debug("Inspect test: project path resolved to \(projectPath.pathString)")
-        let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
         let projectDerivedDataDirectory: AbsolutePath
         if let derivedDataPath {
             projectDerivedDataDirectory = try AbsolutePath(
                 validating: derivedDataPath,
                 relativeTo: currentWorkingDirectory
             )
-        } else if let derivedDataDir = Environment.current.variables["DERIVED_DATA_DIR"],
-                  try AbsolutePath(validating: derivedDataDir) != defaultDerivedDataDirectory
-        {
-            projectDerivedDataDirectory = try AbsolutePath(validating: derivedDataDir)
-            Logger.current
-                .debug("Inspect test: derived data directory resolved from DERIVED_DATA_DIR environment variable")
         } else {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }

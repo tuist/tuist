@@ -17,6 +17,13 @@ public final class DerivedDataLocator: DerivedDataLocating {
     public func locate(
         for projectPath: AbsolutePath
     ) async throws -> AbsolutePath {
+        if let derivedDataDir = Environment.current.variables["DERIVED_DATA_DIR"] {
+            let derivedDataDirPath = try AbsolutePath(validating: derivedDataDir)
+            let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
+            if derivedDataDirPath != defaultDerivedDataDirectory {
+                return derivedDataDirPath
+            }
+        }
         let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
         return try await Environment.current.derivedDataDirectory()
             .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")

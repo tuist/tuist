@@ -110,10 +110,16 @@ struct InspectBuildCommandService {
         Logger.current.debug("Inspect build: base path resolved to \(basePath.pathString)")
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
         Logger.current.debug("Inspect build: project path resolved to \(projectPath.pathString)")
-        let projectDerivedDataDirectory = try await resolveProjectDerivedDataDirectory(
-            derivedDataPath: derivedDataPath,
-            projectPath: projectPath
-        )
+        let projectDerivedDataDirectory: AbsolutePath
+        if let derivedDataPath {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            projectDerivedDataDirectory = try AbsolutePath(
+                validating: derivedDataPath,
+                relativeTo: currentWorkingDirectory
+            )
+        } else {
+            projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
+        }
         Logger.current.debug("Inspect build: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
         Logger.current
             .debug("Inspect build: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
@@ -233,28 +239,6 @@ struct InspectBuildCommandService {
                 }
                 return issue
             }
-    }
-
-    private func resolveProjectDerivedDataDirectory(
-        derivedDataPath: String?,
-        projectPath: AbsolutePath
-    ) async throws -> AbsolutePath {
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        if let derivedDataPath {
-            return try AbsolutePath(
-                validating: derivedDataPath,
-                relativeTo: currentWorkingDirectory
-            )
-        } else if let derivedDataDir = Environment.current.variables["DERIVED_DATA_DIR"] {
-            let derivedDataDirPath = try AbsolutePath(validating: derivedDataDir)
-            let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
-            if derivedDataDirPath != defaultDerivedDataDirectory {
-                Logger.current
-                    .debug("Inspect build: derived data directory resolved from DERIVED_DATA_DIR environment variable")
-                return derivedDataDirPath
-            }
-        }
-        return try await derivedDataLocator.locate(for: projectPath)
     }
 
     private func path(_ path: String?) async throws -> AbsolutePath {
