@@ -447,67 +447,6 @@ defmodule Tuist.Tests do
     end
   end
 
-  @doc """
-  Lists test case runs by name components (module_name, name, and optionally suite_name).
-  Supports filtering by is_flaky and pagination.
-
-  ## Parameters
-  - `project_id` - the project ID
-  - `params` - map with required `:module_name` and `:name`, optional `:suite_name` and `:is_flaky`
-  - `pagination` - map with `:page` and `:page_size`
-  """
-  def list_test_case_runs_by_name(project_id, params, pagination) do
-    base_query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.module_name == ^params.module_name,
-        where: tcr.name == ^params.name,
-        order_by: [desc: tcr.ran_at]
-      )
-
-    base_query =
-      if suite_name = Map.get(params, :suite_name) do
-        from(tcr in base_query, where: tcr.suite_name == ^suite_name)
-      else
-        base_query
-      end
-
-    base_query =
-      if Map.has_key?(params, :is_flaky) do
-        from(tcr in base_query, where: tcr.is_flaky == ^params.is_flaky)
-      else
-        base_query
-      end
-
-    page = Map.get(pagination, :page, 1)
-    page_size = Map.get(pagination, :page_size, 20)
-
-    count_query = from(tcr in base_query, select: count(tcr.id))
-    total_count = ClickHouseRepo.one(count_query) || 0
-    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 1
-
-    offset = (page - 1) * page_size
-
-    results_query =
-      from(tcr in base_query,
-        limit: ^page_size,
-        offset: ^offset
-      )
-
-    results = ClickHouseRepo.all(results_query)
-
-    meta = %{
-      has_next_page?: page < total_pages,
-      has_previous_page?: page > 1,
-      current_page: page,
-      page_size: page_size,
-      total_count: total_count,
-      total_pages: total_pages
-    }
-
-    {results, meta}
-  end
-
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
