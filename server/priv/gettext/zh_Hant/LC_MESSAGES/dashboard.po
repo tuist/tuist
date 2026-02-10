@@ -381,6 +381,9 @@ msgstr "隔離測試"
 msgid "Generations"
 msgstr "世代"
 
+msgid "Gradle Cache"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "生成執行階段"

@@ -290,3 +290,6 @@ msgstr ""
 
 msgid "Generations"
 msgstr ""
+
+msgid "Gradle Cache"
+msgstr ""
