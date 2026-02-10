@@ -195,7 +195,7 @@ public enum EnvKey: String, CaseIterable {
 
     // TEST CASE SHOW
 
-    case testCaseShowId = "TUIST_TEST_CASE_SHOW_ID"
+    case testCaseShowIdentifier = "TUIST_TEST_CASE_SHOW_IDENTIFIER"
     case testCaseShowFullHandle = "TUIST_TEST_CASE_SHOW_FULL_HANDLE"
     case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
     case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"

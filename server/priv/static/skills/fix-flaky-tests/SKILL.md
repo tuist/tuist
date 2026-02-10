@@ -1,6 +1,6 @@
 ---
 name: fix-flaky-tests
-description: Fixes flaky tests in Tuist projects by analyzing failure patterns, identifying root causes, and applying targeted corrections. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
+description: Fixes flaky tests by analyzing failure patterns from Tuist, identifying root causes, and applying targeted corrections. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
 ---
 
 # Fix Flaky Tests
@@ -8,17 +8,11 @@ description: Fixes flaky tests in Tuist projects by analyzing failure patterns, 
 ## Quick Start
 
 1. Run `tuist test case list --flaky --json --page-size 50` to discover all flaky tests.
-2. For each flaky test, run `tuist test case show <id> --json` to see reliability metrics.
+2. For each flaky test, run `tuist test case show <id-or-identifier> --json` to see reliability metrics.
 3. Run `tuist test case run list Module/Suite/TestCase --flaky --json` to see flaky run patterns.
 4. Run `tuist test case run show <run-id> --json` on failing runs to get failure messages and file paths.
 5. Read the test source at the reported path and line, identify the flaky pattern, and fix it.
-6. Verify with `tuist test run --scheme <scheme> --test-targets <module>/<test>`.
-
-## Preflight Checklist
-
-- The project is connected to Tuist (`tuist.swift` has a `fullHandle`)
-- Tests have been reported (at least one `tuist test` run has completed)
-- You have network access to the Tuist server
+6. Verify by running the test multiple times to confirm it passes consistently.
 
 ## Discovery
 
@@ -36,8 +30,11 @@ For each flaky test case, gather data in this order:
 
 ### 1. Get test case metrics
 
+You can pass either the UUID (from the list output) or the `Module/Suite/TestCase` identifier:
+
 ```bash
-tuist test case show <test-case-id> --json
+tuist test case show <id> --json
+tuist test case show Module/Suite/TestCase --json
 ```
 
 Key fields:
@@ -123,17 +120,13 @@ After identifying the pattern:
 
 ## Verification
 
-Run the specific test to verify the fix:
+Run the specific test repeatedly until failure using `xcodebuild`'s built-in repetition support:
 
 ```bash
-tuist test run --scheme <scheme> --test-targets <module>/<test>
+xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module>/<suite>/<test> -test-iterations <count> -run-tests-until-failure
 ```
 
-Run it multiple times if the flakiness is intermittent:
-
-```bash
-for i in $(seq 1 5); do tuist test run --scheme <scheme> --test-targets <module>/<test>; done
-```
+This runs the test up to `<count>` times and stops at the first failure. Choose the iteration count based on how long the test takes — for fast unit tests use 50–100, for slower integration or acceptance tests use 5–10.
 
 ## Done Checklist
 

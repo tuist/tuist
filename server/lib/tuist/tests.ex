@@ -307,6 +307,15 @@ defmodule Tuist.Tests do
   end
 
   @doc """
+  Gets a test case by name components within a project.
+  Returns {:ok, test_case} or {:error, :not_found}.
+  """
+  def get_test_case_by_name(project_id, module_name, name, suite_name) do
+    id = generate_test_case_id(project_id, name, module_name, suite_name || "")
+    get_test_case_by_id(id)
+  end
+
+  @doc """
   Gets a test case by its UUID with all denormalized fields.
   Returns {:ok, test_case} or {:error, :not_found}.
   """

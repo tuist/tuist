@@ -36,7 +36,7 @@ struct TestCaseShowCommandServiceTests {
         await #expect(throws: TestCaseShowCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
                 project: nil,
-                testCaseId: "test-case-id",
+                testCaseIdentifier: "test-case-id",
                 path: nil,
                 json: false
             )
@@ -46,7 +46,7 @@ struct TestCaseShowCommandServiceTests {
     @Test(
         .withMockedEnvironment(arguments: ["--json"]),
         .withMockedNoora
-    ) func run_with_json_output() async throws {
+    ) func run_with_json_output_and_uuid() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
         let tuist = Tuist.test(fullHandle: fullHandle)
@@ -67,7 +67,7 @@ struct TestCaseShowCommandServiceTests {
         // When
         try await subject.run(
             project: nil,
-            testCaseId: "test-case-id",
+            testCaseIdentifier: "test-case-id",
             path: nil,
             json: true
         )
@@ -75,6 +75,79 @@ struct TestCaseShowCommandServiceTests {
         // Then
         #expect(ui().contains("testLogin()"))
         #expect(ui().contains("AuthTests"))
+    }
+
+    @Test(
+        .withMockedEnvironment(arguments: ["--json"]),
+        .withMockedNoora
+    ) func run_with_json_output_and_name_identifier() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(
+            module: .test(name: "AuthTests"),
+            name: "testLogin()",
+            suite: .test(name: "LoginSuite")
+        )
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AuthTests"),
+            name: .value("testLogin()"),
+            suiteName: .value("LoginSuite"),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
+
+        // When
+        try await subject.run(
+            project: nil,
+            testCaseIdentifier: "AuthTests/LoginSuite/testLogin()",
+            path: nil,
+            json: true
+        )
+
+        // Then
+        #expect(ui().contains("testLogin()"))
+        #expect(ui().contains("AuthTests"))
+    }
+
+    @Test(
+        .withMockedEnvironment(arguments: ["--json"]),
+        .withMockedNoora
+    ) func run_with_name_identifier_without_suite() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(
+            module: .test(name: "CoreTests"),
+            name: "testNoSuite()"
+        )
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("CoreTests"),
+            name: .value("testNoSuite()"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
+
+        // When
+        try await subject.run(
+            project: nil,
+            testCaseIdentifier: "CoreTests/testNoSuite()",
+            path: nil,
+            json: true
+        )
+
+        // Then
+        #expect(ui().contains("testNoSuite()"))
+        #expect(ui().contains("CoreTests"))
     }
 
     @Test(
@@ -107,7 +180,7 @@ struct TestCaseShowCommandServiceTests {
         // When
         try await subject.run(
             project: nil,
-            testCaseId: "tc-123",
+            testCaseIdentifier: "tc-123",
             path: nil,
             json: false
         )
@@ -142,7 +215,7 @@ struct TestCaseShowCommandServiceTests {
         // When
         try await subject.run(
             project: explicitFullHandle,
-            testCaseId: "tc-123",
+            testCaseIdentifier: "tc-123",
             path: nil,
             json: false
         )
@@ -180,7 +253,7 @@ struct TestCaseShowCommandServiceTests {
         // When
         try await subject.run(
             project: nil,
-            testCaseId: "tc-456",
+            testCaseIdentifier: "tc-456",
             path: nil,
             json: false
         )
@@ -189,5 +262,25 @@ struct TestCaseShowCommandServiceTests {
         #expect(ui().contains("testNoSuite()"))
         #expect(ui().contains("CoreTests"))
         #expect(!ui().contains("Suite:"))
+    }
+
+    @Test(.withMockedEnvironment()) func run_with_invalid_identifier() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+
+        // When/Then
+        await #expect(throws: TestCaseShowCommandServiceError.invalidIdentifier("a/b/c/d"), performing: {
+            try await subject.run(
+                project: nil,
+                testCaseIdentifier: "a/b/c/d",
+                path: nil,
+                json: false
+            )
+        })
     }
 }

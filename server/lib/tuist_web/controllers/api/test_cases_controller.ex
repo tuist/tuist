@@ -255,6 +255,142 @@ defmodule TuistWeb.API.TestCasesController do
     end
   end
 
+  operation(:show_by_name,
+    summary: "Get a test case by name components.",
+    operation_id: "showTestCaseByName",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      module_name: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The module name of the test case."
+      ],
+      name: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "The name of the test case."
+      ],
+      suite_name: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "The suite name of the test case (optional)."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"Test case details", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             id: %Schema{type: :string, format: :uuid, description: "The test case ID."},
+             name: %Schema{type: :string, description: "Name of the test case."},
+             module: %Schema{
+               type: :object,
+               required: [:id, :name],
+               properties: %{
+                 id: %Schema{type: :string, description: "ID of the module."},
+                 name: %Schema{type: :string, description: "Name of the module."}
+               }
+             },
+             suite: %Schema{
+               type: :object,
+               nullable: true,
+               required: [:id, :name],
+               properties: %{
+                 id: %Schema{type: :string, description: "ID of the suite."},
+                 name: %Schema{type: :string, description: "Name of the suite."}
+               }
+             },
+             is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
+             is_quarantined: %Schema{type: :boolean, description: "Whether the test case is quarantined."},
+             last_status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Status of the last run."},
+             last_duration: %Schema{type: :integer, description: "Duration of the last run in milliseconds."},
+             last_ran_at: %Schema{type: :integer, description: "Unix timestamp of when the test case last ran."},
+             avg_duration: %Schema{type: :integer, description: "Average duration of recent runs in milliseconds."},
+             reliability_rate: %Schema{type: :number, nullable: true, description: "Success rate percentage (0-100)."},
+             flakiness_rate: %Schema{type: :number, description: "Flakiness rate percentage (0-100) over last 30 days."},
+             total_runs: %Schema{type: :integer, description: "Total number of runs."},
+             failed_runs: %Schema{type: :integer, description: "Number of failed runs."},
+             url: %Schema{type: :string, description: "URL to view the test case in the dashboard."}
+           },
+           required: [
+             :id,
+             :name,
+             :module,
+             :is_flaky,
+             :is_quarantined,
+             :last_status,
+             :last_duration,
+             :last_ran_at,
+             :avg_duration,
+             :flakiness_rate,
+             :total_runs,
+             :failed_runs,
+             :url
+           ]
+         }},
+      not_found: {"Test case not found", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def show_by_name(
+        %{assigns: %{selected_project: selected_project}, params: params} = conn,
+        _params
+      ) do
+    module_name = params.module_name
+    name = params.name
+    suite_name = Map.get(params, :suite_name)
+
+    case Tests.get_test_case_by_name(selected_project.id, module_name, name, suite_name) do
+      {:ok, test_case} ->
+        default_branch = selected_project.default_branch || "main"
+        analytics = Analytics.test_case_analytics_by_id(test_case.id)
+        reliability_rate = Analytics.test_case_reliability_by_id(test_case.id, default_branch)
+        flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
+
+        json(conn, %{
+          id: test_case.id,
+          name: test_case.name,
+          module: %{
+            id: test_case.module_name,
+            name: test_case.module_name
+          },
+          suite: build_suite(test_case.suite_name),
+          is_flaky: test_case.is_flaky,
+          is_quarantined: test_case.is_quarantined,
+          last_status: to_string(test_case.last_status),
+          last_duration: test_case.last_duration,
+          last_ran_at: test_case.last_ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(),
+          avg_duration: test_case.avg_duration,
+          reliability_rate: reliability_rate,
+          flakiness_rate: flakiness_rate,
+          total_runs: analytics.total_count,
+          failed_runs: analytics.failed_count,
+          url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
+        })
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test case not found."})
+    end
+  end
+
   defp build_filters(params) do
     filters = []
 

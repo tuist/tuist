@@ -13,10 +13,10 @@ struct TestCaseShowCommand: AsyncParsableCommand, NooraReadyCommand {
     }
 
     @Argument(
-        help: "The ID of the test case to show.",
-        envKey: .testCaseShowId
+        help: "The test case identifier. Either a UUID or the format Module/Suite/TestCase (or Module/TestCase).",
+        envKey: .testCaseShowIdentifier
     )
-    var testCaseId: String
+    var testCaseIdentifier: String
 
     @Option(
         name: [.customLong("project"), .customShort("P")],
@@ -44,7 +44,7 @@ struct TestCaseShowCommand: AsyncParsableCommand, NooraReadyCommand {
     func run() async throws {
         try await TestCaseShowCommandService().run(
             project: project,
-            testCaseId: testCaseId,
+            testCaseIdentifier: testCaseIdentifier,
             path: path,
             json: json
         )

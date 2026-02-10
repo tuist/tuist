@@ -12,6 +12,14 @@ public protocol GetTestCaseServicing: Sendable {
         testCaseId: String,
         serverURL: URL
     ) async throws -> ServerTestCase
+
+    func getTestCaseByName(
+        fullHandle: String,
+        moduleName: String,
+        name: String,
+        suiteName: String?,
+        serverURL: URL
+    ) async throws -> ServerTestCase
 }
 
 enum GetTestCaseServiceError: LocalizedError {
@@ -61,6 +69,67 @@ public struct GetTestCaseService: GetTestCaseServicing {
             switch okResponse.body {
             case let .json(json):
                 return json
+            }
+        case let .notFound(notFound):
+            switch notFound.body {
+            case let .json(error):
+                throw GetTestCaseServiceError.notFound(error.message)
+            }
+        case let .forbidden(forbidden):
+            switch forbidden.body {
+            case let .json(error):
+                throw GetTestCaseServiceError.forbidden(error.message)
+            }
+        case let .undocumented(statusCode: statusCode, _):
+            throw GetTestCaseServiceError.unknownError(statusCode)
+        }
+    }
+
+    public func getTestCaseByName(
+        fullHandle: String,
+        moduleName: String,
+        name: String,
+        suiteName: String?,
+        serverURL: URL
+    ) async throws -> ServerTestCase {
+        let client = Client.authenticated(serverURL: serverURL)
+        let handles = try fullHandleService.parse(fullHandle)
+
+        let response = try await client.showTestCaseByName(
+            .init(
+                path: .init(
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle
+                ),
+                query: .init(
+                    module_name: moduleName,
+                    name: name,
+                    suite_name: suiteName
+                )
+            )
+        )
+
+        switch response {
+        case let .ok(okResponse):
+            switch okResponse.body {
+            case let .json(json):
+                return ServerTestCase(
+                    avg_duration: json.avg_duration,
+                    failed_runs: json.failed_runs,
+                    flakiness_rate: json.flakiness_rate,
+                    id: json.id,
+                    is_flaky: json.is_flaky,
+                    is_quarantined: json.is_quarantined,
+                    last_duration: json.last_duration,
+                    last_ran_at: json.last_ran_at,
+                    last_status: .init(rawValue: json.last_status.rawValue)!,
+                    module: .init(id: json.module.id, name: json.module.name),
+                    name: json.name,
+                    reliability_rate: json.reliability_rate,
+                    suite: json.suite.map { .init(id: $0.id, name: $0.name) },
+                    total_runs: json.total_runs,
+                    url: json.url
+                )
             }
         case let .notFound(notFound):
             switch notFound.body {
