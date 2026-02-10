@@ -48,7 +48,7 @@ struct LoginCommandServiceTests {
         )
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func run_authenticates_with_browser() async throws {
         // Given
         given(serverSessionController)
