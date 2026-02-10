@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-02-03 09:34+0000\n"
+"PO-Revision-Date: 2026-02-10 17:32+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard-1/zh_Hant/>\n"
@@ -381,8 +381,9 @@ msgstr "隔離測試"
 msgid "Generations"
 msgstr "世代"
 
+#, fuzzy
 msgid "Gradle Cache"
-msgstr ""
+msgstr "Gradle 快取"
 
 #, fuzzy
 #~ msgid "Generate Runs"
