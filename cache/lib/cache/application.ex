@@ -77,10 +77,7 @@ defmodule Cache.Application do
           env: {:static, System.get_env("DEPLOY_ENV") || "production"},
           level: :level
         },
-        structured_metadata: [
-          traceID: {:metadata, :trace_id},
-          spanID: {:metadata, :span_id}
-        ]
+        structured_metadata: [:trace_id, :span_id]
       )
     end
   end
