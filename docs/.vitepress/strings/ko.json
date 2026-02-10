@@ -76,6 +76,9 @@
                     "text": "수정사항"
                 }
             }
+        },
+        "tutorials": {
+            "text": "튜토리얼"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "v3에서 v4로"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -462,6 +468,19 @@
                         }
                     },
                     "text": "서버"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "튜토리얼",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "생성된 프로젝트 만들기"
+                        }
+                    }
                 }
             }
         }
