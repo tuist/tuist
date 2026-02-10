@@ -659,6 +659,19 @@ var targets: [Target] = [
         path: "cli/Tests/TuistUserInputReaderTests"
     ),
     .testTarget(
+        name: "TuistAuthCommandTests",
+        dependencies: [
+            "TuistAuthCommand",
+            "TuistServer",
+            "TuistCore",
+            "TuistEnvironmentTesting",
+            "TuistOIDC",
+            "TuistUserInputReader",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistAuthCommandTests"
+    ),
+    .testTarget(
         name: "TuistAccountCommandTests",
         dependencies: [
             "TuistAccountCommand",

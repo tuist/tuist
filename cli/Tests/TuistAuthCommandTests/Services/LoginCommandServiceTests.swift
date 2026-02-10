@@ -223,6 +223,34 @@ struct LoginCommandServiceTests {
             .called(1)
     }
 
+    @Test(.withMockedEnvironment())
+    func run_uses_tuist_url_env_variable_when_no_server_url_argument() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_URL"] = "https://env.tuist.dev"
+
+        given(serverSessionController)
+            .authenticate(
+                serverURL: .any,
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
+            .willReturn(())
+
+        // When
+        try await subject.run(
+            email: nil,
+            password: nil,
+            serverURL: nil
+        )
+
+        // Then
+        verify(serverEnvironmentService)
+            .url(configServerURL: .value(URL(string: "https://env.tuist.dev")!))
+            .called(1)
+    }
+
     @Test(.withMockedEnvironment(), .withMockedDependencies())
     func authenticate_with_oidc_in_ci_environment() async throws {
         // Given
