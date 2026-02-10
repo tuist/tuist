@@ -929,6 +929,9 @@ jobs:
     if: needs.check-releases.outputs.skills-should-release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -979,8 +982,6 @@ jobs:
       - name: Publish to NPM
         working-directory: skills
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Upload Skills artifacts
         id: upload
