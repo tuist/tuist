@@ -1,0 +1,8 @@
+I noticed the command to install the skills is:
+npx skills add tuist/agent-skills
+
+Is that accurate in the docs?
+
+---
+
+Create a PR with the fix

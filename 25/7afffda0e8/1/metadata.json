@@ -1,9 +1,11 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "257afffda0e8",
+  "session_id": "04fa9f64-ad1d-4155-a019-3cd198baa4c5",
   "strategy": "manual-commit",
+  "created_at": "2026-02-10T18:23:26.410281Z",
   "branch": "fix/docs-skills-repo-name",
-  "checkpoints_count": 3,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/docs/en/guides/features/agentic-coding/skills.md",
     "examples/xcode/generated_tuist_plugin/.gitignore",
@@ -17,27 +19,21 @@
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
-  "sessions": [
-    {
-      "metadata": "/25/7afffda0e8/0/metadata.json",
-      "transcript": "/25/7afffda0e8/0/full.jsonl",
-      "context": "/25/7afffda0e8/0/context.md",
-      "content_hash": "/25/7afffda0e8/0/content_hash.txt",
-      "prompt": "/25/7afffda0e8/0/prompt.txt"
-    },
-    {
-      "metadata": "/25/7afffda0e8/1/metadata.json",
-      "transcript": "/25/7afffda0e8/1/full.jsonl",
-      "context": "/25/7afffda0e8/1/context.md",
-      "content_hash": "/25/7afffda0e8/1/content_hash.txt",
-      "prompt": "/25/7afffda0e8/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
   "token_usage": {
-    "input_tokens": 26,
-    "cache_creation_tokens": 65529,
-    "cache_read_tokens": 601152,
-    "output_tokens": 540,
-    "api_call_count": 20
+    "input_tokens": 16,
+    "cache_creation_tokens": 32599,
+    "cache_read_tokens": 379440,
+    "output_tokens": 441,
+    "api_call_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-10T18:23:26.403513Z",
+    "agent_lines": 0,
+    "human_added": 132548,
+    "human_modified": 200,
+    "human_removed": 0,
+    "total_committed": 132548,
+    "agent_percentage": 0
   }
 }
