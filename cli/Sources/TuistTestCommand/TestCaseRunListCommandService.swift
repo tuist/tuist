@@ -71,13 +71,14 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         let testCaseId: String
         if testCaseIdentifier.contains("/") {
             let (moduleName, suiteName, testName) = try parseIdentifier(testCaseIdentifier)
-            testCaseId = try await getTestCaseService.resolveTestCaseId(
+            let testCase = try await getTestCaseService.getTestCaseByName(
                 fullHandle: resolvedFullHandle,
                 moduleName: moduleName,
                 name: testName,
                 suiteName: suiteName,
                 serverURL: serverURL
             )
+            testCaseId = testCase.id
         } else {
             testCaseId = testCaseIdentifier
         }

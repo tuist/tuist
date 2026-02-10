@@ -20,14 +20,6 @@ public protocol GetTestCaseServicing: Sendable {
         suiteName: String?,
         serverURL: URL
     ) async throws -> ServerTestCase
-
-    func resolveTestCaseId(
-        fullHandle: String,
-        moduleName: String,
-        name: String,
-        suiteName: String?,
-        serverURL: URL
-    ) async throws -> String
 }
 
 enum GetTestCaseServiceError: LocalizedError {
@@ -100,27 +92,6 @@ public struct GetTestCaseService: GetTestCaseServicing {
         suiteName: String?,
         serverURL: URL
     ) async throws -> ServerTestCase {
-        let testCaseId = try await resolveTestCaseId(
-            fullHandle: fullHandle,
-            moduleName: moduleName,
-            name: name,
-            suiteName: suiteName,
-            serverURL: serverURL
-        )
-        return try await getTestCase(
-            fullHandle: fullHandle,
-            testCaseId: testCaseId,
-            serverURL: serverURL
-        )
-    }
-
-    public func resolveTestCaseId(
-        fullHandle: String,
-        moduleName: String,
-        name: String,
-        suiteName: String?,
-        serverURL: URL
-    ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -147,7 +118,11 @@ public struct GetTestCaseService: GetTestCaseServicing {
                 guard let testCase = json.test_cases.first else {
                     throw GetTestCaseServiceError.notFound("Test case not found.")
                 }
-                return testCase.id
+                return try await getTestCase(
+                    fullHandle: fullHandle,
+                    testCaseId: testCase.id,
+                    serverURL: serverURL
+                )
             }
         case let .forbidden(forbidden):
             switch forbidden.body {
