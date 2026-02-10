@@ -121,7 +121,12 @@
                     }
                 },
                 "xcode": {
-                    "text": "Xcode"
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "프로젝트 동적 생성"
+                        }
+                    }
                 }
             }
         },
