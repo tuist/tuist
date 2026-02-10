@@ -3,6 +3,7 @@ defmodule TuistWeb.API.GradleControllerTest do
   use Mimic
 
   alias Tuist.Gradle
+  alias Tuist.Gradle.Build.Buffer
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -54,7 +55,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       response = json_response(conn, 201)
       assert is_binary(response["id"])
 
-      Gradle.Build.Buffer.flush()
+      Buffer.flush()
       Gradle.Task.Buffer.flush()
 
       {:ok, build} = Gradle.get_build(response["id"])
@@ -83,7 +84,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       response = json_response(conn, 201)
       assert is_binary(response["id"])
 
-      Gradle.Build.Buffer.flush()
+      Buffer.flush()
 
       {:ok, build} = Gradle.get_build(response["id"])
       assert build.status == "failure"
