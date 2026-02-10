@@ -546,7 +546,8 @@ import XcodeGraph
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
-                        .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                        .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                        .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                         .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                         .xcarg("CODE_SIGN_IDENTITY", ""),
@@ -590,6 +591,8 @@ import XcodeGraph
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
+                .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                 .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 .xcarg("CODE_SIGN_IDENTITY", ""),
@@ -606,7 +609,6 @@ import XcodeGraph
             ] : [])
             if platform == .macOS {
                 deviceArguments.append(contentsOf: [
-                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 ])
             } else {
@@ -670,7 +672,8 @@ import XcodeGraph
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
-                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                    .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                     .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                     .xcarg("CODE_SIGN_IDENTITY", ""),
