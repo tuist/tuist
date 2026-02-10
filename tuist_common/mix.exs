@@ -30,6 +30,7 @@ defmodule TuistCommon.MixProject do
       {:ex_aws, "~> 2.0"},
       {:finch, "~> 0.21.0"},
       {:phoenix, "~> 1.7", only: :test},
+      {:opentelemetry_api, "~> 1.4"},
       {:plug, "~> 1.14"},
       {:req, "~> 0.5"},
       {:mimic, "~> 1.7", only: :test}

@@ -16,7 +16,7 @@ defmodule CacheWeb.Endpoint do
   end
 
   plug Plug.RequestId
-  plug CacheWeb.Plugs.OtelRequestIdPlug
+  plug TuistCommon.OtelRequestIdPlug
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug Sentry.PlugContext
 

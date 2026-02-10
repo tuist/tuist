@@ -1,4 +1,4 @@
-defmodule CacheWeb.Plugs.OtelRequestIdPlug do
+defmodule TuistCommon.OtelRequestIdPlug do
   @moduledoc false
 
   @behaviour Plug
