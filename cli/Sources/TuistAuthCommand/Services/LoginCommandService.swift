@@ -76,7 +76,7 @@ public struct LoginCommandService: LoginCommandServicing {
                 throw LoginCommandServiceError.invalidServerURL(serverURL)
             }
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
-        } else if let envURL = Environment.current.tuistVariables["URL"],
+        } else if let envURL = Environment.current.tuistVariables["TUIST_URL"],
                   let url = URL(string: envURL)
         {
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)

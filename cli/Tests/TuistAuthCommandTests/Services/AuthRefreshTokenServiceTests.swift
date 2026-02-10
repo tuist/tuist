@@ -5,7 +5,6 @@ import Mockable
 import Path
 import Testing
 import TuistServer
-import TuistSupport
 
 @testable import TuistAuthCommand
 
