@@ -76,6 +76,9 @@
                     "text": "更新日志"
                 }
             }
+        },
+        "tutorials": {
+            "text": "教程"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "从 v3 到 v4"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -462,6 +468,19 @@
                         }
                     },
                     "text": "服务器"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "教程",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "创建一个生成的项目"
+                        }
+                    }
                 }
             }
         }
