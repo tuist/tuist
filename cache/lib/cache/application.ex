@@ -90,7 +90,7 @@ defmodule Cache.Application do
       OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
-      OpentelemetryEcto.setup([:cache, :repo])
+      OpentelemetryEcto.setup(event_prefix: [:cache, :repo])
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
     end

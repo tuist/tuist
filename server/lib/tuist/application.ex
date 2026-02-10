@@ -61,7 +61,7 @@ defmodule Tuist.Application do
       OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
-      OpentelemetryEcto.setup([:tuist, :repo])
+      OpentelemetryEcto.setup(event_prefix: [:tuist, :repo])
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
     end
