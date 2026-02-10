@@ -1,7 +1,8 @@
 import ArgumentParser
 import Foundation
 import Path
-import TuistSupport
+import TuistEnvKey
+import TuistNooraExtension
 
 struct TestCaseRunListCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {

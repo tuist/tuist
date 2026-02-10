@@ -1,10 +1,10 @@
 import Foundation
 import Noora
 import Path
+import TuistConfigLoader
 import TuistEnvironment
-import TuistLoader
+import TuistNooraExtension
 import TuistServer
-import TuistSupport
 
 protocol TestCaseRunListCommandServicing {
     func run(
@@ -137,7 +137,9 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         }
     }
 
-    private func formatRunRow(_ run: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload) -> [String] {
+    private func formatRunRow(_ run: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
+        .test_case_runsPayloadPayload) -> [String]
+    {
         [
             run.status.rawValue,
             Formatters.formatDuration(run.duration),

@@ -1,10 +1,10 @@
 import Foundation
 import Noora
 import Path
+import TuistConfigLoader
 import TuistEnvironment
-import TuistLoader
+import TuistNooraExtension
 import TuistServer
-import TuistSupport
 
 protocol TestCaseRunShowCommandServicing {
     func run(
@@ -133,7 +133,10 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
             info.append("")
             info.append("Repetitions".bold())
             for repetition in run.repetitions.sorted(by: { $0.repetition_number < $1.repetition_number }) {
-                info.append("#\(repetition.repetition_number): \(repetition.status.rawValue)  \(Formatters.formatDuration(repetition.duration))")
+                info
+                    .append(
+                        "#\(repetition.repetition_number): \(repetition.status.rawValue)  \(Formatters.formatDuration(repetition.duration))"
+                    )
             }
         }
 

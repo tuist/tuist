@@ -1,10 +1,10 @@
 import Foundation
 import Noora
 import Path
+import TuistConfigLoader
 import TuistEnvironment
-import TuistLoader
+import TuistNooraExtension
 import TuistServer
-import TuistSupport
 
 protocol TestCaseShowCommandServicing {
     func run(
