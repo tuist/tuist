@@ -891,7 +891,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectIsExternalStaticFrameworkHasResourcesGeneratesBundleTarget() async throws {
+    func mapWhenProjectIsExternalStaticFrameworkHasResourcesKeepsResourcesInFramework() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticFramework, sources: ["/ViewController.swift"], resources: .init(resources))
@@ -906,10 +906,10 @@ struct ResourcesProjectMapperTests {
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
-        // Then: External static frameworks generate a separate resource bundle
-        let resourcesTarget = try #require(gotProject.targets.values.first(where: { $0.product == .bundle }))
-        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
-        #expect(gotProject.targets.count == 2)
+        // Then: Static frameworks keep resources in the framework (no separate bundle target)
+        // so that Xcode can run GenerateAssetSymbols correctly.
+        #expect(gotProject.targets.count == 1)
+        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
 
         let sideEffect = try #require(gotSideEffects.first)
         guard case let SideEffectDescriptor.file(file) = sideEffect else {
@@ -917,8 +917,7 @@ struct ResourcesProjectMapperTests {
             return
         }
         let contents = String(data: file.contents ?? Data(), encoding: .utf8) ?? ""
-        // External static frameworks use the SPM bundle accessor to locate the resource bundle.
-        #expect(contents.contains("Swift Bundle Accessor - for SPM"))
+        #expect(contents.contains("Swift Bundle Accessor for Static Frameworks"))
         #expect(contents.contains("static let module"))
         #expect(!contents.contains("public final class"))
     }
