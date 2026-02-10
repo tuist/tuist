@@ -1,4 +1,7 @@
 defmodule CacheWeb.CASControllerTest do
+  # async: false because the CASEventsPipeline Broadway processor runs in a
+  # shared process and needs Mimic stubs (e.g. Authentication.server_url) to be
+  # globally visible, which requires non-async mode.
   use CacheWeb.ConnCase, async: false
   use Mimic
 

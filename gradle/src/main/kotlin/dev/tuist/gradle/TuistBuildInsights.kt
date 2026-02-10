@@ -333,7 +333,7 @@ abstract class TuistBuildInsightsService :
         val baseUrl = parameters.url.get().trimEnd('/')
 
         val response = httpClient.execute { config ->
-            val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
+            val url = URI(baseUrl).resolve("/api/projects/$accountHandle/$projectHandle/gradle/builds")
             val connection = httpClient.openConnection(url, config)
             try {
                 connection.requestMethod = "POST"

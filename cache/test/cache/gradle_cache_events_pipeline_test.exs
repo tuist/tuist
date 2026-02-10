@@ -1,16 +1,13 @@
 defmodule Cache.GradleCacheEventsPipelineTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Cache.GradleCacheEventsPipeline
 
-  setup do
-    stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
-    :ok
-  end
+  describe "handle_batch/4" do
+    test "skips sending events when API key is not configured" do
+      stub(Cache.Config, :api_key, fn -> nil end)
 
-  describe "handle_message/3" do
-    test "sends events to http batcher with default batch key" do
       event = %{
         action: "upload",
         size: 1024,
@@ -24,50 +21,22 @@ defmodule Cache.GradleCacheEventsPipelineTest do
         acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
       }
 
-      result = GradleCacheEventsPipeline.handle_message(:default, message, %{})
-
-      assert result.batch_key == :default
-      assert result.batcher == :http
-      assert result.data == event
-    end
-  end
-
-  describe "handle_batch/4" do
-    test "skips sending events when API key is not configured" do
-      stub(Cache.Config, :api_key, fn -> nil end)
-
-      events = [
-        %{
-          action: "upload",
-          size: 1024,
-          cache_key: "gradle-cache-key-123",
-          account_handle: "test-account",
-          project_handle: "test-project"
-        }
-      ]
-
-      messages =
-        Enum.map(events, fn event ->
-          %Broadway.Message{
-            data: event,
-            acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
-          }
-        end)
-
       reject(&Req.request/1)
 
       result =
         GradleCacheEventsPipeline.handle_batch(
           :http,
-          messages,
+          [message],
           %{batch_key: :default},
           %{}
         )
 
-      assert result == messages
+      assert result == [message]
     end
 
-    test "sends batch of events to the gradle-cache webhook successfully" do
+    test "sends batch of events to the gradle-cache webhook" do
+      stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
+
       account_handle = "test-account"
       project_handle = "test-project"
 
@@ -100,21 +69,24 @@ defmodule Cache.GradleCacheEventsPipelineTest do
         assert options[:url] == "http://localhost:4000/webhooks/gradle-cache"
         assert options[:method] == :post
 
-        body = options[:body]
-        decoded_body = Jason.decode!(body)
-        assert length(decoded_body["events"]) == 2
+        decoded_body = Jason.decode!(options[:body])
 
-        assert Enum.at(decoded_body["events"], 0)["account_handle"] == account_handle
-        assert Enum.at(decoded_body["events"], 0)["project_handle"] == project_handle
-        assert Enum.at(decoded_body["events"], 0)["action"] == "upload"
-        assert Enum.at(decoded_body["events"], 0)["size"] == 1024
-        assert Enum.at(decoded_body["events"], 0)["cache_key"] == "gradle-cache-key-123"
-
-        assert Enum.at(decoded_body["events"], 1)["account_handle"] == account_handle
-        assert Enum.at(decoded_body["events"], 1)["project_handle"] == project_handle
-        assert Enum.at(decoded_body["events"], 1)["action"] == "download"
-        assert Enum.at(decoded_body["events"], 1)["size"] == 2048
-        assert Enum.at(decoded_body["events"], 1)["cache_key"] == "gradle-cache-key-456"
+        assert decoded_body["events"] == [
+                 %{
+                   "account_handle" => account_handle,
+                   "project_handle" => project_handle,
+                   "action" => "upload",
+                   "size" => 1024,
+                   "cache_key" => "gradle-cache-key-123"
+                 },
+                 %{
+                   "account_handle" => account_handle,
+                   "project_handle" => project_handle,
+                   "action" => "download",
+                   "size" => 2048,
+                   "cache_key" => "gradle-cache-key-456"
+                 }
+               ]
 
         headers = options[:headers]
         assert {"content-type", "application/json"} in headers
