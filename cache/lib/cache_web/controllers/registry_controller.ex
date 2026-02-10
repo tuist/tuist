@@ -3,7 +3,7 @@ defmodule CacheWeb.RegistryController do
 
   alias Cache.CacheArtifacts
   alias Cache.Config
-  alias Cache.Registry.Disk, as: RegistryDisk
+  alias Cache.Registry
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Metadata
   alias Cache.Registry.RepositoryURL
@@ -164,9 +164,9 @@ defmodule CacheWeb.RegistryController do
         path: "source_archive.zip"
       )
 
-    if RegistryDisk.exists?(scope, name, normalized_version, "source_archive.zip") do
+    if Registry.Disk.exists?(scope, name, normalized_version, "source_archive.zip") do
       :ok = CacheArtifacts.track_artifact_access(key)
-      local_path = RegistryDisk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
+      local_path = Registry.Disk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
 
       conn
       |> put_resp_header("content-version", "1")
@@ -214,7 +214,7 @@ defmodule CacheWeb.RegistryController do
       key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: normalized_version, path: filename)
 
       cond do
-        RegistryDisk.exists?(scope, name, normalized_version, filename) ->
+        Registry.Disk.exists?(scope, name, normalized_version, filename) ->
           {:halt,
            {:served, serve_manifest_from_disk(conn, scope, name, normalized_version, filename, swift_version, key)}}
 
@@ -247,7 +247,7 @@ defmodule CacheWeb.RegistryController do
 
   defp serve_manifest_from_disk(conn, scope, name, version, filename, swift_version, key) do
     :ok = CacheArtifacts.track_artifact_access(key)
-    local_path = RegistryDisk.local_accel_path(scope, name, version, filename)
+    local_path = Registry.Disk.local_accel_path(scope, name, version, filename)
 
     conn
     |> put_resp_header("content-version", "1")

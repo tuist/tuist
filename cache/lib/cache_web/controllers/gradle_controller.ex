@@ -14,7 +14,7 @@ defmodule CacheWeb.GradleController do
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
   alias Cache.Disk
-  alias Cache.Gradle.Disk, as: GradleDisk
+  alias Cache.Gradle
   alias Cache.S3
   alias Cache.S3Transfers
   alias CacheWeb.API.Schemas.Error
@@ -60,9 +60,9 @@ defmodule CacheWeb.GradleController do
 
   def download(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :gradle, :download, :hit], %{}, %{})
-    key = GradleDisk.key(account_handle, project_handle, cache_key)
+    key = Gradle.Disk.key(account_handle, project_handle, cache_key)
 
-    case GradleDisk.stat(account_handle, project_handle, cache_key) do
+    case Gradle.Disk.stat(account_handle, project_handle, cache_key) do
       {:ok, %File.Stat{size: size}} ->
         :ok = CacheArtifacts.track_artifact_access(key)
 
@@ -78,7 +78,7 @@ defmodule CacheWeb.GradleController do
           file_path = Disk.artifact_path(key)
           send_download(conn, {:file, file_path}, content_type: "application/octet-stream")
         else
-          local_path = GradleDisk.local_accel_path(account_handle, project_handle, cache_key)
+          local_path = Gradle.Disk.local_accel_path(account_handle, project_handle, cache_key)
 
           conn
           |> put_resp_header("x-accel-redirect", local_path)
@@ -150,7 +150,7 @@ defmodule CacheWeb.GradleController do
   )
 
   def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
-    if GradleDisk.exists?(account_handle, project_handle, cache_key) do
+    if Gradle.Disk.exists?(account_handle, project_handle, cache_key) do
       handle_existing_artifact(conn)
     else
       save_new_artifact(conn, account_handle, project_handle, cache_key)
@@ -192,7 +192,7 @@ defmodule CacheWeb.GradleController do
   end
 
   defp persist_artifact(conn, account_handle, project_handle, cache_key, data, size) do
-    case GradleDisk.put(account_handle, project_handle, cache_key, data) do
+    case Gradle.Disk.put(account_handle, project_handle, cache_key, data) do
       :ok ->
         :telemetry.execute([:cache, :gradle, :upload, :success], %{size: size}, %{
           cache_key: cache_key,
@@ -200,7 +200,7 @@ defmodule CacheWeb.GradleController do
           project_handle: project_handle
         })
 
-        key = GradleDisk.key(account_handle, project_handle, cache_key)
+        key = Gradle.Disk.key(account_handle, project_handle, cache_key)
         :ok = CacheArtifacts.track_artifact_access(key)
         S3Transfers.enqueue_gradle_upload(account_handle, project_handle, key)
         send_resp(conn, :created, "")

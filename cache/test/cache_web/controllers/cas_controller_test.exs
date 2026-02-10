@@ -6,7 +6,7 @@ defmodule CacheWeb.CASControllerTest do
 
   alias Cache.Authentication
   alias Cache.CacheArtifacts
-  alias Cache.CAS.Disk, as: CASDisk
+  alias Cache.CAS
   alias Cache.S3Transfers
 
   setup do
@@ -28,7 +28,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CASDisk
+      CAS.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -69,7 +69,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CASDisk
+      CAS.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -114,7 +114,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CASDisk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+      expect(CAS.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
         true
       end)
 
@@ -138,7 +138,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CASDisk
+      CAS.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -169,7 +169,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CASDisk
+      CAS.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -240,7 +240,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CASDisk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(CAS.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
@@ -272,7 +272,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CASDisk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(CAS.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
@@ -310,7 +310,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CASDisk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(CAS.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
