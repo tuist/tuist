@@ -115,17 +115,18 @@ struct TestCaseRunShowCommandServiceTests {
         )
 
         // Then
-        #expect(ui().contains("testFlaky()"))
-        #expect(ui().contains("AppTests"))
-        #expect(ui().contains("FlakyTests"))
+        #expect(ui().contains("AppTests/FlakyTests/testFlaky()"))
+        #expect(ui().contains("Result"))
         #expect(ui().contains("failure"))
         #expect(ui().contains("2.50s"))
-        #expect(ui().contains("CI: Yes"))
-        #expect(ui().contains("Flaky: Yes"))
+        #expect(ui().contains("Flaky:     Yes"))
+        #expect(ui().contains("Context"))
+        #expect(ui().contains("CI:        Yes"))
         #expect(ui().contains("feature/auth"))
         #expect(ui().contains("abc1234"))
         #expect(ui().contains("App"))
-        #expect(ui().contains("Test Run: test-run-id"))
+        #expect(ui().contains("IDs"))
+        #expect(ui().contains("Test Run:  test-run-id"))
     }
 
     @Test(

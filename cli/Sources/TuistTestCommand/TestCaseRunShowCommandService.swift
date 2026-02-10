@@ -72,45 +72,54 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
     }
 
     private func formatRunInfo(_ run: ServerTestCaseRun) -> String {
-        var info = [
-            "Test Case Run".bold(),
-            "Name: \(run.name)",
-            "Module: \(run.module_name)",
-        ]
+        var info: [String] = []
 
+        // Test identity
+        var testName = "\(run.module_name)"
         if let suiteName = run.suite_name, !suiteName.isEmpty {
-            info.append("Suite: \(suiteName)")
+            testName += "/\(suiteName)"
         }
+        testName += "/\(run.name)"
+        info.append(testName.bold())
 
-        info.append("Status: \(run.status.rawValue)")
-        info.append("Duration: \(Formatters.formatDuration(run.duration))")
-        info.append("CI: \(run.is_ci ? "Yes" : "No")")
-        info.append("Flaky: \(run.is_flaky ? "Yes" : "No")")
+        // Result
+        info.append("")
+        info.append("Result".bold())
+        info.append("  Status:    \(run.status.rawValue)")
+        info.append("  Duration:  \(Formatters.formatDuration(run.duration))")
+        info.append("  Flaky:     \(run.is_flaky ? "Yes" : "No")")
 
-        if let testRunId = run.test_run_id, !testRunId.isEmpty {
-            info.append("Test Run: \(testRunId)")
-        }
-
+        // Context
+        info.append("")
+        info.append("Context".bold())
+        info.append("  CI:        \(run.is_ci ? "Yes" : "No")")
         if let scheme = run.scheme, !scheme.isEmpty {
-            info.append("Scheme: \(scheme)")
+            info.append("  Scheme:    \(scheme)")
         }
-
         if let gitBranch = run.git_branch, !gitBranch.isEmpty {
-            info.append("Branch: \(gitBranch)")
+            info.append("  Branch:    \(gitBranch)")
         }
-
         if let gitCommitSha = run.git_commit_sha, !gitCommitSha.isEmpty {
-            info.append("Commit: \(gitCommitSha)")
+            info.append("  Commit:    \(gitCommitSha)")
         }
-
         if let ranAt = run.ran_at {
-            info.append("Ran At: \(Formatters.formatDate(ranAt))")
+            info.append("  Ran At:    \(Formatters.formatDate(ranAt))")
         }
 
+        // IDs
+        info.append("")
+        info.append("IDs".bold())
+        info.append("  Run:       \(run.id)")
+        if let testRunId = run.test_run_id, !testRunId.isEmpty {
+            info.append("  Test Run:  \(testRunId)")
+        }
+
+        // Failures
         if !run.failures.isEmpty {
             info.append("")
-            info.append("Failures".bold())
-            for failure in run.failures {
+            info.append("Failures (\(run.failures.count))".bold())
+            for (index, failure) in run.failures.enumerated() {
+                if index > 0 { info.append("") }
                 var location = ""
                 if let path = failure.path {
                     location = path
@@ -119,28 +128,25 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
                     }
                 }
 
+                var header = ""
                 if let issueType = failure.issue_type, !issueType.isEmpty {
-                    if location.isEmpty {
-                        info.append("[\(issueType)]")
-                    } else {
-                        info.append("[\(issueType)] \(location)")
-                    }
+                    header = "  [\(issueType)]"
+                    if !location.isEmpty { header += " \(location)" }
                 } else if !location.isEmpty {
-                    info.append(location)
+                    header = "  \(location)"
                 }
 
+                if !header.isEmpty { info.append(header) }
                 info.append("  \(failure.message)")
             }
         }
 
+        // Repetitions
         if !run.repetitions.isEmpty {
             info.append("")
-            info.append("Repetitions".bold())
+            info.append("Repetitions (\(run.repetitions.count))".bold())
             for repetition in run.repetitions.sorted(by: { $0.repetition_number < $1.repetition_number }) {
-                info
-                    .append(
-                        "#\(repetition.repetition_number): \(repetition.status.rawValue)  \(Formatters.formatDuration(repetition.duration))"
-                    )
+                info.append("  #\(repetition.repetition_number): \(repetition.status.rawValue)  \(Formatters.formatDuration(repetition.duration))")
             }
         }
 
