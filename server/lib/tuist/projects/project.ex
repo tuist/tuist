@@ -33,6 +33,7 @@ defmodule Tuist.Projects.Project do
     field :report_days_of_week, {:array, :integer}, default: []
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
+    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
     field :auto_quarantine_flaky_tests, :boolean, default: true
     field :flaky_test_alerts_enabled, :boolean, default: false
@@ -65,12 +66,14 @@ defmodule Tuist.Projects.Project do
       :name,
       :created_at,
       :visibility,
-      :default_previews_visibility
+      :default_previews_visibility,
+      :build_system
     ])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
+    |> validate_inclusion(:build_system, [:xcode, :gradle])
   end
 
   def update_changeset(project, attrs) do
@@ -94,13 +97,21 @@ defmodule Tuist.Projects.Project do
       :flaky_test_alerts_slack_channel_id,
       :flaky_test_alerts_slack_channel_name,
       :auto_mark_flaky_tests,
-      :auto_mark_flaky_threshold
+      :auto_mark_flaky_threshold,
+      :build_system
     ])
     |> validate_name()
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
+    |> validate_inclusion(:build_system, [:xcode, :gradle])
   end
+
+  def xcode_project?(%__MODULE__{build_system: :xcode}), do: true
+  def xcode_project?(_), do: false
+
+  def gradle_project?(%__MODULE__{build_system: :gradle}), do: true
+  def gradle_project?(_), do: false
 
   defp validate_name(changeset) do
     changeset

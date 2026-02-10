@@ -88,7 +88,7 @@ class TuistBuildCacheTest {
     fun `TuistBuildCache has correct default values`() {
         val cache = TuistBuildCache()
 
-        assertEquals("", cache.fullHandle)
+        assertEquals("", cache.project)
         assertNull(cache.executablePath)
         assertEquals(false, cache.allowInsecureProtocol)
         assertEquals(false, cache.isPush)
@@ -97,13 +97,13 @@ class TuistBuildCacheTest {
     @Test
     fun `TuistBuildCache properties can be configured`() {
         val cache = TuistBuildCache().apply {
-            fullHandle = "my-account/my-project"
+            project = "my-account/my-project"
             executablePath = "/custom/path/tuist"
             allowInsecureProtocol = true
             isPush = true
         }
 
-        assertEquals("my-account/my-project", cache.fullHandle)
+        assertEquals("my-account/my-project", cache.project)
         assertEquals("/custom/path/tuist", cache.executablePath)
         assertEquals(true, cache.allowInsecureProtocol)
         assertEquals(true, cache.isPush)
@@ -289,13 +289,16 @@ class TuistBuildCacheTest {
 
     private fun createService(
         isPushEnabled: Boolean = true,
-        configProvider: (Boolean) -> TuistCacheConfiguration? = { createConfig() }
+        configProvider: (Boolean) -> TuistCacheConfiguration = { createConfig() }
     ): TuistBuildCacheService {
-        return TuistBuildCacheService(
+        val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? =
+                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration =
                     configProvider(forceRefresh)
-            },
+            }
+        )
+        return TuistBuildCacheService(
+            httpClient = httpClient,
             isPushEnabled = isPushEnabled
         )
     }

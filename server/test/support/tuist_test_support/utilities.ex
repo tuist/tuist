@@ -12,6 +12,8 @@ defmodule TuistTestSupport.Utilities do
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
     result = fun.()
     Tuist.CommandEvents.Buffer.flush()
+    Tuist.Gradle.Build.Buffer.flush()
+    Tuist.Gradle.Task.Buffer.flush()
     Tuist.Xcode.XcodeGraph.Buffer.flush()
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()
@@ -29,7 +31,10 @@ defmodule TuistTestSupport.Utilities do
       "TRUNCATE TABLE IF EXISTS cas_events",
       "TRUNCATE TABLE IF EXISTS build_files",
       "TRUNCATE TABLE IF EXISTS build_issues",
-      "TRUNCATE TABLE IF EXISTS build_targets"
+      "TRUNCATE TABLE IF EXISTS build_targets",
+      "TRUNCATE TABLE IF EXISTS gradle_builds",
+      "TRUNCATE TABLE IF EXISTS gradle_tasks",
+      "TRUNCATE TABLE IF EXISTS gradle_cache_events"
     ]
 
     for command <- commands do

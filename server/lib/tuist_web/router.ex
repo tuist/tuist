@@ -381,6 +381,12 @@ defmodule TuistWeb.Router do
           post "/", BuildsController, :create
         end
 
+        scope "/gradle" do
+          post "/builds", GradleController, :create_build
+          get "/builds", GradleController, :list_builds
+          get "/builds/:build_id", GradleController, :get_build
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
@@ -775,6 +781,7 @@ defmodule TuistWeb.Router do
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
+      live "/gradle-cache", GradleCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
