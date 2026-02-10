@@ -7,13 +7,13 @@ import XCTest
 final class XcodeErrorTests: TuistUnitTestCase {
     func test_description() {
         XCTAssertEqual(
-            XcodeError.infoPlistNotFound(.root).description,
+            XcodeError.infoPlistNotFound(.xcodeSelect(.root)).description,
             "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
         )
     }
 
     func test_type() {
-        XCTAssertEqual(XcodeError.infoPlistNotFound(.root).type, .abort)
+        XCTAssertEqual(XcodeError.infoPlistNotFound(.xcodeSelect(.root)).type, .abort)
     }
 }
 
@@ -41,7 +41,7 @@ final class XcodeTests: TuistUnitTestCase {
         try infoPlistData.write(to: infoPlistPath.url)
 
         // When
-        let xcode = try await Xcode.read(path: temporaryPath)
+        let xcode = try await Xcode.read(source: .xcodeSelect(temporaryPath))
 
         // Then
         XCTAssertEqual(xcode.infoPlist.version, "3.2.1")
@@ -55,6 +55,13 @@ final class XcodeTests: TuistUnitTestCase {
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
 
         // When
-        await XCTAssertThrowsSpecific(try await Xcode.read(path: temporaryPath), XcodeError.infoPlistNotFound(infoPlistPath))
+        await XCTAssertThrowsSpecific(
+            try await Xcode.read(source: .xcodeSelect(temporaryPath)),
+            XcodeError.infoPlistNotFound(.xcodeSelect(infoPlistPath))
+        )
+        await XCTAssertThrowsSpecific(
+            try await Xcode.read(source: .environment(temporaryPath)),
+            XcodeError.infoPlistNotFound(.environment(infoPlistPath))
+        )
     }
 }
