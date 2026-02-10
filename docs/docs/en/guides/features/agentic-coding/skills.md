@@ -21,13 +21,13 @@ SKILL_NAME=tuist-migrate
 SKILL_URL=https://tuist.dev/skills/migrate/SKILL.md
 ```
 
-### Debug Flaky Tests
+### Fix Flaky Tests
 
-Debugs flaky tests in Tuist projects by analyzing failure patterns, identifying root causes, and applying fixes. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
+Fixes flaky tests in Tuist projects by analyzing failure patterns, identifying root causes, and applying targeted corrections. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
 
 ```bash
-SKILL_NAME=tuist-debug-flaky-tests
-SKILL_URL=https://tuist.dev/skills/debug-flaky-tests/SKILL.md
+SKILL_NAME=tuist-fix-flaky-tests
+SKILL_URL=https://tuist.dev/skills/fix-flaky-tests/SKILL.md
 ```
 
 ## Installation

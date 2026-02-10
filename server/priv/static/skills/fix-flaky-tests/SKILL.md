@@ -1,9 +1,9 @@
 ---
-name: debug-flaky-tests
-description: Debugs flaky tests in Tuist projects by analyzing failure patterns, identifying root causes, and applying fixes. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
+name: fix-flaky-tests
+description: Fixes flaky tests in Tuist projects by analyzing failure patterns, identifying root causes, and applying targeted corrections. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
 ---
 
-# Debug Flaky Tests
+# Fix Flaky Tests
 
 ## Quick Start
 
