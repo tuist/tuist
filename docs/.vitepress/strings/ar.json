@@ -514,6 +514,9 @@
                         }
                     },
                     "text": "السيرڤر"
+                },
+                "install-tuist": {
+                    "text": "تثبيت Tuist"
                 }
             }
         },
