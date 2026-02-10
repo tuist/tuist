@@ -76,6 +76,9 @@
                     "text": "История изменений"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Учебные пособия"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "Переход с v3 на v4"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -462,6 +468,19 @@
                         }
                     },
                     "text": "Сервер"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Учебные пособия",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Создайте сгенерированный проект"
+                        }
+                    }
                 }
             }
         }
