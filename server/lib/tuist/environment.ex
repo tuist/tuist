@@ -102,35 +102,39 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
-        if tuist_hosted?() do
-          cond do
-            prod?() ->
-              [
-                "https://cache-eu-central.tuist.dev",
-                "https://cache-us-east.tuist.dev",
-                "https://cache-us-west.tuist.dev",
-                "https://cache-ap-southeast.tuist.dev",
-                "https://cache-sa-west.tuist.dev"
-              ]
+        default_cache_endpoints()
+    end
+  end
 
-            stag?() ->
-              ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
+  defp default_cache_endpoints do
+    if tuist_hosted?() do
+      cond do
+        prod?() ->
+          [
+            "https://cache-eu-central.tuist.dev",
+            "https://cache-us-east.tuist.dev",
+            "https://cache-us-west.tuist.dev",
+            "https://cache-ap-southeast.tuist.dev",
+            "https://cache-sa-west.tuist.dev"
+          ]
 
-            can?() ->
-              ["https://cache-eu-central-canary.tuist.dev"]
+        stag?() ->
+          ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
 
-            dev?() ->
-              ["http://localhost:8087"]
+        can?() ->
+          ["https://cache-eu-central-canary.tuist.dev"]
 
-            test?() ->
-              ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+        dev?() ->
+          ["http://localhost:8087"]
 
-            true ->
-              []
-          end
-        else
+        test?() ->
+          ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+
+        true ->
           []
-        end
+      end
+    else
+      []
     end
   end
 
