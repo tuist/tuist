@@ -1,8 +1,17 @@
 defmodule Cache.Disk do
   @moduledoc """
-  Local disk storage backend for Xcode compilation cache (CAS) and module cache artifacts.
+  Shared disk infrastructure for cache artifact storage.
 
-  Stores artifacts on the local filesystem with configurable storage directory.
+  Provides common disk operations used by all cache domains (CAS, Gradle, Registry, Module).
+  Handles artifact path construction, directory sharding, file operations, and disk usage monitoring.
+
+  Domain-specific disk operations are implemented in:
+  - `Cache.CAS.Disk` - Xcode compilation cache (CAS) operations
+  - `Cache.Gradle.Disk` - Gradle build cache operations
+  - `Cache.Registry.Disk` - Swift package registry operations
+  - `Cache.Module.Disk` - Module cache operations
+
+  This module stores artifacts on the local filesystem with configurable storage directory.
   Uses two-level directory sharding to prevent ext4 directory index overflow.
   """
 
