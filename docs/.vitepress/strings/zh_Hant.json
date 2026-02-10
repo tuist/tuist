@@ -76,6 +76,9 @@
                     "text": "更新日誌"
                 }
             }
+        },
+        "tutorials": {
+            "text": "教學指南"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "從 v3 到 v4"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -457,6 +463,22 @@
                     "items": {
                         "previews": {
                             "text": "預覽"
+                        }
+                    }
+                },
+                "install-tuist": {
+                    "text": "安裝 Tuist"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "教學指南",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "建立生成專案"
                         }
                     }
                 }
