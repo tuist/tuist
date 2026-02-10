@@ -1,5 +1,8 @@
+import FileSystem
 import FileSystemTesting
 import Testing
+import TuistBuildCommand
+import TuistGenerateCommand
 import TuistSupport
 import TuistTesting
 

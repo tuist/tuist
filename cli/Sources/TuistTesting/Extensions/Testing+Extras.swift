@@ -1,13 +1,13 @@
+import FileSystem
 import Path
 import Testing
-import TuistSupport
 
 public func expectDirectoryContentEqual(
     _ directory: AbsolutePath,
     _ expected: [String],
     sourceLocation: SourceLocation = #_sourceLocation
-) throws {
-    let directoryContent = try FileHandler.shared
+) async throws {
+    let directoryContent = try await FileSystem()
         .contentsOfDirectory(directory)
         .map(\.pathString)
         .sorted()

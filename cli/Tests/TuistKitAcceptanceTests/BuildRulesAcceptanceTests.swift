@@ -1,6 +1,9 @@
+import FileSystem
 import FileSystemTesting
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
+import TuistGenerateCommand
 import TuistSupport
 import TuistTesting
 import XcodeProj
@@ -19,7 +22,7 @@ struct BuildRulesAcceptanceTests {
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString]
         )
 
-        let xcodeprojPath = try TuistAcceptanceTest.xcodeprojPath(in: fixtureDirectory)
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixtureDirectory)
         let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
         let target = try #require(xcodeproj.pbxproj.projects.flatMap(\.targets).first(where: { $0.name == "App" }))
         let buildRule = try #require(target.buildRules.first(where: { $0.name == "Process_InfoPlist.strings" }))

@@ -1,7 +1,9 @@
 import FileSystem
 import FileSystemTesting
 import Testing
+import TuistBuildCommand
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
 
 @testable import TuistKit
@@ -89,7 +91,15 @@ struct TestAcceptanceTestCases {
         )
         try await TuistTest.run(
             TestCommand.self,
-            ["App", "--test-plan", "All", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "App",
+                "--test-plan",
+                "All",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
     }
 
@@ -99,7 +109,15 @@ struct TestAcceptanceTestCases {
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
         try await TuistTest.run(
             TestCommand.self,
-            ["App", "--test-plan", "AppTestPlan", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+            [
+                "App",
+                "--test-plan",
+                "AppTestPlan",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
         )
     }
 

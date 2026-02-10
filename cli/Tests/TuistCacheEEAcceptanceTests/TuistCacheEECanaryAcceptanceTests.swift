@@ -4,13 +4,16 @@ import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
 import TuistCacheCommand
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistGenerateCommand
 import TuistLoggerTesting
 import TuistNooraTesting
 import TuistServer
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
 import XcodeProj
 
