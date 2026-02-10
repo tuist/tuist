@@ -117,6 +117,9 @@
         },
         "cli": {
             "text": "CLI"
+        },
+        "tutorials": {
+            "text": "دروس تعليمية"
         }
     },
     "sidebars": {
@@ -157,6 +160,9 @@
                             "text": "من الإصدار 3 إلى الإصدار 4"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -503,6 +509,19 @@
                         }
                     },
                     "text": "السيرڤر"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "دروس تعليمية",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "إنشاء مشروع تم إنشاؤه"
+                        }
+                    }
                 }
             }
         }
