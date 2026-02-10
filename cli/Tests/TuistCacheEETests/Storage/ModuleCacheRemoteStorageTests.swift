@@ -302,6 +302,45 @@ struct ModuleCacheRemoteStorageTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func fetch_when_download_service_returns_not_found_does_not_retry() async throws {
+        // Given
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willThrow(DownloadModuleCacheServiceError.notFound("Artifact not found"))
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().isEmpty == true)
+        verify(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
     func fetch_cache_action_items_when_get_cache_action_item_returns_payment_required() async throws {
         // Given
