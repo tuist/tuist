@@ -46,14 +46,14 @@ defmodule Tuist.Gradle do
       project_id: attrs.project_id,
       account_id: attrs.account_id,
       duration_ms: attrs.duration_ms,
-      gradle_version: Map.get(attrs, :gradle_version),
-      java_version: Map.get(attrs, :java_version),
+      gradle_version: Map.get(attrs, :gradle_version) || "",
+      java_version: Map.get(attrs, :java_version) || "",
       is_ci: Map.get(attrs, :is_ci, false),
       status: attrs.status,
-      git_branch: Map.get(attrs, :git_branch),
-      git_commit_sha: Map.get(attrs, :git_commit_sha),
-      git_ref: Map.get(attrs, :git_ref),
-      root_project_name: Map.get(attrs, :root_project_name),
+      git_branch: Map.get(attrs, :git_branch) || "",
+      git_commit_sha: Map.get(attrs, :git_commit_sha) || "",
+      git_ref: Map.get(attrs, :git_ref) || "",
+      root_project_name: Map.get(attrs, :root_project_name) || "",
       tasks_local_hit_count: task_counts.local_hit,
       tasks_remote_hit_count: task_counts.remote_hit,
       tasks_up_to_date_count: task_counts.up_to_date,
@@ -65,6 +65,7 @@ defmodule Tuist.Gradle do
       inserted_at: now
     }
 
+    # TODO: Move to IngestBuffer strategy once Gradle build traffic increases
     IngestRepo.insert_all(Build, [build_entry])
 
     if !Enum.empty?(tasks) do
@@ -98,11 +99,11 @@ defmodule Tuist.Gradle do
           id: UUIDv7.generate(),
           gradle_build_id: build_id,
           task_path: task.task_path,
-          task_type: Map.get(task, :task_type),
+          task_type: Map.get(task, :task_type) || "",
           outcome: task.outcome,
           cacheable: Map.get(task, :cacheable, false),
           duration_ms: Map.get(task, :duration_ms, 0),
-          cache_key: Map.get(task, :cache_key),
+          cache_key: Map.get(task, :cache_key) || "",
           cache_artifact_size: Map.get(task, :cache_artifact_size),
           started_at: to_naive_datetime(Map.get(task, :started_at)),
           project_id: project_id,
@@ -110,6 +111,7 @@ defmodule Tuist.Gradle do
         }
       end)
 
+    # TODO: Move to IngestBuffer strategy once Gradle build traffic increases
     IngestRepo.insert_all(Task, task_entries)
   end
 
