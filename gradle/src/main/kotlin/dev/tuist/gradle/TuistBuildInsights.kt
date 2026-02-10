@@ -109,13 +109,13 @@ abstract class TuistBuildInsightsService :
         val executablePath: Property<String>
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
-        val uploadInBackground: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
 
     internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
+    internal var uploadInBackground: Boolean? = null
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
     private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -274,11 +274,7 @@ abstract class TuistBuildInsightsService :
             listenerManager?.removeListener(this)
         } catch (_: Exception) {}
 
-        val shouldUploadInBackground = if (parameters.uploadInBackground.isPresent) {
-            parameters.uploadInBackground.get()
-        } else {
-            !ciDetector.isCi()
-        }
+        val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading build insights in the background...")
@@ -434,7 +430,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.executablePath.set(config.executablePath)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
-            config.uploadInBackground?.let { parameters.uploadInBackground.set(it) }
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)
@@ -449,6 +444,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
 
             val service = serviceProvider.get()
             service.setCacheableTasks(cacheablePaths)
+            service.uploadInBackground = config.uploadInBackground
 
             try {
                 val gradleInternal = project.gradle as GradleInternal
