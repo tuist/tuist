@@ -7,8 +7,6 @@
 ---
 # Selective testing {#selective-testing}
 
-Tuist Selective Testing helps you run only the tests affected by your latest changes, both for generated projects and standard Xcode projects.
-
 As your project grows, so does the amount of your tests. For a long time, running all tests on every PR or push to `main` takes tens of seconds. But this solution does not scale to thousands of tests your team might have.
 
 On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>.

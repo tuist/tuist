@@ -13,7 +13,7 @@
 <!-- -->
 :::
 
-As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimize that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist Bundle Insights (bundle analysis) provides you with tools and insights to help your app size stay small – and we also monitor your app size over time.
+As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimize that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist Bundle Insights provides you with tools and insights to help your app size stay small, and we also monitor your app size over time.
 
 ## Usage {#usage}
 
