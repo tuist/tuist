@@ -21,7 +21,6 @@ defmodule Cache.Module.Disk do
       iex> Cache.Module.Disk.key("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
       "account/project/module/builds/AB/CD/ABCD1234/MyModule.xcframework.zip"
   """
-  @spec key(binary(), binary(), binary(), binary(), binary()) :: binary()
   def key(account_handle, project_handle, category, hash, name) do
     {shard1, shard2} = Disk.shards_for_id(hash)
     "#{account_handle}/#{project_handle}/module/#{category}/#{shard1}/#{shard2}/#{hash}/#{name}"
@@ -35,7 +34,6 @@ defmodule Cache.Module.Disk do
       iex> Cache.Module.Disk.exists?("account", "project", "builds", "abc123", "MyModule.xcframework.zip")
       true
   """
-  @spec exists?(binary(), binary(), binary(), binary(), binary()) :: boolean()
   def exists?(account_handle, project_handle, category, hash, name) do
     account_handle
     |> key(project_handle, category, hash, name)
@@ -48,8 +46,6 @@ defmodule Cache.Module.Disk do
 
   Accepts either binary data or a file path tuple.
   """
-  @spec put(binary(), binary(), binary(), binary(), binary(), binary() | {:file, binary()}) ::
-          :ok | {:error, atom()}
   def put(account_handle, project_handle, category, hash, name, {:file, tmp_path}) do
     path = account_handle |> key(project_handle, category, hash, name) |> Disk.artifact_path()
 
@@ -77,8 +73,6 @@ defmodule Cache.Module.Disk do
   Creates the artifact from ordered part files using efficient file copying.
   Returns {:error, :exists} if the artifact already exists.
   """
-  @spec put_from_parts(binary(), binary(), binary(), binary(), binary(), [binary()]) ::
-          :ok | {:error, atom()}
   def put_from_parts(account_handle, project_handle, category, hash, name, part_paths) do
     dest_path =
       account_handle |> key(project_handle, category, hash, name) |> Disk.artifact_path()
@@ -138,8 +132,6 @@ defmodule Cache.Module.Disk do
       iex> Cache.Module.Disk.stat("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  @spec stat(binary(), binary(), binary(), binary(), binary()) ::
-          {:ok, File.Stat.t()} | {:error, atom()}
   def stat(account_handle, project_handle, category, hash, name) do
     account_handle
     |> key(project_handle, category, hash, name)
@@ -153,7 +145,6 @@ defmodule Cache.Module.Disk do
   The returned path maps to the nginx internal location that aliases the
   physical module storage directory.
   """
-  @spec local_accel_path(binary(), binary(), binary(), binary(), binary()) :: binary()
   def local_accel_path(account_handle, project_handle, category, hash, name) do
     "/internal/local/" <> key(account_handle, project_handle, category, hash, name)
   end

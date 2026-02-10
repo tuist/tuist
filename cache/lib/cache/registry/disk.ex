@@ -24,7 +24,6 @@ defmodule Cache.Registry.Disk do
       iex> Cache.Registry.Disk.key("Apple", "Parser", "v1.2", "source_archive.zip")
       "registry/swift/apple/parser/1.2.0/source_archive.zip"
   """
-  @spec key(binary(), binary(), binary(), binary()) :: binary()
   def key(scope, name, version, filename) do
     KeyNormalizer.package_object_key(
       %{scope: scope, name: name},
@@ -41,7 +40,6 @@ defmodule Cache.Registry.Disk do
       iex> Cache.Registry.Disk.exists?("apple", "parser", "1.0.0", "source_archive.zip")
       true
   """
-  @spec exists?(binary(), binary(), binary(), binary()) :: boolean()
   def exists?(scope, name, version, filename) do
     scope
     |> key(name, version, filename)
@@ -57,13 +55,12 @@ defmodule Cache.Registry.Disk do
 
   ## Examples
 
-      iex> Cache.Registry.Disk.put("apple", "parser", "1.0.0", "source_archive.zip", <<1, 2, 3>>)
-      :ok
+     iex> Cache.Registry.Disk.put("apple", "parser", "1.0.0", "source_archive.zip", <<1, 2, 3>>)
+     :ok
 
       iex> Cache.Registry.Disk.put("apple", "parser", "1.0.0", "source_archive.zip", {:file, "/tmp/upload"})
       :ok
   """
-  @spec put(binary(), binary(), binary(), binary(), binary() | {:file, binary()}) :: :ok | {:error, atom()}
   def put(scope, name, version, filename, {:file, tmp_path}) do
     path = scope |> key(name, version, filename) |> Disk.artifact_path()
 
@@ -93,7 +90,6 @@ defmodule Cache.Registry.Disk do
       iex> Cache.Registry.Disk.stat("apple", "parser", "1.0.0", "source_archive.zip")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  @spec stat(binary(), binary(), binary(), binary()) :: {:ok, File.Stat.t()} | {:error, atom()}
   def stat(scope, name, version, filename) do
     scope
     |> key(name, version, filename)
@@ -112,7 +108,6 @@ defmodule Cache.Registry.Disk do
       iex> Cache.Registry.Disk.local_accel_path("apple", "parser", "1.0.0", "source_archive.zip")
       "/internal/local/registry/swift/apple/parser/1.0.0/source_archive.zip"
   """
-  @spec local_accel_path(binary(), binary(), binary(), binary()) :: binary()
   def local_accel_path(scope, name, version, filename) do
     "/internal/local/" <> key(scope, name, version, filename)
   end

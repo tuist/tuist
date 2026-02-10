@@ -40,7 +40,6 @@ defmodule Cache.Disk do
       iex> Cache.Disk.shards_for_id("ABCD1234")
       {"AB", "CD"}
   """
-  @spec shards_for_id(binary()) :: {binary(), binary()}
   def shards_for_id(<<shard1::binary-size(2), shard2::binary-size(2), _rest::binary>>) do
     {shard1, shard2}
   end
@@ -107,7 +106,6 @@ defmodule Cache.Disk do
       iex> Cache.Disk.ensure_directory("/path/to/file.txt")
       :ok
   """
-  @spec ensure_directory(binary()) :: :ok | {:error, atom()}
   def ensure_directory(file_path) do
     dir = Path.dirname(file_path)
 
@@ -133,7 +131,6 @@ defmodule Cache.Disk do
       iex> Cache.Disk.move_file("/tmp/upload-123", "/storage/artifact")
       :ok
   """
-  @spec move_file(binary(), binary()) :: :ok | {:error, atom()}
   def move_file(tmp_path, target_path) do
     with false <- File.exists?(target_path),
          :ok <- File.rename(tmp_path, target_path) do

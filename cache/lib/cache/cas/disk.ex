@@ -21,7 +21,6 @@ defmodule Cache.CAS.Disk do
       iex> Cache.CAS.Disk.key("account", "project", "ABCD1234")
       "account/project/cas/AB/CD/ABCD1234"
   """
-  @spec key(binary(), binary(), binary()) :: binary()
   def key(account_handle, project_handle, id) do
     {shard1, shard2} = Disk.shards_for_id(id)
     "#{account_handle}/#{project_handle}/cas/#{shard1}/#{shard2}/#{id}"
@@ -35,7 +34,6 @@ defmodule Cache.CAS.Disk do
       iex> Cache.CAS.Disk.exists?("account", "project", "abc123")
       true
   """
-  @spec exists?(binary(), binary(), binary()) :: boolean()
   def exists?(account_handle, project_handle, id) do
     account_handle
     |> key(project_handle, id)
@@ -53,13 +51,12 @@ defmodule Cache.CAS.Disk do
 
   ## Examples
 
-      iex> Cache.CAS.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
-      :ok
+     iex> Cache.CAS.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
+     :ok
 
       iex> Cache.CAS.Disk.put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
-  @spec put(binary(), binary(), binary(), binary() | {:file, binary()}) :: :ok | {:error, atom()}
   def put(account_handle, project_handle, id, {:file, tmp_path}) do
     path = account_handle |> key(project_handle, id) |> Disk.artifact_path()
 
@@ -89,7 +86,6 @@ defmodule Cache.CAS.Disk do
       iex> Cache.CAS.Disk.stat("account", "project", "ABCD1234")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  @spec stat(binary(), binary(), binary()) :: {:ok, File.Stat.t()} | {:error, atom()}
   def stat(account_handle, project_handle, id) do
     account_handle
     |> key(project_handle, id)
@@ -103,7 +99,6 @@ defmodule Cache.CAS.Disk do
   The returned path maps to the nginx internal location that aliases the
   physical CAS storage directory.
   """
-  @spec local_accel_path(binary(), binary(), binary()) :: binary()
   def local_accel_path(account_handle, project_handle, id) do
     "/internal/local/" <> key(account_handle, project_handle, id)
   end
@@ -116,7 +111,6 @@ defmodule Cache.CAS.Disk do
       iex> Cache.CAS.Disk.get_local_path("account", "project", "ABCD1234")
       {:ok, "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"}
   """
-  @spec get_local_path(binary(), binary(), binary()) :: {:ok, binary()} | {:error, :not_found}
   def get_local_path(account_handle, project_handle, id) do
     path = account_handle |> key(project_handle, id) |> Disk.artifact_path()
 

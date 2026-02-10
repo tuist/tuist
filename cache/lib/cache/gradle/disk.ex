@@ -21,7 +21,6 @@ defmodule Cache.Gradle.Disk do
       iex> Cache.Gradle.Disk.key("account", "project", "ABCD1234")
       "account/project/gradle/AB/CD/ABCD1234"
   """
-  @spec key(binary(), binary(), binary()) :: binary()
   def key(account_handle, project_handle, cache_key) do
     {shard1, shard2} = Disk.shards_for_id(cache_key)
     "#{account_handle}/#{project_handle}/gradle/#{shard1}/#{shard2}/#{cache_key}"
@@ -35,7 +34,6 @@ defmodule Cache.Gradle.Disk do
       iex> Cache.Gradle.Disk.exists?("account", "project", "abc123")
       true
   """
-  @spec exists?(binary(), binary(), binary()) :: boolean()
   def exists?(account_handle, project_handle, cache_key) do
     account_handle
     |> key(project_handle, cache_key)
@@ -53,13 +51,12 @@ defmodule Cache.Gradle.Disk do
 
   ## Examples
 
-      iex> Cache.Gradle.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
-      :ok
+     iex> Cache.Gradle.Disk.put("account", "project", "abc123", <<1, 2, 3>>)
+     :ok
 
       iex> Cache.Gradle.Disk.put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
-  @spec put(binary(), binary(), binary(), binary() | {:file, binary()}) :: :ok | {:error, atom()}
   def put(account_handle, project_handle, cache_key, {:file, tmp_path}) do
     path = account_handle |> key(project_handle, cache_key) |> Disk.artifact_path()
 
@@ -89,7 +86,6 @@ defmodule Cache.Gradle.Disk do
       iex> Cache.Gradle.Disk.stat("account", "project", "ABCD1234")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  @spec stat(binary(), binary(), binary()) :: {:ok, File.Stat.t()} | {:error, atom()}
   def stat(account_handle, project_handle, cache_key) do
     account_handle
     |> key(project_handle, cache_key)
@@ -103,7 +99,6 @@ defmodule Cache.Gradle.Disk do
   The returned path maps to the nginx internal location that aliases the
   physical storage directory.
   """
-  @spec local_accel_path(binary(), binary(), binary()) :: binary()
   def local_accel_path(account_handle, project_handle, cache_key) do
     "/internal/local/" <> key(account_handle, project_handle, cache_key)
   end
