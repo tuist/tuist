@@ -90,7 +90,19 @@ defmodule Cache.Disk do
     "#{account_handle}/#{project_handle}/cas/#{shard1}/#{shard2}/#{id}"
   end
 
-  defp shards_for_id(<<shard1::binary-size(2), shard2::binary-size(2), _rest::binary>>) do
+  @doc """
+  Extracts two-character shards from a hex ID for directory sharding.
+
+  Takes the first 4 characters of a hex ID and splits them into two 2-character shards
+  to prevent ext4 directory index overflow on filesystems without `large_dir` enabled.
+
+  ## Examples
+
+      iex> Cache.Disk.shards_for_id("ABCD1234")
+      {"AB", "CD"}
+  """
+  @spec shards_for_id(binary()) :: {binary(), binary()}
+  def shards_for_id(<<shard1::binary-size(2), shard2::binary-size(2), _rest::binary>>) do
     {shard1, shard2}
   end
 
@@ -306,7 +318,19 @@ defmodule Cache.Disk do
     end
   end
 
-  defp ensure_directory(file_path) do
+  @doc """
+  Creates a directory and all parent directories if they don't exist.
+
+  Uses `File.mkdir_p/1` to create the directory structure and logs any errors
+  that occur during creation.
+
+  ## Examples
+
+      iex> Cache.Disk.ensure_directory("/path/to/file.txt")
+      :ok
+  """
+  @spec ensure_directory(binary()) :: :ok | {:error, atom()}
+  def ensure_directory(file_path) do
     dir = Path.dirname(file_path)
 
     case File.mkdir_p(dir) do
@@ -319,7 +343,20 @@ defmodule Cache.Disk do
     end
   end
 
-  defp move_file(tmp_path, target_path) do
+  @doc """
+  Atomically moves a file from a temporary path to a target path.
+
+  Checks that the target path doesn't already exist before performing the rename.
+  Returns `{:error, :exists}` if the target file already exists, or logs and returns
+  the error reason if the rename operation fails.
+
+  ## Examples
+
+      iex> Cache.Disk.move_file("/tmp/upload-123", "/storage/artifact")
+      :ok
+  """
+  @spec move_file(binary(), binary()) :: :ok | {:error, atom()}
+  def move_file(tmp_path, target_path) do
     with false <- File.exists?(target_path),
          :ok <- File.rename(tmp_path, target_path) do
       :ok
