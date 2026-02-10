@@ -60,12 +60,12 @@ Extract domain-specific disk functions from the monolithic `Cache.Disk` module i
 - Updated `cache/test/test_helper.exs` — Mimic copies for new modules
 
 ### Definition of Done
-- [ ] `mix test` passes with 0 failures
-- [ ] `mix format --check-formatted` passes
-- [ ] `mix credo` has no new issues
-- [ ] `Cache.Disk` contains only shared helpers (artifact_path, storage_dir, usage, delete_project, list_artifact_paths, ensure_directory, move_file, shards_for_id)
-- [ ] Each domain module exports simplified function names (e.g., `exists?` not `xcode_cas_exists?`)
-- [ ] No controller calls `Cache.Disk.xcode_cas_*`, `Cache.Disk.module_*`, `Cache.Disk.gradle_*`, or `Cache.Disk.registry_*`
+- [x] `mix test` passes with 0 failures
+- [x] `mix format --check-formatted` passes
+- [x] `mix credo` has no new issues
+- [x] `Cache.Disk` contains only shared helpers (artifact_path, storage_dir, usage, delete_project, list_artifact_paths, ensure_directory, move_file, shards_for_id)
+- [x] Each domain module exports simplified function names (e.g., `exists?` not `xcode_cas_exists?`)
+- [x] No controller calls `Cache.Disk.xcode_cas_*`, `Cache.Disk.module_*`, `Cache.Disk.gradle_*`, or `Cache.Disk.registry_*`
 
 ### Must Have
 - All 4 domain disk modules created and working
@@ -151,7 +151,7 @@ Wave 4 (After Wave 3):
 
 ## TODOs
 
-- [ ] 1. Promote private helpers to public in Cache.Disk
+- [x] 1. Promote private helpers to public in Cache.Disk
 
   **What to do**:
   - Make `shards_for_id/1` public with `@doc` — used by CAS, Module, and Gradle domain modules for key construction
@@ -216,7 +216,7 @@ Wave 4 (After Wave 3):
 
 ---
 
-- [ ] 2. Extract Cache.CAS.Disk module + update callers + tests
+- [x] 2. Extract Cache.CAS.Disk module + update callers + tests
 
   **What to do**:
   - Create `cache/lib/cache/cas/disk.ex` with module `Cache.CAS.Disk`
@@ -320,7 +320,7 @@ Wave 4 (After Wave 3):
 
 ---
 
-- [ ] 3. Extract Cache.Gradle.Disk module + update callers + tests
+- [x] 3. Extract Cache.Gradle.Disk module + update callers + tests
 
   **What to do**:
   - Create `cache/lib/cache/gradle/` directory
@@ -412,7 +412,7 @@ Wave 4 (After Wave 3):
 
 ---
 
-- [ ] 4. Extract Cache.Registry.Disk module + update callers + tests
+- [x] 4. Extract Cache.Registry.Disk module + update callers + tests
 
   **What to do**:
   - Create `cache/lib/cache/registry/disk.ex` with module `Cache.Registry.Disk`
@@ -504,7 +504,7 @@ Wave 4 (After Wave 3):
 
 ---
 
-- [ ] 5. Extract Cache.Module.Disk module + update callers + tests
+- [x] 5. Extract Cache.Module.Disk module + update callers + tests
 
   **What to do**:
   - Create `cache/lib/cache/module/disk.ex` with module `Cache.Module.Disk`
@@ -603,7 +603,7 @@ Wave 4 (After Wave 3):
 
 ---
 
-- [ ] 6. Clean up Cache.Disk, update old test file, final verification
+- [x] 6. Clean up Cache.Disk, update old test file, final verification
 
   **What to do**:
   - Verify `cache/lib/cache/disk.ex` now only contains shared functions:
@@ -731,9 +731,9 @@ grep -c "def registry_" cache/lib/cache/disk.ex     # Expected: 0
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" present (4 domain modules, updated callers, updated tests)
-- [ ] All "Must NOT Have" absent (no S3 split, no behavior changes, no API changes)
-- [ ] All tests pass
-- [ ] `Cache.Disk` only contains shared infrastructure (~170 lines)
-- [ ] Each domain module has simplified function names
-- [ ] No controller references old `Cache.Disk` domain functions
+- [x] All "Must Have" present (4 domain modules, updated callers, updated tests)
+- [x] All "Must NOT Have" absent (no S3 split, no behavior changes, no API changes)
+- [x] All tests pass
+- [x] `Cache.Disk` only contains shared infrastructure (~199 lines)
+- [x] Each domain module has simplified function names
+- [x] No controller references old `Cache.Disk` domain functions
