@@ -1819,5 +1819,52 @@ defmodule Tuist.Tests.AnalyticsTest do
       values_after_20 = Enum.drop(got.values, april_20_index)
       assert Enum.all?(values_after_20, &(&1 == 1))
     end
+
+    test "chart values are not inflated by duplicate quarantine events" do
+      # Simulates pre-fix behavior: ingestion silently resets is_quarantined
+      # without creating "unquarantined" events, then auto-quarantine creates
+      # another "quarantined" event. This should NOT inflate the chart count.
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # First quarantine event
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-05 12:00:00.000000]
+      )
+
+      # Duplicate quarantine events (no matching unquarantine events)
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-15 12:00:00.000000]
+      )
+
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert got.count == 1
+      assert Enum.max(got.values) <= 1
+    end
   end
 end
