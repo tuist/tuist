@@ -65,12 +65,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        let isExternalStaticFramework = if case .external = project.type, target.product == .staticFramework {
-            true
-        } else {
-            false
-        }
-        let shouldGenerateResourceBundle = !supportsResources || isExternalStaticFramework
+        // Static frameworks keep resources in the framework (not a separate bundle) so Xcode can
+        // generate asset symbols. The bundle accessors include search paths for app extensions.
+        let shouldGenerateResourceBundle = !supportsResources && target.product != .staticFramework
 
         if shouldGenerateResourceBundle {
             // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
@@ -259,10 +256,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         supportsResources: Bool
     ) -> String {
         let isExternalProject = if case .external = project.type { true } else { false }
-        let bundleAccessor = if target.product == .staticFramework, !isExternalProject {
+        let bundleAccessor = if target.product == .staticFramework {
             swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
         } else if supportsResources, target.product == .framework {
-            // Dynamic frameworks (both local and external) store resources in the framework bundle itself
             swiftFrameworkBundleAccessorString(for: target)
         } else if supportsResources, !isExternalProject {
             swiftFrameworkBundleAccessorString(for: target)
@@ -394,7 +390,18 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
             #endif
 
-            // SwiftPM: Look for the resource bundle in each candidate location
+            // Static frameworks keep resources inside the framework bundle itself.
+            // Try loading each candidate that ends with .framework directly.
+            for (NSURL *candidate in candidates) {
+                if ([[candidate pathExtension] isEqualToString:@"framework"]) {
+                    NSBundle *bundle = [NSBundle bundleWithURL:candidate];
+                    if (bundle) {
+                        return bundle;
+                    }
+                }
+            }
+
+            // Fallback: look for a separate .bundle in each candidate location
             for (NSURL *candidate in candidates) {
                 NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
                 NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];

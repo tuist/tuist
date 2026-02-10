@@ -357,12 +357,12 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
             )
         }
 
-        // Verify the separate resource bundle exists (external static frameworks generate SPM-style bundles)
+        // External static frameworks keep resources inside the framework (no separate .bundle)
         let resourceBundlePath = appPath.appending(component: "SVProgressHUD_SVProgressHUD.bundle")
         let resourceBundleExists = await (try? fileSystem.exists(resourceBundlePath)) ?? false
-        XCTAssertTrue(
+        XCTAssertFalse(
             resourceBundleExists,
-            "SVProgressHUD_SVProgressHUD.bundle should exist in the app bundle for external static frameworks with resources"
+            "SVProgressHUD_SVProgressHUD.bundle should not exist; resources live inside the framework itself"
         )
 
         // Install the app

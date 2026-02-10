@@ -3518,9 +3518,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_embeddableFrameworks_when_dependencyIsStaticXCFramework() throws {
         // Given
         // App depends on a static XCFramework directly
-        // Static precompiled XCFrameworks should NOT be embedded because embedding them
-        // can cause runtime errors when the inner .framework lacks an Info.plist.
-        // Resources are handled separately via .bundle dependencies.
+        // Static XCFrameworks with .framework bundles are embedded so their resources
+        // are accessible at runtime (resources live inside the .framework itself).
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let project = Project.test(targets: [app])
 
@@ -3549,7 +3548,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        XCTAssertEqual(got, [
+            GraphDependencyReference(staticXCFramework),
+        ])
     }
 
     func test_embeddableFrameworks_when_dependencyIsTransitiveStaticXCFramework() throws {
