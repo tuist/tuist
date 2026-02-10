@@ -105,6 +105,13 @@ See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</
 <!-- -->
 :::
 
+### Self-hosted cache nodes {#self-hosted-cache-nodes}
+
+To use self-hosted cache nodes with a self-hosted Tuist server:
+
+1. Deploy your cache nodes following the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
+2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
+
 ## Configuration {#configuration}
 
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.
@@ -148,6 +155,8 @@ Licenses have an expiration date. Users will receive a warning while using Tuist
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
+| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
+| `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
 
 ### Database configuration {#database-configuration}
 

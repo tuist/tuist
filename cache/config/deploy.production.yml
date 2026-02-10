@@ -11,4 +11,6 @@ env:
   clear:
     SERVER_URL: https://tuist.dev
     SENTRY_ENV: prod
+    DEPLOY_ENV: prod
     POOL_SIZE: "10"
+

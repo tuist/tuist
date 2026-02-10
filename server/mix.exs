@@ -49,7 +49,7 @@ defmodule Tuist.MixProject do
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4"},
-      {:finch, "~> 0.20.0"},
+      {:finch, "~> 0.21.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0", override: true},
@@ -143,7 +143,17 @@ defmodule Tuist.MixProject do
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false}
+      {:posthog, "~> 1.0", runtime: false},
+      {:opentelemetry_api, "~> 1.4"},
+      {:opentelemetry, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.8"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_finch, "~> 0.2"},
+      {:opentelemetry_logger_metadata, "~> 0.1"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_broadway, "~> 0.3"},
+      {:loki_logger_handler, "~> 0.2"}
     ]
   end
 

@@ -30,7 +30,7 @@ defmodule Cache.MixProject do
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
-      {:briefly, "~> 0.5", only: :test},
+      {:briefly, "~> 0.5"},
       {:broadway, "~> 1.0"},
       {:cachex, "~> 3.6"},
       {:off_broadway_memory, "~> 1.0"},
@@ -58,7 +58,17 @@ defmodule Cache.MixProject do
       {:sweet_xml, "~> 0.7"},
       {:uuid_v7, "~> 0.6"},
       {:ymlr, "~> 5.0"},
-      {:tuist_common, path: "../tuist_common"}
+      {:tuist_common, path: "../tuist_common"},
+      {:opentelemetry_api, "~> 1.4"},
+      {:opentelemetry, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.8"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_finch, "~> 0.2"},
+      {:opentelemetry_logger_metadata, "~> 0.1"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_broadway, "~> 0.3"},
+      {:loki_logger_handler, "~> 0.2"}
     ]
   end
 

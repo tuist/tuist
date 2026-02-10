@@ -102,31 +102,39 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
-        cond do
-          prod?() ->
-            [
-              "https://cache-eu-central.tuist.dev",
-              "https://cache-us-east.tuist.dev",
-              "https://cache-us-west.tuist.dev",
-              "https://cache-ap-southeast.tuist.dev",
-              "https://cache-sa-west.tuist.dev"
-            ]
+        default_cache_endpoints()
+    end
+  end
 
-          stag?() ->
-            ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
+  defp default_cache_endpoints do
+    if tuist_hosted?() do
+      cond do
+        prod?() ->
+          [
+            "https://cache-eu-central.tuist.dev",
+            "https://cache-us-east.tuist.dev",
+            "https://cache-us-west.tuist.dev",
+            "https://cache-ap-southeast.tuist.dev",
+            "https://cache-sa-west.tuist.dev"
+          ]
 
-          can?() ->
-            ["https://cache-eu-central-canary.tuist.dev"]
+        stag?() ->
+          ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
 
-          dev?() ->
-            ["http://localhost:8087"]
+        can?() ->
+          ["https://cache-eu-central-canary.tuist.dev"]
 
-          test?() ->
-            ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+        dev?() ->
+          ["http://localhost:8087"]
 
-          true ->
-            []
-        end
+        test?() ->
+          ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
+
+        true ->
+          []
+      end
+    else
+      []
     end
   end
 
@@ -522,6 +530,10 @@ defmodule Tuist.Environment do
         # Default to true if email is not configured (e.g., air-gapped environments)
         not mail_configured?(secrets)
     end
+  end
+
+  def loki_url(secrets \\ secrets()) do
+    get([:loki, :url], secrets)
   end
 
   def clickhouse_url(secrets \\ secrets()) do

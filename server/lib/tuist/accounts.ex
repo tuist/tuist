@@ -1712,7 +1712,7 @@ defmodule Tuist.Accounts do
         _ -> false
       end
     else
-      true
+      false
     end
   end
 
@@ -1726,12 +1726,16 @@ defmodule Tuist.Accounts do
   - The account has at least one custom cache endpoint configured
   """
   def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
-    account_handle
-    |> get_account_by_handle()
-    |> custom_cache_endpoints()
-    |> case do
-      [] -> Environment.cache_endpoints()
-      endpoints -> Enum.map(endpoints, & &1.url)
+    if Environment.tuist_hosted?() do
+      account_handle
+      |> get_account_by_handle()
+      |> custom_cache_endpoints()
+      |> case do
+        [] -> Environment.cache_endpoints()
+        endpoints -> Enum.map(endpoints, & &1.url)
+      end
+    else
+      Environment.cache_endpoints()
     end
   end
 

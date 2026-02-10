@@ -7,6 +7,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
   alias Cache.Authentication
   alias Cache.CacheArtifacts
   alias Cache.Disk
+  alias Cache.Module.Disk, as: ModuleDisk
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
@@ -31,7 +32,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
@@ -67,17 +68,12 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
         {:error, :enoent}
       end)
 
       expect(CacheArtifacts, :track_artifact_access, fn _key ->
         :ok
-      end)
-
-      expect(S3, :exists?, fn key ->
-        assert key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
-        true
       end)
 
       expect(S3, :presign_download_url, fn key ->
@@ -119,16 +115,12 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :stat, fn "test-account", "test-project", "builds", ^hash, ^name ->
         {:error, :enoent}
       end)
 
       expect(CacheArtifacts, :track_artifact_access, fn _key ->
         :ok
-      end)
-
-      expect(S3, :exists?, fn _key ->
-        true
       end)
 
       expect(S3, :presign_download_url, fn _key ->
@@ -160,7 +152,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         true
       end)
 
@@ -185,7 +177,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         false
       end)
 
@@ -215,7 +207,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         false
       end)
 
@@ -245,7 +237,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         false
       end)
 
@@ -272,7 +264,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
+      expect(ModuleDisk, :exists?, fn "test-account", "test-project", "builds", ^hash, ^name ->
         true
       end)
 
@@ -299,7 +291,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
+      expect(ModuleDisk, :exists?, fn "test-account", "test-project", ^category, ^hash, ^name ->
         false
       end)
 
@@ -377,7 +369,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, [^tmp_path] ->
+      expect(ModuleDisk, :put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, [^tmp_path] ->
         :ok
       end)
 
@@ -472,7 +464,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(Disk, :module_put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, part_paths ->
+      expect(ModuleDisk, :put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, part_paths ->
         assert part_paths == [tmp_path1, tmp_path2, tmp_path3]
         :ok
       end)
