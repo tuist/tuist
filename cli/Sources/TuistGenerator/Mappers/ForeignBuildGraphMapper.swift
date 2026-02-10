@@ -3,13 +3,11 @@ import Path
 import TuistCore
 import XcodeGraph
 
-/// Transforms `.foreignBuild` dependencies into concrete aggregate-style targets and binary dependencies.
+/// Transforms `.foreignBuild` dependencies into concrete binary dependencies with script build phases.
 ///
-/// For each unique `.foreignBuild` dependency (deduplicated by `name`):
-/// 1. Creates a synthetic target with a `rawScriptBuildPhase` that runs the build script
-/// 2. Replaces the `.foreignBuild` dependency in consuming targets with:
-///    - A `.target` dependency on the synthetic script-running target (to ensure build ordering)
-///    - The resolved binary dependency (`.xcframework`, `.framework`, or `.library`)
+/// For each `.foreignBuild` dependency:
+/// 1. Adds a `rawScriptBuildPhase` to the consuming target that runs the build script
+/// 2. Replaces the `.foreignBuild` dependency with the resolved binary dependency (`.xcframework`, `.framework`, or `.library`)
 public final class ForeignBuildGraphMapper: GraphMapping {
     public init() {}
 
@@ -18,61 +16,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
-
-        struct ForeignBuildInfo {
-            let name: String
-            let script: String
-            let output: TargetDependency
-            let projectPath: AbsolutePath
-        }
-
-        var foreignBuilds: [String: ForeignBuildInfo] = [:]
-
-        for (projectPath, project) in graph.projects {
-            for target in project.targets.values {
-                for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, output, _, _) = dependency else { continue }
-                    if foreignBuilds[name] == nil {
-                        foreignBuilds[name] = ForeignBuildInfo(
-                            name: name,
-                            script: script,
-                            output: output,
-                            projectPath: projectPath
-                        )
-                    }
-                }
-            }
-        }
-
-        if foreignBuilds.isEmpty {
-            return (graph, [], environment)
-        }
-
-        for (_, info) in foreignBuilds {
-            let projectPath = info.projectPath
-            guard var project = graph.projects[projectPath] else { continue }
-
-            let syntheticTarget = Target(
-                name: info.name,
-                destinations: destinationsForProject(project),
-                product: .framework,
-                productName: nil,
-                bundleId: "tuist.foreignBuild.\(info.name)",
-                filesGroup: .group(name: info.name),
-                rawScriptBuildPhases: [
-                    RawScriptBuildPhase(
-                        name: "Build \(info.name)",
-                        script: info.script,
-                        showEnvVarsInLog: false,
-                        hashable: false
-                    ),
-                ],
-                metadata: .metadata(tags: ["tuist:foreign-build"])
-            )
-
-            project.targets[info.name] = syntheticTarget
-            graph.projects[projectPath] = project
-        }
+        var hasChanges = false
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
@@ -80,22 +24,29 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
             for (targetName, target) in project.targets {
                 var updatedDependencies: [TargetDependency] = []
+                var scriptPhases = target.rawScriptBuildPhases
                 var targetModified = false
 
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, _, output, _, condition) = dependency else {
+                    guard case let .foreignBuild(name, script, output, _, condition) = dependency else {
                         updatedDependencies.append(dependency)
                         continue
                     }
 
                     targetModified = true
-                    updatedDependencies.append(.target(name: name, status: .required, condition: condition))
+                    scriptPhases.append(RawScriptBuildPhase(
+                        name: "Foreign Build: \(name)",
+                        script: script,
+                        showEnvVarsInLog: false,
+                        hashable: false
+                    ))
                     updatedDependencies.append(output.withCondition(condition))
                 }
 
                 if targetModified {
                     var updatedTarget = target
                     updatedTarget.dependencies = updatedDependencies
+                    updatedTarget.rawScriptBuildPhases = scriptPhases
                     updatedProject.targets[targetName] = updatedTarget
                     projectModified = true
                 }
@@ -103,14 +54,10 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
             if projectModified {
                 graph.projects[projectPath] = updatedProject
+                hasChanges = true
             }
         }
 
         return (graph, [], environment)
-    }
-
-    private func destinationsForProject(_ project: Project) -> Destinations {
-        let allDestinations = project.targets.values.flatMap(\.destinations)
-        return Set(allDestinations)
     }
 }

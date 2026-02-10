@@ -8,6 +8,8 @@
     protoc = "32.1"
     "1password-cli" = "2.32.0"
     bats = "1.11.1"
+    java = "21"
+    gradle = "8.12"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
