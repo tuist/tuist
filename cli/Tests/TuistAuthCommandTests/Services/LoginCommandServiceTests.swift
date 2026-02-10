@@ -78,155 +78,155 @@ struct LoginCommandServiceTests {
     }
 
     #if canImport(TuistSupport)
-    @Test(.withMockedDependencies())
-    func authenticate_when_password_is_provided() async throws {
-        // Given
-        given(userInputReader)
-            .readString(asking: .value("Email:"))
-            .willReturn("email@tuist.dev")
+        @Test(.withMockedDependencies())
+        func authenticate_when_password_is_provided() async throws {
+            // Given
+            given(userInputReader)
+                .readString(asking: .value("Email:"))
+                .willReturn("email@tuist.dev")
 
-        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
                         accessToken: "access-token",
                         refreshToken: "refresh-token"
                     )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        given(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.dev"),
-                password: .value("password"),
-                serverURL: .any
-            )
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token",
-                    refreshToken: "refresh-token"
                 )
+
+            // When
+            try await subject.run(
+                email: nil,
+                password: "password",
+                serverURL: serverURL.absoluteString
             )
 
-        // When
-        try await subject.run(
-            email: nil,
-            password: "password",
-            serverURL: serverURL.absoluteString
-        )
+            // Then
+            verify(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .called(1)
+        }
 
-        // Then
-        verify(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.dev"),
-                password: .value("password"),
-                serverURL: .any
-            )
-            .called(1)
-    }
+        @Test(.withMockedDependencies())
+        func authenticate_when_email_is_provided() async throws {
+            // Given
+            given(userInputReader)
+                .readString(asking: .value("Password:"))
+                .willReturn("password")
 
-    @Test(.withMockedDependencies())
-    func authenticate_when_email_is_provided() async throws {
-        // Given
-        given(userInputReader)
-            .readString(asking: .value("Password:"))
-            .willReturn("password")
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
 
-        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
                         accessToken: "access-token",
                         refreshToken: "refresh-token"
                     )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        given(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.dev"),
-                password: .value("password"),
-                serverURL: .any
-            )
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token",
-                    refreshToken: "refresh-token"
                 )
+
+            // When
+            try await subject.run(
+                email: "email@tuist.dev",
+                password: nil,
+                serverURL: serverURL.absoluteString
             )
 
-        // When
-        try await subject.run(
-            email: "email@tuist.dev",
-            password: nil,
-            serverURL: serverURL.absoluteString
-        )
+            // Then
+            verify(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .called(1)
+        }
 
-        // Then
-        verify(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.dev"),
-                password: .value("password"),
-                serverURL: .any
-            )
-            .called(1)
-    }
+        @Test(.withMockedDependencies())
+        func authenticate_when_email_and_password_are_provided() async throws {
+            // Given
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
 
-    @Test(.withMockedDependencies())
-    func authenticate_when_email_and_password_are_provided() async throws {
-        // Given
-        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
                         accessToken: "access-token",
                         refreshToken: "refresh-token"
                     )
-                ),
-                serverURL: .any
-            )
-            .willReturn()
-
-        given(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.dev"),
-                password: .value("password"),
-                serverURL: .any
-            )
-            .willReturn(
-                ServerAuthenticationTokens(
-                    accessToken: "access-token",
-                    refreshToken: "refresh-token"
                 )
+
+            // When
+            try await subject.run(
+                email: "email@tuist.dev",
+                password: "password",
+                serverURL: serverURL.absoluteString
             )
 
-        // When
-        try await subject.run(
-            email: "email@tuist.dev",
-            password: "password",
-            serverURL: serverURL.absoluteString
-        )
+            // Then
+            verify(userInputReader)
+                .readString(asking: .any)
+                .called(0)
 
-        // Then
-        verify(userInputReader)
-            .readString(asking: .any)
-            .called(0)
-
-        verify(authenticateService)
-            .authenticate(
-                email: .value("email@tuist.dev"),
-                password: .value("password"),
-                serverURL: .any
-            )
-            .called(1)
-    }
+            verify(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .called(1)
+        }
     #endif
 
     @Test(.withMockedEnvironment())
@@ -258,51 +258,51 @@ struct LoginCommandServiceTests {
     }
 
     #if canImport(TuistSupport)
-    @Test(.withMockedEnvironment(), .withMockedDependencies())
-    func authenticate_with_oidc_in_ci_environment() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.variables["CI"] = "1"
+        @Test(.withMockedEnvironment(), .withMockedDependencies())
+        func authenticate_with_oidc_in_ci_environment() async throws {
+            // Given
+            let environment = try #require(Environment.mocked)
+            environment.variables["CI"] = "1"
 
-        given(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .willReturn("oidc-jwt-token")
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willReturn("oidc-jwt-token")
 
-        given(exchangeOIDCTokenService)
-            .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
-            .willReturn("tuist-access-token")
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
+                .willReturn("tuist-access-token")
 
-        let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
-        given(serverCredentialsStore)
-            .store(
-                credentials: .value(
-                    ServerCredentials(
-                        accessToken: "tuist-access-token"
-                    )
-                ),
-                serverURL: .any
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "tuist-access-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            // When
+            try await subject.run(
+                email: nil,
+                password: nil,
+                serverURL: serverURL.absoluteString
             )
-            .willReturn()
 
-        // When
-        try await subject.run(
-            email: nil,
-            password: nil,
-            serverURL: serverURL.absoluteString
-        )
+            // Then
+            verify(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .called(1)
 
-        // Then
-        verify(ciOIDCAuthenticator)
-            .fetchOIDCToken()
-            .called(1)
+            verify(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
+                .called(1)
 
-        verify(exchangeOIDCTokenService)
-            .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
-            .called(1)
-
-        verify(serverSessionController)
-            .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
-            .called(0)
-    }
+            verify(serverSessionController)
+                .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
+                .called(0)
+        }
     #endif
 }
