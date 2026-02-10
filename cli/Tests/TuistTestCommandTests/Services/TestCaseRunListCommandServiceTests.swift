@@ -11,6 +11,7 @@ import TuistServer
 @testable import TuistTestCommand
 
 struct TestCaseRunListCommandServiceTests {
+    private let getTestCaseService = MockGetTestCaseServicing()
     private let listTestCaseRunsService = MockListTestCaseRunsServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
@@ -18,6 +19,7 @@ struct TestCaseRunListCommandServiceTests {
 
     init() {
         subject = TestCaseRunListCommandService(
+            getTestCaseService: getTestCaseService,
             listTestCaseRunsService: listTestCaseRunsService,
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
@@ -56,11 +58,11 @@ struct TestCaseRunListCommandServiceTests {
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
 
         // When/Then
-        await #expect(throws: TestCaseRunListCommandServiceError.invalidIdentifier("justAName"), performing: {
+        await #expect(throws: TestCaseRunListCommandServiceError.invalidIdentifier("a/b/c/d"), performing: {
             try await subject.run(
                 project: nil,
                 path: nil,
-                testCaseIdentifier: "justAName",
+                testCaseIdentifier: "a/b/c/d",
                 flaky: false,
                 page: nil,
                 pageSize: nil,
@@ -80,6 +82,14 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testExample"),
+            suiteName: .value("ExampleSuite"),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
             testCaseRuns: [
                 .test(duration: 1500, status: .success),
@@ -88,9 +98,7 @@ struct TestCaseRunListCommandServiceTests {
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testExample"),
-            suiteName: .value("ExampleSuite"),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(1),
             pageSize: .value(10)
@@ -122,13 +130,19 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testExample"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testExample"),
-            suiteName: .value(nil),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(1),
             pageSize: .value(10)
@@ -160,13 +174,19 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testFlaky"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testFlaky"),
-            suiteName: .value(nil),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(true),
             page: .value(1),
             pageSize: .value(10)
@@ -198,15 +218,21 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testLogin"),
+            suiteName: .value("AuthSuite"),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [
             .test(status: .success),
         ])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testLogin"),
-            suiteName: .value("AuthSuite"),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(1),
             pageSize: .value(10)
@@ -224,15 +250,12 @@ struct TestCaseRunListCommandServiceTests {
         )
 
         // Then
-        verify(listTestCaseRunsService).listTestCaseRuns(
+        verify(getTestCaseService).getTestCaseByName(
             fullHandle: .any,
-            serverURL: .any,
             moduleName: .value("AppTests"),
             name: .value("testLogin"),
             suiteName: .value("AuthSuite"),
-            flaky: .any,
-            page: .any,
-            pageSize: .any
+            serverURL: .any
         ).called(1)
     }
 
@@ -247,15 +270,21 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("CoreTests"),
+            name: .value("testSomething"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [
             .test(status: .success),
         ])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("CoreTests"),
-            name: .value("testSomething"),
-            suiteName: .value(nil),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(1),
             pageSize: .value(10)
@@ -273,12 +302,54 @@ struct TestCaseRunListCommandServiceTests {
         )
 
         // Then
-        verify(listTestCaseRunsService).listTestCaseRuns(
+        verify(getTestCaseService).getTestCaseByName(
             fullHandle: .any,
-            serverURL: .any,
             moduleName: .value("CoreTests"),
             name: .value("testSomething"),
             suiteName: .value(nil),
+            serverURL: .any
+        ).called(1)
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora
+    ) func run_with_uuid_identifier() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [
+            .test(status: .success),
+        ])
+        given(listTestCaseRunsService).listTestCaseRuns(
+            fullHandle: .value(fullHandle),
+            serverURL: .value(serverURL),
+            testCaseId: .value("some-uuid-id"),
+            flaky: .value(nil),
+            page: .value(1),
+            pageSize: .value(10)
+        ).willReturn(response)
+
+        // When
+        try await subject.run(
+            project: nil,
+            path: nil,
+            testCaseIdentifier: "some-uuid-id",
+            flaky: false,
+            page: nil,
+            pageSize: nil,
+            json: true
+        )
+
+        // Then
+        verify(listTestCaseRunsService).listTestCaseRuns(
+            fullHandle: .any,
+            serverURL: .any,
+            testCaseId: .value("some-uuid-id"),
             flaky: .any,
             page: .any,
             pageSize: .any
@@ -296,6 +367,14 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testExample"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
             pageSize: 5,
             testCaseRuns: [.test()]
@@ -303,9 +382,7 @@ struct TestCaseRunListCommandServiceTests {
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testExample"),
-            suiteName: .value(nil),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(1),
             pageSize: .value(5)
@@ -326,9 +403,7 @@ struct TestCaseRunListCommandServiceTests {
         verify(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .any,
             serverURL: .any,
-            moduleName: .any,
-            name: .any,
-            suiteName: .any,
+            testCaseId: .any,
             flaky: .any,
             page: .any,
             pageSize: .value(5)
@@ -346,6 +421,14 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(fullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testExample"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
             currentPage: 3,
             totalPages: 5,
@@ -355,9 +438,7 @@ struct TestCaseRunListCommandServiceTests {
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testExample"),
-            suiteName: .value(nil),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(3),
             pageSize: .value(10)
@@ -378,9 +459,7 @@ struct TestCaseRunListCommandServiceTests {
         verify(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .any,
             serverURL: .any,
-            moduleName: .any,
-            name: .any,
-            suiteName: .any,
+            testCaseId: .any,
             flaky: .any,
             page: .value(3),
             pageSize: .any
@@ -396,13 +475,19 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCase = ServerTestCase.test(id: "resolved-tc-id")
+        given(getTestCaseService).getTestCaseByName(
+            fullHandle: .value(explicitFullHandle),
+            moduleName: .value("AppTests"),
+            name: .value("testExample"),
+            suiteName: .value(nil),
+            serverURL: .value(serverURL)
+        ).willReturn(testCase)
         let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(explicitFullHandle),
             serverURL: .value(serverURL),
-            moduleName: .value("AppTests"),
-            name: .value("testExample"),
-            suiteName: .value(nil),
+            testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
             page: .value(1),
             pageSize: .value(10)
@@ -423,9 +508,7 @@ struct TestCaseRunListCommandServiceTests {
         verify(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(explicitFullHandle),
             serverURL: .any,
-            moduleName: .any,
-            name: .any,
-            suiteName: .any,
+            testCaseId: .any,
             flaky: .any,
             page: .any,
             pageSize: .any

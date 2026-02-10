@@ -21,7 +21,7 @@ struct TestCaseRunShowCommand: AsyncParsableCommand, NooraReadyCommand {
     @Option(
         name: [.customLong("project"), .customShort("P")],
         help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
-        envKey: .testCaseRunShowFullHandle
+        envKey: .testCaseRunShowProject
     )
     var project: String?
 

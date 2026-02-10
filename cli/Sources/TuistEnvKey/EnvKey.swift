@@ -185,7 +185,7 @@ public enum EnvKey: String, CaseIterable {
     // TEST CASE LIST
 
     case testCaseListPath = "TUIST_TEST_CASE_LIST_PATH"
-    case testCaseListFullHandle = "TUIST_TEST_CASE_LIST_FULL_HANDLE"
+    case testCaseListProject = "TUIST_TEST_CASE_LIST_PROJECT"
     case testCaseListFlaky = "TUIST_TEST_CASE_LIST_FLAKY"
     case testCaseListQuarantined = "TUIST_TEST_CASE_LIST_QUARANTINED"
     case testCaseListSkipTesting = "TUIST_TEST_CASE_LIST_SKIP_TESTING"
@@ -196,14 +196,14 @@ public enum EnvKey: String, CaseIterable {
     // TEST CASE SHOW
 
     case testCaseShowIdentifier = "TUIST_TEST_CASE_SHOW_IDENTIFIER"
-    case testCaseShowFullHandle = "TUIST_TEST_CASE_SHOW_FULL_HANDLE"
+    case testCaseShowProject = "TUIST_TEST_CASE_SHOW_PROJECT"
     case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
     case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"
 
     // TEST CASE RUN LIST
 
     case testCaseRunListIdentifier = "TUIST_TEST_CASE_RUN_LIST_IDENTIFIER"
-    case testCaseRunListFullHandle = "TUIST_TEST_CASE_RUN_LIST_FULL_HANDLE"
+    case testCaseRunListProject = "TUIST_TEST_CASE_RUN_LIST_PROJECT"
     case testCaseRunListPath = "TUIST_TEST_CASE_RUN_LIST_PATH"
     case testCaseRunListFlaky = "TUIST_TEST_CASE_RUN_LIST_FLAKY"
     case testCaseRunListPage = "TUIST_TEST_CASE_RUN_LIST_PAGE"
@@ -213,7 +213,7 @@ public enum EnvKey: String, CaseIterable {
     // TEST CASE RUN SHOW
 
     case testCaseRunShowId = "TUIST_TEST_CASE_RUN_SHOW_ID"
-    case testCaseRunShowFullHandle = "TUIST_TEST_CASE_RUN_SHOW_FULL_HANDLE"
+    case testCaseRunShowProject = "TUIST_TEST_CASE_RUN_SHOW_PROJECT"
     case testCaseRunShowPath = "TUIST_TEST_CASE_RUN_SHOW_PATH"
     case testCaseRunShowJson = "TUIST_TEST_CASE_RUN_SHOW_JSON"
 
