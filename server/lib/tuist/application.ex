@@ -7,6 +7,8 @@ defmodule Tuist.Application do
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
+  alias Tuist.Gradle
+  alias Tuist.Gradle.Build.Buffer
   alias Tuist.QA.Logs
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
@@ -77,6 +79,8 @@ defmodule Tuist.Application do
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
+        Supervisor.child_spec(Buffer, id: Buffer),
+        Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},

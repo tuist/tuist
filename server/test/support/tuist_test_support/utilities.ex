@@ -12,6 +12,8 @@ defmodule TuistTestSupport.Utilities do
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
     result = fun.()
     Tuist.CommandEvents.Buffer.flush()
+    Tuist.Gradle.Build.Buffer.flush()
+    Tuist.Gradle.Task.Buffer.flush()
     Tuist.Xcode.XcodeGraph.Buffer.flush()
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()

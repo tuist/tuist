@@ -54,6 +54,9 @@ defmodule TuistWeb.API.GradleControllerTest do
       response = json_response(conn, 201)
       assert is_binary(response["id"])
 
+      Gradle.Build.Buffer.flush()
+      Gradle.Task.Buffer.flush()
+
       {:ok, build} = Gradle.get_build(response["id"])
       assert build.project_id == project.id
       assert build.duration_ms == 15_000
@@ -79,6 +82,8 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       response = json_response(conn, 201)
       assert is_binary(response["id"])
+
+      Gradle.Build.Buffer.flush()
 
       {:ok, build} = Gradle.get_build(response["id"])
       assert build.status == "failure"

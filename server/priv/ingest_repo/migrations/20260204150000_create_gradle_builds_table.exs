@@ -12,14 +12,14 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleBuildsTable do
       add :project_id, :Int64, null: false
       add :account_id, :Int64, null: false
       add :duration_ms, :UInt64, null: false
-      add :gradle_version, :"Nullable(String)"
-      add :java_version, :"Nullable(String)"
+      add :gradle_version, :string, null: false, default: ""
+      add :java_version, :string, null: false, default: ""
       add :is_ci, :Bool, null: false, default: false
       add :status, :"Enum8('success' = 0, 'failure' = 1, 'cancelled' = 2)", null: false
-      add :git_branch, :"Nullable(String)"
-      add :git_commit_sha, :"Nullable(String)"
-      add :git_ref, :"Nullable(String)"
-      add :root_project_name, :"Nullable(String)"
+      add :git_branch, :string, null: false, default: ""
+      add :git_commit_sha, :string, null: false, default: ""
+      add :git_ref, :string, null: false, default: ""
+      add :root_project_name, :string, null: false, default: ""
       add :tasks_local_hit_count, :UInt32, null: false, default: 0
       add :tasks_remote_hit_count, :UInt32, null: false, default: 0
       add :tasks_up_to_date_count, :UInt32, null: false, default: 0

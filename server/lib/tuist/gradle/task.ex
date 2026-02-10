@@ -3,6 +3,7 @@ defmodule Tuist.Gradle.Task do
   Ecto schema for Gradle tasks stored in ClickHouse.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   @derive {
     Flop.Schema,

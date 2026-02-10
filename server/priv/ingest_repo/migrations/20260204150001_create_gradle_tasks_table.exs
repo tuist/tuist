@@ -11,13 +11,13 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleTasksTable do
       add :id, :uuid, null: false
       add :gradle_build_id, :uuid, null: false
       add :task_path, :string, null: false
-      add :task_type, :"Nullable(String)"
+      add :task_type, :string, null: false, default: ""
 
       add :outcome, :"LowCardinality(String)", null: false
 
       add :cacheable, :Bool, null: false, default: false
       add :duration_ms, :UInt64, null: false, default: 0
-      add :cache_key, :"Nullable(String)"
+      add :cache_key, :string, null: false, default: ""
       add :cache_artifact_size, :"Nullable(Int64)"
       add :started_at, :"Nullable(DateTime64(6))"
       add :project_id, :Int64, null: false

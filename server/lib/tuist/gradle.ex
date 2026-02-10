@@ -65,8 +65,7 @@ defmodule Tuist.Gradle do
       inserted_at: now
     }
 
-    # TODO: Move to IngestBuffer strategy once Gradle build traffic increases
-    IngestRepo.insert_all(Build, [build_entry])
+    Build.Buffer.insert(build_entry)
 
     if !Enum.empty?(tasks) do
       create_tasks(build_id, attrs.project_id, tasks, now)
@@ -111,8 +110,7 @@ defmodule Tuist.Gradle do
         }
       end)
 
-    # TODO: Move to IngestBuffer strategy once Gradle build traffic increases
-    IngestRepo.insert_all(Task, task_entries)
+    Enum.each(task_entries, &Task.Buffer.insert/1)
   end
 
   @doc """

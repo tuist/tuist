@@ -37,6 +37,9 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         tasks: Keyword.get(attrs, :tasks, [])
       })
 
+    Gradle.Build.Buffer.flush()
+    Gradle.Task.Buffer.flush()
+
     build_id
   end
 
