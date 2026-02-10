@@ -434,7 +434,7 @@ defmodule Tuist.Tests do
   Gets a test case run by its UUID.
   Returns {:ok, test_case_run} or {:error, :not_found}.
   """
-  def get_test_case_run_by_id(id) do
+  def get_test_case_run_by_id(id, opts \\ []) do
     query =
       from(tcr in TestCaseRun,
         where: tcr.id == ^id,
@@ -442,8 +442,13 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      run -> {:ok, run}
+      nil ->
+        {:error, :not_found}
+
+      run ->
+        preloads = Keyword.get(opts, :preload, [])
+        run = ClickHouseRepo.preload(run, preloads)
+        {:ok, run}
     end
   end
 
@@ -1526,9 +1531,9 @@ defmodule Tuist.Tests do
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
   end
 
-  def get_failures_for_runs([]), do: []
+  defp get_failures_for_runs([]), do: []
 
-  def get_failures_for_runs(run_ids) do
+  defp get_failures_for_runs(run_ids) do
     query =
       from(f in TestCaseFailure,
         where: f.test_case_run_id in ^run_ids,
@@ -1544,9 +1549,9 @@ defmodule Tuist.Tests do
     ClickHouseRepo.all(query)
   end
 
-  def get_repetitions_for_runs([]), do: []
+  defp get_repetitions_for_runs([]), do: []
 
-  def get_repetitions_for_runs(run_ids) do
+  defp get_repetitions_for_runs(run_ids) do
     query =
       from(r in TestCaseRunRepetition,
         where: r.test_case_run_id in ^run_ids,

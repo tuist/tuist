@@ -49,6 +49,9 @@ defmodule Tuist.Tests.TestCaseRun do
     field :suite_name, Ch, type: "String"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
+
+    has_many :failures, Tuist.Tests.TestCaseFailure, foreign_key: :test_case_run_id
+    has_many :repetitions, Tuist.Tests.TestCaseRunRepetition, foreign_key: :test_case_run_id
   end
 
   def create_changeset(test_case_run, attrs) do

@@ -236,12 +236,9 @@ defmodule TuistWeb.API.TestCaseRunsController do
         %{assigns: %{selected_project: selected_project}, params: %{test_case_run_id: test_case_run_id}} = conn,
         _params
       ) do
-    case Tests.get_test_case_run_by_id(test_case_run_id) do
+    case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
-          failures = Tests.get_failures_for_runs([run.id])
-          repetitions = Tests.get_repetitions_for_runs([run.id])
-
           json(conn, %{
             id: run.id,
             test_case_id: run.test_case_id,
@@ -258,7 +255,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
             git_commit_sha: run.git_commit_sha,
             ran_at: format_ran_at(run.ran_at),
             failures:
-              Enum.map(failures, fn f ->
+              Enum.map(run.failures, fn f ->
                 %{
                   message: f.message,
                   path: f.path,
@@ -267,7 +264,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
                 }
               end),
             repetitions:
-              Enum.map(repetitions, fn r ->
+              Enum.map(run.repetitions, fn r ->
                 %{
                   repetition_number: r.repetition_number,
                   status: to_string(r.status),
