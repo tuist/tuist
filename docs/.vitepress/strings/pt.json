@@ -463,6 +463,9 @@
                         }
                     },
                     "text": "Server"
+                },
+                "install-tuist": {
+                    "text": "Install Tuist"
                 }
             }
         },
