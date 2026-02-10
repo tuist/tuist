@@ -58,6 +58,7 @@ defmodule Tuist.Application do
     ReqTelemetry.attach_default_logger(:pipeline)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
+      OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
       OpentelemetryEcto.setup([:tuist, :repo])
@@ -85,7 +86,11 @@ defmodule Tuist.Application do
           app: {:static, "tuist-server"},
           env: {:static, to_string(Environment.env())},
           level: :level
-        }
+        },
+        structured_metadata: [
+          traceID: {:metadata, :trace_id},
+          spanID: {:metadata, :span_id}
+        ]
       )
     end
   end

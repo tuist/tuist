@@ -32,9 +32,9 @@ services:
       - key: TUIST_APP_URL
         value: https://tuist.dev
       - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://grafana-alloy:4317
+        value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
-        value: http://grafana-alloy:3100
+        value: http://tuist-fmpt:3100
     domains:
       - tuist.dev
 
@@ -66,9 +66,9 @@ services:
       - key: TUIST_APP_URL
         value: https://canary.tuist.dev
       - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://grafana-alloy:4317
+        value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
-        value: http://grafana-alloy:3100
+        value: http://tuist-fmpt:3100
     domains:
       - canary.tuist.dev
 
@@ -95,9 +95,9 @@ services:
       - key: TUIST_APP_URL
         value: https://staging.tuist.dev
       - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://grafana-alloy:4317
+        value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
-        value: http://grafana-alloy:3100
+        value: http://tuist-fmpt:3100
     domains:
       - staging.tuist.dev
 
