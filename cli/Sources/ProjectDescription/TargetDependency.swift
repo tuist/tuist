@@ -149,6 +149,26 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case external(name: String, condition: PlatformCondition? = nil)
 
+    /// Dependency on an artifact produced by a foreign (non-Xcode) build system such as KMP, Rust, CMake, etc.
+    ///
+    /// Tuist will generate an aggregate target that runs the build script and produce the output binary.
+    /// The `cacheInputs` are used to compute a content hash for Tuist's binary caching so that the foreign
+    /// build step can be skipped when inputs haven't changed.
+    ///
+    /// - Parameters:
+    ///   - name: A unique name for this foreign build dependency (used as the aggregate target name).
+    ///   - script: The shell script that builds the artifact.
+    ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
+    ///   - cacheInputs: Inputs that affect the build output, used for content hashing.
+    ///   - condition: Condition under which to use this dependency, `nil` if this should always be used.
+    indirect case foreignBuild(
+        name: String,
+        script: String,
+        output: TargetDependency,
+        cacheInputs: [CacheInput] = [],
+        condition: PlatformCondition? = nil
+    )
+
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -191,6 +211,8 @@ public enum TargetDependency: Codable, Hashable, Sendable {
             return "xctest"
         case .external:
             return "external"
+        case .foreignBuild:
+            return "foreignBuild"
         }
     }
 }

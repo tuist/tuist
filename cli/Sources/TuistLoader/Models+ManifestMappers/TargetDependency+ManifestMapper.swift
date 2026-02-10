@@ -112,6 +112,43 @@ extension XcodeGraph.TargetDependency {
             }
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+        case let .foreignBuild(name, script, output, cacheInputs, condition):
+            let mappedOutput = try XcodeGraph.TargetDependency.from(
+                manifest: output,
+                generatorPaths: generatorPaths,
+                externalDependencies: externalDependencies
+            )
+            guard let resolvedOutput = mappedOutput.first else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
+            }
+            let mappedCacheInputs = try cacheInputs.map { input -> XcodeGraph.ForeignBuildCacheInput in
+                try XcodeGraph.ForeignBuildCacheInput.from(manifest: input, generatorPaths: generatorPaths)
+            }
+            return [.foreignBuild(
+                name: name,
+                script: script,
+                output: resolvedOutput,
+                cacheInputs: mappedCacheInputs,
+                condition: condition?.asGraphCondition
+            )]
+        }
+    }
+}
+
+extension XcodeGraph.ForeignBuildCacheInput {
+    static func from(
+        manifest: ProjectDescription.CacheInput,
+        generatorPaths: GeneratorPaths
+    ) throws -> XcodeGraph.ForeignBuildCacheInput {
+        switch manifest {
+        case let .file(path):
+            return .file(try generatorPaths.resolve(path: path))
+        case let .folder(path):
+            return .folder(try generatorPaths.resolve(path: path))
+        case let .glob(path):
+            return .glob(try generatorPaths.resolve(path: path).pathString)
+        case let .script(script):
+            return .script(script)
         }
     }
 }

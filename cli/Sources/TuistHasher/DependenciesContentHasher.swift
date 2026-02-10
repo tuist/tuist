@@ -54,11 +54,16 @@ enum DependenciesContentHasherError: FatalError, Equatable {
 /// is responsible for computing a hash that uniquely identifies a target dependency
 public final class DependenciesContentHasher: DependenciesContentHashing {
     private let contentHasher: ContentHashing
+    private let foreignBuildCacheInputHasher: ForeignBuildCacheInputHashing
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing,
+        foreignBuildCacheInputHasher: ForeignBuildCacheInputHashing? = nil
+    ) {
         self.contentHasher = contentHasher
+        self.foreignBuildCacheInputHasher = foreignBuildCacheInputHasher ?? ForeignBuildCacheInputHasher(contentHasher: contentHasher)
     }
 
     // MARK: - DependenciesContentHashing
@@ -174,6 +179,26 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
                 hash: try contentHasher.hash("xctest")
+            )
+        case let .foreignBuild(name, script, output, cacheInputs, _):
+            let outputResult = try await hash(
+                graphTarget: graphTarget,
+                dependency: output,
+                hashedTargets: hashedTargets,
+                hashedPaths: hashedPaths
+            )
+            var hashedPaths = hashedPaths
+            hashedPaths.merge(outputResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
+
+            let inputsResult = try await foreignBuildCacheInputHasher.hash(
+                cacheInputs: cacheInputs,
+                hashedPaths: hashedPaths
+            )
+            hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
+
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: try contentHasher.hash("foreignBuild-\(name)-\(script)-\(inputsResult.hash)-\(outputResult.hash)")
             )
         }
     }

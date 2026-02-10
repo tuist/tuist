@@ -200,6 +200,14 @@ public final class GraphLoader: GraphLoading {
             return try platforms.sorted().first.map { platform in
                 try loadXCTestSDK(platform: platform)
             }
+
+        case let .foreignBuild(_, _, output, _, _):
+            return try await loadDependency(
+                path: path,
+                forPlatforms: platforms,
+                dependency: output,
+                cache: cache
+            )
         }
     }
 

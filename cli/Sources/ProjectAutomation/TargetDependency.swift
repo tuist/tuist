@@ -24,4 +24,5 @@ public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
     case packageMacro(product: String)
     case sdk(name: String, status: LinkingStatus)
     case xctest
+    indirect case foreignBuild(name: String, output: TargetDependency)
 }
