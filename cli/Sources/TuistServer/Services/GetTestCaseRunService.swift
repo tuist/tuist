@@ -91,7 +91,7 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
             isNew: Bool = false,
             moduleName: String = "AppTests",
             name: String = "testExample",
-            ranAt: Int? = 1_700_000_000,
+            ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             repetitions: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayloadPayload] = [],
             scheme: String? = "App",
             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload = .success,

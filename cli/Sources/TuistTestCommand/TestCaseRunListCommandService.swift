@@ -144,7 +144,7 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
             run.is_flaky ? "Yes" : "No",
             run.git_branch ?? "-",
             run.git_commit_sha.map { String($0.prefix(7)) } ?? "-",
-            run.ran_at.map { Formatters.formatTimestamp($0) } ?? "-",
+            run.ran_at.map { Formatters.formatDate($0) } ?? "-",
         ]
     }
 }

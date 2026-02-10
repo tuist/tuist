@@ -5584,9 +5584,10 @@ paths:
                     x-struct:
                     x-validate:
                   ran_at:
-                    description: Unix timestamp when the run executed.
+                    description: ISO 8601 timestamp when the run executed.
+                    format: date-time
                     nullable: true
-                    type: integer
+                    type: string
                     x-struct:
                     x-validate:
                   repetitions:
@@ -9817,9 +9818,10 @@ paths:
                           x-struct:
                           x-validate:
                         ran_at:
-                          description: Unix timestamp when the run executed.
+                          description: ISO 8601 timestamp when the run executed.
+                          format: date-time
                           nullable: true
-                          type: integer
+                          type: string
                           x-struct:
                           x-validate:
                         scheme:

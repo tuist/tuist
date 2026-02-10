@@ -120,7 +120,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             isCi: Bool = true,
             isFlaky: Bool = false,
             isNew: Bool = false,
-            ranAt: Int? = 1_700_000_000,
+            ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
             status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload
                 .statusPayload = .success

@@ -100,7 +100,7 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         }
 
         if let ranAt = run.ran_at {
-            info.append("Ran At: \(Formatters.formatTimestamp(ranAt))")
+            info.append("Ran At: \(Formatters.formatDate(ranAt))")
         }
 
         if !run.failures.isEmpty {

@@ -86,7 +86,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
                    scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
                    git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
                    git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
-                   ran_at: %Schema{type: :integer, nullable: true, description: "Unix timestamp when the run executed."}
+                   ran_at: %Schema{type: :string, format: :"date-time", nullable: true, description: "ISO 8601 timestamp when the run executed."}
                  },
                  required: [:id, :status, :duration, :is_ci, :is_flaky, :is_new]
                }
@@ -187,7 +187,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
              scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
              git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
              git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
-             ran_at: %Schema{type: :integer, nullable: true, description: "Unix timestamp when the run executed."},
+             ran_at: %Schema{type: :string, format: :"date-time", nullable: true, description: "ISO 8601 timestamp when the run executed."},
              failures: %Schema{
                type: :array,
                items: %Schema{
@@ -288,10 +288,10 @@ defmodule TuistWeb.API.TestCaseRunsController do
   defp format_ran_at(nil), do: nil
 
   defp format_ran_at(%NaiveDateTime{} = ran_at) do
-    ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
+    ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
   end
 
-  defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_unix(ran_at)
+  defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
 
   defp build_run_filters(params) do
     if Map.get(params, :flaky) do

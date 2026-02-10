@@ -11405,10 +11405,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/name`.
                         public var name: Swift.String
-                        /// Unix timestamp when the run executed.
+                        /// ISO 8601 timestamp when the run executed.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/ran_at`.
-                        public var ran_at: Swift.Int?
+                        public var ran_at: Foundation.Date?
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/repetitionsPayload`.
                         public struct repetitionsPayloadPayload: Codable, Hashable, Sendable {
                             /// Duration in milliseconds.
@@ -11493,7 +11493,7 @@ public enum Operations {
                         ///   - is_new: Whether this was a new test case.
                         ///   - module_name: Module name.
                         ///   - name: Name of the test case.
-                        ///   - ran_at: Unix timestamp when the run executed.
+                        ///   - ran_at: ISO 8601 timestamp when the run executed.
                         ///   - repetitions:
                         ///   - scheme: Build scheme.
                         ///   - status: Run status.
@@ -11510,7 +11510,7 @@ public enum Operations {
                             is_new: Swift.Bool,
                             module_name: Swift.String,
                             name: Swift.String,
-                            ran_at: Swift.Int? = nil,
+                            ran_at: Foundation.Date? = nil,
                             repetitions: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayload,
                             scheme: Swift.String? = nil,
                             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload,
@@ -27347,10 +27347,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_new`.
                             public var is_new: Swift.Bool
-                            /// Unix timestamp when the run executed.
+                            /// ISO 8601 timestamp when the run executed.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
-                            public var ran_at: Swift.Int?
+                            public var ran_at: Foundation.Date?
                             /// Build scheme.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
@@ -27377,7 +27377,7 @@ public enum Operations {
                             ///   - is_ci: Whether the run was on CI.
                             ///   - is_flaky: Whether the run was flaky.
                             ///   - is_new: Whether this was a new test case.
-                            ///   - ran_at: Unix timestamp when the run executed.
+                            ///   - ran_at: ISO 8601 timestamp when the run executed.
                             ///   - scheme: Build scheme.
                             ///   - status: Run status.
                             public init(
@@ -27388,7 +27388,7 @@ public enum Operations {
                                 is_ci: Swift.Bool,
                                 is_flaky: Swift.Bool,
                                 is_new: Swift.Bool,
-                                ran_at: Swift.Int? = nil,
+                                ran_at: Foundation.Date? = nil,
                                 scheme: Swift.String? = nil,
                                 status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
                             ) {
