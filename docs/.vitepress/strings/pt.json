@@ -113,6 +113,13 @@
                             "text": "From v3 to v4"
                         }
                     }
+                },
+                "xcode": {
+                    "items": {
+                        "generated-projects": {
+                            "text": "Projetos gerados"
+                        }
+                    }
                 }
             }
         },
@@ -456,6 +463,17 @@
                         }
                     },
                     "text": "Server"
+                }
+            }
+        },
+        "tutorials": {
+            "items": {
+                "xcode": {
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Create a new project"
+                        }
+                    }
                 }
             }
         }
