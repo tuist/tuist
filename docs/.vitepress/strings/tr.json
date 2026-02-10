@@ -76,6 +76,9 @@
                     "text": "Güncelleme geçmişi"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Öğreticiler"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "v3'ten v4'e"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -459,6 +465,19 @@
                         }
                     },
                     "text": "Sunucu"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Öğreticiler",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Oluşturulmuş projeleri oluşturun"
+                        }
+                    }
                 }
             }
         }
