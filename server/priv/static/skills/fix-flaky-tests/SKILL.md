@@ -1,36 +1,25 @@
 ---
 name: fix-flaky-tests
-description: Fixes flaky tests by analyzing failure patterns from Tuist, identifying root causes, and applying targeted corrections. Use when a test intermittently passes and fails, or when Tuist marks tests as flaky.
+description: Fixes a specific flaky test by analyzing its failure patterns from Tuist, identifying the root cause, and applying a targeted correction. Typically invoked with a Tuist test case URL in the format such as `https://tuist.dev/{account}/{project}/tests/test-cases/{id}`.
 ---
 
-# Fix Flaky Tests
+# Fix Flaky Test
 
 ## Quick Start
 
-1. Run `tuist test case list --flaky --json --page-size 50` to discover all flaky tests.
-2. For each flaky test, run `tuist test case show <id-or-identifier> --json` to see reliability metrics.
-3. Run `tuist test case run list Module/Suite/TestCase --flaky --json` to see flaky run patterns.
-4. Run `tuist test case run show <run-id> --json` on failing runs to get failure messages and file paths.
-5. Read the test source at the reported path and line, identify the flaky pattern, and fix it.
-6. Verify by running the test multiple times to confirm it passes consistently.
+You'll typically receive a Tuist test case URL or identifier. Follow these steps to investigate and fix it:
 
-## Discovery
-
-List all flaky test cases:
-
-```bash
-tuist test case list --flaky --json --page-size 50
-```
-
-Each result includes `id`, `name`, `module`, `suite`, `is_flaky`, and `avg_duration`. Note the `id` for investigation.
+1. Run `tuist test case show <id-or-identifier> --json` to get reliability metrics for the test.
+2. Run `tuist test case run list Module/Suite/TestCase --flaky --json` to see flaky run patterns.
+3. Run `tuist test case run show <run-id> --json` on failing flaky runs to get failure messages and file paths.
+4. Read the test source at the reported path and line, identify the flaky pattern, and fix it.
+5. Verify by running the test multiple times to confirm it passes consistently.
 
 ## Investigation
 
-For each flaky test case, gather data in this order:
-
 ### 1. Get test case metrics
 
-You can pass either the UUID (from the list output) or the `Module/Suite/TestCase` identifier:
+You can pass either the UUID or the `Module/Suite/TestCase` identifier:
 
 ```bash
 tuist test case show <id> --json
@@ -103,11 +92,6 @@ Key fields:
 - **Implicit ordering**: Test passes only when run after another test that sets up required state. Fix: make each test self-contained.
 - **Parallel execution conflicts**: Tests that work in isolation but fail when run concurrently. Fix: use unique resources per test.
 
-### Resource contention
-- **Database locks**: Tests competing for the same database resources. Fix: use transactions or unique test data.
-- **Port conflicts**: Tests binding to the same network port. Fix: use dynamic port allocation.
-- **File locks**: Multiple tests writing to the same file. Fix: use per-test file paths.
-
 ## Fix Implementation
 
 After identifying the pattern:
@@ -115,8 +99,6 @@ After identifying the pattern:
 1. Apply the smallest fix that addresses the root cause.
 2. Do not refactor unrelated code.
 3. If the fix requires a test utility (like a mock or helper), check if one already exists before creating a new one.
-4. If the test is fundamentally unreliable and cannot be fixed quickly, consider quarantining it:
-   - Quarantined tests still run but their failures do not block CI.
 
 ## Verification
 
@@ -126,7 +108,7 @@ Run the specific test repeatedly until failure using `xcodebuild`'s built-in rep
 xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module>/<suite>/<test> -test-iterations <count> -run-tests-until-failure
 ```
 
-This runs the test up to `<count>` times and stops at the first failure. Choose the iteration count based on how long the test takes — for fast unit tests use 50–100, for slower integration or acceptance tests use 5–10.
+This runs the test up to `<count>` times and stops at the first failure. Choose the iteration count based on how long the test takes — for fast unit tests use 50–100, for slower integration or acceptance tests use 2–5.
 
 ## Done Checklist
 
