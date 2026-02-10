@@ -121,7 +121,12 @@
                     }
                 },
                 "xcode": {
-                    "text": "Xcode"
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "生成的项目"
+                        }
+                    }
                 }
             }
         },
@@ -468,6 +473,9 @@
                         }
                     },
                     "text": "服务器"
+                },
+                "install-tuist": {
+                    "text": "安装 Tuist"
                 }
             }
         },
