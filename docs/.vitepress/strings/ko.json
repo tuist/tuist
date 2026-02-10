@@ -473,6 +473,9 @@
                         }
                     },
                     "text": "서버"
+                },
+                "install-tuist": {
+                    "text": "Install Tuist"
                 }
             }
         },
