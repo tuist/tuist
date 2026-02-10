@@ -76,6 +76,9 @@
                     "text": "Registro de cambios"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Tutoriales"
         }
     },
     "sidebars": {
@@ -116,6 +119,9 @@
                             "text": "De v3 a v4"
                         }
                     }
+                },
+                "xcode": {
+                    "text": "Xcode"
                 }
             }
         },
@@ -462,6 +468,19 @@
                         }
                     },
                     "text": "Servidor"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Tutoriales",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Crear un proyecto generado"
+                        }
+                    }
                 }
             }
         }
