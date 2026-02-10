@@ -8,7 +8,8 @@ public struct OrganizationCreateCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "create",
             _superCommandName: "organization",
-            abstract: "Create a new organization."
+            abstract: "Create a new organization.",
+            discussion: "By creating an organization, you agree to the Tuist Terms of Service: https://tuist.dev/terms"
         )
     }
 
