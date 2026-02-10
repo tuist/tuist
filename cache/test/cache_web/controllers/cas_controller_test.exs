@@ -1,5 +1,5 @@
 defmodule CacheWeb.CASControllerTest do
-  use CacheWeb.ConnCase, async: true
+  use CacheWeb.ConnCase, async: false
   use Mimic
 
   import ExUnit.CaptureLog
@@ -13,6 +13,7 @@ defmodule CacheWeb.CASControllerTest do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
 
     stub(Disk, :storage_dir, fn -> test_storage_dir end)
+    stub(Authentication, :server_url, fn -> "http://localhost:4000" end)
 
     {:ok, test_storage_dir: test_storage_dir}
   end
