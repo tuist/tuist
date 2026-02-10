@@ -574,7 +574,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.ci_run_id == nil
       assert build.ci_project_handle == nil
       assert build.ci_host == nil
-      assert build.ci_provider == nil
+      assert build.ci_provider == ""
 
       assert response == %{
                "type" => "build",

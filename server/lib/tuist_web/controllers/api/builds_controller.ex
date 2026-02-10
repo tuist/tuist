@@ -201,8 +201,8 @@ defmodule TuistWeb.API.BuildsController do
           %{
             id: build.id,
             duration: build.duration,
-            status: to_string(build.status),
-            category: if(build.category, do: to_string(build.category)),
+            status: build.status,
+            category: if(build.category != "", do: build.category),
             scheme: build.scheme,
             configuration: build.configuration,
             xcode_version: build.xcode_version,
@@ -328,8 +328,8 @@ defmodule TuistWeb.API.BuildsController do
           json(conn, %{
             id: build.id,
             duration: build.duration,
-            status: to_string(build.status),
-            category: if(build.category, do: to_string(build.category)),
+            status: build.status,
+            category: if(build.category != "", do: build.category),
             scheme: build.scheme,
             configuration: build.configuration,
             xcode_version: build.xcode_version,
@@ -362,16 +362,14 @@ defmodule TuistWeb.API.BuildsController do
 
     filters =
       if Map.get(params, :status) do
-        status_atom = String.to_existing_atom(params.status)
-        filters ++ [%{field: :status, op: :==, value: status_atom}]
+        filters ++ [%{field: :status, op: :==, value: params.status}]
       else
         filters
       end
 
     filters =
       if Map.get(params, :category) do
-        category_atom = String.to_existing_atom(params.category)
-        filters ++ [%{field: :category, op: :==, value: category_atom}]
+        filters ++ [%{field: :category, op: :==, value: params.category}]
       else
         filters
       end

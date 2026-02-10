@@ -915,7 +915,7 @@
         <:col :let={build_run} label={dgettext("dashboard_builds", "Category")}>
           <.badge_cell
             label={
-              (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+              (build_run.category != "" && build_run.category |> String.capitalize()) ||
                 dgettext("dashboard_builds", "Unknown")
             }
             style="light-fill"

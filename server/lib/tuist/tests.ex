@@ -148,11 +148,11 @@ defmodule Tuist.Tests do
 
   defp normalize_ci_provider(provider) when is_binary(provider) do
     if provider in valid_ci_providers() do
-      String.to_existing_atom(provider)
+      provider
     end
   end
 
-  defp normalize_ci_provider(provider) when is_atom(provider), do: provider
+  defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
     test_modules = Map.get(attrs, :test_modules, [])

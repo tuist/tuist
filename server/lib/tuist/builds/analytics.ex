@@ -29,10 +29,10 @@ defmodule Tuist.Builds.Analytics do
         where: b.inserted_at < ^end_datetime,
         group_by: ^category_field,
         select: %{
-          category: ^category_field,
           value: fragment("avgOrNull(?)", b.duration)
         }
       )
+      |> select_merge(^%{category: category_field})
 
     query
     |> ClickHouseRepo.all()

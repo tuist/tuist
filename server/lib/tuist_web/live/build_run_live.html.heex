@@ -175,9 +175,9 @@
               <div data-part="title">{dgettext("dashboard_builds", "Category")}</div>
               <.badge
                 label={
-                  if is_nil(@run.category),
+                  if @run.category == "",
                     do: dgettext("dashboard_builds", "Unknown"),
-                    else: @run.category |> Atom.to_string() |> String.capitalize()
+                    else: @run.category |> String.capitalize()
                 }
                 style="fill"
               />
