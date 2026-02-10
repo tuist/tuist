@@ -23,16 +23,16 @@ defmodule Tuist.Builds.Analytics do
       end
 
     query =
-      from(b in Build,
-        where: b.project_id == ^project_id,
-        where: b.inserted_at > ^start_datetime,
-        where: b.inserted_at < ^end_datetime,
-        group_by: ^category_field,
-        select: %{
-          value: fragment("avgOrNull(?)", b.duration)
-        }
+      select_merge(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          group_by: ^category_field,
+          select: %{value: fragment("avgOrNull(?)", b.duration)}
+        ),
+        ^%{category: category_field}
       )
-      |> select_merge(^%{category: category_field})
 
     query
     |> ClickHouseRepo.all()
