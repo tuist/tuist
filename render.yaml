@@ -113,6 +113,8 @@ services:
     plan: standard
     autoDeployTrigger: commit
     envVars:
+      - key: PROMETHEUS_URL
+        sync: false
       - key: PROMETHEUS_TOKEN
         sync: false
       - key: PROMETHEUS_USERNAME

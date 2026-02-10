@@ -18,7 +18,7 @@ prometheus.scrape "tuist" {
 
 prometheus.remote_write "grafanacloud" {
   endpoint {
-    url = "https://prometheus-prod-24-prod-eu-west-2.grafana.net/api/prom/push"
+    url = sys.env("PROMETHEUS_URL")
       basic_auth {
         username = sys.env("PROMETHEUS_USERNAME")
         password = sys.env("PROMETHEUS_TOKEN")
