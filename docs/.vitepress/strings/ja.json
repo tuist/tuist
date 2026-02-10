@@ -473,6 +473,9 @@
                         }
                     },
                     "text": "サーバー"
+                },
+                "install-tuist": {
+                    "text": "Tuistのインストール"
                 }
             }
         },
