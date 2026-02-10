@@ -929,25 +929,15 @@ jobs:
     if: needs.check-releases.outputs.skills-should-release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      id-token: write
-      contents: read
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
     outputs:
-      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
 
       - name: Get release notes
         id: release-notes
@@ -963,10 +953,6 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update version
-        working-directory: skills
-        run: npm version ${{ needs.check-releases.outputs.skills-next-version-number }} --no-git-tag-version
-
       - name: Update CHANGELOG.md
         working-directory: skills
         run: |
@@ -979,18 +965,30 @@ jobs:
             git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Publish to NPM
-        working-directory: skills
-        run: npm publish --provenance --access public
+      - name: Push to tuist/agent-skills
+        run: |
+          VERSION="${{ needs.check-releases.outputs.skills-next-version-number }}"
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/agent-skills.git /tmp/agent-skills
+          rm -rf /tmp/agent-skills/skills
+          cp -r skills/skills /tmp/agent-skills/skills
+          cd /tmp/agent-skills
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Release ${VERSION}"
+            git tag "${VERSION}"
+            git push origin main --tags
+          else
+            echo "No changes to push"
+          fi
 
       - name: Upload Skills artifacts
-        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: skills-artifacts
           path: |
             skills/CHANGELOG.md
-            skills/package.json
           retention-days: 1
 
   commit-and-release:
@@ -1191,7 +1189,7 @@ jobs:
           name: Skills ${{ needs.check-releases.outputs.skills-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.skills-next-version }}
           body: |
-            NPM package: `@tuist/skills@${{ needs.check-releases.outputs.skills-next-version-number }}`
+            GitHub: https://github.com/tuist/agent-skills/releases/tag/${{ needs.check-releases.outputs.skills-next-version-number }}
 
             ${{ needs.release-skills.outputs.release-notes }}
 
@@ -1243,7 +1241,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.skills-should-release }}" == "true" ] && [ "${{ needs.release-skills.result }}" == "success" ]; then
-            git add skills/CHANGELOG.md skills/package.json
+            git add skills/CHANGELOG.md
             FILES_ADDED=true
           fi
 

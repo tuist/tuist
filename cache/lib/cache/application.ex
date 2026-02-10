@@ -76,16 +76,21 @@ defmodule Cache.Application do
           app: {:static, "tuist-cache"},
           env: {:static, System.get_env("DEPLOY_ENV") || "production"},
           level: :level
-        }
+        },
+        structured_metadata: [
+          traceID: {:metadata, :trace_id},
+          spanID: {:metadata, :span_id}
+        ]
       )
     end
   end
 
   defp start_opentelemetry do
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
+      OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
-      OpentelemetryEcto.setup([:cache, :repo])
+      OpentelemetryEcto.setup(event_prefix: [:cache, :repo])
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
     end

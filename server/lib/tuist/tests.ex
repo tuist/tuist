@@ -433,6 +433,28 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  @doc """
+  Gets a test case run by its UUID.
+  Returns {:ok, test_case_run} or {:error, :not_found}.
+  """
+  def get_test_case_run_by_id(id, opts \\ []) do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil ->
+        {:error, :not_found}
+
+      run ->
+        preload = Keyword.get(opts, :preload, [])
+        run = ClickHouseRepo.preload(run, preload)
+        {:ok, run}
+    end
+  end
+
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
@@ -802,15 +824,23 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
   """
   def list_test_cases(project_id, attrs) do
-    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+    filters = Map.get(attrs, :filters, [])
+    has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
 
     latest_subquery =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
-        where: test_case.last_ran_at >= ^two_weeks_ago,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
+
+    latest_subquery =
+      if has_name_filter do
+        latest_subquery
+      else
+        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+        where(latest_subquery, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
+      end
 
     base_query =
       from(test_case in TestCase,
@@ -1303,7 +1333,7 @@ defmodule Tuist.Tests do
       Enum.map(existing_runs, fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account])
+        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 
