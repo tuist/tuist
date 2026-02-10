@@ -49,7 +49,7 @@ Workspace.swift
     tutarlılığı sağlamak için yararlıdır.
   - **Package.swift:** Bu dosya, Tuist'in Xcode projeleri ve hedefleri
     ([CocoaPods](https://cococapods)) kullanarak entegre edebileceği,
-    yapılandırılabilir ve optimize edilebilir Swift paketi bağımlılıklarını
+    yapılandırılabilir ve optimize edilebilir Swift package bağımlılıklarını
     içerir. Daha fazla bilgi için
     <LocalizedLink href="/guides/features/projects/dependencies">buraya</LocalizedLink>bakın.
 
@@ -81,7 +81,7 @@ olarak oluşturur.
 <!-- -->
 :::
 
-## Swift paketi <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
+## Swift package <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
 
 Tuist, SPM paket projelerini de destekler. SPM paketi üzerinde çalışıyorsanız,
 herhangi bir güncelleme yapmanız gerekmez. Tuist, kök `Package.swift` dosyasını
