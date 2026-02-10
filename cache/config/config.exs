@@ -37,14 +37,16 @@ config :cache, Oban,
   queues: [
     clean: 10,
     maintenance: 1,
-    s3_transfers: 1
+    s3_transfers: 1,
+    registry_sync: 1
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
     {Oban.Plugins.Cron,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
-       {"* * * * *", Cache.S3TransferWorker}
+       {"* * * * *", Cache.S3TransferWorker},
+       {"0 * * * *", Cache.Registry.SyncWorker}
      ]}
   ]
 
@@ -66,6 +68,12 @@ config :ex_aws, http_client: TuistCommon.AWS.Client
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
+
+config :mime, :types, %{
+  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
+  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
+  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
+}
 
 config :phoenix, :json_library, Jason
 

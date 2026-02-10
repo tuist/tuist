@@ -8,6 +8,8 @@ import Testing
 import TuistAcceptanceTesting
 import TuistCore
 import TuistEnvironment
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 

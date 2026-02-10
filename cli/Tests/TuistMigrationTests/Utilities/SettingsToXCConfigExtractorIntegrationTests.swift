@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistNooraTesting
 import TuistSupport
 import XCTest
 

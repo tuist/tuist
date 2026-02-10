@@ -11,6 +11,7 @@ import TuistCore
 import TuistEnvironment
 import TuistLaunchctl
 import TuistLoader
+import TuistLoggerTesting
 import TuistServer
 import TuistSupport
 import TuistTesting

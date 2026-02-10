@@ -319,33 +319,47 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
-    form = Map.get(assigns.edit_alert_forms, id)
     {:ok, alert_rule} = Alerts.get_alert_rule(id)
+    alert_rule = Repo.preload(alert_rule, :project)
 
-    attrs = %{
-      name: form.name,
-      category: form.category,
-      metric: form.metric,
-      deviation_percentage: form.deviation,
-      rolling_window_size: form.rolling_window_size,
-      slack_channel_id: form.channel_id,
-      slack_channel_name: form.channel_name
-    }
+    if Authorization.authorize(:project_update, assigns.current_user, alert_rule.project) == :ok do
+      form = Map.get(assigns.edit_alert_forms, id)
 
-    {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
+      attrs = %{
+        name: form.name,
+        category: form.category,
+        metric: form.metric,
+        deviation_percentage: form.deviation,
+        rolling_window_size: form.rolling_window_size,
+        slack_channel_id: form.channel_id,
+        slack_channel_name: form.channel_name
+      }
 
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
+      {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
 
-    {:noreply, socket}
+      socket =
+        socket
+        |> assign_alert_defaults(assigns.selected_project)
+        |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("delete_alert_rule", %{"alert_rule_id" => alert_rule_id}, socket) do
+    current_user = socket.assigns.current_user
+    selected_project = socket.assigns.selected_project
     {:ok, alert_rule} = Alerts.get_alert_rule(alert_rule_id)
-    {:ok, _} = Alerts.delete_alert_rule(alert_rule)
-    {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(socket.assigns.selected_project))}
+    alert_rule = Repo.preload(alert_rule, :project)
+
+    if Authorization.authorize(:project_update, current_user, alert_rule.project) == :ok do
+      {:ok, _} = Alerts.delete_alert_rule(alert_rule)
+      {:noreply, assign_alert_defaults(socket, selected_project)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("close_create_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do

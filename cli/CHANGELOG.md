@@ -1,6 +1,25 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.142.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* make server commands available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9377](https://github.com/tuist/tuist/pull/9377)
+### 🐛 Bug Fixes
+
+* use correct bundle accessor for external dynamic frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9381](https://github.com/tuist/tuist/pull/9381)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.1...4.142.0
+
+## What's Changed in 4.141.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add debug logging to inspect build and test commands by [@fortmarek](https://github.com/fortmarek) in [#9384](https://github.com/tuist/tuist/pull/9384)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.0...4.141.1
+
 ## What's Changed in 4.141.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

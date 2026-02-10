@@ -33,7 +33,7 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
         )
     }
 
-    var analyticsRequired: Bool { true }
+    public var analyticsRequired: Bool { true }
 
     public init() {}
 }

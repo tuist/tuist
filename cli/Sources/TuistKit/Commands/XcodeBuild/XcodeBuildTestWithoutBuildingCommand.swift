@@ -13,7 +13,7 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
         )
     }
 
-    var analyticsRequired: Bool { true }
+    public var analyticsRequired: Bool { true }
 
     public init() {}
 

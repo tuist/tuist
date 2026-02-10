@@ -9,6 +9,7 @@ import TuistCore
 import TuistGenerator
 import TuistHasher
 import TuistLoader
+import TuistLoggerTesting
 import TuistLogging
 import TuistSupport
 import TuistTesting

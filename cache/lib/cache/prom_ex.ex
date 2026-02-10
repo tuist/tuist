@@ -24,6 +24,7 @@ defmodule Cache.PromEx do
       Cache.Finch.PromExPlugin,
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,
+      Cache.S3.PromExPlugin,
       Cache.Authentication.PromExPlugin
     ]
   end

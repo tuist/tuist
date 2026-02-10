@@ -20,7 +20,7 @@ import XcodeGraph
 
 import struct TSCUtility.Version
 
-enum TestServiceError: FatalError, Equatable {
+public enum TestServiceError: FatalError, Equatable {
     case schemeNotFound(scheme: String, existing: [String])
     case schemeWithoutTestableTargets(scheme: String, testPlan: String?)
     case testPlanNotFound(scheme: String, testPlan: String, existing: [String])
@@ -31,7 +31,7 @@ enum TestServiceError: FatalError, Equatable {
 
     // Error description
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
             return
@@ -71,7 +71,7 @@ enum TestServiceError: FatalError, Equatable {
 
     // Error type
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
@@ -81,7 +81,7 @@ enum TestServiceError: FatalError, Equatable {
     }
 }
 
-final class TestService { // swiftlint:disable:this type_body_length
+public final class TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
     private let cacheStorageFactory: CacheStorageFactorying
     private let xcodebuildController: XcodeBuildControlling
@@ -103,7 +103,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let clock: Clock
     private let listTestCasesService: ListTestCasesServicing
 
-    convenience init(
+    public convenience init(
         generatorFactory: GeneratorFactorying,
         cacheStorageFactory: CacheStorageFactorying
     ) {
@@ -161,7 +161,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.listTestCasesService = listTestCasesService
     }
 
-    static func validateParameters(
+    public static func validateParameters(
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier]
     ) throws {
@@ -234,7 +234,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     }
 
     // swiftlint:disable:next function_body_length
-    func run(
+    public func run(
         runId: String,
         schemeName: String?,
         clean: Bool,

@@ -6,6 +6,7 @@ This directory contains core cache domain logic, storage backends, and auth help
 - CAS storage and eviction logic.
 - Key-value storage and cache metadata.
 - Authentication against the Tuist Server.
+- Registry metadata and artifact storage helpers.
 
 ## Related Context
 - Web/API layer: `cache/lib/cache_web/AGENTS.md`
