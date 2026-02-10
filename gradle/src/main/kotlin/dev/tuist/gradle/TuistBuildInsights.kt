@@ -109,6 +109,7 @@ abstract class TuistBuildInsightsService :
         val executablePath: Property<String>
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
+        val uploadInBackground: Property<Boolean>
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
@@ -273,10 +274,30 @@ abstract class TuistBuildInsightsService :
             listenerManager?.removeListener(this)
         } catch (_: Exception) {}
 
-        try {
-            sendReport()
-        } catch (e: Exception) {
-            logger.warn("Tuist: Failed to send build insights: ${e.message}")
+        val shouldUploadInBackground = if (parameters.uploadInBackground.isPresent) {
+            parameters.uploadInBackground.get()
+        } else {
+            !ciDetector.isCi()
+        }
+
+        if (shouldUploadInBackground) {
+            logger.lifecycle("Tuist: Uploading build insights in the background...")
+            Thread({
+                try {
+                    sendReport()
+                } catch (e: Exception) {
+                    logger.warn("Tuist: Failed to send build insights: ${e.message}")
+                }
+            }, "tuist-build-insights-upload").apply {
+                isDaemon = false
+                start()
+            }
+        } else {
+            try {
+                sendReport()
+            } catch (e: Exception) {
+                logger.warn("Tuist: Failed to send build insights: ${e.message}")
+            }
         }
     }
 
@@ -413,6 +434,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.executablePath.set(config.executablePath)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
+            config.uploadInBackground?.let { parameters.uploadInBackground.set(it) }
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

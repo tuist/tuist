@@ -20,6 +20,8 @@ import org.gradle.api.logging.Logging
  * tuist {
  *     project = "account/project"
  *
+ *     uploadInBackground = true // default: true locally, false on CI
+ *
  *     buildCache {
  *         enabled = true
  *         push = true
@@ -33,7 +35,8 @@ import org.gradle.api.logging.Logging
 data class TuistGradleConfig(
     val url: String,
     val project: String,
-    val executablePath: String
+    val executablePath: String,
+    val uploadInBackground: Boolean? = null
 ) {
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
@@ -82,7 +85,8 @@ class TuistPlugin : Plugin<Settings> {
             extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
                 url = extension.url,
                 project = extension.project,
-                executablePath = extension.executablePath ?: "tuist"
+                executablePath = extension.executablePath ?: "tuist",
+                uploadInBackground = extension.uploadInBackground
             ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
             logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
@@ -132,6 +136,13 @@ open class TuistExtension {
      * The base URL that points to the Tuist server. Defaults to https://tuist.dev.
      */
     var url: String = "https://tuist.dev"
+
+    /**
+     * Whether to upload build insights in the background. When null (default),
+     * the upload runs in the background for local builds and in the foreground on CI
+     * to ensure it completes before ephemeral agents exit.
+     */
+    var uploadInBackground: Boolean? = null
 
     /**
      * Build cache configuration.
