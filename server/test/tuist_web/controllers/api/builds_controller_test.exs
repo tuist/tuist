@@ -51,7 +51,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           user_id: user.account.id,
-          status: :success,
+          status: "success",
           duration: 5000,
           scheme: "MyApp",
           configuration: "Debug"
@@ -90,7 +90,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           user_id: user.account.id,
-          status: :failure,
+          status: "failure",
           duration: 3000
         )
 
@@ -318,7 +318,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           user_id: user.account.id,
-          status: :success,
+          status: "success",
           duration: 5000,
           scheme: "MyApp",
           configuration: "Release",

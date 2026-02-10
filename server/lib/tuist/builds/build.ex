@@ -134,6 +134,7 @@ defmodule Tuist.Builds.Build do
     Enum.reduce(fields, attrs, fn field, acc ->
       case Map.fetch(acc, field) do
         {:ok, nil} -> Map.put(acc, field, "")
+        {:ok, value} when is_atom(value) -> Map.put(acc, field, Atom.to_string(value))
         :error -> Map.put(acc, field, "")
         _ -> acc
       end

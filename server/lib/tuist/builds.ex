@@ -44,6 +44,7 @@ defmodule Tuist.Builds do
     attrs =
       Map.update(attrs, :status, "success", fn
         nil -> "success"
+        value when is_atom(value) -> Atom.to_string(value)
         other -> other
       end)
 
@@ -369,27 +370,29 @@ defmodule Tuist.Builds do
   def project_build_schemes(%Project{} = project) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
-    from(b in Build,
-      where: b.project_id == ^project.id,
-      where: not is_nil(b.scheme),
-      where: b.inserted_at > ^thirty_days_ago,
-      distinct: true,
-      select: b.scheme
+    ClickHouseRepo.all(
+      from(b in Build,
+        where: b.project_id == ^project.id,
+        where: not is_nil(b.scheme),
+        where: b.inserted_at > ^thirty_days_ago,
+        distinct: true,
+        select: b.scheme
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   def project_build_configurations(%Project{} = project) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
-    from(b in Build,
-      where: b.project_id == ^project.id,
-      where: not is_nil(b.configuration),
-      where: b.inserted_at > ^thirty_days_ago,
-      distinct: true,
-      select: b.configuration
+    ClickHouseRepo.all(
+      from(b in Build,
+        where: b.project_id == ^project.id,
+        where: not is_nil(b.configuration),
+        where: b.inserted_at > ^thirty_days_ago,
+        distinct: true,
+        select: b.configuration
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   def project_build_tags(%Project{} = project) do

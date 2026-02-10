@@ -260,8 +260,8 @@ defmodule TuistWeb.API.RunsControllerTest do
           model_identifier: "machine-123",
           scheme: "App",
           configuration: "Release",
-          status: :failure,
-          category: :incremental,
+          status: "failure",
+          category: "incremental",
           issues: [
             %{
               type: "error",
@@ -314,14 +314,14 @@ defmodule TuistWeb.API.RunsControllerTest do
               project: "MyProject",
               build_duration: 1000,
               compilation_duration: 2000,
-              status: :success
+              status: "success"
             },
             %{
               name: "MyAppTests",
               project: "MyProject",
               build_duration: 1500,
               compilation_duration: 2500,
-              status: :failure
+              status: "failure"
             }
           ]
         )

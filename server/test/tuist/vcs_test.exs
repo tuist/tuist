@@ -274,7 +274,7 @@ defmodule Tuist.VCSTest do
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
           remote_test_target_hits: ["CTests"],
-          status: :failure,
+          status: "failure",
           test_run_id: test_run_two.id
         )
 
@@ -954,9 +954,9 @@ defmodule Tuist.VCSTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           scheme: "MyApp",
-          status: :success,
+          status: "success",
           duration: 45_000,
-          category: :clean,
+          category: "clean",
           xcode_version: "15.0",
           git_commit_sha: @git_commit_sha,
           git_ref: @git_ref
@@ -1072,7 +1072,7 @@ defmodule Tuist.VCSTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           scheme: "MyApp",
-          status: :success,
+          status: "success",
           duration: 45_000,
           git_commit_sha: @git_commit_sha,
           git_ref: "refs/pull/1/merge"

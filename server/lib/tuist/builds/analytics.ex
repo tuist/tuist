@@ -1895,54 +1895,8 @@ defmodule Tuist.Builds.Analytics do
 
   defp build_filter_clauses(opts) do
     {clauses, params} =
-      Enum.reduce(@filters, {[], %{}}, fn
-        {:boolean, key, field}, {clauses, params} ->
-          case Keyword.get(opts, key) do
-            value when is_boolean(value) ->
-              {
-                ["AND #{field} = {#{key}:Bool}" | clauses],
-                Map.put(params, key, value)
-              }
-
-            _ ->
-              {clauses, params}
-          end
-
-        {:string, key, field}, {clauses, params} ->
-          case normalize_string_filter(Keyword.get(opts, key)) do
-            nil ->
-              {clauses, params}
-
-            value ->
-              {
-                ["AND #{field} = {#{key}:String}" | clauses],
-                Map.put(params, key, value)
-              }
-          end
-
-        {:enum, key, field, allowed_values}, {clauses, params} ->
-          value = normalize_string_filter(Keyword.get(opts, key))
-
-          if value in allowed_values do
-            {
-              ["AND #{field} = {#{key}:String}" | clauses],
-              Map.put(params, key, value)
-            }
-          else
-            {clauses, params}
-          end
-
-        {:tag, key, field}, {clauses, params} ->
-          case normalize_string_filter(Keyword.get(opts, key)) do
-            nil ->
-              {clauses, params}
-
-            value ->
-              {
-                ["AND has(#{field}, {#{key}:String})" | clauses],
-                Map.put(params, key, value)
-              }
-          end
+      Enum.reduce(@filters, {[], %{}}, fn filter, acc ->
+        build_filter_clause(filter, opts, acc)
       end)
 
     filter_sql =
@@ -1952,6 +1906,58 @@ defmodule Tuist.Builds.Analytics do
       end
 
     {filter_sql, params}
+  end
+
+  defp build_filter_clause({:boolean, key, field}, opts, {clauses, params}) do
+    case Keyword.get(opts, key) do
+      value when is_boolean(value) ->
+        {
+          ["AND #{field} = {#{key}:Bool}" | clauses],
+          Map.put(params, key, value)
+        }
+
+      _ ->
+        {clauses, params}
+    end
+  end
+
+  defp build_filter_clause({:string, key, field}, opts, {clauses, params}) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND #{field} = {#{key}:String}" | clauses],
+          Map.put(params, key, value)
+        }
+    end
+  end
+
+  defp build_filter_clause({:enum, key, field, allowed_values}, opts, {clauses, params}) do
+    value = normalize_string_filter(Keyword.get(opts, key))
+
+    if value in allowed_values do
+      {
+        ["AND #{field} = {#{key}:String}" | clauses],
+        Map.put(params, key, value)
+      }
+    else
+      {clauses, params}
+    end
+  end
+
+  defp build_filter_clause({:tag, key, field}, opts, {clauses, params}) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND has(#{field}, {#{key}:String})" | clauses],
+          Map.put(params, key, value)
+        }
+    end
   end
 
   defp normalize_string_filter(nil), do: nil
