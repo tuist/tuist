@@ -8,7 +8,9 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunRepetition
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -188,6 +190,38 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     {1, _} = IngestRepo.insert_all(TestCaseRun, [test_case_run])
 
     test_case_run
+  end
+
+  def test_case_failure_fixture(attrs \\ []) do
+    test_case_failure = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      message: Keyword.get(attrs, :message, "Expected true, got false"),
+      path: Keyword.get(attrs, :path, "Tests/MyTests.swift"),
+      line_number: Keyword.get(attrs, :line_number, 42),
+      issue_type: Keyword.get(attrs, :issue_type, "assertion_failure"),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    {1, _} = IngestRepo.insert_all(TestCaseFailure, [test_case_failure])
+
+    test_case_failure
+  end
+
+  def test_case_run_repetition_fixture(attrs \\ []) do
+    test_case_run_repetition = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      repetition_number: Keyword.get(attrs, :repetition_number, 1),
+      name: Keyword.get(attrs, :name, "testExample"),
+      status: Keyword.get(attrs, :status, "success"),
+      duration: Keyword.get(attrs, :duration, 100),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    {1, _} = IngestRepo.insert_all(TestCaseRunRepetition, [test_case_run_repetition])
+
+    test_case_run_repetition
   end
 
   def test_case_event_fixture(attrs \\ []) do
