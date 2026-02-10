@@ -446,8 +446,8 @@ defmodule Tuist.Tests do
         {:error, :not_found}
 
       run ->
-        preloads = Keyword.get(opts, :preload, [])
-        run = ClickHouseRepo.preload(run, preloads)
+        preload = Keyword.get(opts, :preload, [])
+        run = ClickHouseRepo.preload(run, preload)
         {:ok, run}
     end
   end
