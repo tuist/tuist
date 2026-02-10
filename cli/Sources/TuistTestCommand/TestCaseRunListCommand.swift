@@ -4,19 +4,25 @@ import Path
 import TuistEnvKey
 import TuistNooraExtension
 
-public struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
+public struct TestCaseRunListCommand: AsyncParsableCommand, NooraReadyCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists test cases for a project."
+            abstract: "Lists runs for a test case."
         )
     }
+
+    @Argument(
+        help: "The test case identifier. Either a UUID or the format Module/Suite/TestCase (or Module/TestCase).",
+        envKey: .testCaseRunListIdentifier
+    )
+    var testCaseIdentifier: String
 
     @Option(
         name: [.customLong("project"), .customShort("P")],
         help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
-        envKey: .testCaseListProject
+        envKey: .testCaseRunListProject
     )
     var project: String?
 
@@ -24,60 +30,45 @@ public struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
         completion: .directory,
-        envKey: .testCaseListPath
+        envKey: .testCaseRunListPath
     )
     var path: String?
 
     @Flag(
         name: .long,
-        help: "Filter by quarantined test cases.",
-        envKey: .testCaseListQuarantined
-    )
-    var quarantined: Bool = false
-
-    @Flag(
-        name: .long,
-        help: "Filter by flaky test cases.",
-        envKey: .testCaseListFlaky
+        help: "Filter by flaky runs.",
+        envKey: .testCaseRunListFlaky
     )
     var flaky: Bool = false
-
-    @Flag(
-        name: .long,
-        help: "Output as xcodebuild -skip-testing arguments.",
-        envKey: .testCaseListSkipTesting
-    )
-    var skipTesting: Bool = false
 
     @Option(
         name: .long,
         help: "The page number to fetch (1-indexed).",
-        envKey: .testCaseListPage
+        envKey: .testCaseRunListPage
     )
     var page: Int?
 
     @Option(
         name: .long,
-        help: "The number of test cases per page. Defaults to 10.",
-        envKey: .testCaseListPageSize
+        help: "The number of runs per page. Defaults to 10.",
+        envKey: .testCaseRunListPageSize
     )
     var pageSize: Int?
 
     @Flag(
         help: "The output in JSON format.",
-        envKey: .testCaseListJson
+        envKey: .testCaseRunListJson
     )
     var json: Bool = false
 
     public var jsonThroughNoora: Bool = true
 
     public func run() async throws {
-        try await TestCaseListCommandService().run(
+        try await TestCaseRunListCommandService().run(
             project: project,
             path: path,
-            quarantined: quarantined,
+            testCaseIdentifier: testCaseIdentifier,
             flaky: flaky,
-            skipTesting: skipTesting,
             page: page,
             pageSize: pageSize,
             json: json

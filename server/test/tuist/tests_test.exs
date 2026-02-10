@@ -10,6 +10,98 @@ defmodule Tuist.TestsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  describe "get_test_case_run_by_id/2" do
+    test "returns test case run when it exists" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      # When
+      result = Tests.get_test_case_run_by_id(test_case_run.id)
+
+      # Then
+      assert {:ok, run} = result
+      assert run.id == test_case_run.id
+    end
+
+    test "returns error when test case run does not exist" do
+      # When
+      result = Tests.get_test_case_run_by_id(UUIDv7.generate())
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "preloads failures when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      failure =
+        RunsFixtures.test_case_failure_fixture(
+          test_case_run_id: test_case_run.id,
+          message: "Expected true, got false",
+          path: "Tests/MyTests.swift",
+          line_number: 42,
+          issue_type: "assertion_failure"
+        )
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:failures])
+
+      # Then
+      assert length(run.failures) == 1
+      assert hd(run.failures).id == failure.id
+      assert hd(run.failures).message == "Expected true, got false"
+    end
+
+    test "preloads repetitions when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      repetition =
+        RunsFixtures.test_case_run_repetition_fixture(
+          test_case_run_id: test_case_run.id,
+          repetition_number: 1,
+          name: "testExample",
+          status: "success",
+          duration: 100
+        )
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:repetitions])
+
+      # Then
+      assert length(run.repetitions) == 1
+      assert hd(run.repetitions).id == repetition.id
+      assert hd(run.repetitions).repetition_number == 1
+    end
+
+    test "preloads both failures and repetitions when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+      RunsFixtures.test_case_run_repetition_fixture(test_case_run_id: test_case_run.id)
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:failures, :repetitions])
+
+      # Then
+      assert length(run.failures) == 1
+      assert length(run.repetitions) == 1
+    end
+
+    test "does not preload associations when not requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id)
+
+      # Then
+      assert %Ecto.Association.NotLoaded{} = run.failures
+    end
+  end
+
   describe "get_test/1" do
     test "returns test when it exists" do
       # Given
