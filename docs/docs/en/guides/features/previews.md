@@ -2,7 +2,7 @@
 {
   "title": "Previews",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn how to generate and share previews of your apps with anyone."
+  "description": "Learn how to generate and share Tuist Previews (app previews) with anyone."
 }
 ---
 # Previews {#previews}
@@ -12,6 +12,8 @@
 - A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
 <!-- -->
 :::
+
+Tuist Previews let you generate and share app previews so teammates can test builds without rebuilding locally.
 
 When building an app, you may want to share it with others to get feedback.
 Traditionally, this is something that teams do by building, signing, and pushing their apps to platforms like Apple's [TestFlight](https://developer.apple.com/testflight/).

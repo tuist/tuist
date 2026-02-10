@@ -1,0 +1,21 @@
+{
+  "name": "@tuist/skills",
+  "version": "0.1.0",
+  "description": "Agent Skills for working with Tuist projects",
+  "files": [
+    "skills/"
+  ],
+  "keywords": [
+    "agent-skills",
+    "tuist",
+    "xcode",
+    "gradle"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tuist/tuist",
+    "directory": "skills"
+  },
+  "license": "MIT",
+  "homepage": "https://tuist.dev"
+}

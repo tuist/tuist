@@ -4,7 +4,7 @@ defmodule CacheWeb.CASController do
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
-  alias Cache.Disk
+  alias Cache.CAS
   alias Cache.S3
   alias Cache.S3Transfers
   alias CacheWeb.API.Schemas.Error
@@ -50,12 +50,12 @@ defmodule CacheWeb.CASController do
 
   def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :cas, :download, :hit], %{}, %{})
-    key = Disk.xcode_cas_key(account_handle, project_handle, id)
+    key = CAS.Disk.key(account_handle, project_handle, id)
     :ok = CacheArtifacts.track_artifact_access(key)
 
-    case Disk.xcode_cas_stat(account_handle, project_handle, id) do
+    case CAS.Disk.stat(account_handle, project_handle, id) do
       {:ok, %File.Stat{size: size}} ->
-        local_path = Disk.xcode_cas_local_accel_path(account_handle, project_handle, id)
+        local_path = CAS.Disk.local_accel_path(account_handle, project_handle, id)
 
         :telemetry.execute([:cache, :cas, :download, :disk_hit], %{size: size}, %{
           cas_id: id,
@@ -129,7 +129,7 @@ defmodule CacheWeb.CASController do
   )
 
   def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
-    if Disk.xcode_cas_exists?(account_handle, project_handle, id) do
+    if CAS.Disk.exists?(account_handle, project_handle, id) do
       handle_existing_artifact(conn)
     else
       save_new_artifact(conn, account_handle, project_handle, id)
@@ -171,7 +171,7 @@ defmodule CacheWeb.CASController do
   end
 
   defp persist_artifact(conn, account_handle, project_handle, id, data, size) do
-    case Disk.xcode_cas_put(account_handle, project_handle, id, data) do
+    case CAS.Disk.put(account_handle, project_handle, id, data) do
       :ok ->
         :telemetry.execute([:cache, :cas, :upload, :success], %{size: size}, %{
           cas_id: id,
@@ -179,7 +179,7 @@ defmodule CacheWeb.CASController do
           project_handle: project_handle
         })
 
-        key = Disk.xcode_cas_key(account_handle, project_handle, id)
+        key = CAS.Disk.key(account_handle, project_handle, id)
         :ok = CacheArtifacts.track_artifact_access(key)
         S3Transfers.enqueue_cas_upload(account_handle, project_handle, key)
         send_resp(conn, :no_content, "")

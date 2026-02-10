@@ -22,6 +22,7 @@ defmodule Tuist.Application do
     start_posthog()
     start_telemetry()
     start_sentry_logger()
+    start_loki_logger()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -55,6 +56,14 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+
+    if Application.get_env(:opentelemetry, :traces_exporter) != :none do
+      OpentelemetryBandit.setup()
+      OpentelemetryPhoenix.setup(adapter: :bandit)
+      OpentelemetryEcto.setup([:tuist, :repo])
+      OpentelemetryFinch.setup()
+      OpentelemetryBroadway.setup()
+    end
   end
 
   defp start_sentry_logger do
@@ -62,6 +71,22 @@ defmodule Tuist.Application do
       :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
         config: %{metadata: [:file, :line]}
       })
+    end
+  end
+
+  defp start_loki_logger do
+    loki_url = Environment.loki_url()
+
+    if loki_url do
+      LokiLoggerHandler.attach(:loki_handler,
+        loki_url: loki_url,
+        storage: :memory,
+        labels: %{
+          app: {:static, "tuist-server"},
+          env: {:static, to_string(Environment.env())},
+          level: :level
+        }
+      )
     end
   end
 

@@ -2,7 +2,7 @@
 {
   "title": "QA",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
+  "description": "Tuist QA is an AI-powered testing agent that automates QA testing for iOS apps."
 }
 ---
 # QA {#qa}
@@ -13,7 +13,7 @@ Tuist QA is currently in early preview. Sign up at [tuist.dev/qa](https://tuist.
 <!-- -->
 :::
 
-Quality mobile app development relies on comprehensive testing, but traditional approaches have limitations. Unit tests are fast and cost-effective, yet they miss real-world user scenarios. Acceptance testing and manual QA can capture these gaps, but they're resource-intensive and don't scale well.
+Quality mobile app development relies on comprehensive testing, but traditional approaches have limitations. Unit tests are fast and cost-effective, yet they miss real-world user scenarios. Acceptance testing and manual QA can capture these gaps, but they're resource-intensive and don't scale well. Tuist QA automates QA testing with AI agents that exercise your app like real users.
 
 Tuist's QA agent solves this challenge by simulating authentic user behavior. It autonomously explores your app, recognizes interface elements, executes realistic interactions, and flags potential issues. This approach helps you identify bugs and usability problems early in development while avoiding the overhead and maintenance burden of conventional acceptance and QA testing.
 

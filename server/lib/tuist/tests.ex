@@ -236,6 +236,7 @@ defmodule Tuist.Tests do
 
         current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
+        existing_is_quarantined = Map.get(existing, :is_quarantined, false)
 
         test_case = %{
           id: id,
@@ -247,6 +248,7 @@ defmodule Tuist.Tests do
           last_duration: data.duration,
           last_ran_at: data.ran_at,
           is_flaky: existing_is_flaky,
+          is_quarantined: existing_is_quarantined,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -285,7 +287,8 @@ defmodule Tuist.Tests do
         select: %{
           id: test_case.id,
           recent_durations: test_case.recent_durations,
-          is_flaky: test_case.is_flaky
+          is_flaky: test_case.is_flaky,
+          is_quarantined: test_case.is_quarantined
         }
       )
 
@@ -1100,6 +1103,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_event_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1157,6 +1161,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_event_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1204,6 +1209,7 @@ defmodule Tuist.Tests do
         from(e in TestCaseEvent,
           join: latest in subquery(latest_quarantine_subquery),
           on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+          where: e.event_type == "quarantined",
           where: not is_nil(e.actor_id),
           select: e.actor_id,
           distinct: true
@@ -1232,6 +1238,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
