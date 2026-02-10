@@ -194,7 +194,11 @@ defmodule TuistWeb.API.TestCasesController do
              },
              is_flaky: %Schema{type: :boolean, description: "Whether the test case is marked as flaky."},
              is_quarantined: %Schema{type: :boolean, description: "Whether the test case is quarantined."},
-             last_status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Status of the last run."},
+             last_status: %Schema{
+               type: :string,
+               enum: ["success", "failure", "skipped"],
+               description: "Status of the last run."
+             },
              last_duration: %Schema{type: :integer, description: "Duration of the last run in milliseconds."},
              last_ran_at: %Schema{type: :integer, description: "Unix timestamp of when the test case last ran."},
              avg_duration: %Schema{type: :integer, description: "Average duration of recent runs in milliseconds."},
@@ -225,10 +229,7 @@ defmodule TuistWeb.API.TestCasesController do
     }
   )
 
-  def show(
-        %{assigns: %{selected_project: selected_project}, params: %{test_case_id: test_case_id}} = conn,
-        _params
-      ) do
+  def show(%{assigns: %{selected_project: selected_project}, params: %{test_case_id: test_case_id}} = conn, _params) do
     case Tests.get_test_case_by_id(test_case_id) do
       {:ok, test_case} ->
         if test_case.project_id == selected_project.id do
@@ -280,7 +281,10 @@ defmodule TuistWeb.API.TestCasesController do
   end
 
   defp maybe_add_filter(filters, _field, nil), do: filters
-  defp maybe_add_filter(filters, field, true) when field in [:is_flaky, :is_quarantined], do: filters ++ [%{field: field, op: :==, value: true}]
+
+  defp maybe_add_filter(filters, field, true) when field in [:is_flaky, :is_quarantined],
+    do: filters ++ [%{field: field, op: :==, value: true}]
+
   defp maybe_add_filter(filters, field, value), do: filters ++ [%{field: field, op: :==, value: value}]
 
   defp build_suite(nil), do: nil
