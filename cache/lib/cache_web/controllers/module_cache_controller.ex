@@ -95,7 +95,6 @@ defmodule CacheWeb.ModuleCacheController do
         })
 
         conn
-        |> put_resp_content_type("application/octet-stream")
         |> put_resp_header("x-accel-redirect", local_path)
         |> send_resp(:ok, "")
 
@@ -107,7 +106,6 @@ defmodule CacheWeb.ModuleCacheController do
         case S3.presign_download_url(key) do
           {:ok, url} ->
             conn
-            |> put_resp_content_type("application/octet-stream")
             |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
             |> send_resp(:ok, "")
 
