@@ -470,6 +470,9 @@
                         }
                     },
                     "text": "Sunucu"
+                },
+                "install-tuist": {
+                    "text": "Tuist'i indir"
                 }
             }
         },
