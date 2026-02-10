@@ -117,13 +117,13 @@ services:
         sync: false
       - key: PROMETHEUS_USERNAME
         sync: false
-      - key: TEMPO_ENDPOINT
+      - key: TEMPO_URL
         sync: false
       - key: TEMPO_USERNAME
         sync: false
       - key: TEMPO_TOKEN
         sync: false
-      - key: LOKI_ENDPOINT
+      - key: LOKI_URL
         sync: false
       - key: LOKI_USERNAME
         sync: false

@@ -44,7 +44,7 @@ otelcol.auth.basic "grafanacloud_tempo" {
 
 otelcol.exporter.otlp "grafanacloud_tempo" {
   client {
-    endpoint = sys.env("TEMPO_ENDPOINT")
+    endpoint = sys.env("TEMPO_URL")
     auth     = otelcol.auth.basic.grafanacloud_tempo.handler
   }
 }
@@ -55,7 +55,7 @@ otelcol.exporter.loki "grafanacloud_loki" {
 
 loki.write "grafanacloud" {
   endpoint {
-    url = sys.env("LOKI_ENDPOINT")
+    url = sys.env("LOKI_URL")
     basic_auth {
       username = sys.env("LOKI_USERNAME")
       password = sys.env("LOKI_TOKEN")
