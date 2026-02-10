@@ -1,3 +1,4 @@
+#if canImport(TuistSupport)
 import Foundation
 import Mockable
 import TuistConfigLoader
@@ -44,3 +45,4 @@ final class LogoutServiceTests: TuistUnitTestCase {
         try await subject.logout(directory: nil, serverURL: nil)
     }
 }
+#endif

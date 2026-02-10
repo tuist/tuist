@@ -1,14 +1,18 @@
 import Foundation
 import Mockable
 import Testing
-import TuistCore
 import TuistEnvironment
-import TuistLoader
 import TuistOIDC
 import TuistServer
-import TuistSupport
-import TuistTesting
 import TuistUserInputReader
+
+#if canImport(TuistSupport)
+    import TuistCore
+    import TuistLoader
+    import TuistSupport
+    import TuistTesting
+#endif
+
 @testable import TuistAuthCommand
 
 struct LoginCommandServiceTests {
@@ -73,6 +77,7 @@ struct LoginCommandServiceTests {
             .called(1)
     }
 
+    #if canImport(TuistSupport)
     @Test(.withMockedDependencies())
     func authenticate_when_password_is_provided() async throws {
         // Given
@@ -222,6 +227,7 @@ struct LoginCommandServiceTests {
             )
             .called(1)
     }
+    #endif
 
     @Test(.withMockedEnvironment())
     func run_uses_tuist_url_env_variable_when_no_server_url_argument() async throws {
@@ -251,6 +257,7 @@ struct LoginCommandServiceTests {
             .called(1)
     }
 
+    #if canImport(TuistSupport)
     @Test(.withMockedEnvironment(), .withMockedDependencies())
     func authenticate_with_oidc_in_ci_environment() async throws {
         // Given
@@ -297,4 +304,5 @@ struct LoginCommandServiceTests {
             .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
             .called(0)
     }
+    #endif
 }
