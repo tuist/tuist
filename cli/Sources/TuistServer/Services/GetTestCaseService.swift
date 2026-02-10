@@ -77,3 +77,61 @@ public struct GetTestCaseService: GetTestCaseServicing {
         }
     }
 }
+
+#if DEBUG
+    extension ServerTestCase {
+        public static func test(
+            avgDuration: Int = 100,
+            failedRuns: Int = 2,
+            flakinessRate: Double = 5.0,
+            id: String = "test-case-id",
+            isFlaky: Bool = false,
+            isQuarantined: Bool = false,
+            lastDuration: Int = 150,
+            lastRanAt: Int = 1_700_000_000,
+            lastStatus: Operations.getTestCase.Output.Ok.Body.jsonPayload.last_statusPayload = .success,
+            module: Operations.getTestCase.Output.Ok.Body.jsonPayload.modulePayload = .test(),
+            name: String = "testExample",
+            reliabilityRate: Double? = 95.0,
+            suite: Operations.getTestCase.Output.Ok.Body.jsonPayload.suitePayload? = nil,
+            totalRuns: Int = 50,
+            url: String = "https://tuist.dev/test-case"
+        ) -> Self {
+            .init(
+                avg_duration: avgDuration,
+                failed_runs: failedRuns,
+                flakiness_rate: flakinessRate,
+                id: id,
+                is_flaky: isFlaky,
+                is_quarantined: isQuarantined,
+                last_duration: lastDuration,
+                last_ran_at: lastRanAt,
+                last_status: lastStatus,
+                module: module,
+                name: name,
+                reliability_rate: reliabilityRate,
+                suite: suite,
+                total_runs: totalRuns,
+                url: url
+            )
+        }
+    }
+
+    extension Operations.getTestCase.Output.Ok.Body.jsonPayload.modulePayload {
+        public static func test(
+            id: String = "module-id",
+            name: String = "TestModule"
+        ) -> Self {
+            .init(id: id, name: name)
+        }
+    }
+
+    extension Operations.getTestCase.Output.Ok.Body.jsonPayload.suitePayload {
+        public static func test(
+            id: String = "suite-id",
+            name: String = "TestSuite"
+        ) -> Self {
+            .init(id: id, name: name)
+        }
+    }
+#endif

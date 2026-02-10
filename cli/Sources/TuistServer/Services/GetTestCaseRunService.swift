@@ -77,3 +77,45 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
         }
     }
 }
+
+#if DEBUG
+    extension ServerTestCaseRun {
+        public static func test(
+            duration: Int = 1500,
+            failures: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.failuresPayloadPayload] = [],
+            gitBranch: String? = "main",
+            gitCommitSha: String? = "abc1234",
+            id: String = "run-id",
+            isCi: Bool = true,
+            isFlaky: Bool = false,
+            isNew: Bool = false,
+            moduleName: String = "AppTests",
+            name: String = "testExample",
+            ranAt: Int? = 1_700_000_000,
+            repetitions: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayloadPayload] = [],
+            scheme: String? = "App",
+            status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
+            suiteName: String? = "ExampleTests",
+            testCaseId: String? = "test-case-id"
+        ) -> Self {
+            .init(
+                duration: duration,
+                failures: failures,
+                git_branch: gitBranch,
+                git_commit_sha: gitCommitSha,
+                id: id,
+                is_ci: isCi,
+                is_flaky: isFlaky,
+                is_new: isNew,
+                module_name: moduleName,
+                name: name,
+                ran_at: ranAt,
+                repetitions: repetitions,
+                scheme: scheme,
+                status: status,
+                suite_name: suiteName,
+                test_case_id: testCaseId
+            )
+        }
+    }
+#endif

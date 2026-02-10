@@ -92,3 +92,57 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         }
     }
 }
+
+#if DEBUG
+    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+        public static func test(
+            currentPage: Int = 1,
+            pageSize: Int = 10,
+            totalPages: Int = 1,
+            hasNextPage: Bool = false,
+            hasPreviousPage: Bool = false,
+            testCaseRuns: [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+        ) -> Self {
+            .init(
+                pagination_metadata: .init(
+                    current_page: currentPage,
+                    has_next_page: hasNextPage,
+                    has_previous_page: hasPreviousPage,
+                    page_size: pageSize,
+                    total_count: testCaseRuns.count,
+                    total_pages: totalPages
+                ),
+                test_case_runs: testCaseRuns
+            )
+        }
+    }
+
+    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload {
+        public static func test(
+            duration: Int = 1500,
+            gitBranch: String? = "main",
+            gitCommitSha: String? = "abc1234def5678",
+            id: String = "run-id",
+            isCi: Bool = true,
+            isFlaky: Bool = false,
+            isNew: Bool = false,
+            ranAt: Int? = 1_700_000_000,
+            scheme: String? = "App",
+            status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload
+                .statusPayload = .success
+        ) -> Self {
+            .init(
+                duration: duration,
+                git_branch: gitBranch,
+                git_commit_sha: gitCommitSha,
+                id: id,
+                is_ci: isCi,
+                is_flaky: isFlaky,
+                is_new: isNew,
+                ran_at: ranAt,
+                scheme: scheme,
+                status: status
+            )
+        }
+    }
+#endif
