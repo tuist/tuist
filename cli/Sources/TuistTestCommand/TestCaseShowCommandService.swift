@@ -17,14 +17,11 @@ protocol TestCaseShowCommandServicing {
 
 enum TestCaseShowCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case invalidIdentifier(String)
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "We couldn't show the test case because the project is missing. You can pass either its value or a path to a Tuist project."
-        case let .invalidIdentifier(identifier):
-            return "Invalid test case identifier '\(identifier)'. Expected a UUID or the format Module/Suite/TestCase (or Module/TestCase)."
         }
     }
 }
@@ -60,8 +57,8 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let testCase: ServerTestCase
-        if testCaseIdentifier.contains("/") {
-            let (moduleName, suiteName, testName) = try parseIdentifier(testCaseIdentifier)
+        switch try TestCaseIdentifier(testCaseIdentifier) {
+        case let .name(moduleName, suiteName, testName):
             testCase = try await getTestCaseService.getTestCaseByName(
                 fullHandle: resolvedFullHandle,
                 moduleName: moduleName,
@@ -69,10 +66,10 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
                 suiteName: suiteName,
                 serverURL: serverURL
             )
-        } else {
+        case let .id(id):
             testCase = try await getTestCaseService.getTestCase(
                 fullHandle: resolvedFullHandle,
-                testCaseId: testCaseIdentifier,
+                testCaseId: id,
                 serverURL: serverURL
             )
         }
@@ -84,18 +81,6 @@ struct TestCaseShowCommandService: TestCaseShowCommandServicing {
 
         let info = formatTestCaseInfo(testCase)
         Noora.current.passthrough("\(info)")
-    }
-
-    private func parseIdentifier(_ identifier: String) throws -> (moduleName: String, suiteName: String?, testName: String) {
-        let parts = identifier.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
-        switch parts.count {
-        case 3:
-            return (parts[0], parts[1], parts[2])
-        case 2:
-            return (parts[0], nil, parts[1])
-        default:
-            throw TestCaseShowCommandServiceError.invalidIdentifier(identifier)
-        }
     }
 
     private func formatTestCaseInfo(_ testCase: ServerTestCase) -> String {

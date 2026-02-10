@@ -20,14 +20,11 @@ protocol TestCaseRunListCommandServicing {
 
 enum TestCaseRunListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case invalidIdentifier(String)
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "We couldn't list test case runs because the project is missing. You can pass either its value or a path to a Tuist project."
-        case let .invalidIdentifier(identifier):
-            return "Invalid test case identifier '\(identifier)'. Expected format: Module/Suite/TestCase or Module/TestCase."
         }
     }
 }
@@ -69,8 +66,8 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let testCaseId: String
-        if testCaseIdentifier.contains("/") {
-            let (moduleName, suiteName, testName) = try parseIdentifier(testCaseIdentifier)
+        switch try TestCaseIdentifier(testCaseIdentifier) {
+        case let .name(moduleName, suiteName, testName):
             let testCase = try await getTestCaseService.getTestCaseByName(
                 fullHandle: resolvedFullHandle,
                 moduleName: moduleName,
@@ -79,8 +76,8 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
                 serverURL: serverURL
             )
             testCaseId = testCase.id
-        } else {
-            testCaseId = testCaseIdentifier
+        case let .id(id):
+            testCaseId = id
         }
 
         let pageSize = pageSize ?? 10
@@ -135,18 +132,6 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
                 return runsPage.test_case_runs.map { formatRunRow($0) }
             }
         )
-    }
-
-    private func parseIdentifier(_ identifier: String) throws -> (moduleName: String, suiteName: String?, testName: String) {
-        let parts = identifier.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
-        switch parts.count {
-        case 3:
-            return (parts[0], parts[1], parts[2])
-        case 2:
-            return (parts[0], nil, parts[1])
-        default:
-            throw TestCaseRunListCommandServiceError.invalidIdentifier(identifier)
-        }
     }
 
     private func formatRunRow(_ run: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
