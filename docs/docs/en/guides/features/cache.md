@@ -7,7 +7,7 @@
 ---
 # Cache {#cache}
 
-Build systems provide [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over -- either in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments.
+Build systems provide [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over, whether in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments.
 
 Tuist addresses these challenges with its caching feature, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
 
@@ -34,13 +34,13 @@ Xcode caching is currently optimized for local incremental builds and the whole 
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to other build systems like Bazel and Buck. The new caching capability is available since Xcode 26 and Tuist now seamlessly integrates with it -- regardless of whether you are using Tuist's <LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities or not.
+Apple has been working on a new caching solution at the build level, similar to other build systems like Bazel and Buck. The new caching capability is available since Xcode 26 and Tuist now seamlessly integrates with it, regardless of whether you are using Tuist's <LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities or not.
 
 <LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode cache →</LocalizedLink>
 
 ## Gradle cache {#gradle-cache}
 
-Tuist provides a Gradle settings plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely across your team and CI environments. Instead of rebuilding the same tasks over and over, your Gradle builds can pull previously computed outputs from Tuist's remote cache.
+Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely across your team and CI environments. Instead of rebuilding the same tasks over and over, your Gradle builds can pull previously computed outputs from Tuist's remote cache.
 
 The plugin also collects build insights, giving you visibility into build performance and cache hit rates.
 

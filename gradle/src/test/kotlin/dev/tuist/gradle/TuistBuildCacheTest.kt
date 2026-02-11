@@ -88,7 +88,7 @@ class TuistBuildCacheTest {
     fun `TuistBuildCache has correct default values`() {
         val cache = TuistBuildCache()
 
-        assertEquals("", cache.project)
+        assertNull(cache.project)
         assertNull(cache.executablePath)
         assertEquals(false, cache.allowInsecureProtocol)
         assertEquals(false, cache.isPush)
