@@ -5,8 +5,8 @@ msgstr ""
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2026-02-10 17:32+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/dashboard-"
-"1/pl/>\n"
+"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
+"dashboard-1/pl/>\n"
 "Language: pl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -394,6 +394,9 @@ msgstr "Pokolenia"
 #, fuzzy
 msgid "Gradle Cache"
 msgstr "Pamięć podręczna Gradle"
+
+msgid "Create project"
+msgstr ""
 
 #, fuzzy
 #~ msgid "Generate Runs"

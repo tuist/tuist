@@ -385,6 +385,9 @@ msgstr "世代"
 msgid "Gradle Cache"
 msgstr "Gradle 快取"
 
+msgid "Create project"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "生成執行階段"
