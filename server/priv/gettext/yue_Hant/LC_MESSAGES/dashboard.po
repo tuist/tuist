@@ -293,3 +293,6 @@ msgstr ""
 
 msgid "Gradle Cache"
 msgstr ""
+
+msgid "Create project"
+msgstr ""
