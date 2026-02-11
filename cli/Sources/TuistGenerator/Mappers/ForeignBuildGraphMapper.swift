@@ -1,3 +1,5 @@
+import FileSystem
+import Foundation
 import Path
 import TuistCore
 import XcodeGraph
@@ -8,8 +10,24 @@ import XcodeGraph
 /// 1. Creates a `PBXAggregateTarget` (via a tagged target) that runs the foreign build script
 /// 2. Adds a target dependency from the consuming target to the aggregate target (for build ordering)
 /// 3. The consuming target retains the `foreignBuildOutput` graph dependency (set by GraphLoader) for linking
+/// 4. If the output artifact doesn't exist yet, runs the foreign build script so that the artifact
+///    is available for Xcode to resolve file references during project generation
 public final class ForeignBuildGraphMapper: GraphMapping {
-    public init() {}
+    private let fileSystem: FileSystem
+    private let scriptRunner: @Sendable (_ name: String, _ script: String, _ projectPath: AbsolutePath) throws -> Void
+
+    public init(fileSystem: FileSystem = FileSystem()) {
+        self.fileSystem = fileSystem
+        self.scriptRunner = Self.runScript
+    }
+
+    init(
+        fileSystem: FileSystem = FileSystem(),
+        scriptRunner: @escaping @Sendable (_ name: String, _ script: String, _ projectPath: AbsolutePath) throws -> Void
+    ) {
+        self.fileSystem = fileSystem
+        self.scriptRunner = scriptRunner
+    }
 
     public func map(
         graph: Graph,
@@ -36,7 +54,6 @@ public final class ForeignBuildGraphMapper: GraphMapping {
                         aggregateTargetName = "ForeignBuild_\(name)"
                         aggregateTargetsByForeignBuildName[name] = aggregateTargetName
 
-                        let outputPath = Self.outputPath(from: output)
                         let inputPaths = Self.inputPaths(from: cacheInputs)
                         let aggregateTarget = Target(
                             name: aggregateTargetName,
@@ -50,7 +67,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
                                     order: .pre,
                                     script: .embedded(script),
                                     inputPaths: inputPaths,
-                                    outputPaths: outputPath.map { [$0.pathString] } ?? [],
+                                    outputPaths: [output.path.pathString],
                                     showEnvVarsInLog: false
                                 ),
                             ],
@@ -62,6 +79,10 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
                         let aggregateGraphDep = GraphDependency.target(name: aggregateTargetName, path: projectPath)
                         graph.dependencies[aggregateGraphDep] = Set()
+
+                        if try await !fileSystem.exists(output.path) {
+                            try scriptRunner(name, script, projectPath)
+                        }
                     }
 
                     let consumingTargetGraphDep = GraphDependency.target(name: targetName, path: projectPath)
@@ -78,14 +99,24 @@ public final class ForeignBuildGraphMapper: GraphMapping {
         return (graph, [], environment)
     }
 
-    private static func outputPath(from output: TargetDependency) -> AbsolutePath? {
-        switch output {
-        case let .framework(path, _, _): return path
-        case let .xcframework(path, _, _, _): return path
-        case let .library(path, _, _, _): return path
-        default: return nil
+    // MARK: - Script execution
+
+    private static func runScript(_ name: String, _ script: String, projectPath: AbsolutePath) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", script]
+        process.currentDirectoryURL = URL(fileURLWithPath: projectPath.pathString)
+        var env = ProcessInfo.processInfo.environment
+        env["SRCROOT"] = projectPath.pathString
+        process.environment = env
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw ForeignBuildError.scriptFailed(exitCode: Int(process.terminationStatus))
         }
     }
+
+    // MARK: - Helpers
 
     private static func inputPaths(from cacheInputs: [ForeignBuildCacheInput]) -> [String] {
         cacheInputs.compactMap { input in
@@ -95,6 +126,17 @@ public final class ForeignBuildGraphMapper: GraphMapping {
             case let .glob(pattern): return pattern
             case .script: return nil
             }
+        }
+    }
+}
+
+enum ForeignBuildError: LocalizedError {
+    case scriptFailed(exitCode: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case let .scriptFailed(exitCode):
+            return "Foreign build script failed with exit code \(exitCode)"
         }
     }
 }

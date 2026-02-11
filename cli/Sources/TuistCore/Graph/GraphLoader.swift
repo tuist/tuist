@@ -202,12 +202,10 @@ public final class GraphLoader: GraphLoading {
             }
 
         case let .foreignBuild(name, _, output, _, _):
-            guard let outputPath = outputPath(from: output) else { return nil }
-            let linking: BinaryLinking = outputPath.extension == "a" ? .static : .dynamic
             return .foreignBuildOutput(GraphDependency.ForeignBuildOutput(
                 name: name,
-                path: outputPath,
-                linking: linking
+                path: output.path,
+                linking: output.linking
             ))
         }
     }
@@ -336,15 +334,6 @@ public final class GraphLoader: GraphLoading {
             product: productName,
             type: type
         )
-    }
-
-    private func outputPath(from dependency: TargetDependency) -> AbsolutePath? {
-        switch dependency {
-        case let .framework(path, _, _): return path
-        case let .xcframework(path, _, _, _): return path
-        case let .library(path, _, _, _): return path
-        default: return nil
-        }
     }
 
     final class Cache {

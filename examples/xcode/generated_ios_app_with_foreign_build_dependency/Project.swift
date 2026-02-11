@@ -28,7 +28,7 @@ let project = Project(
                         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
                         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
                         """,
-                    output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"),
+                    output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework", linking: .dynamic),
                     cacheInputs: [
                         .folder("SharedKMP/src"),
                         .file("SharedKMP/build.gradle.kts"),

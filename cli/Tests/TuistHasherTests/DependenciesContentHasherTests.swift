@@ -301,7 +301,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = TargetDependency.foreignBuild(
             name: "SharedKMP",
             script: "gradle build",
-            output: .xcframework(path: outputPath, expectedSignature: nil, status: .required),
+            output: .xcframework(path: outputPath, linking: .dynamic),
             cacheInputs: cacheInputs
         )
         given(foreignBuildCacheInputHasher)

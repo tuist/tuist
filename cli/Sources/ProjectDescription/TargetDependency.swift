@@ -164,7 +164,10 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
     ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
     ///         """,
-    ///     output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"),
+    ///     output: .xcframework(
+    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+    ///         linking: .dynamic
+    ///     ),
     ///     cacheInputs: [
     ///         .folder("SharedKMP/src"),
     ///         .file("SharedKMP/build.gradle.kts"),
@@ -179,10 +182,10 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
     ///   - cacheInputs: Inputs that affect the build output, used for content hashing.
     ///   - condition: Condition under which to use this dependency, `nil` if this should always be used.
-    indirect case foreignBuild(
+    case foreignBuild(
         name: String,
         script: String,
-        output: TargetDependency,
+        output: ForeignBuildOutput,
         cacheInputs: [CacheInput] = [],
         condition: PlatformCondition? = nil
     )

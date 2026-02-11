@@ -113,21 +113,17 @@ extension XcodeGraph.TargetDependency {
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
         case let .foreignBuild(name, script, output, cacheInputs, condition):
-            let mappedOutput = try XcodeGraph.TargetDependency.from(
+            let mappedOutput = try XcodeGraph.ForeignBuildArtifact.from(
                 manifest: output,
-                generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
+                generatorPaths: generatorPaths
             )
-            guard let resolvedOutput = mappedOutput.first else {
-                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
-            }
             let mappedCacheInputs = try cacheInputs.map { input -> XcodeGraph.ForeignBuildCacheInput in
                 try XcodeGraph.ForeignBuildCacheInput.from(manifest: input, generatorPaths: generatorPaths)
             }
             return [.foreignBuild(
                 name: name,
                 script: script,
-                output: resolvedOutput,
+                output: mappedOutput,
                 cacheInputs: mappedCacheInputs,
                 condition: condition?.asGraphCondition
             )]
@@ -219,6 +215,42 @@ extension XcodeGraph.XCFrameworkSignature {
             return .selfSigned(fingerprint: fingerprint)
         case let .signedWithAppleCertificate(teamIdentifier, teamName):
             return .signedWithAppleCertificate(teamIdentifier: teamIdentifier, teamName: teamName)
+        }
+    }
+}
+
+extension XcodeGraph.BinaryLinking {
+    static func from(manifest: ProjectDescription.BinaryLinking) -> Self {
+        switch manifest {
+        case .static: return .static
+        case .dynamic: return .dynamic
+        }
+    }
+}
+
+extension XcodeGraph.ForeignBuildArtifact {
+    static func from(
+        manifest: ProjectDescription.ForeignBuildOutput,
+        generatorPaths: GeneratorPaths
+    ) throws -> Self {
+        switch manifest {
+        case let .xcframework(path, linking):
+            return .xcframework(
+                path: try generatorPaths.resolve(path: path),
+                linking: .from(manifest: linking)
+            )
+        case let .framework(path, linking):
+            return .framework(
+                path: try generatorPaths.resolve(path: path),
+                linking: .from(manifest: linking)
+            )
+        case let .library(path, publicHeaders, swiftModuleMap, linking):
+            return .library(
+                path: try generatorPaths.resolve(path: path),
+                publicHeaders: try generatorPaths.resolve(path: publicHeaders),
+                swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) },
+                linking: .from(manifest: linking)
+            )
         }
     }
 }
