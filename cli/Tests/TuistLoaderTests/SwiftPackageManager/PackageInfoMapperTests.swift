@@ -5802,6 +5802,41 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetDependsOnBinaryTarget_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/GoogleMapsTarget"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "GoogleMaps", type: .library(.automatic), targets: ["GoogleMapsTarget"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "GoogleMapsTarget",
+                            dependencies: [.target(name: "GoogleMaps", condition: nil)]
+                        ),
+                        .test(name: "GoogleMaps", type: .binary),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "GoogleMapsTarget" }))
+        #expect(mappedTarget.productName == "GoogleMapsTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenMultiTargetProduct_keepsOwnTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/FooCore")))

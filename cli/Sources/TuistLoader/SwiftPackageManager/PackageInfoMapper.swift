@@ -376,7 +376,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
     private static func effectiveModuleName(
         targetName: String,
-        products: Set<PackageInfo.Product>
+        products: Set<PackageInfo.Product>,
+        packageTargets: [PackageInfo.Target]
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -384,6 +385,19 @@ public final class PackageInfoMapper: PackageInfoMapping {
               singleProduct.name != targetName,
               targetName.hasPrefix(singleProduct.name)
         else { return targetName }
+
+        let target = packageTargets.first { $0.name == targetName }
+        let dependsOnBinaryWithProductName = target?.dependencies.contains { dependency in
+            switch dependency {
+            case let .target(name, _), let .byName(name, _):
+                return name == singleProduct.name
+                    && packageTargets.contains(where: { $0.name == name && $0.type == .binary })
+            case .product:
+                return false
+            }
+        } ?? false
+        if dependsOnBinaryWithProductName { return targetName }
+
         return singleProduct.name
     }
 
@@ -454,7 +468,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular:
             let effectiveName = PackageInfoMapper.effectiveModuleName(
-                targetName: target.name, products: products
+                targetName: target.name, products: products, packageTargets: packageInfo.targets
             )
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
@@ -590,7 +604,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
         let effectiveName = PackageInfoMapper.effectiveModuleName(
-            targetName: target.name, products: products
+            targetName: target.name, products: products, packageTargets: packageInfo.targets
         )
         let aliasedEffectiveName = packageModuleAliases[packageInfo.name]?[effectiveName] ?? effectiveName
         let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveName)
