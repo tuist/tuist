@@ -139,6 +139,7 @@
           extraConfig = ''
             internal;
             alias /cas/;
+            types { }
             default_type application/octet-stream;
             gzip off;
             add_header Cache-Control "public, max-age=31536000, immutable";
