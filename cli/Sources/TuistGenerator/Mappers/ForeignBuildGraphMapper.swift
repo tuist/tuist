@@ -43,7 +43,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
             for (targetName, target) in project.targets {
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, output, cacheInputs, _) = dependency else {
+                    guard case let .foreignBuild(name, script, output, inputs, _) = dependency else {
                         continue
                     }
 
@@ -54,7 +54,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
                         aggregateTargetName = "ForeignBuild_\(name)"
                         aggregateTargetsByForeignBuildName[name] = aggregateTargetName
 
-                        let inputPaths = Self.inputPaths(from: cacheInputs)
+                        let inputPaths = Self.inputPaths(from: inputs)
                         let aggregateTarget = Target(
                             name: aggregateTargetName,
                             destinations: target.destinations,
@@ -118,8 +118,8 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
     // MARK: - Helpers
 
-    private static func inputPaths(from cacheInputs: [ForeignBuildCacheInput]) -> [String] {
-        cacheInputs.compactMap { input in
+    private static func inputPaths(from inputs: [ForeignBuildInput]) -> [String] {
+        inputs.compactMap { input in
             switch input {
             case let .file(path): return path.pathString
             case let .folder(path): return path.pathString

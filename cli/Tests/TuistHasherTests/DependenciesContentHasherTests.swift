@@ -289,23 +289,23 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsForeignBuild_callsContentHasherAsExpected() async throws {
         // Given
-        let foreignBuildCacheInputHasher = MockForeignBuildCacheInputHashing()
+        let foreignBuildInputHasher = MockForeignBuildInputHashing()
         subject = DependenciesContentHasher(
             contentHasher: contentHasher,
-            foreignBuildCacheInputHasher: foreignBuildCacheInputHasher
+            foreignBuildInputHasher: foreignBuildInputHasher
         )
 
         let outputPath = try AbsolutePath(validating: "/build/SharedKMP.xcframework")
         let srcFolder = try AbsolutePath(validating: "/project/src")
-        let cacheInputs: [ForeignBuildCacheInput] = [.folder(srcFolder)]
+        let inputs: [ForeignBuildInput] = [.folder(srcFolder)]
         let dependency = TargetDependency.foreignBuild(
             name: "SharedKMP",
             script: "gradle build",
             output: .xcframework(path: outputPath, linking: .dynamic),
-            cacheInputs: cacheInputs
+            inputs: inputs
         )
-        given(foreignBuildCacheInputHasher)
-            .hash(cacheInputs: .value(cacheInputs), hashedPaths: .any)
+        given(foreignBuildInputHasher)
+            .hash(inputs: .value(inputs), hashedPaths: .any)
             .willReturn((hash: "inputs-hash", hashedPaths: [srcFolder: "folder-hash"]))
 
         // When

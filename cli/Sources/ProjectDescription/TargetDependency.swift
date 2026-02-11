@@ -152,8 +152,8 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     /// Dependency on an artifact produced by a foreign (non-Xcode) build system such as KMP, Rust, CMake, etc.
     ///
     /// Tuist will generate an aggregate target that runs the build script and produce the output binary.
-    /// The `cacheInputs` are used to compute a content hash for Tuist's binary caching so that the foreign
-    /// build step can be skipped when inputs haven't changed.
+    /// The `inputs` are used both as the input file list for the Xcode build phase and to compute a content
+    /// hash for Tuist's binary caching so that the foreign build step can be skipped when inputs haven't changed.
     ///
     /// ### Example: Kotlin Multiplatform (KMP)
     ///
@@ -168,7 +168,7 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
     ///         linking: .dynamic
     ///     ),
-    ///     cacheInputs: [
+    ///     inputs: [
     ///         .folder("SharedKMP/src"),
     ///         .file("SharedKMP/build.gradle.kts"),
     ///     ]
@@ -180,13 +180,13 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
     /// directory.
     ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
-    ///   - cacheInputs: Inputs that affect the build output, used for content hashing.
+    ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
     ///   - condition: Condition under which to use this dependency, `nil` if this should always be used.
     case foreignBuild(
         name: String,
         script: String,
         output: ForeignBuildOutput,
-        cacheInputs: [CacheInput] = [],
+        inputs: [Input] = [],
         condition: PlatformCondition? = nil
     )
 

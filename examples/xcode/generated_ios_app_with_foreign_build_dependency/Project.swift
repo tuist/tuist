@@ -29,7 +29,7 @@ let project = Project(
                         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
                         """,
                     output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework", linking: .dynamic),
-                    cacheInputs: [
+                    inputs: [
                         .folder("SharedKMP/src"),
                         .file("SharedKMP/build.gradle.kts"),
                     ]

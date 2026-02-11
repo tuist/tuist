@@ -7,14 +7,14 @@ import TuistSupport
 import XcodeGraph
 
 @Mockable
-public protocol ForeignBuildCacheInputHashing {
+public protocol ForeignBuildInputHashing {
     func hash(
-        cacheInputs: [ForeignBuildCacheInput],
+        inputs: [ForeignBuildInput],
         hashedPaths: [AbsolutePath: String]
     ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String])
 }
 
-public final class ForeignBuildCacheInputHasher: ForeignBuildCacheInputHashing {
+public final class ForeignBuildInputHasher: ForeignBuildInputHashing {
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
     private let system: Systeming
@@ -30,13 +30,13 @@ public final class ForeignBuildCacheInputHasher: ForeignBuildCacheInputHashing {
     }
 
     public func hash(
-        cacheInputs: [ForeignBuildCacheInput],
+        inputs: [ForeignBuildInput],
         hashedPaths: [AbsolutePath: String]
     ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String]) {
         var hashedPaths = hashedPaths
         var hashes: [String] = []
 
-        for input in cacheInputs {
+        for input in inputs {
             switch input {
             case let .file(path):
                 let fileHash: String

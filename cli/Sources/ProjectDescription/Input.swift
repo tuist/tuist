@@ -1,5 +1,5 @@
 /// Describes an input that contributes to the cache key of a foreign build dependency.
-public enum CacheInput: Codable, Hashable, Sendable {
+public enum Input: Codable, Hashable, Sendable {
     /// A single file whose contents affect the build output.
     case file(Path)
 

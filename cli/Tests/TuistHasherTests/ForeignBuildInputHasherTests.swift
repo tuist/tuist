@@ -10,8 +10,8 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistHasher
 
-struct ForeignBuildCacheInputHasherTests {
-    private var subject: ForeignBuildCacheInputHasher!
+struct ForeignBuildInputHasherTests {
+    private var subject: ForeignBuildInputHasher!
     private var contentHasher: MockContentHashing!
     private var system: MockSystem!
 
@@ -23,7 +23,7 @@ struct ForeignBuildCacheInputHasherTests {
             .hash(Parameter<String>.any)
             .willProduce { $0 + "-hash" }
 
-        subject = ForeignBuildCacheInputHasher(
+        subject = ForeignBuildInputHasher(
             contentHasher: contentHasher,
             system: system
         )
@@ -39,7 +39,7 @@ struct ForeignBuildCacheInputHasherTests {
 
         // When
         let result = try await subject.hash(
-            cacheInputs: [.file(filePath)],
+            inputs: [.file(filePath)],
             hashedPaths: [:]
         )
 
@@ -56,7 +56,7 @@ struct ForeignBuildCacheInputHasherTests {
 
         // When
         let result = try await subject.hash(
-            cacheInputs: [.file(filePath)],
+            inputs: [.file(filePath)],
             hashedPaths: existingHashedPaths
         )
 
@@ -77,7 +77,7 @@ struct ForeignBuildCacheInputHasherTests {
 
         // When
         let result = try await subject.hash(
-            cacheInputs: [.folder(folderPath)],
+            inputs: [.folder(folderPath)],
             hashedPaths: [:]
         )
 
@@ -94,7 +94,7 @@ struct ForeignBuildCacheInputHasherTests {
 
         // When
         let result = try await subject.hash(
-            cacheInputs: [.script(script)],
+            inputs: [.script(script)],
             hashedPaths: [:]
         )
 
@@ -116,7 +116,7 @@ struct ForeignBuildCacheInputHasherTests {
 
         // When
         let result = try await subject.hash(
-            cacheInputs: [.file(filePath), .folder(folderPath)],
+            inputs: [.file(filePath), .folder(folderPath)],
             hashedPaths: [:]
         )
 
@@ -130,7 +130,7 @@ struct ForeignBuildCacheInputHasherTests {
     func hash_emptyInputs_returnsHashOfEmptyString() async throws {
         // When
         let result = try await subject.hash(
-            cacheInputs: [],
+            inputs: [],
             hashedPaths: [:]
         )
 
@@ -143,7 +143,7 @@ struct ForeignBuildCacheInputHasherTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
-        let subjectWithRealFS = ForeignBuildCacheInputHasher(
+        let subjectWithRealFS = ForeignBuildInputHasher(
             contentHasher: contentHasher,
             fileSystem: fileSystem,
             system: system
@@ -167,7 +167,7 @@ struct ForeignBuildCacheInputHasherTests {
 
         // When
         let result = try await subjectWithRealFS.hash(
-            cacheInputs: [.glob(globPattern)],
+            inputs: [.glob(globPattern)],
             hashedPaths: [:]
         )
 

@@ -112,30 +112,30 @@ extension XcodeGraph.TargetDependency {
             }
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
-        case let .foreignBuild(name, script, output, cacheInputs, condition):
+        case let .foreignBuild(name, script, output, inputs, condition):
             let mappedOutput = try XcodeGraph.ForeignBuildArtifact.from(
                 manifest: output,
                 generatorPaths: generatorPaths
             )
-            let mappedCacheInputs = try cacheInputs.map { input -> XcodeGraph.ForeignBuildCacheInput in
-                try XcodeGraph.ForeignBuildCacheInput.from(manifest: input, generatorPaths: generatorPaths)
+            let mappedInputs = try inputs.map { input -> XcodeGraph.ForeignBuildInput in
+                try XcodeGraph.ForeignBuildInput.from(manifest: input, generatorPaths: generatorPaths)
             }
             return [.foreignBuild(
                 name: name,
                 script: script,
                 output: mappedOutput,
-                cacheInputs: mappedCacheInputs,
+                inputs: mappedInputs,
                 condition: condition?.asGraphCondition
             )]
         }
     }
 }
 
-extension XcodeGraph.ForeignBuildCacheInput {
+extension XcodeGraph.ForeignBuildInput {
     static func from(
-        manifest: ProjectDescription.CacheInput,
+        manifest: ProjectDescription.Input,
         generatorPaths: GeneratorPaths
-    ) throws -> XcodeGraph.ForeignBuildCacheInput {
+    ) throws -> XcodeGraph.ForeignBuildInput {
         switch manifest {
         case let .file(path):
             return .file(try generatorPaths.resolve(path: path))
