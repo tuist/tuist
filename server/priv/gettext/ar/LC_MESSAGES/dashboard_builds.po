@@ -50,10 +50,6 @@ msgid "Any"
 msgstr "أي"
 
 #, fuzzy
-msgid "Archive"
-msgstr "الأرشيف"
-
-#, fuzzy
 msgid "Average"
 msgstr "المتوسط"
 
@@ -72,10 +68,6 @@ msgstr "متوسط زمن الاستجابة لكتابة مفاتيح ذاكر�
 #, fuzzy
 msgid "Branch"
 msgstr "فرع"
-
-#, fuzzy
-msgid "Build"
-msgstr "بناء"
 
 #, fuzzy
 msgid "Build Details"
@@ -689,10 +681,6 @@ msgid "Task misses"
 msgstr "أخطاء في المهام"
 
 #, fuzzy
-msgid "Test"
-msgstr "اختبار"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "تفاصيل الاختبار"
 
@@ -1039,3 +1027,15 @@ msgstr "العلامات"
 #, fuzzy
 msgid "Value"
 msgstr "القيمة"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "الأرشيف"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "بناء"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "اختبار"

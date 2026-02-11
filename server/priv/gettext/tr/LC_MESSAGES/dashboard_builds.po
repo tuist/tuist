@@ -49,10 +49,6 @@ msgid "Any"
 msgstr "Herhangi bir"
 
 #, fuzzy
-msgid "Archive"
-msgstr "Arşiv"
-
-#, fuzzy
 msgid "Average"
 msgstr "Ortalama"
 
@@ -71,10 +67,6 @@ msgstr "Ortalama gecikme süresi yazma önbellek anahtarları"
 #, fuzzy
 msgid "Branch"
 msgstr "Dal"
-
-#, fuzzy
-msgid "Build"
-msgstr "Oluştur"
 
 #, fuzzy
 msgid "Build Details"
@@ -683,10 +675,6 @@ msgid "Task misses"
 msgstr "Görev eksiklikleri"
 
 #, fuzzy
-msgid "Test"
-msgstr "Test"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "Test Detayları"
 
@@ -1030,3 +1018,15 @@ msgstr "Etiketler"
 #, fuzzy
 msgid "Value"
 msgstr "Değer"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "Arşiv"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "Oluştur"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "Test"
