@@ -498,6 +498,7 @@ public class GraphTraverser: GraphTraversing {
             skip: { [self] dependency in
                 canDependencyEmbedBinaries(dependency: dependency) ||
                     isDependencyPrecompiledMacro(dependency) ||
+                    isDependencyMacroTarget(dependency) ||
                     dependency.isPrecompiledDynamicAndLinkable ||
                     isDependencyDynamicTarget(dependency: dependency)
             }
