@@ -50,10 +50,6 @@ msgid "Any"
 msgstr "Jakiekolwiek"
 
 #, fuzzy
-msgid "Archive"
-msgstr "Archiwum"
-
-#, fuzzy
 msgid "Average"
 msgstr "Średnia"
 
@@ -72,10 +68,6 @@ msgstr "Średnie opóźnienie zapisywania kluczy pamięci podręcznej"
 #, fuzzy
 msgid "Branch"
 msgstr "Oddział"
-
-#, fuzzy
-msgid "Build"
-msgstr "Buduj"
 
 #, fuzzy
 msgid "Build Details"
@@ -689,10 +681,6 @@ msgid "Task misses"
 msgstr "Błędy w zadaniu"
 
 #, fuzzy
-msgid "Test"
-msgstr "Test"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "Szczegóły testu"
 
@@ -1045,3 +1033,15 @@ msgstr "Tagi"
 #, fuzzy
 msgid "Value"
 msgstr "Wartość"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "Archiwum"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "Buduj"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "Test"

@@ -50,10 +50,6 @@ msgid "Any"
 msgstr "Любой"
 
 #, fuzzy
-msgid "Archive"
-msgstr "Архив"
-
-#, fuzzy
 msgid "Average"
 msgstr "Среднее"
 
@@ -72,10 +68,6 @@ msgstr "Средняя задержка записи ключей кэша"
 #, fuzzy
 msgid "Branch"
 msgstr "Ветвь"
-
-#, fuzzy
-msgid "Build"
-msgstr "Сборка"
 
 #, fuzzy
 msgid "Build Details"
@@ -685,10 +677,6 @@ msgid "Task misses"
 msgstr "Пропуски в задании"
 
 #, fuzzy
-msgid "Test"
-msgstr "Тест"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "Детали теста"
 
@@ -1038,3 +1026,15 @@ msgstr "Теги"
 #, fuzzy
 msgid "Value"
 msgstr "Значение"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "Архив"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "Сборка"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "Тест"

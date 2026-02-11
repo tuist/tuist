@@ -49,10 +49,6 @@ msgid "Any"
 msgstr "任何"
 
 #, fuzzy
-msgid "Archive"
-msgstr "归档"
-
-#, fuzzy
 msgid "Average"
 msgstr "平均"
 
@@ -71,10 +67,6 @@ msgstr "写入缓存键的平均延迟"
 #, fuzzy
 msgid "Branch"
 msgstr "分支"
-
-#, fuzzy
-msgid "Build"
-msgstr "构建"
 
 #, fuzzy
 msgid "Build Details"
@@ -677,10 +669,6 @@ msgid "Task misses"
 msgstr "任务遗漏"
 
 #, fuzzy
-msgid "Test"
-msgstr "测试"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "测试详情"
 
@@ -1017,3 +1005,15 @@ msgstr "标签"
 #, fuzzy
 msgid "Value"
 msgstr "值"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "归档"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "构建"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "测试"

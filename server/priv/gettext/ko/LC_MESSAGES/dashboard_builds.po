@@ -42,9 +42,6 @@ msgstr "추가 문자열"
 msgid "Any"
 msgstr "모두"
 
-msgid "Archive"
-msgstr "아카이브"
-
 msgid "Average"
 msgstr "평균"
 
@@ -59,9 +56,6 @@ msgstr "캐시 키 쓰기 평균 지연 시간"
 
 msgid "Branch"
 msgstr "Branch"
-
-msgid "Build"
-msgstr "빌드"
 
 msgid "Build Details"
 msgstr "빌드 세부 정보"
@@ -518,9 +512,6 @@ msgstr "작업 조회 수"
 msgid "Task misses"
 msgstr "작업 누락"
 
-msgid "Test"
-msgstr "테스트"
-
 msgid "Test Details"
 msgstr "테스트 세부 정보"
 
@@ -787,3 +778,12 @@ msgstr "Tags"
 #, fuzzy
 msgid "Value"
 msgstr "값"
+
+#~ msgid "Archive"
+#~ msgstr "아카이브"
+
+#~ msgid "Build"
+#~ msgstr "빌드"
+
+#~ msgid "Test"
+#~ msgstr "테스트"

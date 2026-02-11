@@ -49,10 +49,6 @@ msgid "Any"
 msgstr "Cualquier"
 
 #, fuzzy
-msgid "Archive"
-msgstr "Archivo"
-
-#, fuzzy
 msgid "Average"
 msgstr "Promedio"
 
@@ -71,10 +67,6 @@ msgstr "Latencia media al escribir claves de caché"
 #, fuzzy
 msgid "Branch"
 msgstr "Rama"
-
-#, fuzzy
-msgid "Build"
-msgstr "Crear"
 
 #, fuzzy
 msgid "Build Details"
@@ -685,10 +677,6 @@ msgid "Task misses"
 msgstr "Errores en la tarea"
 
 #, fuzzy
-msgid "Test"
-msgstr "Prueba"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "Detalles de la prueba"
 
@@ -1038,3 +1026,15 @@ msgstr "Etiquetas"
 #, fuzzy
 msgid "Value"
 msgstr "Valor"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "Archivo"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "Crear"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "Prueba"
