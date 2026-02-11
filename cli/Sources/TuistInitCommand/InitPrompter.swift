@@ -2,43 +2,61 @@ import Foundation
 import Mockable
 import Noora
 
-struct InitPromptAnswers: Codable {
-    let workflowType: InitPromptingWorkflowType
-    let integrateWithServer: Bool
-    let generatedProjectPlatform: String
-    let generatedProjectName: String
-    let accountType: InitPromptingAccountType
-    let newOrganizationAccountHandle: String
+public struct InitPromptAnswers: Codable {
+    public let workflowType: InitPromptingWorkflowType
+    public let integrateWithServer: Bool
+    public let generatedProjectPlatform: String
+    public let generatedProjectName: String
+    public let accountType: InitPromptingAccountType
+    public let newOrganizationAccountHandle: String
 
-    func base64EncodedJSONString() throws -> String {
+    public init(
+        workflowType: InitPromptingWorkflowType,
+        integrateWithServer: Bool,
+        generatedProjectPlatform: String,
+        generatedProjectName: String,
+        accountType: InitPromptingAccountType,
+        newOrganizationAccountHandle: String
+    ) {
+        self.workflowType = workflowType
+        self.integrateWithServer = integrateWithServer
+        self.generatedProjectPlatform = generatedProjectPlatform
+        self.generatedProjectName = generatedProjectName
+        self.accountType = accountType
+        self.newOrganizationAccountHandle = newOrganizationAccountHandle
+    }
+
+    public func base64EncodedJSONString() throws -> String {
         let jsonData = try JSONEncoder().encode(self)
         return jsonData.base64EncodedString()
     }
 }
 
-enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
+public enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
     case connectProjectOrSwiftPackage(String?)
     case createGeneratedProject
+    case connectGradleProject
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .connectProjectOrSwiftPackage(name):
             if let name {
                 "Integrate with \(name)"
             } else {
-                "Integrate the Xcode project or Swift Package"
+                "Integrate an Xcode project"
             }
         case .createGeneratedProject: "Create a generated project"
+        case .connectGradleProject: "Integrate a Gradle project"
         }
     }
 }
 
-enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
+public enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
     case userAccount(String)
     case organization(String)
     case createOrganizationAccount
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .userAccount(handle): "My personal account: '\(handle)'"
         case let .organization(handle): "Organization: \(handle)"
@@ -49,16 +67,21 @@ enum InitPromptingAccountType: Codable, Equatable, CustomStringConvertible {
 
 @Mockable
 protocol InitPrompting {
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType
+    func promptWorkflowType(
+        xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?
+    ) -> InitPromptingWorkflowType
     func promptIntegrateWithServer() -> Bool
-    func promptAccountType(authenticatedUserHandle: String, organizations: [String]) -> InitPromptingAccountType
+    func promptAccountType(authenticatedUserHandle: String, organizations: [String])
+        -> InitPromptingAccountType
     func promptNewOrganizationAccountHandle() -> String
     func promptGeneratedProjectPlatform() -> String
     func promptGeneratedProjectName() -> String
 }
 
 struct InitPrompter: InitPrompting {
-    func promptAccountType(authenticatedUserHandle: String, organizations: [String]) -> InitPromptingAccountType {
+    func promptAccountType(authenticatedUserHandle: String, organizations: [String])
+        -> InitPromptingAccountType
+    {
         var promptOptions = [
             InitPromptingAccountType.userAccount(authenticatedUserHandle),
         ]
@@ -80,17 +103,36 @@ struct InitPrompter: InitPrompting {
         )
     }
 
-    func promptWorkflowType(xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?) -> InitPromptingWorkflowType {
-        let promptOptions = [
-            InitPromptingWorkflowType.createGeneratedProject,
-            InitPromptingWorkflowType.connectProjectOrSwiftPackage(xcodeProjectOrWorkspace?.name),
-        ]
-        return Noora.current.singleChoicePrompt(
-            title: "Start",
-            question: "How would you like to start with Tuist?",
-            options: promptOptions
-        )
-    }
+    #if os(macOS)
+        func promptWorkflowType(
+            xcodeProjectOrWorkspace: InitCommandService.XcodeProjectOrWorkspace?
+        ) -> InitPromptingWorkflowType {
+            let promptOptions = [
+                InitPromptingWorkflowType.createGeneratedProject,
+                InitPromptingWorkflowType.connectProjectOrSwiftPackage(
+                    xcodeProjectOrWorkspace?.name),
+                InitPromptingWorkflowType.connectGradleProject,
+            ]
+            return Noora.current.singleChoicePrompt(
+                title: "Start",
+                question: "How would you like to start with Tuist?",
+                options: promptOptions
+            )
+        }
+    #else
+        func promptWorkflowType(
+            xcodeProjectOrWorkspace _: InitCommandService.XcodeProjectOrWorkspace?
+        ) -> InitPromptingWorkflowType {
+            let promptOptions = [
+                InitPromptingWorkflowType.connectGradleProject,
+            ]
+            return Noora.current.singleChoicePrompt(
+                title: "Start",
+                question: "How would you like to start with Tuist?",
+                options: promptOptions
+            )
+        }
+    #endif
 
     func promptIntegrateWithServer() -> Bool {
         Noora.current.yesOrNoChoicePrompt(

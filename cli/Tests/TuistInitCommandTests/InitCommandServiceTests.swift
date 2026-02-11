@@ -9,7 +9,7 @@ import TuistConstants
 import TuistServer
 import TuistSupport
 import TuistTesting
-@testable import TuistKit
+@testable import TuistInitCommand
 
 private struct MockKeyStrokeListening: KeyStrokeListening {
     var stubbedKeyStrokes: [KeyStroke] = []
@@ -317,6 +317,94 @@ struct InitCommandServiceTests {
                     let tuist = Tuist(fullHandle: "\(organizationName)/Test", project: .tuist())
                     """
                 )
+            }
+        }
+    }
+
+    @Test func generatesTheRightConfiguration_when_connectingGradleProject_and_connectedToServer()
+        async throws
+    {
+        try await withMockedDependencies {
+            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                .willReturn(.connectGradleProject)
+            given(prompter).promptIntegrateWithServer().willReturn(true)
+            given(prompter).promptAccountType(
+                authenticatedUserHandle: .value("account"), organizations: .value(["org"])
+            )
+            .willReturn(.userAccount("account"))
+            given(loginService).run(
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
+            ).willReturn()
+            given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
+                .willReturn("account")
+            given(listOrganizationsService).listOrganizations(
+                serverURL: .value(Constants.URLs.production)
+            ).willReturn(["org"])
+
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
+                let projectName = temporaryDirectory.basename
+                given(getProjectService).getProject(
+                    fullHandle: .value("account/\(projectName)"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "account/\(projectName)"))
+                given(createProjectService).createProject(
+                    fullHandle: .value("account/\(projectName)"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "account/\(projectName)"))
+                given(commandRunner).run(
+                    arguments: .matching { $0.contains("mise") }, environment: .any,
+                    workingDirectory: .any
+                )
+                .willReturn(.init(unfolding: { nil }))
+
+                // When
+                try await subject.run(from: temporaryDirectory, answers: nil)
+
+                // Then
+                let tuistToml = try await fileSystem.readTextFile(
+                    at: temporaryDirectory.appending(component: "tuist.toml")
+                )
+                #expect(
+                    tuistToml == "project = \"account/\(projectName)\"\n"
+                )
+                let tuistSwiftExists = try await fileSystem.exists(
+                    temporaryDirectory.appending(component: "Tuist.swift")
+                )
+                #expect(!tuistSwiftExists)
+            }
+        }
+    }
+
+    @Test
+    func generatesTheRightConfiguration_when_connectingGradleProject_and_notConnectedToServer()
+        async throws
+    {
+        try await withMockedDependencies {
+            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                .willReturn(.connectGradleProject)
+            given(prompter).promptIntegrateWithServer().willReturn(false)
+
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
+                given(commandRunner).run(
+                    arguments: .matching { $0.contains("mise") }, environment: .any,
+                    workingDirectory: .any
+                )
+                .willReturn(.init(unfolding: { nil }))
+
+                // When
+                try await subject.run(from: temporaryDirectory, answers: nil)
+
+                // Then
+                let tuistToml = try await fileSystem.readTextFile(
+                    at: temporaryDirectory.appending(component: "tuist.toml")
+                )
+                #expect(tuistToml == "")
+                let tuistSwiftExists = try await fileSystem.exists(
+                    temporaryDirectory.appending(component: "Tuist.swift")
+                )
+                #expect(!tuistSwiftExists)
             }
         }
     }

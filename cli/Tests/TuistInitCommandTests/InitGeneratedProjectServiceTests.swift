@@ -8,7 +8,7 @@ import TuistSupport
 import TuistTesting
 import XCTest
 
-@testable import TuistKit
+@testable import TuistInitCommand
 
 final class InitGeneratedProjectServiceTests: TuistUnitTestCase {
     private var subject: InitGeneratedProjectService!

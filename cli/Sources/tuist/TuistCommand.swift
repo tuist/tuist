@@ -12,6 +12,7 @@ import TuistCacheCommand
 import TuistConfigLoader
 import TuistEnvironment
 import TuistGenerateCommand
+import TuistInitCommand
 import TuistLogging
 import TuistNooraExtension
 import TuistOrganizationCommand
@@ -90,6 +91,10 @@ public struct TuistCommand: AsyncParsableCommand {
         ))
 
         #if !os(macOS)
+            groups.append(CommandGroup(
+                name: "Get started",
+                subcommands: [InitCommand.self]
+            ))
             groups.append(CommandGroup(
                 name: "Develop",
                 subcommands: [
