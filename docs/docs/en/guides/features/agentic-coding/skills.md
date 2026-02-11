@@ -17,6 +17,7 @@ Skills are pre-built instruction sets for performing complex, multi-step Tuist t
 | `migrate` | Migrates existing Xcode projects to Tuist-generated workspaces with build and run validation, external dependency mapping, and migration checklists. |
 | `generated-projects` | Guides day-to-day work in Tuist-generated workspaces: generation, build/test commands, and buildable folders. |
 | `fix-flaky-tests` | Fixes flaky tests by analyzing failure patterns from Tuist test insights, identifying root causes, and applying targeted corrections. |
+| `debug-generated-project` | Debugs issues with Tuist-generated projects by reproducing the scenario, building Tuist from source when needed, and triaging whether it is a bug, misconfiguration, or something that needs team input. |
 
 ## Installation {#installation}
 
