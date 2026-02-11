@@ -1,3 +1,4 @@
+#if os(macOS)
 import Difference
 import FileSystem
 import Foundation
@@ -248,3 +249,4 @@ open class TuistTestCase: XCTestCase {
         return destinationPath
     }
 }
+#endif

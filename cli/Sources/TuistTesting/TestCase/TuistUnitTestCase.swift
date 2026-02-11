@@ -1,3 +1,4 @@
+#if os(macOS)
 import FileSystem
 import Foundation
 import XCTest
@@ -27,3 +28,4 @@ open class TuistUnitTestCase: TuistTestCase {
         super.tearDown()
     }
 }
+#endif

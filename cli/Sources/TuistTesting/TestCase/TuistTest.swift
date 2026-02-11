@@ -7,15 +7,21 @@ import Noora
 import Path
 import Testing
 import TuistAlert
+#if os(macOS)
 import TuistCore
+#endif
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
+#if os(macOS)
 import TuistServer
+#endif
 import TuistSupport
+#if os(macOS)
 import XcodeProj
+#endif
 
 // It uses service-context, which uses task locals (from structured concurrency), to inject
 // instances of core utilities like logger to mock their behaviour for unit tests.
@@ -34,6 +40,7 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
             try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
                 try await RecentPathsStore.$current.withValue(MockRecentPathsStoring()) {
                     try await AlertController.$current.withValue(AlertController()) {
+                        #if os(macOS)
                         try await ServerCredentialsStore.$current.withValue(MockServerCredentialsStoring()) {
                             try await CachedValueStore.$current.withValue(MockCachedValueStoring()) {
                                 try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
@@ -41,6 +48,9 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
                                 }
                             }
                         }
+                        #else
+                        try await closure()
+                        #endif
                     }
                 }
             }
@@ -116,6 +126,7 @@ public enum TuistTest {
         }
     }
 
+    #if os(macOS)
     public static func expectFrameworkNotEmbedded(
         _ framework: String,
         by targetName: String,
@@ -178,6 +189,7 @@ public enum TuistTest {
             )
         }
     }
+    #endif
 
     public static func expectLogs(
         _ expected: String,

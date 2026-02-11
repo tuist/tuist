@@ -649,6 +649,52 @@ var targets: [Target] = [
         ],
         path: "cli/Sources/TuistLoggerTesting"
     ),
+    .target(
+        name: "TuistSupport",
+        dependencies: [
+            pathDependency,
+            loggingDependency,
+            swiftToolsSupportDependency,
+            zipFoundationDependency,
+            mockableDependency,
+            fileSystemDependency,
+            commandDependency,
+            "TuistConstants",
+            "TuistLogging",
+            "TuistEnvironment",
+            "TuistNooraExtension",
+            "TuistAlert",
+            "TuistThreadSafe",
+            "TuistUserInputReader",
+            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "Crypto", package: "apple.swift-crypto", condition: .when(platforms: [.linux])),
+        ],
+        path: "cli/Sources/TuistSupport",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistTesting",
+        dependencies: [
+            "TuistSupport",
+            .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistHTTP", condition: .when(platforms: [.macOS])),
+            "TuistAlert",
+            "TuistNooraTesting",
+            "TuistLoggerTesting",
+            "TuistEnvironmentTesting",
+            pathDependency,
+            differenceDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            argumentParserDependency,
+        ],
+        path: "cli/Sources/TuistTesting",
+        exclude: ["AGENTS.md"],
+        linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
+    ),
     // MARK: Cross-platform test targets
     .testTarget(
         name: "TuistConfigLoaderTests",
@@ -792,6 +838,8 @@ var targets: [Target] = [
             "TuistConstants",
             "TuistEnvironmentTesting",
             "TuistNooraTesting",
+            "TuistSupport",
+            "TuistTesting",
             pathDependency,
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
@@ -808,31 +856,6 @@ var targets: [Target] = [
 #if os(macOS)
 
 targets.append(contentsOf: [
-    .target(
-        name: "TuistSupport",
-        dependencies: [
-            pathDependency,
-            loggingDependency,
-            swiftToolsSupportDependency,
-            zipFoundationDependency,
-            mockableDependency,
-            fileSystemDependency,
-            commandDependency,
-            "TuistConstants",
-            "TuistLogging",
-            "TuistEnvironment",
-            "TuistNooraExtension",
-            "TuistAlert",
-            "TuistThreadSafe",
-            "TuistUserInputReader",
-            .product(name: "Noora", package: "tuist.Noora"),
-        ],
-        path: "cli/Sources/TuistSupport",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
     .target(
         name: "TuistHAR",
         dependencies: [
@@ -973,27 +996,6 @@ targets.append(contentsOf: [
             xcodeGraphDependency,
         ],
         path: "cli/Sources/TuistExtension"
-    ),
-    .target(
-        name: "TuistTesting",
-        dependencies: [
-            "TuistSupport",
-            "TuistServer",
-            "TuistHTTP",
-            "TuistAlert",
-            "TuistNooraTesting",
-            "TuistLoggerTesting",
-            "TuistEnvironmentTesting",
-            xcodeGraphDependency,
-            pathDependency,
-            differenceDependency,
-            fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
-            argumentParserDependency,
-        ],
-        path: "cli/Sources/TuistTesting",
-        exclude: ["AGENTS.md"],
-        linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
         name: "TuistAcceptanceTesting",
@@ -1456,6 +1458,7 @@ let package = Package(
         .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.14.11")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
+        .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "apple.swift-nio", from: "2.70.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.54.0"),

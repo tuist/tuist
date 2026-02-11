@@ -9,8 +9,10 @@ extension DispatchQueue {
     /// - parameter token: A unique reverse DNS style name such as dev.tuist.<name> or a GUID
     /// - parameter block: Block to execute once
     public class func once(token: String, block: () -> Void) {
+        #if canImport(ObjectiveC)
         objc_sync_enter(self)
         defer { objc_sync_exit(self) }
+        #endif
 
         if _once.contains(token) {
             return

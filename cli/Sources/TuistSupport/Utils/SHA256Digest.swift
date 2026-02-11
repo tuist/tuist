@@ -1,3 +1,4 @@
+#if os(macOS)
 import CommonCrypto
 import Foundation
 
@@ -61,3 +62,4 @@ final class SHA256Digest {
         return Data(resultBuffer)
     }
 }
+#endif

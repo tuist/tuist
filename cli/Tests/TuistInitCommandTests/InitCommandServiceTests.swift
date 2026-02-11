@@ -31,7 +31,9 @@ struct InitCommandServiceTests {
     private let createOrganizationService = MockCreateOrganizationServicing()
     private let listOrganizationsService = MockListOrganizationsServicing()
     private let getProjectService = MockGetProjectServicing()
+    #if os(macOS)
     private let commandRunner = MockCommandRunning()
+    #endif
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let subject: InitCommandService
 
@@ -62,7 +64,6 @@ struct InitCommandServiceTests {
                 createOrganizationService: createOrganizationService,
                 listOrganizationsService: listOrganizationsService,
                 getProjectService: getProjectService,
-                commandRunner: commandRunner,
                 serverEnvironmentService: serverEnvironmentService
             )
         #endif
@@ -338,6 +339,7 @@ struct InitCommandServiceTests {
         }
     #endif
 
+    #if os(macOS)
     @Test func generatesTheRightConfiguration_when_connectingGradleProject_and_connectedToServer()
         async throws
     {
@@ -393,4 +395,5 @@ struct InitCommandServiceTests {
             }
         }
     }
+    #endif
 }

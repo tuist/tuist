@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Mockable
 import TuistConstants
@@ -168,3 +169,4 @@ extension InitGeneratedProjectService {
         )
     }
 }
+#endif

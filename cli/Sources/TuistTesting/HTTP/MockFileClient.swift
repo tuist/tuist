@@ -1,10 +1,13 @@
 import Foundation
 import Path
+#if os(macOS)
 import TuistHTTP
+#endif
 import TuistSupport
 
 // swiftlint:disable large_tuple
 
+#if os(macOS)
 public final class MockFileClient: FileClienting {
     public init() {}
 
@@ -42,3 +45,4 @@ public final class MockFileClient: FileClienting {
 }
 
 // swiftlint:enable large_tuple
+#endif

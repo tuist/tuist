@@ -1,3 +1,4 @@
+#if os(macOS)
 import CryptoKit
 import Foundation
 import Logging
@@ -93,3 +94,4 @@ extension ProcessInfo {
         return String(bytes: data, encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
     }
 }
+#endif

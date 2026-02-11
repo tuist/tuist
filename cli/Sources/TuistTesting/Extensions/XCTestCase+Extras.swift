@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Path
 import TuistEnvironment
@@ -431,3 +432,4 @@ extension XCTestCase {
         XCTAssertEqual(directoryContent, expectedContent, message, file: file, line: line)
     }
 }
+#endif

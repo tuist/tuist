@@ -26,12 +26,16 @@ public final class SecureStringGenerator: SecureStringGenerating {
 
     public func generate() throws -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
+        #if canImport(Darwin)
         let result = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-
         guard result == errSecSuccess else {
             throw SecureStringGeneratorError.unknownError
         }
-
+        #else
+        for i in 0 ..< bytes.count {
+            bytes[i] = UInt8.random(in: 0 ... 255)
+        }
+        #endif
         return Data(bytes).base64EncodedString()
     }
 }
