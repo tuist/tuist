@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"PO-Revision-Date: 2026-02-11 17:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hant/>\n"
@@ -681,11 +681,13 @@ msgid ""
 "occurrences within the last 30 days"
 msgstr "若測試在過去30天內出現超過指定次數的反覆性問題，將標記為不穩定測試"
 
+#, fuzzy
 msgid "Build system"
-msgstr ""
+msgstr "建置系統"
 
+#, fuzzy
 msgid "Select build system"
-msgstr ""
+msgstr "選擇建置系統"
 
 #, fuzzy
 #~ msgid "Only people with access"
