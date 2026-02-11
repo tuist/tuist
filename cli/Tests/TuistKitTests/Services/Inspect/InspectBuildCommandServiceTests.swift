@@ -123,7 +123,6 @@ struct InspectBuildCommandServiceTests {
         given(ciController)
             .ciInfo()
             .willReturn(.test())
-
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
