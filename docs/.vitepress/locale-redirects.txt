@@ -292,4 +292,3 @@
 /references/project-description/typealiases/settingsdictionary /en/references/project-description/typealiases/settingsdictionary 301
 /:locale/guides/quick-start/create-a-project /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/guides/quick-start/optimize-workflows /:locale/tutorials/xcode/create-a-generated-project 301
-/en 301
