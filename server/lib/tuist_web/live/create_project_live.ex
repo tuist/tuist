@@ -3,7 +3,6 @@ defmodule TuistWeb.CreateProjectLive do
   use TuistWeb, :live_view
   use Noora
 
-  alias Phoenix.Flash
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
@@ -21,20 +20,15 @@ defmodule TuistWeb.CreateProjectLive do
     all_accounts = [current_user.account | organization_accounts]
 
     selected_account =
-      cond do
-        Map.get(params, "account_id") ->
-          account_id = String.to_integer(params["account_id"])
+      case Map.get(params, "account_id") do
+        account_id when is_binary(account_id) ->
+          account_id = String.to_integer(account_id)
 
           if Enum.any?(all_accounts, &(&1.id == account_id)),
             do: account_id,
             else: current_user.account.id
 
-        Flash.get(socket.assigns.flash, :organization_id) ->
-          organization_accounts
-          |> Enum.find(&(&1.organization_id == Flash.get(socket.assigns.flash, :organization_id)))
-          |> Map.get(:id)
-
-        true ->
+        _ ->
           current_user.account.id
       end
 

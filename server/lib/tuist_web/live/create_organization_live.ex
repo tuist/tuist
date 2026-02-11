@@ -80,9 +80,7 @@ defmodule TuistWeb.CreateOrganizationLive do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
       {:ok, organization} ->
         socket =
-          socket
-          |> put_flash(:organization_id, organization.id)
-          |> push_navigate(to: ~p"/projects/new")
+          push_navigate(socket, to: ~p"/projects/new?account_id=#{organization.account.id}")
 
         {:noreply, socket}
 
