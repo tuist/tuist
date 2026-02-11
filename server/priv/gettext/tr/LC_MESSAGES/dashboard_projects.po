@@ -695,6 +695,12 @@ msgstr ""
 "Son 30 gün içinde belirtilen sayıda hatalı sonuç ortaya çıktıktan sonra "
 "testler hatalı olarak işaretlenecektir."
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "Yalnızca erişimi olan kişiler"

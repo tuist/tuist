@@ -594,5 +594,11 @@ msgstr ""
 "지정된 횟수의 불안정 발생이 지난 30일 이내에 발생하면 테스트는 불안정(flaky)"
 "으로 표시됩니다."
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #~ msgid "Only people with access"
 #~ msgstr "접근 권한이 있는 사람만 볼 수 있음"

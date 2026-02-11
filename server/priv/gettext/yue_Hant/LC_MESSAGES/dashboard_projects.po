@@ -514,3 +514,9 @@ msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
