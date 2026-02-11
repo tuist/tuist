@@ -199,7 +199,11 @@ public struct InitCommandService {
             .alert(successMessage, takeaways: nextSteps)
         )
     }
+}
 
+// MARK: - Private Helpers
+
+extension InitCommandService {
     private func mise(path: AbsolutePath, nextSteps _: inout [TerminalText]) async throws {
         let version = (Constants.version == "x.y.z") ? "latest" : Constants.version
         try? await commandRunner.run(
