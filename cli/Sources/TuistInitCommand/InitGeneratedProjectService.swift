@@ -68,7 +68,7 @@
             path: String?
         ) async throws {
             let platform = try self.platform(platform)
-            let path = try self.path(path)
+            let path = try await self.path(path)
             let name = try self.name(name, path: path)
             let templateName = "default"
             let directories = try await templatesDirectoryLocator.templateDirectories(at: path)
@@ -111,13 +111,14 @@
             }
         }
 
-        private func path(_ path: String?) throws -> AbsolutePath {
+        private func path(_ path: String?) async throws -> AbsolutePath {
+            let currentPath = try await fileSystem.currentWorkingDirectory()
             if let path {
                 return try AbsolutePath(
-                    validating: path, relativeTo: FileHandler.shared.currentPath
+                    validating: path, relativeTo: currentPath
                 )
             } else {
-                return FileHandler.shared.currentPath
+                return currentPath
             }
         }
 
