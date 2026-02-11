@@ -1,7 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.142.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.143.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add test case show and run commands with fix-flaky-tests skill by [@fortmarek](https://github.com/fortmarek) in [#9379](https://github.com/tuist/tuist/pull/9379)
+### 🐛 Bug Fixes
+
+* resolve derived data path from DERIVED_DATA_DIR env in inspect commands by [@fortmarek](https://github.com/fortmarek) in [#9396](https://github.com/tuist/tuist/pull/9396)
+* use correct TUIST_URL key for env variable lookup in login command by [@fortmarek](https://github.com/fortmarek) in [#9398](https://github.com/tuist/tuist/pull/9398)
+* strip debug symbols (dSYM/DWARF) from cached XCFrameworks by [@pepicrft](https://github.com/pepicrft) in [#9287](https://github.com/tuist/tuist/pull/9287)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.143.0
+
+## What's Changed in 4.142.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -12,7 +25,7 @@ All notable changes to this project will be documented in this file.
 * restore asset symbol generation for external static frameworks by [@pepicrft](https://github.com/pepicrft) in [#9382](https://github.com/tuist/tuist/pull/9382)
 * use correct bundle accessor for external dynamic frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9381](https://github.com/tuist/tuist/pull/9381)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.1...4.142.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.1...4.142.1
 
 ## What's Changed in 4.141.1<!-- RELEASE NOTES START -->
 
