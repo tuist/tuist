@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-11 11:33+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_auth/zh_Hant/>\n"
@@ -341,8 +341,9 @@ msgstr "mise"
 msgid "using CLI"
 msgstr "使用命令列介面"
 
+#, fuzzy
 msgid "By continuing, you agree to Tuist's"
-msgstr ""
+msgstr "繼續操作即表示您同意 Tuist 的"
 
 msgid "Privacy Policy"
 msgstr ""
@@ -350,5 +351,6 @@ msgstr ""
 msgid "Terms of Service"
 msgstr ""
 
+#, fuzzy
 msgid "and"
-msgstr ""
+msgstr "以及"
