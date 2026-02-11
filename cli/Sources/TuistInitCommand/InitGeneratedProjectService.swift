@@ -76,7 +76,8 @@
             else { throw InitGeneratedProjectServiceError.templateNotFound(templateName) }
 
             let template = try await templateLoader.loadTemplate(
-                at: templateDirectory, plugins: .none)
+                at: templateDirectory, plugins: .none
+            )
             let parsedAttributes: [String: Template.Attribute.Value] = [
                 "name": .string(name),
                 "platform": .string(platform.caseValue),
@@ -95,8 +96,7 @@
         private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws
             -> AbsolutePath
         {
-            guard
-                let templateDirectory = templateDirectories.first(where: { $0.basename == template })
+            guard let templateDirectory = templateDirectories.first(where: { $0.basename == template })
             else { throw InitGeneratedProjectServiceError.templateNotFound(template) }
             return templateDirectory
         }
@@ -114,7 +114,8 @@
         private func path(_ path: String?) throws -> AbsolutePath {
             if let path {
                 return try AbsolutePath(
-                    validating: path, relativeTo: FileHandler.shared.currentPath)
+                    validating: path, relativeTo: FileHandler.shared.currentPath
+                )
             } else {
                 return FileHandler.shared.currentPath
             }

@@ -8,9 +8,9 @@ import TuistCacheCommand
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
-import TuistInitCommand
 import TuistExtension
 @_exported import TuistGenerateCommand
+import TuistInitCommand
 @_exported import TuistKit
 @_exported import TuistRegistryCommand
 @_exported import TuistTestCommand

@@ -353,8 +353,8 @@ public struct InitCommandService {
             nextSteps: inout [TerminalText]
         ) async throws -> String? {
             if let fullHandle = try await connectToServer(
-                named: projectHandle, answers: answers)
-            {
+                named: projectHandle, answers: answers
+            ) {
                 nextSteps.append(contentsOf: [
                     "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/features/cache"))",
                     "Accelerate your test runs with \(.link(title: "selective testing", href: "https://docs.tuist.dev/en/guides/features/selective-testing"))",
@@ -412,7 +412,7 @@ public struct InitCommandService {
                 ?? prompter
                 .promptWorkflowType(
                     xcodeProjectOrWorkspace:
-                        xcodeProjectsAndWorkspaces
+                    xcodeProjectsAndWorkspaces
                         .first(where: \.isWorkspace)
                         ?? xcodeProjectsAndWorkspaces.first(where: \.isProject)
                 )
