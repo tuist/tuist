@@ -113,9 +113,6 @@ Key fields:
 - **Implicit ordering**: Test passes only when run after another test that sets up required state. Fix: make each test self-contained.
 - **Parallel execution conflicts**: Tests that work in isolation but fail when run concurrently. Fix: use unique resources per test.
 
-### Test infrastructure crashes
-- **Thread-unsafe test helpers**: Mocking frameworks or test utilities that mutate shared state (e.g. registering matchers, resetting singletons) in test `init()` or `setUp()` can crash when Swift Testing runs tests in parallel. Fix: move shared registrations to a one-time module-level initializer, remove redundant calls, or add `.serialized` to the test suite.
-- **Process-level crashes**: When `failures[].path` is empty and `line_number` is 0, the test process crashed rather than a specific assertion failing. Multiple tests failing in the same `test_run_id` with the same crash message confirms this. Look at the crash site (e.g. the function name in the message) and trace it to the framework source to find the thread-safety issue.
 
 ## Fix Implementation
 
