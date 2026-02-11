@@ -7,7 +7,7 @@ import TuistOIDC
 import TuistServer
 import TuistUserInputReader
 
-#if canImport(TuistSupport)
+#if os(macOS)
     import TuistCore
     import TuistLoader
     import TuistSupport
@@ -78,7 +78,7 @@ struct LoginCommandServiceTests {
             .called(1)
     }
 
-    #if canImport(TuistSupport)
+    #if os(macOS)
         @Test(.withMockedDependencies())
         func authenticate_when_password_is_provided() async throws {
             // Given
@@ -258,7 +258,7 @@ struct LoginCommandServiceTests {
             .called(1)
     }
 
-    #if canImport(TuistSupport)
+    #if os(macOS)
         @Test(.withMockedEnvironment(), .withMockedDependencies())
         func authenticate_with_oidc_in_ci_environment() async throws {
             // Given
