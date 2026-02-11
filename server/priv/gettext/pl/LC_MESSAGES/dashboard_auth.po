@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-02-11 11:33+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_auth/pl/>\n"
@@ -351,14 +351,18 @@ msgstr "mise"
 msgid "using CLI"
 msgstr "przy użyciu CLI"
 
+#, fuzzy
 msgid "By continuing, you agree to Tuist's"
-msgstr ""
+msgstr "Kontynuując, wyrażasz zgodę na warunki Tuist."
 
+#, fuzzy
 msgid "Privacy Policy"
-msgstr ""
+msgstr "Polityka prywatności"
 
+#, fuzzy
 msgid "Terms of Service"
-msgstr ""
+msgstr "Warunki korzystania z usługi"
 
+#, fuzzy
 msgid "and"
-msgstr ""
+msgstr "i"
