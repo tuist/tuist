@@ -37,20 +37,20 @@ defmodule Tuist.Builds.Build do
     field :duration, Ch, type: "Int32"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
-    field :macos_version, Ch, type: "Nullable(String)"
-    field :xcode_version, Ch, type: "Nullable(String)"
+    field :macos_version, :string, default: ""
+    field :xcode_version, :string, default: ""
     field :is_ci, :boolean
-    field :model_identifier, Ch, type: "Nullable(String)"
-    field :scheme, Ch, type: "Nullable(String)"
+    field :model_identifier, :string, default: ""
+    field :scheme, :string, default: ""
     field :status, Ch, type: "LowCardinality(String)"
     field :category, Ch, type: "LowCardinality(String)"
-    field :configuration, Ch, type: "Nullable(String)"
-    field :git_branch, Ch, type: "Nullable(String)"
-    field :git_commit_sha, Ch, type: "Nullable(String)"
-    field :git_ref, Ch, type: "Nullable(String)"
-    field :ci_run_id, Ch, type: "Nullable(String)"
-    field :ci_project_handle, Ch, type: "Nullable(String)"
-    field :ci_host, Ch, type: "Nullable(String)"
+    field :configuration, :string, default: ""
+    field :git_branch, :string, default: ""
+    field :git_commit_sha, :string, default: ""
+    field :git_ref, :string, default: ""
+    field :ci_run_id, :string, default: ""
+    field :ci_project_handle, :string, default: ""
+    field :ci_host, :string, default: ""
 
     field :ci_provider, Ch, type: "LowCardinality(String)"
 
@@ -71,7 +71,22 @@ defmodule Tuist.Builds.Build do
   def create_changeset(build \\ %__MODULE__{}, attrs) do
     attrs
     |> normalize_datetime_attr(:inserted_at)
-    |> default_to_empty_string([:status, :category, :ci_provider])
+    |> default_to_empty_string([
+      :status,
+      :category,
+      :ci_provider,
+      :macos_version,
+      :xcode_version,
+      :model_identifier,
+      :scheme,
+      :configuration,
+      :git_branch,
+      :git_commit_sha,
+      :git_ref,
+      :ci_run_id,
+      :ci_project_handle,
+      :ci_host
+    ])
     |> then(fn attrs ->
       build
       |> cast(attrs, [

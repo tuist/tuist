@@ -47,7 +47,11 @@
         }
         label={
           dgettext("dashboard_tests", "Build: %{scheme}",
-            scheme: @run.build_run.scheme || dgettext("dashboard_tests", "Unknown")
+            scheme:
+              if(@run.build_run.scheme == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.build_run.scheme
+              )
           )
         }
         size="large"

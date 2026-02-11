@@ -41,28 +41,28 @@ defmodule Tuist.VCS do
   """
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def ci_run_url(%{ci_provider: provider, ci_run_id: run_id, ci_project_handle: project_handle} = ci_metadata)
-      when not is_nil(run_id) and run_id != "" do
+      when run_id != "" do
     host = Map.get(ci_metadata, :ci_host)
     host = if host == "", do: nil, else: host
 
     case {provider, project_handle} do
-      {"github", project_handle} when not is_nil(project_handle) and project_handle != "" ->
+      {"github", project_handle} when project_handle != "" ->
         "https://github.com/#{project_handle}/actions/runs/#{run_id}"
 
-      {"gitlab", project_path} when not is_nil(project_path) and project_path != "" ->
+      {"gitlab", project_path} when project_path != "" ->
         gitlab_host = host || "gitlab.com"
         "https://#{gitlab_host}/#{project_path}/-/pipelines/#{run_id}"
 
       {"bitrise", _} ->
         "https://app.bitrise.io/build/#{run_id}"
 
-      {"circleci", project_handle} when not is_nil(project_handle) and project_handle != "" ->
+      {"circleci", project_handle} when project_handle != "" ->
         "https://app.circleci.com/pipelines/github/#{project_handle}/#{run_id}"
 
-      {"buildkite", project_handle} when not is_nil(project_handle) and project_handle != "" ->
+      {"buildkite", project_handle} when project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{run_id}"
 
-      {"codemagic", project_id} when not is_nil(project_id) and project_id != "" ->
+      {"codemagic", project_id} when project_id != "" ->
         "https://codemagic.io/app/#{project_id}/build/#{run_id}"
 
       _ ->
@@ -231,8 +231,8 @@ defmodule Tuist.VCS do
         git_remote_url_origin |> get_repository_full_handle_from_url() |> elem(1)
       end
 
-    with true <- not is_nil(git_commit_sha),
-         true <- not is_nil(git_ref),
+    with true <- git_commit_sha != "",
+         true <- git_ref != "",
          true <- not is_nil(repository_full_handle),
          true <- String.starts_with?(git_ref, "refs/pull/"),
          {:ok, installation_id} <-
@@ -667,7 +667,7 @@ defmodule Tuist.VCS do
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
-    |> Enum.filter(&(not is_nil(&1.scheme)))
+    |> Enum.filter(&(&1.scheme != ""))
     |> Enum.reduce(%{}, fn build, acc ->
       scheme = build.scheme
 
@@ -691,7 +691,7 @@ defmodule Tuist.VCS do
 
     from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
-    |> where([t], not is_nil(t.scheme) and t.scheme != "")
+    |> where([t], t.scheme != "")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.reduce(%{}, fn test_run, acc ->

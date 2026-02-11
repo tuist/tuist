@@ -373,7 +373,7 @@ defmodule Tuist.Builds do
     ClickHouseRepo.all(
       from(b in Build,
         where: b.project_id == ^project.id,
-        where: not is_nil(b.scheme),
+        where: b.scheme != "",
         where: b.inserted_at > ^thirty_days_ago,
         distinct: true,
         select: b.scheme
@@ -387,7 +387,7 @@ defmodule Tuist.Builds do
     ClickHouseRepo.all(
       from(b in Build,
         where: b.project_id == ^project.id,
-        where: not is_nil(b.configuration),
+        where: b.configuration != "",
         where: b.inserted_at > ^thirty_days_ago,
         distinct: true,
         select: b.configuration

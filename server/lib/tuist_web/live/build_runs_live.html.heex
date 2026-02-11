@@ -61,7 +61,9 @@
                 data-part="scheme-with-tags"
                 style="display: flex; align-items: center; gap: 8px;"
               >
-                <span data-part="label">{build_run.scheme || "None"}</span>
+                <span data-part="label">
+                  {if(build_run.scheme == "", do: "None", else: build_run.scheme)}
+                </span>
                 <.badge
                   :if={Enum.any?(build_run.custom_tags || [])}
                   label={List.first(build_run.custom_tags)}
@@ -87,7 +89,12 @@
             </div>
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Configuration")}>
-            <.text_cell label={build_run.configuration || dgettext("dashboard_builds", "Unknown")} />
+            <.text_cell label={
+              if(build_run.configuration == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: build_run.configuration
+              )
+            } />
           </:col>
           <:col :let={build_run} label="Status">
             <.status_badge_cell
@@ -102,7 +109,10 @@
             />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
-            <.text_cell icon="git_branch" label={build_run.git_branch || "None"} />
+            <.text_cell
+              icon="git_branch"
+              label={if(build_run.git_branch == "", do: "None", else: build_run.git_branch)}
+            />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Commit SHA")}>
             <.text_cell label={SHA.format_commit_sha(build_run.git_commit_sha)} />
@@ -149,15 +159,29 @@
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build_run.inserted_at)} />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Xcode version")}>
-            <.text_cell label={build_run.xcode_version || dgettext("dashboard_builds", "Unknown")} />
+            <.text_cell label={
+              if(build_run.xcode_version == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: build_run.xcode_version
+              )
+            } />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "macOS version")}>
-            <.text_cell label={build_run.macos_version || dgettext("dashboard_builds", "Unknown")} />
+            <.text_cell label={
+              if(build_run.macos_version == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else: build_run.macos_version
+              )
+            } />
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Device")}>
             <.text_cell label={
-              (build_run.model_identifier && Tuist.Apple.devices()[build_run.model_identifier]) ||
-                dgettext("dashboard_builds", "Unknown")
+              if(build_run.model_identifier == "",
+                do: dgettext("dashboard_builds", "Unknown"),
+                else:
+                  Tuist.Apple.devices()[build_run.model_identifier] ||
+                    dgettext("dashboard_builds", "Unknown")
+              )
             } />
           </:col>
         </.table>
