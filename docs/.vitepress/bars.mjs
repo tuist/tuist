@@ -109,6 +109,22 @@ export async function referencesSidebar(locale) {
         },
       ],
     },
+    {
+      text: localizedString(
+        locale,
+        "sidebars.references.items.configuration.text",
+      ),
+      collapsed: false,
+      items: [
+        {
+          text: localizedString(
+            locale,
+            "sidebars.references.items.configuration.items.tuist-toml.text",
+          ),
+          link: `/${locale}/references/tuist-toml`,
+        },
+      ],
+    },
   ];
 }
 
