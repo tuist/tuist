@@ -667,7 +667,7 @@ var targets: [Target] = [
             "TuistThreadSafe",
             "TuistUserInputReader",
             .product(name: "Noora", package: "tuist.Noora"),
-            .product(name: "Crypto", package: "apple.swift-crypto", condition: .when(platforms: [.linux])),
+            .product(name: "Crypto", package: "apple.swift-crypto"),
         ],
         path: "cli/Sources/TuistSupport",
         exclude: ["AGENTS.md"],

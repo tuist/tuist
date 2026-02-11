@@ -1,5 +1,5 @@
 #if os(macOS)
-    import CryptoKit
+    import Crypto
     import Foundation
     import Logging
     import Mockable

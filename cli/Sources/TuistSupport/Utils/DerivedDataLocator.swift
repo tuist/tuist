@@ -1,8 +1,4 @@
-#if canImport(CryptoKit)
-    import CryptoKit
-#else
-    import Crypto
-#endif
+import Crypto
 import Foundation
 import Mockable
 import Path
