@@ -43,7 +43,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
             for (targetName, target) in project.targets {
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, output, inputs, _) = dependency else {
+                    guard case let .foreignBuild(name, script, inputs, output, _) = dependency else {
                         continue
                     }
 

@@ -164,14 +164,14 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
     ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
     ///         """,
-    ///     output: .xcframework(
-    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
-    ///         linking: .dynamic
-    ///     ),
     ///     inputs: [
     ///         .folder("SharedKMP/src"),
     ///         .file("SharedKMP/build.gradle.kts"),
-    ///     ]
+    ///     ],
+    ///     output: .xcframework(
+    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+    ///         linking: .dynamic
+    ///     )
     /// )
     /// ```
     ///
@@ -179,14 +179,14 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - name: A unique name for this foreign build dependency (used as the aggregate target name).
     ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
     /// directory.
-    ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
     ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
+    ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
     ///   - condition: Condition under which to use this dependency, `nil` if this should always be used.
     case foreignBuild(
         name: String,
         script: String,
-        output: ForeignBuildOutput,
         inputs: [Input] = [],
+        output: ForeignBuildOutput,
         condition: PlatformCondition? = nil
     )
 

@@ -180,7 +180,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                 hashedPaths: hashedPaths,
                 hash: try contentHasher.hash("xctest")
             )
-        case let .foreignBuild(name, script, _, inputs, _):
+        case let .foreignBuild(name, script, inputs, _, _):
             var hashedPaths = hashedPaths
 
             let inputsResult = try await foreignBuildInputHasher.hash(

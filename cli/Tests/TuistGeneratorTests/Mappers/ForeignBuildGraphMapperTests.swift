@@ -40,8 +40,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -78,8 +78,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -109,8 +109,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -120,8 +120,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -157,14 +157,14 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath1, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath1, linking: .dynamic)
                 ),
                 .foreignBuild(
                     name: "RustLib",
                     script: "cargo build",
-                    output: .library(path: outputPath2, publicHeaders: try AbsolutePath(validating: "/Project/headers"), swiftModuleMap: nil, linking: .static),
-                    inputs: []
+                    inputs: [],
+                    output: .library(path: outputPath2, publicHeaders: try AbsolutePath(validating: "/Project/headers"), swiftModuleMap: nil, linking: .static)
                 ),
             ]
         )
@@ -195,13 +195,13 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
                     inputs: [
                         .folder(srcFolder),
                         .file(gradleFile),
                         .glob("/Project/SharedKMP/**/*.kt"),
                         .script("git rev-parse HEAD"),
-                    ]
+                    ],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -256,8 +256,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "Lib",
                     script: "make build",
-                    output: .framework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .framework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -287,8 +287,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "RustLib",
                     script: "cargo build",
-                    output: .library(path: outputPath, publicHeaders: headersPath, swiftModuleMap: nil, linking: .static),
-                    inputs: []
+                    inputs: [],
+                    output: .library(path: outputPath, publicHeaders: headersPath, swiftModuleMap: nil, linking: .static)
                 ),
             ]
         )
@@ -319,8 +319,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -349,8 +349,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )
@@ -381,8 +381,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 .foreignBuild(
                     name: "SharedKMP",
                     script: "gradle build",
-                    output: .xcframework(path: outputPath, linking: .dynamic),
-                    inputs: []
+                    inputs: [],
+                    output: .xcframework(path: outputPath, linking: .dynamic)
                 ),
             ]
         )

@@ -201,7 +201,7 @@ public final class GraphLoader: GraphLoading {
                 try loadXCTestSDK(platform: platform)
             }
 
-        case let .foreignBuild(name, _, output, _, _):
+        case let .foreignBuild(name, _, _, output, _):
             return .foreignBuildOutput(GraphDependency.ForeignBuildOutput(
                 name: name,
                 path: output.path,

@@ -112,7 +112,7 @@ extension XcodeGraph.TargetDependency {
             }
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
-        case let .foreignBuild(name, script, output, inputs, condition):
+        case let .foreignBuild(name, script, inputs, output, condition):
             let mappedOutput = try XcodeGraph.ForeignBuildArtifact.from(
                 manifest: output,
                 generatorPaths: generatorPaths
@@ -123,8 +123,8 @@ extension XcodeGraph.TargetDependency {
             return [.foreignBuild(
                 name: name,
                 script: script,
-                output: mappedOutput,
                 inputs: mappedInputs,
+                output: mappedOutput,
                 condition: condition?.asGraphCondition
             )]
         }
@@ -220,7 +220,7 @@ extension XcodeGraph.XCFrameworkSignature {
 }
 
 extension XcodeGraph.BinaryLinking {
-    static func from(manifest: ProjectDescription.BinaryLinking) -> Self {
+    static func from(manifest: ProjectDescription.ForeignBuildOutput.Linking) -> Self {
         switch manifest {
         case .static: return .static
         case .dynamic: return .dynamic

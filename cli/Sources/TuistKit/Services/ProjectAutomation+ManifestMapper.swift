@@ -160,7 +160,7 @@ extension ProjectAutomation.Target {
             return .sdk(name: name, status: projectAutomationStatus)
         case .xctest:
             return .xctest
-        case let .foreignBuild(name, _, output, _, _):
+        case let .foreignBuild(name, _, _, output, _):
             return .foreignBuild(name: name, output: Self.from(output))
         }
     }
