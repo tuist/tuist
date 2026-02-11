@@ -4,6 +4,24 @@ defmodule TuistWeb.AppAuthComponents do
   """
 
   use Phoenix.Component
+  use Gettext, backend: TuistWeb.Gettext
+
+  def terms_and_privacy(assigns) do
+    ~H"""
+    <div data-part="terms-notice">
+      <span>
+        {dgettext("dashboard_auth", "By continuing, you agree to Tuist's")}
+        <a href="https://tuist.dev/terms" target="_blank" rel="noopener noreferrer">
+          {dgettext("dashboard_auth", "Terms of Service")}
+        </a>
+        {dgettext("dashboard_auth", "and")}
+        <a href="https://tuist.dev/privacy" target="_blank" rel="noopener noreferrer">
+          {dgettext("dashboard_auth", "Privacy Policy")}
+        </a>
+      </span>
+    </div>
+    """
+  end
 
   def dots_light(assigns) do
     unique_id = UUIDv7.generate()

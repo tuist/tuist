@@ -74,13 +74,11 @@ defmodule Cache.Application do
         storage: :memory,
         labels: %{
           app: {:static, "tuist-cache"},
+          service_name: {:static, "tuist-cache"},
           env: {:static, System.get_env("DEPLOY_ENV") || "production"},
           level: :level
         },
-        structured_metadata: [
-          traceID: {:metadata, :trace_id},
-          spanID: {:metadata, :span_id}
-        ]
+        structured_metadata: [:trace_id, :span_id, :request_id]
       )
     end
   end

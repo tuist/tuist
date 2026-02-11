@@ -199,6 +199,7 @@ defmodule TuistWeb.UserRegistrationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     <div :if={@success} id="signup-success">
       <div data-part="wrapper">
@@ -231,6 +232,7 @@ defmodule TuistWeb.UserRegistrationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end

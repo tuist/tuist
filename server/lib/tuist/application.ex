@@ -86,13 +86,11 @@ defmodule Tuist.Application do
         storage: :memory,
         labels: %{
           app: {:static, "tuist-server"},
+          service_name: {:static, "tuist-server"},
           env: {:static, to_string(Environment.env())},
           level: :level
         },
-        structured_metadata: [
-          traceID: {:metadata, :trace_id},
-          spanID: {:metadata, :span_id}
-        ]
+        structured_metadata: [:trace_id, :span_id, :request_id]
       )
     end
   end

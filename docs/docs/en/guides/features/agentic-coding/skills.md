@@ -17,6 +17,7 @@ Skills are pre-built instruction sets for performing complex, multi-step Tuist t
 | `migrate` | Migrates existing Xcode projects to Tuist-generated workspaces with build and run validation, external dependency mapping, and migration checklists. |
 | `generated-projects` | Guides day-to-day work in Tuist-generated workspaces: generation, build/test commands, and buildable folders. |
 | `fix-flaky-tests` | Fixes flaky tests by analyzing failure patterns from Tuist test insights, identifying root causes, and applying targeted corrections. |
+| `debug-generated-project` | Debugs issues with Tuist-generated projects by reproducing the scenario, building Tuist from source when needed, and triaging whether it is a bug, misconfiguration, or something that needs team input. |
 
 ## Installation {#installation}
 
@@ -25,7 +26,7 @@ The recommended way to install Tuist skills is with the [`skills`](https://githu
 ### Install all skills
 
 ```bash
-npx skills add tuist/tuist
+npx skills add tuist/agent-skills
 ```
 
 The interactive prompt lets you choose which skills and agents to install for.
@@ -33,13 +34,13 @@ The interactive prompt lets you choose which skills and agents to install for.
 ### Install a specific skill
 
 ```bash
-npx skills add tuist/tuist --skill migrate
+npx skills add tuist/agent-skills --skill migrate
 ```
 
 ### Install for a specific agent
 
 ```bash
-npx skills add tuist/tuist -a claude-code
+npx skills add tuist/agent-skills -a claude-code
 ```
 
 ### Install globally
@@ -47,7 +48,7 @@ npx skills add tuist/tuist -a claude-code
 Add the `-g` flag to install skills in your home directory so they are available across all projects:
 
 ```bash
-npx skills add tuist/tuist -g
+npx skills add tuist/agent-skills -g
 ```
 
 ### Update skills
@@ -59,7 +60,7 @@ npx skills update
 ### Non-interactive (CI)
 
 ```bash
-npx skills add tuist/tuist --all -y
+npx skills add tuist/agent-skills --all -y
 ```
 
 ### Manual installation {#manual}

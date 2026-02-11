@@ -1,0 +1,56 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
+import Path
+import Testing
+import TuistEnvironment
+import TuistTesting
+
+@testable import TuistSupport
+
+struct DerivedDataLocatorTests {
+    private let subject = DerivedDataLocator()
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_uses_DERIVED_DATA_DIR_when_different_from_default() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        let customDerivedDataPath = temporaryDirectory.appending(component: "custom-derived-data")
+        mockedEnvironment.variables["DERIVED_DATA_DIR"] = customDerivedDataPath.pathString
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result == customDerivedDataPath)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_ignores_DERIVED_DATA_DIR_when_equal_to_default() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
+        mockedEnvironment.variables["DERIVED_DATA_DIR"] = defaultDerivedDataDirectory.pathString
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result != defaultDerivedDataDirectory)
+        #expect(result.parentDirectory == defaultDerivedDataDirectory)
+        #expect(result.basename.hasPrefix("App-"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_falls_back_to_hash_based_path() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+
+        let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result.parentDirectory == defaultDerivedDataDirectory)
+        #expect(result.basename.hasPrefix("App-"))
+    }
+}

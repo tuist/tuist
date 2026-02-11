@@ -108,15 +108,30 @@ if config_env() == :prod do
     region: s3_region
 
   config :ex_aws,
-    access_key_id: s3_access_key_id,
-    secret_access_key: s3_secret_access_key,
     region: s3_region,
     http_client: TuistCommon.AWS.Client
+
+  cond do
+    s3_access_key_id && s3_secret_access_key ->
+      config :ex_aws,
+        access_key_id: s3_access_key_id,
+        secret_access_key: s3_secret_access_key
+
+    System.get_env("AWS_WEB_IDENTITY_TOKEN_FILE") ->
+      config :ex_aws,
+        access_key_id: [{:awscli, "profile_name", 30}],
+        secret_access_key: [{:awscli, "profile_name", 30}],
+        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
+
+    true ->
+      nil
+  end
 
   config :tuist_common, finch_name: Cache.Finch
 
   if otel_endpoint do
     config :opentelemetry,
+      traces_exporter: :otlp,
       span_processor: :batch,
       resource: [
         service: [name: "tuist-cache", namespace: "tuist"],
