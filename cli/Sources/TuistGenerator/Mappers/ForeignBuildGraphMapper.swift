@@ -12,7 +12,7 @@ import XcodeGraph
 /// 3. The consuming target retains the `foreignBuildOutput` graph dependency (set by GraphLoader) for linking
 /// 4. If the output artifact doesn't exist yet, runs the foreign build script so that the artifact
 ///    is available for Xcode to resolve file references during project generation
-public final class ForeignBuildGraphMapper: GraphMapping {
+public struct ForeignBuildGraphMapper: GraphMapping {
     private let fileSystem: FileSystem
     private let scriptRunner: @Sendable (_ name: String, _ script: String, _ projectPath: AbsolutePath) throws -> Void
 
