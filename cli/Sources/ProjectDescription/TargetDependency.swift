@@ -162,7 +162,6 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///     name: "SharedKMP",
     ///     script: """
     ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-    ///         export JAVA_HOME=$(mise where java)
     ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
     ///         """,
     ///     output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"),
