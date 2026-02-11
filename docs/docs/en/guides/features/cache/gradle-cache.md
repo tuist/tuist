@@ -13,7 +13,7 @@ This feature is not generally available yet. If you are interested in trying it 
 <!-- -->
 :::
 
-Tuist provides a Gradle settings plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache, saving build time across your team and CI environments.
+Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache, saving build time across your team and CI environments.
 
 ## Setup {#setup}
 
@@ -35,14 +35,22 @@ plugins {
 }
 ```
 
-### 2. Configure the plugin {#configure-the-plugin}
+### 2. Configure the project {#configure-the-project}
 
-Add the `tuist` extension block to your `settings.gradle.kts` with your project handle:
+Create a `tuist.toml` file in your project root with your project handle:
+
+```toml
+project = "your-org/your-project"
+```
+
+The Gradle plugin reads this file through the Tuist CLI, so you only need to define your project handle in one place.
+
+### 3. Configure the plugin {#configure-the-plugin}
+
+Add the `tuist` extension block to your `settings.gradle.kts` to configure caching behavior:
 
 ```kotlin
 tuist {
-    project = "your-org/your-project"
-
     buildCache {
         enabled = true
         push = true
@@ -52,7 +60,10 @@ tuist {
 
 That's it. Gradle will now use Tuist as a remote build cache. Cached task outputs are downloaded on cache hits and uploaded after task execution.
 
-### 3. Authenticate {#authenticate}
+> [!NOTE]
+> You can also set `project` directly in the `tuist` block in `settings.gradle.kts` instead of using `tuist.toml`. However, we recommend `tuist.toml` so the configuration is shared across Tuist CLI commands and the Gradle plugin.
+
+### 4. Authenticate {#authenticate}
 
 The plugin uses the Tuist CLI under the hood to obtain the session. Before running your first build, authenticate by running:
 
@@ -64,11 +75,17 @@ This opens a browser-based authentication flow and stores credentials locally. T
 
 ## Self-hosted servers {#self-hosted-servers}
 
-If you are running a <LocalizedLink href="/guides/server/self-host/install">self-hosted Tuist server</LocalizedLink>, set the `url` option to point to your instance:
+If you are running a <LocalizedLink href="/guides/server/self-host/install">self-hosted Tuist server</LocalizedLink>, set the `url` in your `tuist.toml`:
+
+```toml
+project = "your-org/your-project"
+url = "https://tuist.your-company.com"
+```
+
+Alternatively, you can set it in the Gradle plugin configuration:
 
 ```kotlin
 tuist {
-    project = "your-org/your-project"
     url = "https://tuist.your-company.com"
 }
 ```
@@ -85,8 +102,6 @@ By default, the plugin both downloads and uploads artifacts to the remote cache.
 
 ```kotlin
 tuist {
-    project = "your-org/your-project"
-
     buildCache {
         enabled = true
         push = false // read-only mode
@@ -98,8 +113,6 @@ A common pattern is to push artifacts only from CI, where builds are reproducibl
 
 ```kotlin
 tuist {
-    project = "your-org/your-project"
-
     buildCache {
         enabled = true
         push = System.getenv("CI") != null
@@ -117,7 +130,6 @@ By default, build insights are uploaded in the background for local builds and i
 
 ```kotlin
 tuist {
-    project = "your-org/your-project"
     uploadInBackground = false // always upload in the foreground
 }
 ```
@@ -155,14 +167,14 @@ The following options are available in the `tuist` extension block in `settings.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `project` | `String` | `""` (required) | The project identifier in `account/project` format. |
+| `project` | `String` | `""` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml` via the Tuist CLI. |
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String` | `"https://tuist.dev"` | The base URL of the Tuist server. Set this when using a <LocalizedLink href="/guides/server/self-host/install">self-hosted instance</LocalizedLink>. |
 | `uploadInBackground` | `Boolean?` | `null` (background locally, foreground on CI) | Whether to upload build insights in the background. |
 
 ::: info TUIST.TOML
 <!-- -->
-The Gradle plugin reads `project` and `url` from `settings.gradle.kts`, but the Tuist CLI itself can also read these values from a `tuist.toml` file in your project root. If you already have a `tuist.toml` with `project` and `url` configured, you still need to set them in `settings.gradle.kts` since the Gradle plugin does not read `tuist.toml` directly.
+The recommended way to configure `project` (and optionally `url`) is through a `tuist.toml` file in your project root. This way the configuration is shared between the Tuist CLI and the Gradle plugin. You can still override these values in `settings.gradle.kts` if needed.
 <!-- -->
 :::
 

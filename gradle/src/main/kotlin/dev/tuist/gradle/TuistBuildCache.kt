@@ -48,7 +48,7 @@ object TuistVersion {
  * Build cache configuration type for Tuist.
  */
 open class TuistBuildCache : AbstractBuildCache() {
-    var project: String = ""
+    var project: String? = null
     var executablePath: String? = null
     var url: String? = null
     var allowInsecureProtocol: Boolean = false
@@ -66,7 +66,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
     ): BuildCacheService {
         describer
             .type("Tuist")
-            .config("project", configuration.project)
+            .config("project", configuration.project ?: "(from tuist.toml)")
 
         val resolvedCommand = resolveCommand(configuration)
 
@@ -75,7 +75,8 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
         val configurationProvider = TuistCommandConfigurationProvider(
             project = configuration.project,
             command = resolvedCommand,
-            url = configuration.url
+            url = configuration.url,
+            projectDir = java.io.File(System.getProperty("user.dir"))
         )
 
         val httpClient = TuistHttpClient(configurationProvider)
@@ -138,14 +139,20 @@ interface ConfigurationProvider {
  * Default configuration provider that runs `tuist cache config` command.
  */
 class TuistCommandConfigurationProvider(
-    private val project: String,
+    private val project: String?,
     private val command: List<String>,
-    private val url: String? = null
+    private val url: String? = null,
+    private val projectDir: java.io.File? = null
 ) : ConfigurationProvider {
 
     override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration {
         val baseArgs = buildList {
-            addAll(listOf("cache", "config", project, "--json"))
+            add("cache")
+            add("config")
+            if (!project.isNullOrBlank()) {
+                add(project)
+            }
+            add("--json")
             if (!url.isNullOrBlank()) {
                 addAll(listOf("--url", url))
             }
@@ -153,18 +160,27 @@ class TuistCommandConfigurationProvider(
         val args = if (forceRefresh) baseArgs + "--force-refresh" else baseArgs
         val fullCommand = command + args
 
-        // Create a unique temp directory to avoid tuist detecting any project context.
-        val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
+        // When a project handle is provided explicitly, run in a temp directory to
+        // avoid tuist detecting any project context. When relying on tuist.toml,
+        // run in the project directory so the CLI can find the config file.
+        val workDir = if (!project.isNullOrBlank()) {
+            java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
+        } else {
+            projectDir
+        }
+        val cleanupTempDir = !project.isNullOrBlank()
         try {
             val processBuilder = ProcessBuilder(fullCommand)
-                .directory(tempDir)
+                .apply { workDir?.let { directory(it) } }
                 .redirectErrorStream(false)
 
-            // Clear environment variables that might leak project context to tuist
-            val env = processBuilder.environment()
-            env.remove("PWD")
-            env.remove("TUIST_CONFIG_PATH")
-            env.remove("TUIST_CURRENT_DIRECTORY")
+            if (!project.isNullOrBlank()) {
+                // Clear environment variables that might leak project context to tuist
+                val env = processBuilder.environment()
+                env.remove("PWD")
+                env.remove("TUIST_CONFIG_PATH")
+                env.remove("TUIST_CURRENT_DIRECTORY")
+            }
 
             val process = processBuilder.start()
 
@@ -190,7 +206,9 @@ class TuistCommandConfigurationProvider(
             return Gson().fromJson(output, TuistCacheConfiguration::class.java)
                 ?: throw RuntimeException("tuist cache config returned invalid JSON")
         } finally {
-            tempDir.deleteRecursively()
+            if (cleanupTempDir) {
+                workDir?.deleteRecursively()
+            }
         }
     }
 }
