@@ -39,6 +39,7 @@ defmodule Cache.MixProject do
       {:ecto_sqlite3, "~> 0.17"},
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
+      {:ex_aws_sts, "~> 2.2"},
       {:guardian, "~> 2.3"},
       {:jason, "~> 1.4"},
       {:jose, "~> 1.11"},
