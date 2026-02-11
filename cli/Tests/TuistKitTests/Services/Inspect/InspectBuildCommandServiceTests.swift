@@ -124,9 +124,6 @@ struct InspectBuildCommandServiceTests {
             .ciInfo()
             .willReturn(.test())
 
-        Matcher.register([XCActivityIssue].self)
-        Matcher.register([XCActivityBuildFile].self)
-        Matcher.register([XCActivityTarget].self)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

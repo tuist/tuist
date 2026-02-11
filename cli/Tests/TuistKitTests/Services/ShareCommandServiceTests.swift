@@ -93,8 +93,6 @@ struct ShareCommandServiceTests {
                 updateProgress: .any
             )
             .willReturn(.test(url: shareURL))
-
-        Matcher.register([GraphTarget].self)
     }
 
     @Test func share_tuist_project_when_multiple_apps_specified() async throws {

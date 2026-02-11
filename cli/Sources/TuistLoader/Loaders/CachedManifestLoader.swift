@@ -307,9 +307,11 @@ public class CachedManifestLoader: ManifestLoading {
         if try await !fileSystem.exists(cachedManifestPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: cachedManifestPath)
         }
-        if try await fileSystem.exists(cachedManifestPath) {
+        do {
             try await fileSystem.remove(cachedManifestPath)
-        }
+        } catch let error as NSError
+            where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError
+        {}
         try await fileSystem.writeText(
             cachedManifestContent,
             at: cachedManifestPath
