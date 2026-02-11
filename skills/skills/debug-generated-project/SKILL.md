@@ -29,7 +29,7 @@ The answer to "when" determines the verification strategy:
 - **Compile time**: the generated project has incorrect build settings, missing sources, or wrong dependency wiring. Reproduce with `xcodebuild build` after generation.
 - **Runtime**: the app builds but crashes or misbehaves on launch or during use. Reproduce by installing and launching on a simulator.
 
-## Step 2: Reproduce with Latest Release
+## Step 2: Reproduce with the latest release
 
 Before investigating the source code, confirm the issue is not already fixed in the latest release.
 
