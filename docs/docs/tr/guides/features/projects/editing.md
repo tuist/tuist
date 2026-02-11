@@ -8,9 +8,9 @@
 # Düzenleme {#editing}
 
 Değişikliklerin Xcode'un kullanıcı arayüzü üzerinden yapıldığı geleneksel Xcode
-projeleri veya Swift Paketlerinden farklı olarak, Tuist tarafından yönetilen
+projeleri veya Swift Package'lerden farklı olarak, Tuist tarafından yönetilen
 projeler **manifest dosyalarında** bulunan Swift kodunda tanımlanır. Swift
-paketleri ve `Package.swift` dosyasına aşina iseniz, yaklaşım çok benzerdir.
+Package'ler ve `Package.swift` dosyasına aşina iseniz, yaklaşım çok benzerdir.
 
 Bu dosyaları herhangi bir metin düzenleyici kullanarak düzenleyebilirsiniz,
 ancak bunun için Tuist tarafından sağlanan iş akışını kullanmanızı öneririz:
