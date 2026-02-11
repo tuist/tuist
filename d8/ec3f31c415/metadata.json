@@ -3,11 +3,9 @@
   "checkpoint_id": "d8ec3f31c415",
   "strategy": "manual-commit",
   "branch": "feat/prune-old-binary-cache-entries",
-  "checkpoints_count": 3,
+  "checkpoints_count": 1,
   "files_touched": [
-    "cli/Sources/tuist/Dependencies.swift",
     "cli/Tests/TuistCacheEETests/Storage/CacheLocalStorageTests.swift",
-    "cli/TuistCacheEE/Sources/Storage/CacheLocalStorage.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -29,10 +27,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 66,
-    "cache_creation_tokens": 63991,
-    "cache_read_tokens": 3704758,
-    "output_tokens": 721,
-    "api_call_count": 58
+    "input_tokens": 19,
+    "cache_creation_tokens": 24367,
+    "cache_read_tokens": 1567441,
+    "output_tokens": 168,
+    "api_call_count": 17
   }
 }
