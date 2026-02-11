@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"PO-Revision-Date: 2026-02-11 17:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ar/>\n"
@@ -691,11 +691,13 @@ msgstr ""
 "سيتم وضع علامة \"غير مستقر\" على الاختبارات بعد عدد محدد من حالات عدم "
 "الاستقرار خلال آخر 30 يومًا."
 
+#, fuzzy
 msgid "Build system"
-msgstr ""
+msgstr "نظام البناء"
 
+#, fuzzy
 msgid "Select build system"
-msgstr ""
+msgstr "حدد نظام البناء"
 
 #, fuzzy
 #~ msgid "Only people with access"
