@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"PO-Revision-Date: 2026-02-11 17:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/es/>\n"
@@ -702,11 +702,13 @@ msgstr ""
 "Las pruebas se marcarán como inestables después de que se haya alcanzado el "
 "número especificado de incidencias inestables en los últimos 30 días."
 
+#, fuzzy
 msgid "Build system"
-msgstr ""
+msgstr "Sistema de compilación"
 
+#, fuzzy
 msgid "Select build system"
-msgstr ""
+msgstr "Seleccionar sistema de compilación"
 
 #, fuzzy
 #~ msgid "Only people with access"
