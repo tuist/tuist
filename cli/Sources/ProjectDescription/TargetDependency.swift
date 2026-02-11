@@ -155,9 +155,28 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     /// The `cacheInputs` are used to compute a content hash for Tuist's binary caching so that the foreign
     /// build step can be skipped when inputs haven't changed.
     ///
+    /// ### Example: Kotlin Multiplatform (KMP)
+    ///
+    /// ```swift
+    /// .foreignBuild(
+    ///     name: "SharedKMP",
+    ///     script: """
+    ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+    ///         export JAVA_HOME=$(mise where java)
+    ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
+    ///         """,
+    ///     output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"),
+    ///     cacheInputs: [
+    ///         .folder("SharedKMP/src"),
+    ///         .file("SharedKMP/build.gradle.kts"),
+    ///     ]
+    /// )
+    /// ```
+    ///
     /// - Parameters:
     ///   - name: A unique name for this foreign build dependency (used as the aggregate target name).
-    ///   - script: The shell script that builds the artifact.
+    ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
+    /// directory.
     ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
     ///   - cacheInputs: Inputs that affect the build output, used for content hashing.
     ///   - condition: Condition under which to use this dependency, `nil` if this should always be used.
