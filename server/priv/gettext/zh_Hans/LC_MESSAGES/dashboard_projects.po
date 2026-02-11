@@ -683,6 +683,12 @@ msgid ""
 "occurrences within the last 30 days"
 msgstr "当测试在最近30天内出现指定次数的不稳定情况后，将被标记为不稳定"
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "仅限有权限者"

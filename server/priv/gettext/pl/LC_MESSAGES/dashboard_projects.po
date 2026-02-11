@@ -699,6 +699,12 @@ msgstr ""
 "Testy zostaną oznaczone jako niestabilne po określonej liczbie niestabilnych "
 "wystąpień w ciągu ostatnich 30 dni."
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "Tylko osoby z dostępem"
