@@ -25,7 +25,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
             for (targetName, target) in project.targets {
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, output, _, _) = dependency else {
+                    guard case let .foreignBuild(name, script, output, cacheInputs, _) = dependency else {
                         continue
                     }
 
@@ -37,6 +37,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
                         aggregateTargetsByForeignBuildName[name] = aggregateTargetName
 
                         let outputPath = Self.outputPath(from: output)
+                        let inputPaths = Self.inputPaths(from: cacheInputs)
                         let aggregateTarget = Target(
                             name: aggregateTargetName,
                             destinations: target.destinations,
@@ -48,6 +49,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
                                     name: "Foreign Build: \(name)",
                                     order: .pre,
                                     script: .embedded(script),
+                                    inputPaths: inputPaths,
                                     outputPaths: outputPath.map { [$0.pathString] } ?? [],
                                     showEnvVarsInLog: false
                                 ),
@@ -82,6 +84,17 @@ public final class ForeignBuildGraphMapper: GraphMapping {
         case let .xcframework(path, _, _, _): return path
         case let .library(path, _, _, _): return path
         default: return nil
+        }
+    }
+
+    private static func inputPaths(from cacheInputs: [ForeignBuildCacheInput]) -> [String] {
+        cacheInputs.compactMap { input in
+            switch input {
+            case let .file(path): return path.pathString
+            case let .folder(path): return path.pathString
+            case let .glob(pattern): return pattern
+            case .script: return nil
+            }
         }
     }
 }
