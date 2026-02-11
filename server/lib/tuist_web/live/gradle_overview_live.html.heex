@@ -1,0 +1,209 @@
+<div class="gradle-overview">
+  <.card
+    title={dgettext("dashboard_gradle", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <:actions>
+      <.dropdown
+        id="gradle-analytics-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={dgettext("dashboard_gradle", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_gradle", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_gradle", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_gradle", "CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_gradle", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_gradle", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_gradle", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_gradle", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_gradle", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_gradle", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "analytics-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_gradle", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="widgets">
+      <.widget
+        title={dgettext("dashboard_gradle", "Cache hit rate")}
+        description={
+          dgettext(
+            "dashboard_gradle",
+            "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
+          )
+        }
+        value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate)}
+        id="widget-cache-hit-rate"
+        trend_value={@cache_hit_rate_analytics.trend}
+        trend_label={@analytics_trend_label}
+        empty={@cache_hit_rate_analytics.avg_hit_rate == 0.0}
+      />
+      <.widget
+        title={dgettext("dashboard_gradle", "Average build time")}
+        description={
+          dgettext(
+            "dashboard_gradle",
+            "Average time it takes to complete a Gradle build during the selected period."
+          )
+        }
+        value={
+          dgettext("dashboard_gradle", "%{duration}s",
+            duration: Float.round(@build_duration_analytics.total_average_duration / 1000, 1)
+          )
+        }
+        id="widget-average-build-time"
+        trend_value={@build_duration_analytics.trend}
+        trend_label={@analytics_trend_label}
+        trend_type={:inverse}
+        empty={@build_duration_analytics.total_average_duration == 0}
+      />
+    </div>
+    <.card_section
+      :if={@cache_hit_rate_analytics.avg_hit_rate != 0.0}
+      data-part="cache-hit-rate-chart-section"
+    >
+      <div data-part="cache-hit-rate-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_gradle", "Cache hit rate")}
+            value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate)}
+            style="primary"
+          />
+        </div>
+        <.chart
+          id="chart-gradle-cache-hit-rate"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @cache_hit_rate_analytics.dates |> hd(),
+                    @cache_hit_rate_analytics.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: "{value}%", dateFormat: "hour"}
+                else
+                  %{valueFormat: "{value}%"}
+                end,
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data:
+                Enum.zip(
+                  @cache_hit_rate_analytics.dates,
+                  @cache_hit_rate_analytics.values
+                  |> Enum.map(&Decimal.from_float/1)
+                  |> Enum.map(&Decimal.round(&1, 1))
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_gradle", "Cache hit rate"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+          y_axis_max={100}
+        />
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={@cache_hit_rate_analytics.avg_hit_rate == 0.0}
+      title={dgettext("dashboard_gradle", "No data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/gradle"
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+</div>

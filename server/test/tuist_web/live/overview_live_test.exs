@@ -96,4 +96,41 @@ defmodule TuistWeb.OverviewLiveTest do
              "Binary cache and selective testing: no data yet"
            )
   end
+
+  describe "gradle project" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(handle: "gradleuser#{System.unique_integer([:positive])}")
+
+      %{account: account} =
+        organization =
+        AccountsFixtures.organization_fixture(
+          name: "gradle-org",
+          creator: user,
+          preload: [:account]
+        )
+
+      selected_project =
+        ProjectsFixtures.project_fixture(
+          name: "gradle-project",
+          account_id: account.id,
+          build_system: :gradle
+        )
+
+      conn =
+        conn
+        |> assign(:selected_project, selected_project)
+        |> assign(:selected_account, account)
+        |> log_in_user(user)
+
+      %{conn: conn, user: user, project: selected_project, organization: organization}
+    end
+
+    test "renders gradle overview", %{conn: conn, organization: organization, project: project} do
+      {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+
+      assert html =~ "gradle-overview"
+      assert has_element?(lv, ".gradle-overview")
+      assert has_element?(lv, "[data-part=widgets]")
+    end
+  end
 end

@@ -532,6 +532,10 @@ defmodule Tuist.Environment do
     end
   end
 
+  def loki_url(secrets \\ secrets()) do
+    get([:loki, :url], secrets)
+  end
+
   def clickhouse_url(secrets \\ secrets()) do
     get([:clickhouse, :url], secrets)
   end

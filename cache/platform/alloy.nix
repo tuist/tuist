@@ -7,6 +7,10 @@
   grafanaCloudUsername = config.services.onepassword-secrets.secrets.grafanaCloudPromUsername.path;
   grafanaCloudPassword = config.services.onepassword-secrets.secrets.grafanaCloudPromPassword.path;
 
+  grafanaCloudTempoUrl = config.services.onepassword-secrets.secrets.grafanaCloudTempoUrl.path;
+  grafanaCloudTempoUsername = config.services.onepassword-secrets.secrets.grafanaCloudTempoUsername.path;
+  grafanaCloudTempoPassword = config.services.onepassword-secrets.secrets.grafanaCloudTempoPassword.path;
+
   grafanaCloudLokiUrl = config.services.onepassword-secrets.secrets.grafanaCloudLokiUrl.path;
   grafanaCloudLokiUsername = config.services.onepassword-secrets.secrets.grafanaCloudLokiUsername.path;
   grafanaCloudLokiPassword = config.services.onepassword-secrets.secrets.grafanaCloudLokiPassword.path;
@@ -22,6 +26,19 @@
 
     local.file "grafana_cloud_password" {
       filename = "${grafanaCloudPassword}"
+      is_secret = true
+    }
+
+    local.file "grafana_cloud_tempo_url" {
+      filename = "${grafanaCloudTempoUrl}"
+    }
+
+    local.file "grafana_cloud_tempo_username" {
+      filename = "${grafanaCloudTempoUsername}"
+    }
+
+    local.file "grafana_cloud_tempo_password" {
+      filename = "${grafanaCloudTempoPassword}"
       is_secret = true
     }
 
@@ -127,7 +144,7 @@
       host       = "unix:///var/run/docker.sock"
       targets    = discovery.docker.linux.targets
       labels     = {
-        app = "docker",
+        app = "cache-docker",
         instance = "${config.networking.hostName}",
       }
       forward_to = [loki.write.grafana_cloud.receiver]
@@ -137,7 +154,7 @@
       targets    = [
         {
           __path__  = "/var/log/nginx/error.log",
-          job       = "nginx",
+          job       = "cache-nginx",
           stream    = "error",
           instance  = "${config.networking.hostName}",
         },
@@ -149,7 +166,7 @@
       targets    = [
         {
           __path__  = "/var/log/nginx/access.log",
-          job       = "nginx",
+          job       = "cache-nginx",
           stream    = "access",
           instance  = "${config.networking.hostName}",
         },
@@ -188,6 +205,43 @@
           username = local.file.grafana_cloud_loki_username.content
           password = local.file.grafana_cloud_loki_password.content
         }
+      }
+    }
+
+    loki.source.api "default" {
+      http {
+        listen_address = "127.0.0.1"
+        listen_port    = 3100
+      }
+      forward_to             = [loki.write.grafana_cloud.receiver]
+      use_incoming_timestamp = true
+    }
+
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "127.0.0.1:4317"
+      }
+
+      output {
+        traces = [otelcol.processor.batch.default.input]
+      }
+    }
+
+    otelcol.auth.basic "grafana_cloud_tempo" {
+      username = local.file.grafana_cloud_tempo_username.content
+      password = local.file.grafana_cloud_tempo_password.content
+    }
+
+    otelcol.exporter.otlp "grafana_cloud_tempo" {
+      client {
+        endpoint = local.file.grafana_cloud_tempo_url.content
+        auth     = otelcol.auth.basic.grafana_cloud_tempo.handler
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      output {
+        traces = [otelcol.exporter.otlp.grafana_cloud_tempo.input]
       }
     }
   '';

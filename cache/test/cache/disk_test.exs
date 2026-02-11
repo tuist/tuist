@@ -1,186 +1,9 @@
 defmodule Cache.DiskTest do
   use ExUnit.Case, async: true
-  use Mimic
 
   import ExUnit.CaptureLog
 
-  alias Cache.CacheArtifacts
   alias Cache.Disk
-
-  @test_account "test_account"
-  @test_project "test_project"
-  @test_id "abc123"
-  @test_key "#{@test_account}/#{@test_project}/cas/#{@test_id}"
-
-  setup do
-    {:ok, test_storage_dir} = Briefly.create(directory: true)
-
-    Disk
-    |> stub(:storage_dir, fn -> test_storage_dir end)
-    |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
-    |> stub(:xcode_cas_put, fn account_handle, project_handle, id, data ->
-      key = "#{account_handle}/#{project_handle}/cas/#{id}"
-      path = Path.join(test_storage_dir, key)
-
-      case data do
-        {:file, tmp_path} ->
-          File.mkdir_p!(Path.dirname(path))
-          File.rename(tmp_path, path)
-          :ok
-
-        binary when is_binary(binary) ->
-          File.mkdir_p!(Path.dirname(path))
-          File.write!(path, binary)
-          :ok
-      end
-    end)
-    |> stub(:xcode_cas_exists?, fn account_handle, project_handle, id ->
-      key = "#{account_handle}/#{project_handle}/cas/#{id}"
-      test_storage_dir |> Path.join(key) |> File.exists?()
-    end)
-    |> stub(:xcode_cas_get_local_path, fn account_handle, project_handle, id ->
-      key = "#{account_handle}/#{project_handle}/cas/#{id}"
-      path = Path.join(test_storage_dir, key)
-
-      if File.exists?(path) do
-        {:ok, path}
-      else
-        {:error, :not_found}
-      end
-    end)
-    |> stub(:xcode_cas_stat, fn account_handle, project_handle, id ->
-      key = "#{account_handle}/#{project_handle}/cas/#{id}"
-      path = Path.join(test_storage_dir, key)
-      File.stat(path)
-    end)
-
-    stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
-    {:ok, test_storage_dir: test_storage_dir}
-  end
-
-  describe "storage_dir/0" do
-    test "returns mocked storage directory", %{test_storage_dir: test_storage_dir} do
-      assert Disk.storage_dir() == test_storage_dir
-    end
-  end
-
-  describe "artifact_path/1" do
-    test "constructs full path from key", %{test_storage_dir: test_storage_dir} do
-      expected_path = Path.join(test_storage_dir, @test_key)
-      assert Disk.artifact_path(@test_key) == expected_path
-    end
-  end
-
-  describe "xcode_cas_exists?/3" do
-    test "returns true when file exists" do
-      path = Disk.artifact_path(@test_key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, "test content")
-
-      assert Disk.xcode_cas_exists?(@test_account, @test_project, @test_id) == true
-    end
-
-    test "returns false when file doesn't exist" do
-      assert Disk.xcode_cas_exists?("nonexistent", "project", "id") == false
-    end
-  end
-
-  describe "xcode_cas_put/4" do
-    test "writes data to disk successfully" do
-      data = "test artifact data"
-
-      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, data) == :ok
-
-      path = Disk.artifact_path(@test_key)
-      assert File.exists?(path)
-      assert File.read!(path) == data
-    end
-
-    test "creates parent directories if they don't exist" do
-      data = "nested artifact"
-
-      assert Disk.xcode_cas_put("account", "project", "deeply/nested/artifact", data) == :ok
-
-      path = Disk.artifact_path("account/project/cas/deeply/nested/artifact")
-      assert File.exists?(path)
-      assert File.read!(path) == data
-    end
-
-    test "overwrites existing file" do
-      path = Disk.artifact_path(@test_key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, "old content")
-
-      new_data = "new content"
-      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, new_data) == :ok
-
-      assert File.read!(path) == new_data
-    end
-
-    test "handles binary data" do
-      binary_data = <<1, 2, 3, 4, 5, 255, 0, 128>>
-
-      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, binary_data) == :ok
-
-      path = Disk.artifact_path(@test_key)
-      assert File.read!(path) == binary_data
-    end
-  end
-
-  describe "xcode_cas_get_local_path/3" do
-    test "returns path when file exists" do
-      data = "test content"
-      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, data) == :ok
-
-      result = Disk.xcode_cas_get_local_path(@test_account, @test_project, @test_id)
-      assert {:ok, path} = result
-      assert path == Disk.artifact_path(@test_key)
-      assert File.read!(path) == data
-    end
-
-    test "returns error when file doesn't exist" do
-      result = Disk.xcode_cas_get_local_path("nonexistent", "project", "id")
-      assert result == {:error, :not_found}
-    end
-  end
-
-  describe "xcode_cas_stat/3" do
-    test "returns file stat for existing artifact" do
-      data = "test content for stat"
-      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, data) == :ok
-
-      assert {:ok, stat} = Disk.xcode_cas_stat(@test_account, @test_project, @test_id)
-      assert %File.Stat{} = stat
-      assert stat.size == byte_size(data)
-      assert stat.type == :regular
-    end
-
-    test "returns error for non-existent artifact" do
-      assert {:error, :enoent} = Disk.xcode_cas_stat("nonexistent", "project", "id")
-    end
-  end
-
-  describe "xcode_cas_local_accel_path/3" do
-    test "builds internal X-Accel-Redirect path with sharded structure" do
-      path = Disk.xcode_cas_local_accel_path(@test_account, @test_project, @test_id)
-      assert path == "/internal/local/#{@test_account}/#{@test_project}/cas/ab/c1/#{@test_id}"
-    end
-
-    test "builds internal path for nested id with sharded structure" do
-      nested_id = "deeply/nested/artifact"
-      path = Disk.xcode_cas_local_accel_path(@test_account, @test_project, nested_id)
-      assert path == "/internal/local/#{@test_account}/#{@test_project}/cas/de/ep/#{nested_id}"
-    end
-  end
-
-  describe "integration test" do
-    test "xcode_cas_put and xcode_cas_exists? roundtrip" do
-      original_data = "This is test artifact content for roundtrip testing"
-
-      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, original_data) == :ok
-      assert Disk.xcode_cas_exists?(@test_account, @test_project, @test_id) == true
-    end
-  end
 
   describe "usage/1" do
     test "returns disk usage stats for an existing directory" do
@@ -204,167 +27,54 @@ defmodule Cache.DiskTest do
       assert log =~ "df exited with 1"
     end
   end
-end
 
-defmodule Cache.DiskRegistryTest do
-  use ExUnit.Case, async: true
-
-  alias Cache.Disk
-
-  @test_scope "apple"
-  @test_name "parser"
-  @test_version "1.0.0"
-  @test_filename "source_archive.zip"
-
-  defp unique_component(prefix) do
-    "#{prefix}_#{:erlang.unique_integer([:positive, :monotonic])}"
-  end
-
-  defp cleanup_registry_key(key) do
-    key
-    |> Path.dirname()
-    |> then(&Path.join(Disk.storage_dir(), &1))
-    |> File.rm_rf()
-  end
-
-  describe "registry_key/4" do
-    test "constructs normalized key" do
-      key = Disk.registry_key("Apple", "Parser", "v1.2", "source_archive.zip")
-      assert key == "registry/swift/apple/parser/1.2.0/source_archive.zip"
-    end
-
-    test "normalizes version with leading v" do
-      key = Disk.registry_key("apple", "parser", "v1.2.3", "Package.swift")
-      assert key == "registry/swift/apple/parser/1.2.3/Package.swift"
-    end
-
-    test "adds trailing zeros to incomplete version" do
-      key = Disk.registry_key("apple", "parser", "1", "source_archive.zip")
-      assert key == "registry/swift/apple/parser/1.0.0/source_archive.zip"
-    end
-
-    test "handles pre-release version" do
-      key = Disk.registry_key("apple", "parser", "1.0.0-alpha.1", "source_archive.zip")
-      assert key == "registry/swift/apple/parser/1.0.0-alpha+1/source_archive.zip"
+  describe "shards_for_id/1" do
+    test "extracts two-character shards from a hex ID" do
+      assert {"AB", "CD"} = Disk.shards_for_id("ABCD1234")
+      assert {"12", "34"} = Disk.shards_for_id("1234ABCD")
+      assert {"FF", "EE"} = Disk.shards_for_id("FFEE0000")
     end
   end
 
-  describe "registry_exists?/4" do
-    test "returns true when file exists" do
-      scope = unique_component("scope")
-      name = unique_component("name")
-      version = "1.0.0"
-      filename = "source_archive.zip"
+  describe "ensure_directory/1" do
+    test "creates directory and parent directories if they don't exist" do
+      {:ok, dir} = Briefly.create(directory: true)
+      file_path = Path.join(dir, "subdir1/subdir2/file.txt")
 
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Disk.artifact_path(key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, "test content")
-
-      on_exit(fn -> cleanup_registry_key(key) end)
-
-      assert Disk.registry_exists?(scope, name, version, filename) == true
+      assert :ok = Disk.ensure_directory(file_path)
+      assert File.dir?(Path.dirname(file_path))
     end
 
-    test "returns false when file doesn't exist" do
-      assert Disk.registry_exists?("nonexistent", "package", "1.0.0", "file.zip") == false
+    test "returns :ok if directory already exists" do
+      {:ok, dir} = Briefly.create(directory: true)
+
+      assert :ok = Disk.ensure_directory(Path.join(dir, "file.txt"))
     end
   end
 
-  describe "registry_put/5" do
-    test "writes binary data to disk" do
-      scope = unique_component("scope")
-      name = unique_component("name")
-      version = "1.0.0"
-      filename = "source_archive.zip"
-      data = "test artifact data"
+  describe "move_file/2" do
+    test "atomically moves a file from temporary path to target path" do
+      {:ok, dir} = Briefly.create(directory: true)
+      tmp_path = Path.join(dir, "tmp_file.txt")
+      target_path = Path.join(dir, "target_file.txt")
 
-      assert Disk.registry_put(scope, name, version, filename, data) == :ok
-
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Disk.artifact_path(key)
-
-      on_exit(fn -> cleanup_registry_key(key) end)
-
-      assert File.exists?(path)
-      assert File.read!(path) == data
+      File.write!(tmp_path, "content")
+      assert :ok = Disk.move_file(tmp_path, target_path)
+      assert File.exists?(target_path)
+      refute File.exists?(tmp_path)
+      assert File.read!(target_path) == "content"
     end
 
-    test "creates parent directories if they don't exist" do
-      data = "nested artifact"
+    test "returns error if target file already exists" do
+      {:ok, dir} = Briefly.create(directory: true)
+      tmp_path = Path.join(dir, "tmp_file.txt")
+      target_path = Path.join(dir, "target_file.txt")
 
-      scope = unique_component("scope")
-      name = unique_component("name")
-      version = "2.0.0"
-      filename = "file.zip"
+      File.write!(tmp_path, "tmp_content")
+      File.write!(target_path, "existing_content")
 
-      assert Disk.registry_put(scope, name, version, filename, data) == :ok
-
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Disk.artifact_path(key)
-
-      on_exit(fn -> cleanup_registry_key(key) end)
-
-      assert File.exists?(path)
-      assert File.read!(path) == data
-    end
-
-    test "handles file tuple input" do
-      {:ok, tmp_path} = Briefly.create()
-      File.write!(tmp_path, "file content")
-
-      scope = unique_component("scope")
-      name = unique_component("name")
-      version = "1.0.0"
-      filename = "source_archive.zip"
-
-      assert Disk.registry_put(scope, name, version, filename, {:file, tmp_path}) == :ok
-
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Disk.artifact_path(key)
-
-      on_exit(fn -> cleanup_registry_key(key) end)
-
-      assert File.exists?(path)
-      assert File.read!(path) == "file content"
-    end
-  end
-
-  describe "registry_stat/4" do
-    test "returns file stat for existing artifact" do
-      scope = unique_component("scope")
-      name = unique_component("name")
-      version = "1.0.0"
-      filename = "source_archive.zip"
-      data = "test content for stat"
-
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Disk.artifact_path(key)
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, data)
-
-      on_exit(fn -> cleanup_registry_key(key) end)
-
-      assert {:ok, stat} = Disk.registry_stat(scope, name, version, filename)
-      assert %File.Stat{} = stat
-      assert stat.size == byte_size(data)
-      assert stat.type == :regular
-    end
-
-    test "returns error for non-existent artifact" do
-      assert {:error, :enoent} = Disk.registry_stat("nonexistent", "package", "1.0.0", "file.zip")
-    end
-  end
-
-  describe "registry_local_accel_path/4" do
-    test "builds internal X-Accel-Redirect path" do
-      path = Disk.registry_local_accel_path(@test_scope, @test_name, @test_version, @test_filename)
-      assert path == "/internal/local/registry/swift/apple/parser/1.0.0/source_archive.zip"
-    end
-
-    test "normalizes components in path" do
-      path = Disk.registry_local_accel_path("Apple", "Parser", "v1.2", "Package.swift")
-      assert path == "/internal/local/registry/swift/apple/parser/1.2.0/Package.swift"
+      assert {:error, :exists} = Disk.move_file(tmp_path, target_path)
+      assert File.read!(target_path) == "existing_content"
     end
   end
 end
@@ -372,129 +82,11 @@ end
 defmodule Cache.DiskIntegrationTest do
   use ExUnit.Case, async: true
 
-  import ExUnit.CaptureLog
-
+  alias Cache.CAS.Disk, as: CASDisk
   alias Cache.Disk
-
-  defp unique_hash(prefix) do
-    "#{prefix}#{:erlang.unique_integer([:positive, :monotonic])}"
-  end
 
   defp unique_account do
     "test_account_#{:erlang.unique_integer([:positive, :monotonic])}"
-  end
-
-  defp dest_path_for(account, project, category, hash, name) do
-    Disk.artifact_path(Disk.module_key(account, project, category, hash, name))
-  end
-
-  defp cleanup_project(account_handle, project_handle) do
-    Disk.delete_project(account_handle, project_handle)
-    :ok
-  end
-
-  describe "module_put_from_parts/6" do
-    test "assembles multiple parts into a single file" do
-      {:ok, part1} = Briefly.create()
-      {:ok, part2} = Briefly.create()
-      {:ok, part3} = Briefly.create()
-
-      File.write!(part1, "PART1-")
-      File.write!(part2, "PART2-")
-      File.write!(part3, "PART3")
-
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-
-      hash = unique_hash("abcd")
-      assert :ok = Disk.module_put_from_parts(account, "project", "builds", hash, "test.zip", [part1, part2, part3])
-
-      dest_path = dest_path_for(account, "project", "builds", hash, "test.zip")
-      assert File.exists?(dest_path)
-      assert File.read!(dest_path) == "PART1-PART2-PART3"
-    end
-
-    test "assembles single part" do
-      {:ok, part1} = Briefly.create()
-      File.write!(part1, "SINGLE_PART_CONTENT")
-
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-
-      hash = unique_hash("efgh")
-      assert :ok = Disk.module_put_from_parts(account, "project", "builds", hash, "single.zip", [part1])
-
-      dest_path = dest_path_for(account, "project", "builds", hash, "single.zip")
-      assert File.exists?(dest_path)
-      assert File.read!(dest_path) == "SINGLE_PART_CONTENT"
-    end
-
-    test "handles binary content correctly" do
-      {:ok, part1} = Briefly.create()
-      {:ok, part2} = Briefly.create()
-
-      binary1 = <<0, 1, 2, 255, 128>>
-      binary2 = <<64, 32, 16, 8, 4>>
-
-      File.write!(part1, binary1)
-      File.write!(part2, binary2)
-
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-
-      hash = unique_hash("ijkl")
-      assert :ok = Disk.module_put_from_parts(account, "project", "builds", hash, "binary.zip", [part1, part2])
-
-      dest_path = dest_path_for(account, "project", "builds", hash, "binary.zip")
-      assert File.read!(dest_path) == binary1 <> binary2
-    end
-
-    test "returns error when destination already exists" do
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-
-      hash = unique_hash("mnop")
-      dest_path = dest_path_for(account, "project", "builds", hash, "existing.zip")
-      File.mkdir_p!(Path.dirname(dest_path))
-      File.write!(dest_path, "existing content")
-
-      {:ok, part1} = Briefly.create()
-      File.write!(part1, "new content")
-
-      assert {:error, :exists} = Disk.module_put_from_parts(account, "project", "builds", hash, "existing.zip", [part1])
-
-      assert File.read!(dest_path) == "existing content"
-    end
-
-    test "returns error when part file doesn't exist" do
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-
-      hash = unique_hash("qrst")
-      dest_path = dest_path_for(account, "project", "builds", hash, "missing.zip")
-
-      log =
-        capture_log(fn ->
-          assert {:error, :enoent} =
-                   Disk.module_put_from_parts(account, "project", "builds", hash, "missing.zip", ["/nonexistent/part"])
-        end)
-
-      assert log =~ "Failed to assemble artifact to #{dest_path}"
-    end
-
-    test "creates parent directories if they don't exist" do
-      {:ok, part1} = Briefly.create()
-      File.write!(part1, "content")
-
-      account = unique_account()
-      on_exit(fn -> cleanup_project(account, "project") end)
-
-      hash = unique_hash("uvwx")
-      assert :ok = Disk.module_put_from_parts(account, "project", "tests", hash, "new.zip", [part1])
-
-      dest_path = dest_path_for(account, "project", "tests", hash, "new.zip")
-      assert File.exists?(dest_path)
-    end
   end
 
   describe "delete_project/2" do
@@ -502,15 +94,15 @@ defmodule Cache.DiskIntegrationTest do
       account = unique_account()
       project = "test_project"
 
-      Disk.xcode_cas_put(account, project, "hash1", "content1")
-      Disk.xcode_cas_put(account, project, "hash2", "content2")
-      assert Disk.xcode_cas_exists?(account, project, "hash1")
-      assert Disk.xcode_cas_exists?(account, project, "hash2")
+      CASDisk.put(account, project, "hash1", "content1")
+      CASDisk.put(account, project, "hash2", "content2")
+      assert CASDisk.exists?(account, project, "hash1")
+      assert CASDisk.exists?(account, project, "hash2")
 
       assert :ok = Disk.delete_project(account, project)
 
-      refute Disk.xcode_cas_exists?(account, project, "hash1")
-      refute Disk.xcode_cas_exists?(account, project, "hash2")
+      refute CASDisk.exists?(account, project, "hash1")
+      refute CASDisk.exists?(account, project, "hash2")
     end
 
     test "returns :ok when project directory does not exist" do

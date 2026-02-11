@@ -10,16 +10,19 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "Notifications")}
       selected={true}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "Automations")}
       selected={false}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "QA")}
       selected={false}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}

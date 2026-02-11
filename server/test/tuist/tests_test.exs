@@ -10,6 +10,98 @@ defmodule Tuist.TestsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  describe "get_test_case_run_by_id/2" do
+    test "returns test case run when it exists" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      # When
+      result = Tests.get_test_case_run_by_id(test_case_run.id)
+
+      # Then
+      assert {:ok, run} = result
+      assert run.id == test_case_run.id
+    end
+
+    test "returns error when test case run does not exist" do
+      # When
+      result = Tests.get_test_case_run_by_id(UUIDv7.generate())
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "preloads failures when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      failure =
+        RunsFixtures.test_case_failure_fixture(
+          test_case_run_id: test_case_run.id,
+          message: "Expected true, got false",
+          path: "Tests/MyTests.swift",
+          line_number: 42,
+          issue_type: "assertion_failure"
+        )
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:failures])
+
+      # Then
+      assert length(run.failures) == 1
+      assert hd(run.failures).id == failure.id
+      assert hd(run.failures).message == "Expected true, got false"
+    end
+
+    test "preloads repetitions when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      repetition =
+        RunsFixtures.test_case_run_repetition_fixture(
+          test_case_run_id: test_case_run.id,
+          repetition_number: 1,
+          name: "testExample",
+          status: "success",
+          duration: 100
+        )
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:repetitions])
+
+      # Then
+      assert length(run.repetitions) == 1
+      assert hd(run.repetitions).id == repetition.id
+      assert hd(run.repetitions).repetition_number == 1
+    end
+
+    test "preloads both failures and repetitions when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+      RunsFixtures.test_case_run_repetition_fixture(test_case_run_id: test_case_run.id)
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:failures, :repetitions])
+
+      # Then
+      assert length(run.failures) == 1
+      assert length(run.repetitions) == 1
+    end
+
+    test "does not preload associations when not requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id)
+
+      # Then
+      assert %Ecto.Association.NotLoaded{} = run.failures
+    end
+  end
+
   describe "get_test/1" do
     test "returns test when it exists" do
       # Given
@@ -1138,6 +1230,51 @@ defmodule Tuist.TestsTest do
       # Then
       assert Enum.at(test_cases_desc, 0).name == "slowTest"
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
+    end
+
+    test "preserves is_quarantined when a new test run is ingested" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert test_case.is_quarantined == false
+
+      # When - quarantine the test case, then ingest a new test run
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+
+      {:ok, _test_run2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      # Then - the test case should still be quarantined
+      {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert updated_test_case.is_quarantined == true
     end
   end
 
@@ -4242,6 +4379,50 @@ defmodule Tuist.TestsTest do
       assert quarantined_test.module_name == "QuarantineModule"
     end
 
+    test "does not return duplicates when quarantined and marked_flaky events share the same timestamp" do
+      # Given - simulate auto-quarantine which sets both is_flaky and is_quarantined
+      # at the same time, creating two events with the same inserted_at
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "autoQuarantinedTest",
+          module_name: "FlakyModule",
+          is_quarantined: true,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Create both events with the same timestamp (as update_test_case does)
+      now = NaiveDateTime.utc_now()
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: now
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "marked_flaky",
+        inserted_at: now
+      )
+
+      # When - filter by quarantined_by: :tuist to force the quarantine_info LEFT JOIN
+      # to be evaluated (ClickHouse may optimize away unused joins otherwise)
+      {quarantined_tests, meta} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :quarantined_by, op: :==, value: :tuist}]
+        })
+
+      # Then - should return exactly 1, not 2
+      assert length(quarantined_tests) == 1
+      assert meta.total_count == 1
+      assert hd(quarantined_tests).name == "autoQuarantinedTest"
+    end
+
     test "supports pagination" do
       project = ProjectsFixtures.project_fixture()
 
@@ -4523,6 +4704,52 @@ defmodule Tuist.TestsTest do
       names = Enum.map(results, & &1.name)
       assert "test1" in names
       assert "test2" in names
+    end
+
+    test "excludes test cases whose latest version is no longer quarantined" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      # Old version: quarantined
+      old_version =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "wasQuarantined",
+          is_quarantined: true,
+          inserted_at: ~N[2024-01-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [old_version |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Newer version: no longer quarantined (e.g. after unquarantine or re-ingestion)
+      new_version =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "wasQuarantined",
+          is_quarantined: false,
+          inserted_at: ~N[2024-01-02 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [new_version |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-01-01 00:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_id,
+        event_type: "unquarantined",
+        inserted_at: ~N[2024-01-02 00:00:00.000000]
+      )
+
+      {quarantined_tests, meta} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_tests == []
+      assert meta.total_count == 0
     end
   end
 

@@ -1283,6 +1283,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.userInputReader.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),

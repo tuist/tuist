@@ -2,7 +2,7 @@
 {
   "title": "Test Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Get insights into your tests to identify slow and flaky tests."
+  "description": "Get Xcode test analytics to identify slow and flaky tests with Tuist Test Insights."
 }
 ---
 # Test Insights {#test-insights}
@@ -13,7 +13,7 @@
 <!-- -->
 :::
 
-Test insights help you monitor your test suite's health by identifying slow tests or quickly understanding failed CI runs. As your test suite grows, it becomes increasingly difficult to spot trends like gradually slowing tests or intermittent failures. Tuist Test Insights provides you with the visibility you need to maintain a fast and reliable test suite.
+Tuist Test Insights gives you Xcode test analytics to monitor your test suite's health by identifying slow tests or quickly understanding failed CI runs. As your test suite grows, it becomes increasingly difficult to spot trends like gradually slowing tests or intermittent failures. Tuist Test Insights provides you with the visibility you need to maintain a fast and reliable test suite.
 
 With Test Insights, you can answer questions such as:
 - Have my tests become slower? Which ones?

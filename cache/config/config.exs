@@ -75,6 +75,8 @@ config :mime, :types, %{
   "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
 }
 
+config :opentelemetry, traces_exporter: :none
+
 config :phoenix, :json_library, Jason
 
 config :sentry,

@@ -487,6 +487,22 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
+        let directStaticXCFrameworksWithResources: [GraphDependency] = (graph.dependencies[.target(name: name, path: path)] ?? [])
+            .filter { dependency in
+                guard case let .xcframework(xcframework) = dependency,
+                      xcframework.linking == .static
+                else { return false }
+                return xcframework.infoPlist.libraries.contains { $0.path.extension == "framework" }
+            }
+        references.formUnionPreferringRequiredStatus(
+            directStaticXCFrameworksWithResources.lazy.compactMap {
+                self.dependencyReference(
+                    to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {

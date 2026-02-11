@@ -246,6 +246,7 @@ defmodule Tuist.Tests do
 
         current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
+        existing_is_quarantined = Map.get(existing, :is_quarantined, false)
 
         test_case = %{
           id: id,
@@ -257,6 +258,7 @@ defmodule Tuist.Tests do
           last_duration: data.duration,
           last_ran_at: data.ran_at,
           is_flaky: existing_is_flaky,
+          is_quarantined: existing_is_quarantined,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -295,7 +297,8 @@ defmodule Tuist.Tests do
         select: %{
           id: test_case.id,
           recent_durations: test_case.recent_durations,
-          is_flaky: test_case.is_flaky
+          is_flaky: test_case.is_flaky,
+          is_quarantined: test_case.is_quarantined
         }
       )
 
@@ -438,6 +441,28 @@ defmodule Tuist.Tests do
     results = Repo.preload(results, :ran_by_account)
 
     {results, meta}
+  end
+
+  @doc """
+  Gets a test case run by its UUID.
+  Returns {:ok, test_case_run} or {:error, :not_found}.
+  """
+  def get_test_case_run_by_id(id, opts \\ []) do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil ->
+        {:error, :not_found}
+
+      run ->
+        preload = Keyword.get(opts, :preload, [])
+        run = ClickHouseRepo.preload(run, preload)
+        {:ok, run}
+    end
   end
 
   defp create_test_modules(test, test_modules) do
@@ -809,15 +834,23 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
   """
   def list_test_cases(project_id, attrs) do
-    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+    filters = Map.get(attrs, :filters, [])
+    has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
 
     latest_subquery =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
-        where: test_case.last_ran_at >= ^two_weeks_ago,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
+
+    latest_subquery =
+      if has_name_filter do
+        latest_subquery
+      else
+        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+        where(latest_subquery, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
+      end
 
     base_query =
       from(test_case in TestCase,
@@ -1064,7 +1097,7 @@ defmodule Tuist.Tests do
 
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        where: test_case.project_id == ^project_id,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -1080,6 +1113,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_event_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1121,7 +1155,7 @@ defmodule Tuist.Tests do
        ) do
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        where: test_case.project_id == ^project_id,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -1137,6 +1171,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_event_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1184,6 +1219,7 @@ defmodule Tuist.Tests do
         from(e in TestCaseEvent,
           join: latest in subquery(latest_quarantine_subquery),
           on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+          where: e.event_type == "quarantined",
           where: not is_nil(e.actor_id),
           select: e.actor_id,
           distinct: true
@@ -1212,6 +1248,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1306,7 +1343,7 @@ defmodule Tuist.Tests do
       Enum.map(existing_runs, fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account])
+        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 

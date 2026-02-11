@@ -18,7 +18,9 @@ import org.gradle.api.logging.Logging
  * }
  *
  * tuist {
- *     fullHandle = "account/project"
+ *     project = "account/project"
+ *
+ *     uploadInBackground = true // default: true locally, false on CI
  *
  *     buildCache {
  *         enabled = true
@@ -27,6 +29,25 @@ import org.gradle.api.logging.Logging
  * }
  * ```
  */
+/**
+ * Shared configuration passed from the settings plugin to project-level feature plugins.
+ */
+data class TuistGradleConfig(
+    val url: String,
+    val project: String,
+    val executablePath: String,
+    val uploadInBackground: Boolean? = null
+) {
+    companion object {
+        internal const val EXTRA_PROPERTY_KEY = "tuist.config"
+
+        fun from(project: org.gradle.api.Project): TuistGradleConfig? =
+            project.extensions.extraProperties.let {
+                if (it.has(EXTRA_PROPERTY_KEY)) it.get(EXTRA_PROPERTY_KEY) as? TuistGradleConfig else null
+            }
+    }
+}
+
 class TuistPlugin : Plugin<Settings> {
 
     private val logger: Logger = Logging.getLogger(TuistPlugin::class.java)
@@ -49,13 +70,27 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configure(settings: Settings, extension: TuistExtension) {
-        val fullHandle = extension.fullHandle
-        if (fullHandle.isBlank()) {
-            logger.warn("Tuist: fullHandle not configured. Tuist features will be disabled.")
+        val project = extension.project
+        if (project.isBlank()) {
+            logger.warn("Tuist: project not configured. Tuist features will be disabled.")
             return
         }
 
         configureBuildCache(settings, extension)
+        configureBuildInsights(settings, extension)
+    }
+
+    private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
+        settings.gradle.rootProject {
+            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
+                url = extension.url,
+                project = extension.project,
+                executablePath = extension.executablePath ?: "tuist",
+                uploadInBackground = extension.uploadInBackground
+            ))
+            pluginManager.apply(TuistBuildInsightsPlugin::class.java)
+            logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
+        }
     }
 
     private fun configureBuildCache(settings: Settings, extension: TuistExtension) {
@@ -67,15 +102,16 @@ class TuistPlugin : Plugin<Settings> {
 
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
-                this.fullHandle = extension.fullHandle
+                this.project = extension.project
                 this.executablePath = extension.executablePath
+                this.url = extension.url
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
         }
 
         settings.gradle.rootProject {
-            logger.lifecycle("Tuist: Remote build cache configured for ${extension.fullHandle}")
+            logger.lifecycle("Tuist: Remote build cache configured for ${extension.project}")
         }
     }
 }
@@ -85,16 +121,28 @@ class TuistPlugin : Plugin<Settings> {
  */
 open class TuistExtension {
     /**
-     * The full handle of the project in format "account/project".
+     * The project identifier in format "account/project".
      * This is required for all Tuist features.
      */
-    var fullHandle: String = ""
+    var project: String = ""
 
     /**
      * Path to the tuist executable. When null, the plugin will look for
      * 'tuist' in the system PATH.
      */
     var executablePath: String? = null
+
+    /**
+     * The base URL that points to the Tuist server. Defaults to https://tuist.dev.
+     */
+    var url: String = "https://tuist.dev"
+
+    /**
+     * Whether to upload build insights in the background. When null (default),
+     * the upload runs in the background for local builds and in the foreground on CI
+     * to ensure it completes before ephemeral agents exit.
+     */
+    var uploadInBackground: Boolean? = null
 
     /**
      * Build cache configuration.
@@ -128,3 +176,4 @@ open class BuildCacheExtension {
      */
     var allowInsecureProtocol: Boolean = false
 }
+

@@ -3,6 +3,8 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
   alias TuistWeb.Authentication
 
@@ -70,6 +72,7 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
