@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-02-10 17:32+0000\n"
+"PO-Revision-Date: 2026-02-11 17:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard-1/ja/>\n"
@@ -388,8 +388,9 @@ msgstr "世代"
 msgid "Gradle Cache"
 msgstr "Gradle キャッシュ"
 
+#, fuzzy
 msgid "Create project"
-msgstr ""
+msgstr "プロジェクトを作成"
 
 #, fuzzy
 #~ msgid "Generate Runs"
