@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"PO-Revision-Date: 2026-02-11 17:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
@@ -594,11 +594,13 @@ msgstr ""
 "지정된 횟수의 불안정 발생이 지난 30일 이내에 발생하면 테스트는 불안정(flaky)"
 "으로 표시됩니다."
 
+#, fuzzy
 msgid "Build system"
-msgstr ""
+msgstr "빌드 시스템"
 
+#, fuzzy
 msgid "Select build system"
-msgstr ""
+msgstr "빌드 시스템 선택"
 
 #~ msgid "Only people with access"
 #~ msgstr "접근 권한이 있는 사람만 볼 수 있음"
