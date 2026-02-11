@@ -3,11 +3,10 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
-import TuistAcceptanceTesting
-import TuistLoggerTesting
+import TuistBuildCommand
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
-import XCTest
 
 @testable import TuistKit
 
@@ -103,72 +102,224 @@ struct TestAcceptanceTests {
 }
 
 /// Test projects using tuist test
-final class TestXCTestAcceptanceTests: TuistAcceptanceTestCase {
-    func test_with_framework_with_spm_bundle() async throws {
-        try await setUpFixture("generated_framework_with_spm_bundle")
-        try await run(InstallCommand.self)
-        try await run(TestCommand.self)
-    }
-
-    func test_with_app_with_test_plan() async throws {
-        try await setUpFixture("generated_app_with_test_plan")
-        try await run(TestCommand.self)
-        try await run(TestCommand.self, "App", "--test-plan", "All")
-    }
-
-    func test_with_app_workspace_with_test_plan() async throws {
-        try await setUpFixture("generated_app_workspace_with_test_plan")
-        try await run(TestCommand.self, "App", "--test-plan", "AppTestPlan")
-    }
-
-    func test_with_invalid_arguments() async throws {
-        try await setUpFixture("generated_app_with_framework_and_tests")
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-scheme", "App"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-project", "App"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-project")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-workspace", "App"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-testPlan", "TestPlan"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-testPlan")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-skip-test-configuration", "TestPlan"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-test-configuration")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-only-test-configuration", "TestPlan"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-only-test-configuration")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-only-testing", "AppTests"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-only-testing")
-        )
-        await XCTAssertThrowsSpecific(
-            try await run(TestCommand.self, "App", "--", "-skip-testing", "AppTests"),
-            XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-testing")
-        )
-        // SystemError is verbose and would lead to flakyness
-        // xcodebuild: error: The flag -addressSanitizerEnabled must be supplied with an argument YES or NO
-        await XCTAssertThrows(
-            try await run(TestCommand.self, "App", "--", "-parallelizeTargets", "YES", "-enableAddressSanitizer")
-        )
-        // xcodebuild: error: option '-configuration' may only be provided once
-        // Usage: xcodebuild [-project <projectname>] ...
-        await XCTAssertThrows(
-            try await run(TestCommand.self, "App", "--configuration", "Debug", "--", "-configuration", "Debug")
+struct TestAcceptanceTestCases {
+    @Test(.withFixture("generated_framework_with_spm_bundle"), .inTemporaryDirectory)
+    func with_framework_with_spm_bundle() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            TestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
         )
     }
 
-    func test_with_multiplatform_app() async throws {
-        try await setUpFixture("generated_multiplatform_app")
-        try await run(TestCommand.self)
+    @Test(.withFixture("generated_app_with_test_plan"), .inTemporaryDirectory)
+    func with_app_with_test_plan() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(
+            TestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--test-plan",
+                "All",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
+        )
+    }
+
+    @Test(.withFixture("generated_app_workspace_with_test_plan"), .inTemporaryDirectory)
+    func with_app_workspace_with_test_plan() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--test-plan",
+                "AppTestPlan",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+            ]
+        )
+    }
+
+    @Test(.withFixture("generated_app_with_framework_and_tests"), .inTemporaryDirectory)
+    func with_invalid_arguments() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-scheme",
+                    "App",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-project")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-project",
+                    "App",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-workspace")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-workspace",
+                    "App",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-testPlan")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-testPlan",
+                    "TestPlan",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-test-configuration")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-skip-test-configuration",
+                    "TestPlan",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-only-test-configuration")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-only-test-configuration",
+                    "TestPlan",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-only-testing")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-only-testing",
+                    "AppTests",
+                ]
+            )
+        }
+        await #expect(throws: XcodeBuildPassthroughArgumentError.alreadyHandled("-skip-testing")) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-skip-testing",
+                    "AppTests",
+                ]
+            )
+        }
+        await #expect(throws: Error.self) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-parallelizeTargets",
+                    "YES",
+                    "-enableAddressSanitizer",
+                ]
+            )
+        }
+        await #expect(throws: Error.self) {
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "App",
+                    "--configuration",
+                    "Debug",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                    "--",
+                    "-configuration",
+                    "Debug",
+                ]
+            )
+        }
+    }
+
+    @Test(.withFixture("generated_multiplatform_app"), .inTemporaryDirectory)
+    func with_multiplatform_app() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(
+            TestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }

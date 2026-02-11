@@ -4,6 +4,7 @@ import TuistAcceptanceTesting
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
+import TuistProjectCommand
 import TuistSupport
 import TuistTesting
 
@@ -54,12 +55,19 @@ struct ProjectAcceptanceTests {
             ProjectTokensListCommand.self,
             ["--path", fixtureDirectory.pathString, fullHandle]
         )
+        let uiOutput = ui()
         let id = try #require(
-            Logger.testingLogHandler.collected[.notice, ==].components(separatedBy: .newlines)
-                .dropLast().last?
-                .components(separatedBy: .whitespaces)
+            uiOutput.components(separatedBy: .newlines)
+                .compactMap { line -> String? in
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    guard let match = try? /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/
+                        .firstMatch(in: trimmed)
+                    else { return nil }
+                    return String(match.output)
+                }
                 .first
         )
+        resetUI()
         try await TuistTest.run(
             ProjectTokensRevokeCommand.self,
             ["--path", fixtureDirectory.pathString, id, fullHandle]

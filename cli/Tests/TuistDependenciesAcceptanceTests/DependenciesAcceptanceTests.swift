@@ -1,15 +1,19 @@
 import Command
 import FileSystem
+import FileSystemTesting
+import Foundation
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
 import TuistCacheCommand
+import TuistGenerateCommand
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
+import TuistRegistryCommand
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
-import XcodeProj
-import XCTest
 
 @testable import TuistKit
 
@@ -211,39 +215,50 @@ struct DependenciesAcceptanceTests {
     }
 }
 
-final class DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall: TuistAcceptanceTestCase {
+struct DependenciesAcceptanceTestAppWithSPMDependenciesWithoutInstall {
+    @Test(.withFixture("generated_app_with_spm_dependencies"))
     func test() async throws {
-        try await setUpFixture("generated_app_with_spm_dependencies")
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         do {
-            try await run(GenerateCommand.self)
+            try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         } catch {
-            XCTAssertEqual(
-                (error as? FatalError)?.description,
-                "We could not find external dependencies. Run `tuist install` before you continue."
+            #expect(
+                (error as? FatalError)?.description
+                    == "We could not find external dependencies. Run `tuist install` before you continue."
             )
             return
         }
-        XCTFail("Generate should have failed.")
+        Issue.record("Generate should have failed.")
     }
 }
 
-final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
-    func test_app_with_alamofire() async throws {
-        try await setUpFixture("generated_app_with_alamofire")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
+struct DependenciesAcceptanceTestAppAlamofire {
+    @Test(.withFixture("generated_app_with_alamofire"), .inTemporaryDirectory)
+    func app_with_alamofire() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: TuistAcceptanceTestCase {
-    func test_app_with_objc_static_framework_with_resources() async throws {
-        try await setUpFixture("generated_app_with_objc_static_framework_with_resources")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
+    @Test(.withFixture("generated_app_with_objc_static_framework_with_resources"), .inTemporaryDirectory)
+    func app_with_objc_static_framework_with_resources() async throws {
+        let fileSystem = FileSystem()
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
 
-        // Create a simulator for testing
         let commandRunner = CommandRunner()
         let simulatorId = UUID().uuidString
         try await commandRunner.run(
@@ -258,66 +273,57 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
             }
         }
 
-        // Boot the simulator
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
         ).pipedStream().awaitCompletion()
 
-        // Find the built app
         let appPath = derivedDataPath
             .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
 
-        // Install the app
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
         ).pipedStream().awaitCompletion()
 
-        // Launch the app
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
         ).pipedStream().awaitCompletion()
 
-        // Wait a bit for the app to initialize and potentially crash
         try await Task.sleep(for: .seconds(2))
 
-        // Verify the app is still running by checking if the process exists
         let listOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
         ).concatenatedString()
 
-        XCTAssertTrue(
+        #expect(
             listOutput.contains("UIKitApplication:dev.tuist.app"),
             "App should still be running after launch. If it crashed, the bundle accessor for ObjC static frameworks with resources may be broken."
         )
 
-        // Wait a bit more to ensure stability
         try await Task.sleep(for: .seconds(1))
 
-        // Check again that the app is still running
         let finalListOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
         ).concatenatedString()
 
-        XCTAssertTrue(
+        #expect(
             finalListOutput.contains("UIKitApplication:dev.tuist.app"),
             "App should remain running. If it crashed after initial launch, there may be a delayed resource loading issue."
         )
     }
 
-    func test_app_with_objc_static_framework_with_resources_from_cache() async throws {
-        try await setUpFixture("generated_app_with_objc_static_framework_with_resources")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_app_with_objc_static_framework_with_resources"), .inTemporaryDirectory)
+    func app_with_objc_static_framework_with_resources_from_cache() async throws {
+        let fileSystem = FileSystem()
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
 
-        // First, cache the targets to create XCFrameworks
-        try await run(CacheCommand.self)
-
-        // Generate with cached binaries
-        try await run(GenerateCommand.self)
-
-        // Build
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-
-        // Create a simulator for testing
         let commandRunner = CommandRunner()
         let simulatorId = UUID().uuidString
         try await commandRunner.run(
@@ -332,177 +338,210 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
             }
         }
 
-        // Boot the simulator
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
         ).pipedStream().awaitCompletion()
 
-        // Find the built app
         let appPath = derivedDataPath
             .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
 
-        // Verify that SVProgressHUD.xcframework is embedded (not the source target)
         let frameworksPath = appPath.appending(component: "Frameworks")
         let frameworksExist = await (try? fileSystem.exists(frameworksPath)) ?? false
-        XCTAssertTrue(
+        #expect(
             frameworksExist,
             "Frameworks directory should exist when using cached XCFrameworks"
         )
 
         if frameworksExist {
             let frameworkContents = try await fileSystem.glob(directory: frameworksPath, include: ["*.framework"]).collect()
-            XCTAssertTrue(
+            #expect(
                 frameworkContents.contains { $0.basename.contains("SVProgressHUD") },
                 "SVProgressHUD.framework should be embedded in the app bundle when using cached static XCFramework with resources"
             )
         }
 
-        // External static frameworks keep resources inside the framework (no separate .bundle)
         let resourceBundlePath = appPath.appending(component: "SVProgressHUD_SVProgressHUD.bundle")
         let resourceBundleExists = await (try? fileSystem.exists(resourceBundlePath)) ?? false
-        XCTAssertFalse(
-            resourceBundleExists,
+        #expect(
+            !resourceBundleExists,
             "SVProgressHUD_SVProgressHUD.bundle should not exist; resources live inside the framework itself"
         )
 
-        // Install the app
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
         ).pipedStream().awaitCompletion()
 
-        // Launch the app
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
         ).pipedStream().awaitCompletion()
 
-        // Wait a bit for the app to initialize and potentially crash
         try await Task.sleep(for: .seconds(2))
 
-        // Verify the app is still running by checking if the process exists
         let listOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
         ).concatenatedString()
 
-        XCTAssertTrue(
+        #expect(
             listOutput.contains("UIKitApplication:dev.tuist.app"),
             "App should still be running after launch when using cached XCFrameworks. If it crashed, the static XCFramework with resources may not be embedded correctly."
         )
 
-        // Wait a bit more to ensure stability
         try await Task.sleep(for: .seconds(1))
 
-        // Check again that the app is still running
         let finalListOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
         ).concatenatedString()
 
-        XCTAssertTrue(
+        #expect(
             finalListOutput.contains("UIKitApplication:dev.tuist.app"),
             "App should remain running when using cached XCFrameworks. If it crashed, the bundle accessor for cached static frameworks with resources may be broken."
         )
     }
 }
 
-final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
-    func test_app_with_pocket_svg() async throws {
-        try await setUpFixture("generated_app_with_pocket_svg")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
+struct DependenciesAcceptanceTestAppPocketSVG {
+    @Test(.withFixture("generated_app_with_pocket_svg"), .inTemporaryDirectory)
+    func app_with_pocket_svg() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestAppSBTUITestTunnel: TuistAcceptanceTestCase {
-    func test_app_with_sbtuitesttunnel() async throws {
-        try await setUpFixture("generated_app_with_sbtuitesttunnel")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
+struct DependenciesAcceptanceTestAppSBTUITestTunnel {
+    @Test(.withFixture("generated_app_with_sbtuitesttunnel"), .inTemporaryDirectory)
+    func app_with_sbtuitesttunnel() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestIosAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test_ios_app_spm_dependencies() async throws {
-        try await setUpFixture("generated_ios_app_with_spm_dependencies")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-        try await run(TestCommand.self, "App")
+struct DependenciesAcceptanceTestIosAppWithSPMDependencies {
+    @Test(.withFixture("generated_ios_app_with_spm_dependencies"), .inTemporaryDirectory)
+    func ios_app_spm_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+        try await TuistTest.run(
+            TestCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions: TuistAcceptanceTestCase {
-    func test_ios_app_spm_dependencies_force_resolved_versions() async throws {
-        try await setUpFixture("generated_ios_app_with_spm_dependencies_forced_resolved_versions")
-        try await run(InstallCommand.self)
-        let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
+struct DependenciesAcceptanceTestIosAppWithSPMDependenciesForceResolvedVersions {
+    @Test(.withFixture("generated_ios_app_with_spm_dependencies_forced_resolved_versions"), .inTemporaryDirectory)
+    func ios_app_spm_dependencies_force_resolved_versions() async throws {
+        let fileSystem = FileSystem()
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        let packageResolvedPath = fixtureDirectory.appending(components: ["Tuist", "Package.resolved"])
         let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
-        // NB: Should not modify SnapKit version in Package.resolved
-        XCTAssertTrue(packageResolvedContents.contains(#""version" : "5.0.0""#))
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
-        try await run(TestCommand.self, "App")
+        #expect(packageResolvedContents.contains(#""version" : "5.0.0""#))
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
+        try await TuistTest.run(
+            TestCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies: TuistAcceptanceTestCase {
+struct DependenciesAcceptanceTestIosAppWithSPMDependenciesWithOutdatedDependencies {
+    @Test(.withFixture("generated_ios_app_with_spm_dependencies"), .withMockedDependencies())
     func test() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture("generated_ios_app_with_spm_dependencies")
-            try await run(InstallCommand.self)
-            let packageResolvedPath = fixturePath.appending(components: ["Tuist", "Package.resolved"])
-            let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
-            try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
-            try await run(GenerateCommand.self)
-            XCTAssertEqual(
-                ui()
-                    .contains("We detected outdated dependencies"), true
-            )
-            resetUI()
+        let fileSystem = FileSystem()
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        let packageResolvedPath = fixtureDirectory.appending(components: ["Tuist", "Package.resolved"])
+        let packageResolvedContents = try await fileSystem.readTextFile(at: packageResolvedPath)
+        try FileHandler.shared.write(packageResolvedContents + " ", path: packageResolvedPath, atomically: true)
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        #expect(ui().contains("We detected outdated dependencies"))
+        resetUI()
 
-            try await run(InstallCommand.self)
-            try await run(GenerateCommand.self)
-            XCTAssertEqual(
-                ui()
-                    .contains("We detected outdated dependencies"), false
-            )
-        }
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        #expect(ui().contains("We detected outdated dependencies") == false)
     }
 }
 
-final class DependenciesAcceptanceTestAppWithComposableArchitecture: TuistAcceptanceTestCase {
-    func test_app_with_composable_architecture() async throws {
-        try await setUpFixture("generated_app_with_composable_architecture")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App")
+struct DependenciesAcceptanceTestAppWithComposableArchitecture {
+    @Test(.withFixture("generated_app_with_composable_architecture"), .inTemporaryDirectory)
+    func app_with_composable_architecture() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["App", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestAppWithRealm: TuistAcceptanceTestCase {
-    func test_app_with_realm() async throws {
-        try await setUpFixture("generated_app_with_realm")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+struct DependenciesAcceptanceTestAppWithRealm {
+    @Test(.withFixture("generated_app_with_realm"), .inTemporaryDirectory)
+    func app_with_realm() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestAppSPMXCFrameworkDependency: TuistAcceptanceTestCase {
-    func test_app_spm_xcframework_dependency() async throws {
-        try await setUpFixture("generated_app_with_spm_xcframework_dependency")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+struct DependenciesAcceptanceTestAppSPMXCFrameworkDependency {
+    @Test(.withFixture("generated_app_with_spm_xcframework_dependency"), .inTemporaryDirectory)
+    func app_spm_xcframework_dependency() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }
 
-final class DependenciesAcceptanceTestAppWithAirshipSDK: TuistAcceptanceTestCase {
-    func test_app_with_airship_sdk() async throws {
-        try await setUpFixture("generated_app_with_airship_sdk")
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
+struct DependenciesAcceptanceTestAppWithAirshipSDK {
+    @Test(.withFixture("generated_app_with_airship_sdk"), .inTemporaryDirectory)
+    func app_with_airship_sdk() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
+        )
     }
 }

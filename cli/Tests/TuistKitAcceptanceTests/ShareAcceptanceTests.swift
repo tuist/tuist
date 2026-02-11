@@ -6,6 +6,7 @@ import Path
 import SnapshotTesting
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
 import TuistCore
 import TuistEnvironment
 import TuistLoggerTesting

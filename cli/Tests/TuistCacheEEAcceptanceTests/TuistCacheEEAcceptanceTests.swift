@@ -7,6 +7,7 @@ import TuistAcceptanceTesting
 import TuistCacheCommand
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistGenerateCommand
 import TuistLoggerTesting
 import TuistNooraTesting
 import TuistServer

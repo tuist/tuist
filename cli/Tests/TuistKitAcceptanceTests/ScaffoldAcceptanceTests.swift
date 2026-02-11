@@ -1,19 +1,15 @@
-import TuistAcceptanceTesting
+import Testing
 import TuistSupport
 import TuistTesting
-import XcodeProj
-import XCTest
 
-final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
-    override func tearDown() {
-        ScaffoldCommand.requiredTemplateOptions = []
-        ScaffoldCommand.optionalTemplateOptions = []
-        super.tearDown()
-    }
+@testable import TuistKit
 
-    func test_ios_app_with_templates_custom() async throws {
-        try await setUpFixture("generated_ios_app_with_templates")
-        try await run(InstallCommand.self)
+struct ScaffoldAcceptanceTests {
+    @Test(.withFixture("generated_ios_app_with_templates"))
+    func ios_app_with_templates_custom() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom",
@@ -22,24 +18,29 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom", "--name", "TemplateProject")
-        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
-            "// this is test TemplateProject content"
+        try await TuistTest.run(
+            ScaffoldCommand.self,
+            ["custom", "--name", "TemplateProject", "--path", fixturePath.pathString]
         )
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift")),
-            """
-            // Generated file with platform: ios and name: TemplateProject
+        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
+        #expect(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift"))
+                == "// this is test TemplateProject content"
+        )
+        #expect(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift"))
+                == """
+                // Generated file with platform: ios and name: TemplateProject
 
-            """
+                """
         )
     }
 
-    func test_ios_app_with_templates_custom_using_filters() async throws {
-        try await setUpFixture("generated_ios_app_with_templates")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_ios_app_with_templates"))
+    func ios_app_with_templates_custom_using_filters() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_filters",
@@ -48,17 +49,22 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_using_filters", "--name", "TemplateProject")
+        try await TuistTest.run(
+            ScaffoldCommand.self,
+            ["custom_using_filters", "--name", "TemplateProject", "--path", fixturePath.pathString]
+        )
         let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
-            "// this is test TemplateProject content"
+        #expect(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift"))
+                == "// this is test TemplateProject content"
         )
     }
 
-    func test_ios_app_with_templates_custom_using_copy_folder() async throws {
-        try await setUpFixture("generated_ios_app_with_templates")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_ios_app_with_templates"))
+    func ios_app_with_templates_custom_using_copy_folder() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_copy_folder",
@@ -67,57 +73,74 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_using_copy_folder", "--name", "TemplateProject")
-        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift")),
-            """
-            // Generated file with platform: ios and name: TemplateProject
-
-            """
+        try await TuistTest.run(
+            ScaffoldCommand.self,
+            ["custom_using_copy_folder", "--name", "TemplateProject", "--path", fixturePath.pathString]
         )
-        XCTAssertEqual(
+        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
+        #expect(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift"))
+                == """
+                // Generated file with platform: ios and name: TemplateProject
+
+                """
+        )
+        #expect(
             try FileHandler.shared.readTextFile(
                 templateProjectDirectory.appending(components: ["sourceFolder", "file1.txt"])
-            ),
-            """
-            Content of file 1
+            )
+                == """
+                Content of file 1
 
-            """
+                """
         )
-        XCTAssertEqual(
+        #expect(
             try FileHandler.shared.readTextFile(
                 templateProjectDirectory.appending(components: ["sourceFolder", "subFolder", "file2.txt"])
-            ),
-            """
-            Content of file 2
+            )
+                == """
+                Content of file 2
 
-            """
+                """
         )
     }
 
-    func test_app_with_plugins_local_plugin() async throws {
-        try await setUpFixture("generated_app_with_plugins")
-        try await run(InstallCommand.self)
-        try await ScaffoldCommand.preprocess(["scaffold", "custom", "--name", "PluginTemplate", "--path", fixturePath.pathString])
-        try await run(ScaffoldCommand.self, "custom", "--name", "PluginTemplate")
+    @Test(.withFixture("generated_app_with_plugins"))
+    func app_with_plugins_local_plugin() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
+        try await ScaffoldCommand.preprocess([
+            "scaffold",
+            "custom",
+            "--name",
+            "PluginTemplate",
+            "--path",
+            fixturePath.pathString,
+        ])
+        try await TuistTest.run(
+            ScaffoldCommand.self,
+            ["custom", "--name", "PluginTemplate", "--path", fixturePath.pathString]
+        )
         let pluginTemplateDirectory = fixturePath.appending(component: "PluginTemplate")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "custom.swift")),
-            "// this is test PluginTemplate content"
+        #expect(
+            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "custom.swift"))
+                == "// this is test PluginTemplate content"
         )
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "generated.swift")),
-            """
-            // Generated file with platform: ios and name: PluginTemplate
+        #expect(
+            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "generated.swift"))
+                == """
+                // Generated file with platform: ios and name: PluginTemplate
 
-            """
+                """
         )
     }
 
-    func test_app_with_plugins_remote_plugin() async throws {
-        try await setUpFixture("generated_app_with_plugins")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_app_with_plugins"))
+    func app_with_plugins_remote_plugin() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_two",
@@ -126,24 +149,29 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_two", "--name", "PluginTemplate")
-        let pluginTemplateDirectory = fixturePath.appending(component: "PluginTemplate")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "custom.swift")),
-            "// this is test PluginTemplate content"
+        try await TuistTest.run(
+            ScaffoldCommand.self,
+            ["custom_two", "--name", "PluginTemplate", "--path", fixturePath.pathString]
         )
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "generated.swift")),
-            """
-            // Generated file with platform: ios and name: PluginTemplate
+        let pluginTemplateDirectory = fixturePath.appending(component: "PluginTemplate")
+        #expect(
+            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "custom.swift"))
+                == "// this is test PluginTemplate content"
+        )
+        #expect(
+            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "generated.swift"))
+                == """
+                // Generated file with platform: ios and name: PluginTemplate
 
-            """
+                """
         )
     }
 
-    func test_ios_app_with_templates_custom_using_attribute() async throws {
-        try await setUpFixture("generated_ios_app_with_templates")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_ios_app_with_templates"))
+    func ios_app_with_templates_custom_using_attribute() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_attribute",
@@ -152,26 +180,31 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "custom_using_attribute", "--name", "TemplateProject")
-        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift")),
-            "// this is test TemplateProject content"
+        try await TuistTest.run(
+            ScaffoldCommand.self,
+            ["custom_using_attribute", "--name", "TemplateProject", "--path", fixturePath.pathString]
         )
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift")),
-            """
-            // Generated file name: TemplateProject
-            // Generated file with supporting platforms
-            // iOS
+        let templateProjectDirectory = fixturePath.appending(component: "TemplateProject")
+        #expect(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "custom.swift"))
+                == "// this is test TemplateProject content"
+        )
+        #expect(
+            try FileHandler.shared.readTextFile(templateProjectDirectory.appending(component: "generated.swift"))
+                == """
+                // Generated file name: TemplateProject
+                // Generated file with supporting platforms
+                // iOS
 
-            """
+                """
         )
     }
 
-    func test_ios_app_with_local_template_and_project_description_helpers_plugin() async throws {
-        try await setUpFixture("generated_ios_app_with_plugins_and_templates")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_ios_app_with_plugins_and_templates"))
+    func ios_app_with_local_template_and_project_description_helpers_plugin() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "example",
@@ -180,17 +213,19 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "example")
+        try await TuistTest.run(ScaffoldCommand.self, ["example", "--path", fixturePath.pathString])
         let pluginTemplateDirectory = fixturePath.appending(component: "Sources")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "LocalTemplateTest.swift")),
-            "// Generated file named LocalPlugin from local template"
+        #expect(
+            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "LocalTemplateTest.swift"))
+                == "// Generated file named LocalPlugin from local template"
         )
     }
 
-    func test_ios_app_with_plugin_template_and_project_description_helpers_plugin() async throws {
-        try await setUpFixture("generated_ios_app_with_plugins_and_templates")
-        try await run(InstallCommand.self)
+    @Test(.withFixture("generated_ios_app_with_plugins_and_templates"))
+    func ios_app_with_plugin_template_and_project_description_helpers_plugin() async throws {
+        defer { resetScaffoldOptions() }
+        let fixturePath = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "plugin",
@@ -199,11 +234,16 @@ final class ScaffoldAcceptanceTests: TuistAcceptanceTestCase {
             "--path",
             fixturePath.pathString,
         ])
-        try await run(ScaffoldCommand.self, "plugin")
+        try await TuistTest.run(ScaffoldCommand.self, ["plugin", "--path", fixturePath.pathString])
         let pluginTemplateDirectory = fixturePath.appending(component: "Sources")
-        XCTAssertEqual(
-            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "PluginTemplateTest.swift")),
-            "// Generated file named LocalPlugin from plugin"
+        #expect(
+            try FileHandler.shared.readTextFile(pluginTemplateDirectory.appending(component: "PluginTemplateTest.swift"))
+                == "// Generated file named LocalPlugin from plugin"
         )
     }
+}
+
+private func resetScaffoldOptions() {
+    ScaffoldCommand.requiredTemplateOptions = []
+    ScaffoldCommand.optionalTemplateOptions = []
 }

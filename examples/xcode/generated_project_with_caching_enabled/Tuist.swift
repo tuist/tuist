@@ -5,7 +5,7 @@ let tuist = Tuist(
     cache: .cache(
         upload: false
     ),
-    url: "http://localhost:8080",
+    url: "https://canary.tuist.dev",
     project: .tuist(
         generationOptions: .options(
             enableCaching: true

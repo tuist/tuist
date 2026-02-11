@@ -1,52 +1,44 @@
 import Foundation
+import Testing
 import TuistSupport
-import XCTest
 
 @testable import TuistCore
 @testable import TuistTesting
 
-final class SimulatorControllerTests: TuistTestCase {
-    var subject: SimulatorController!
-
-    override func setUp() {
-        super.setUp()
-        subject = SimulatorController()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_devices() async throws {
+struct SimulatorControllerTests {
+    @Test func devices() async throws {
         // Given
+        let subject = SimulatorController()
         let got = try await subject.devices()
 
         // Then
-        let devices = try XCTUnwrap(got)
-        XCTAssertNotEmpty(devices)
+        let devices = try #require(got)
+        #expect(devices.isEmpty == false)
     }
 
-    func test_runtimes() async throws {
+    @Test func runtimes() async throws {
         // Given
+        let subject = SimulatorController()
         let got = try await subject.runtimes()
 
         // Then
-        let runtimes = try XCTUnwrap(got)
-        XCTAssertNotEmpty(runtimes)
+        let runtimes = try #require(got)
+        #expect(runtimes.isEmpty == false)
     }
 
-    func test_devicesAndRuntimes() async throws {
+    @Test func devicesAndRuntimes() async throws {
         // Given
+        let subject = SimulatorController()
         let got = try await subject.devicesAndRuntimes()
 
         // Then
-        let runtimes = try XCTUnwrap(got)
-        XCTAssertNotEmpty(runtimes)
+        let runtimes = try #require(got)
+        #expect(runtimes.isEmpty == false)
     }
 
-    func test_findAvailableDevice() async throws {
+    @Test func findAvailableDevice() async throws {
         // When
+        let subject = SimulatorController()
         let got = try await subject.findAvailableDevice(
             platform: .iOS,
             version: nil,
@@ -55,6 +47,6 @@ final class SimulatorControllerTests: TuistTestCase {
         )
 
         // Then
-        XCTAssertTrue(got.device.isAvailable)
+        #expect(got.device.isAvailable)
     }
 }

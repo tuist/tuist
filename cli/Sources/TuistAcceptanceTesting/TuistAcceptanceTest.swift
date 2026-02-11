@@ -3,10 +3,31 @@ import Foundation
 import Path
 import Testing
 import TuistEnvironment
-import TuistSupport
 import XcodeProj
 
 public enum TuistAcceptanceTest {
+    public static func xcodeprojPath(
+        in fixtureDirectory: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws -> AbsolutePath {
+        let candidates = try await FileSystem().contentsOfDirectory(fixtureDirectory)
+        return try #require(
+            candidates.first(where: { $0.extension == "xcodeproj" }),
+            sourceLocation: sourceLocation
+        )
+    }
+
+    public static func xcworkspacePath(
+        in fixtureDirectory: AbsolutePath,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws -> AbsolutePath {
+        let candidates = try await FileSystem().contentsOfDirectory(fixtureDirectory)
+        return try #require(
+            candidates.first(where: { $0.extension == "xcworkspace" }),
+            sourceLocation: sourceLocation
+        )
+    }
+
     public static func expectFrameworkLinked(
         _ framework: String,
         by targetName: String,
