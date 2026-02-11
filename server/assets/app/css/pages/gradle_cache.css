@@ -1,3 +1,10 @@
+#gradle-cache-empty-state > [data-part="background"] {
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 #gradle-cache {
   display: flex;
   flex-direction: column;
