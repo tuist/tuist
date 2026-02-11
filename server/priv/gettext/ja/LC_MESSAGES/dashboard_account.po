@@ -773,8 +773,8 @@ msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
-"最後のカスタムキャッシュエンドポイントを削除すると、組織はTuistホスト型"
-"キャッシュに戻ります。これは組織全体のすべてのビルドに影響します。"
+"最後のカスタムキャッシュエンドポイントを削除すると、組織はTuistホスト型キャッ"
+"シュに戻ります。これは組織全体のすべてのビルドに影響します。"
 
 #, fuzzy
 msgid "Cache endpoints"
