@@ -440,10 +440,9 @@ public struct InitCommandService {
     #else
         private func promptedWorkflowType(
             in _: AbsolutePath,
-            answers: InitPromptAnswers?
+            answers _: InitPromptAnswers?
         ) async throws -> InitPromptingWorkflowType {
-            return answers?.workflowType
-                ?? prompter.promptWorkflowType(xcodeProjectOrWorkspace: nil)
+            .connectGradleProject
         }
     #endif
 }
