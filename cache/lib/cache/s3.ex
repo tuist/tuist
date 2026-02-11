@@ -13,19 +13,6 @@ defmodule Cache.S3 do
 
   require Logger
 
-  @exists_cache :s3_exists_cache
-  @exists_positive_ttl to_timeout(hour: 6)
-  @exists_negative_ttl to_timeout(second: 30)
-
-  def child_spec(_) do
-    %{
-      id: __MODULE__,
-      start: {Cachex, :start_link, [@exists_cache, []]}
-    }
-  end
-
-  def exists_cache_name, do: @exists_cache
-
   @doc """
   Generates a presigned download URL for an artifact.
 
@@ -72,7 +59,7 @@ defmodule Cache.S3 do
   end
 
   @doc """
-  Checks if an artifact exists in S3, with a Cachex caching layer.
+  Checks if an artifact exists in S3.
 
   ## Options
 
@@ -81,20 +68,6 @@ defmodule Cache.S3 do
   Returns `false` if type is `:registry` and registry storage is not configured.
   """
   def exists?(key, opts \\ []) when is_binary(key) do
-    case Cachex.get(@exists_cache, key) do
-      {:ok, nil} ->
-        result = do_exists?(key, opts)
-        ttl = if result, do: @exists_positive_ttl, else: @exists_negative_ttl
-        Cachex.put(@exists_cache, key, result, ttl: ttl)
-        result
-
-      {:ok, cached} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: 0}, %{result: :cache_hit})
-        cached
-    end
-  end
-
-  defp do_exists?(key, opts) do
     type = Keyword.get(opts, :type, :cache)
 
     case bucket_for_type(type) do

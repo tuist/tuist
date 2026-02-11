@@ -25,7 +25,6 @@ defmodule Cache.Application do
       Cache.S3TransfersBuffer,
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
-      Cache.S3,
       Cache.KeyValueStore,
       Cache.MultipartUploads,
       Cache.Registry.Metadata,
