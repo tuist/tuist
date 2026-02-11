@@ -362,11 +362,19 @@
             "cache": {
               "text": "Cache",
               "items": {
-                "xcode-cache": {
-                  "text": "Xcode cache"
+                "xcode": {
+                  "text": "Xcode",
+                  "items": {
+                    "xcode-cache": {
+                      "text": "Xcode cache"
+                    },
+                    "module-cache": {
+                      "text": "Module cache"
+                    }
+                  }
                 },
-                "module-cache": {
-                  "text": "Module cache"
+                "gradle-cache": {
+                  "text": "Gradle cache"
                 }
               }
             },

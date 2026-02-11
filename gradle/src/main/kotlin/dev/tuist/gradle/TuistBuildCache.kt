@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
  * Minimum required Tuist CLI version for this plugin.
  */
 object TuistVersion {
-    const val MINIMUM_REQUIRED = "4.31.0"
+    const val MINIMUM_REQUIRED = "4.138.1"
 
     fun parseVersion(version: String): List<Int>? {
         return try {

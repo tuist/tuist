@@ -11,9 +11,10 @@ Build systems provide [incremental builds](https://en.wikipedia.org/wiki/Increme
 
 Tuist addresses these challenges with its caching feature, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
 
-We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module cache</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode cache</LocalizedLink>
+We offer three types of caching:
+- <LocalizedLink href="/guides/features/cache/module-cache">Module cache</LocalizedLink> (Xcode, with Tuist project generation)
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode cache</LocalizedLink> (Xcode, any project)
+- <LocalizedLink href="/guides/features/cache/gradle-cache">Gradle cache</LocalizedLink> (Gradle/Android)
 
 ## Module cache {#module-cache}
 
@@ -33,6 +34,14 @@ Xcode caching is currently optimized for local incremental builds and the whole 
 <!-- -->
 :::
 
-Apple has been working on a new caching solution at the build level, similar to other build systems like Bazel and Buck. The new caching capability is available since Xcode 26 and Tuist now seamlessly integrates with it – regardless of whether you are using Tuist's <LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities or not.
+Apple has been working on a new caching solution at the build level, similar to other build systems like Bazel and Buck. The new caching capability is available since Xcode 26 and Tuist now seamlessly integrates with it -- regardless of whether you are using Tuist's <LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities or not.
 
 <LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode cache →</LocalizedLink>
+
+## Gradle cache {#gradle-cache}
+
+Tuist provides a Gradle settings plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely across your team and CI environments. Instead of rebuilding the same tasks over and over, your Gradle builds can pull previously computed outputs from Tuist's remote cache.
+
+The plugin also collects build insights, giving you visibility into build performance and cache hit rates.
+
+<LocalizedLink href="/guides/features/cache/gradle-cache">Learn more about Gradle cache →</LocalizedLink>

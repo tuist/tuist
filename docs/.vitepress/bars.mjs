@@ -520,16 +520,32 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.cache.items.xcode-cache.text",
+                "sidebars.guides.items.develop.items.cache.items.xcode.text",
               ),
-              link: `/${locale}/guides/features/cache/xcode-cache`,
+              collapsed: true,
+              items: [
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.guides.items.develop.items.cache.items.xcode.items.xcode-cache.text",
+                  ),
+                  link: `/${locale}/guides/features/cache/xcode-cache`,
+                },
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.guides.items.develop.items.cache.items.xcode.items.module-cache.text",
+                  ),
+                  link: `/${locale}/guides/features/cache/module-cache`,
+                },
+              ],
             },
             {
               text: localizedString(
                 locale,
-                "sidebars.guides.items.develop.items.cache.items.module-cache.text",
+                "sidebars.guides.items.develop.items.cache.items.gradle-cache.text",
               ),
-              link: `/${locale}/guides/features/cache/module-cache`,
+              link: `/${locale}/guides/features/cache/gradle-cache`,
             },
           ],
         },
