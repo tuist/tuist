@@ -50,7 +50,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillMissingUnquarantinedEvents do
         WHERE tc.current_is_quarantined = false
         """,
         [],
-        timeout: :infinity
+        timeout: 60_000
       )
 
     rows = stale_quarantined.rows
