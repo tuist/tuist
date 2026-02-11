@@ -1,0 +1,116 @@
+Implement the following plan:
+
+# Plan: Prune old binary cache entries
+
+## Context
+
+The binary cache at `~/.cache/tuist/Binaries/` can grow unbounded over time as users build different configurations. Currently, the only way to reclaim space is `tuist clean binaries`, which wipes everything. We want automatic pruning of stale entries, similar to how `SessionController` already prunes old session directories.
+
+Since there's no explicit "last accessed" tracking, we'll use the filesystem's **modification date** of each hash directory. On macOS, we can also update this timestamp when a binary is fetched (via `touch`), so that actively-used binaries stay fresh. This is a lightweight approach that avoids adding new metadata files.
+
+## Changes
+
+### 1. Add `CacheLocalStorage.clean()` static method
+**File:** `cli/TuistCacheEE/Sources/Storage/CacheLocalStorage.swift`
+
+Add a static method following the same pattern as `SessionController.clean()`:
+
+```swift
+static func clean(
+    fileSystem: FileSysteming,
+    cacheDirectoriesProvider: CacheDirectoriesProviding,
+    maxAge: TimeInterval = 7 * 24 * 60 * 60,  // 7 days
+    maxEntries: Int = 200
+) async throws
+```
+
+- Iterates over all hash directories in `~/.cache/tuist/Binaries/`
+- Removes entries whose modification date is older than `maxAge` (default 7 days)
+- If remaining entries exceed `maxEntries` (default 200), keeps only the newest ones
+- Uses `FileManager.default.attributesOfItem` with `.modificationDate` (same approach as session cleanup)
+
+### 2. Touch hash directory on fetch (update modification date)
+**File:** `cli/TuistCacheEE/Sources/Storage/CacheLocalStorage.swift`
+
+In the `fetch` method, after a successful lookup, update the modification date of the hash directory so that recently-accessed entries don't get pruned:
+
+```swift
+try? FileManager.default.setAttributes(
+    [.modificationDate: Date()],
+    ofItemAtPath: hashPath.pathString
+)
+```
+
+This goes after the `lookupCompiledArtifact` call succeeds, using `try?` so it's best-effort and doesn't affect the fetch.
+
+### 3. Schedule binary cache maintenance in `initDependencies`
+**File:** `cli/Sources/tuist/Dependencies.swift`
+
+Add a background task alongside the existing `sessionController.scheduleMaintenance()` call (line 80):
+
+```swift
+Task.detached(priority: .background) {
+    try? await CacheLocalStorage.clean(
+        fileSystem: FileSystem(),
+        cacheDirectoriesProvider: CacheDirectoriesProvider()
+    )
+}
+```
+
+### 4. Add tests
+**File:** `cli/Tests/TuistCacheEETests/Storage/CacheLocalStorageTests.swift`
+
+Add tests mirroring `SessionControllerTests`:
+- `test_clean_removesOldEntries` - creates entries with old modification dates, verifies they're removed
+- `test_clean_limitsMaxEntries` - creates more than the max, verifies oldest are pruned
+- `test_clean_keepsRecentEntries` - verifies entries within maxAge are kept
+- `test_fetch_updatesModificationDate` - verifies that fetching a binary touches its directory
+
+## Verification
+
+1. Run the new tests:
+   ```bash
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing TuistCacheEETests/CacheLocalStorageTests
+   ```
+2. Run the session controller tests to make sure nothing is broken:
+   ```bash
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing TuistKitTests/SessionControllerTests
+   ```
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+<task-notification>
+<task-id>b621826</task-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b621826.output</output-file>
+<status>completed</status>
+<summary>Background command "Build to verify compilation" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b621826.output
+
+---
+
+Can you open a PR with this?
+
+---
+
+This PR contain commits that are unrelated thi your work:
+https://github.com/tuist/TuistCacheEE/pull/42
+
+---
+
+Can you also prune these other files?
+
+---
+
+Try again
+
+---
+
+try
+
+---
+
+[Request interrupted by user for tool use]

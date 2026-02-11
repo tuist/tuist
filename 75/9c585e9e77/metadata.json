@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "759c585e9e77",
+  "strategy": "manual-commit",
+  "branch": "feat/prune-old-binary-cache-entries",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "cli/Sources/tuist/Dependencies.swift",
+    "cli/Tests/TuistCacheEETests/Storage/CacheLocalStorageTests.swift",
+    "cli/TuistCacheEE/Sources/Storage/CacheLocalStorage.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/75/9c585e9e77/0/metadata.json",
+      "transcript": "/75/9c585e9e77/0/full.jsonl",
+      "context": "/75/9c585e9e77/0/context.md",
+      "content_hash": "/75/9c585e9e77/0/content_hash.txt",
+      "prompt": "/75/9c585e9e77/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 12,
+    "cache_creation_tokens": 103947,
+    "cache_read_tokens": 1055902,
+    "output_tokens": 202,
+    "api_call_count": 12
+  }
+}
