@@ -688,6 +688,12 @@ msgstr ""
 "過去30日間のフラッキー発生回数が指定回数を超えた場合、テストはフラッキーとし"
 "てマークされます"
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "アクセス権限を持つ者のみ"

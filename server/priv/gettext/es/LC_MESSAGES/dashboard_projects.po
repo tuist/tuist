@@ -702,6 +702,12 @@ msgstr ""
 "Las pruebas se marcarán como inestables después de que se haya alcanzado el "
 "número especificado de incidencias inestables en los últimos 30 días."
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "Solo las personas con acceso"

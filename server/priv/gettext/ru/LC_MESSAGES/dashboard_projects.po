@@ -698,6 +698,12 @@ msgstr ""
 "Тесты будут помечены как нестабильные после определенного количества "
 "нестабильных результатов за последние 30 дней."
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "Только люди с доступом"

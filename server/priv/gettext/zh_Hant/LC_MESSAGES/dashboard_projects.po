@@ -681,6 +681,12 @@ msgid ""
 "occurrences within the last 30 days"
 msgstr "若測試在過去30天內出現超過指定次數的反覆性問題，將標記為不穩定測試"
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "僅限具備存取權限者"

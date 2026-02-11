@@ -691,6 +691,12 @@ msgstr ""
 "سيتم وضع علامة \"غير مستقر\" على الاختبارات بعد عدد محدد من حالات عدم "
 "الاستقرار خلال آخر 30 يومًا."
 
+msgid "Build system"
+msgstr ""
+
+msgid "Select build system"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "فقط الأشخاص الذين لديهم حق الوصول"
