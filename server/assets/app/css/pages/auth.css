@@ -249,8 +249,11 @@
   & [data-part="frame"]:has(> [data-part="features"]) {
     justify-content: space-between;
     align-items: flex-start;
-    background:
-      radial-gradient(131.61% 140.32% at 0% 100%, oklch(53.2% 0.276 286.9 / 0.04) 0%, oklch(100% 0 0 / 0) 100%),
+    background: radial-gradient(
+        131.61% 140.32% at 0% 100%,
+        oklch(53.2% 0.276 286.9 / 0.04) 0%,
+        oklch(100% 0 0 / 0) 100%
+      ),
       var(--noora-surface-background-primary);
     padding: 0;
 
