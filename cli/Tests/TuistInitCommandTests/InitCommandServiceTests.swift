@@ -27,7 +27,6 @@ struct InitCommandServiceTests {
     private let loginService = MockLoginCommandServicing()
     private let createProjectService = MockCreateProjectServicing()
     private let serverSessionController = MockServerSessionControlling()
-    private let startGeneratedProjectService = InitGeneratedProjectService()
     private let keystrokeListener = MockKeyStrokeListening()
     private let createOrganizationService = MockCreateOrganizationServicing()
     private let listOrganizationsService = MockListOrganizationsServicing()
@@ -37,297 +36,316 @@ struct InitCommandServiceTests {
     private let subject: InitCommandService
 
     init() {
-        subject = InitCommandService(
-            fileSystem: fileSystem,
-            prompter: prompter,
-            loginService: loginService,
-            createProjectService: createProjectService,
-            serverSessionController: serverSessionController,
-            initGeneratedProjectService: startGeneratedProjectService,
-            keystrokeListener: keystrokeListener,
-            createOrganizationService: createOrganizationService,
-            listOrganizationsService: listOrganizationsService,
-            getProjectService: getProjectService,
-            commandRunner: commandRunner,
-            serverEnvironmentService: serverEnvironmentService
-        )
+        #if os(macOS)
+            subject = InitCommandService(
+                fileSystem: fileSystem,
+                prompter: prompter,
+                loginService: loginService,
+                createProjectService: createProjectService,
+                serverSessionController: serverSessionController,
+                initGeneratedProjectService: InitGeneratedProjectService(),
+                keystrokeListener: keystrokeListener,
+                createOrganizationService: createOrganizationService,
+                listOrganizationsService: listOrganizationsService,
+                getProjectService: getProjectService,
+                commandRunner: commandRunner,
+                serverEnvironmentService: serverEnvironmentService
+            )
+        #else
+            subject = InitCommandService(
+                fileSystem: fileSystem,
+                prompter: prompter,
+                loginService: loginService,
+                createProjectService: createProjectService,
+                serverSessionController: serverSessionController,
+                keystrokeListener: keystrokeListener,
+                createOrganizationService: createOrganizationService,
+                listOrganizationsService: listOrganizationsService,
+                getProjectService: getProjectService,
+                commandRunner: commandRunner,
+                serverEnvironmentService: serverEnvironmentService
+            )
+        #endif
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
     }
 
-    @Test func generatesTheRightConfiguration_when_generatedAndConnectedToServer() async throws {
-        try await withMockedDependencies {
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
-                .createGeneratedProject
-            )
-            given(prompter).promptGeneratedProjectName().willReturn("Test")
-            given(prompter).promptIntegrateWithServer().willReturn(true)
-            given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
-            given(prompter).promptAccountType(
-                authenticatedUserHandle: .value("account"), organizations: .value(["org"])
-            )
-            .willReturn(.createOrganizationAccount)
-            given(prompter).promptNewOrganizationAccountHandle().willReturn("organization")
-            given(createOrganizationService).createOrganization(
-                name: .value("organization"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test())
-            given(loginService).run(
-                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
-            ).willReturn()
-            given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
-                .willReturn("account")
-            given(getProjectService).getProject(
-                fullHandle: .value("organization/Test"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "organization/Test"))
-            given(createProjectService).createProject(
-                fullHandle: .value("organization/Test"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "organization/Test"))
-            given(listOrganizationsService).listOrganizations(
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(["org"])
-
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
+    #if os(macOS)
+        @Test func generatesTheRightConfiguration_when_generatedAndConnectedToServer() async throws {
+            try await withMockedDependencies {
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
+                    .createGeneratedProject
                 )
-                .willReturn(.init(unfolding: { nil }))
-
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
-
-                // Then
-                let tuistSwift = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(components: [
-                        "Test",
-                        "Tuist.swift",
-                    ])
+                given(prompter).promptGeneratedProjectName().willReturn("Test")
+                given(prompter).promptIntegrateWithServer().willReturn(true)
+                given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
+                given(prompter).promptAccountType(
+                    authenticatedUserHandle: .value("account"), organizations: .value(["org"])
                 )
-                #expect(
-                    tuistSwift == """
-                    import ProjectDescription
+                .willReturn(.createOrganizationAccount)
+                given(prompter).promptNewOrganizationAccountHandle().willReturn("organization")
+                given(createOrganizationService).createOrganization(
+                    name: .value("organization"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test())
+                given(loginService).run(
+                    email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
+                ).willReturn()
+                given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
+                    .willReturn("account")
+                given(getProjectService).getProject(
+                    fullHandle: .value("organization/Test"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "organization/Test"))
+                given(createProjectService).createProject(
+                    fullHandle: .value("organization/Test"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "organization/Test"))
+                given(listOrganizationsService).listOrganizations(
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(["org"])
 
-                    let tuist = Tuist(fullHandle: "organization/Test", project: .tuist())
-                    """
-                )
+                try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                    temporaryDirectory in
+                    given(commandRunner).run(
+                        arguments: .matching { $0.contains("mise") }, environment: .any,
+                        workingDirectory: .any
+                    )
+                    .willReturn(.init(unfolding: { nil }))
+
+                    // When
+                    try await subject.run(from: temporaryDirectory, answers: nil)
+
+                    // Then
+                    let tuistSwift = try await fileSystem.readTextFile(
+                        at: temporaryDirectory.appending(components: [
+                            "Test",
+                            "Tuist.swift",
+                        ])
+                    )
+                    #expect(
+                        tuistSwift == """
+                        import ProjectDescription
+
+                        let tuist = Tuist(fullHandle: "organization/Test", project: .tuist())
+                        """
+                    )
+                }
             }
         }
-    }
 
-    @Test func generatesTheRightConfiguration_when_generatedAndNotConnectedToServer() async throws {
-        try await withMockedDependencies {
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
-                .createGeneratedProject
-            )
-            given(prompter).promptGeneratedProjectName().willReturn("Test")
-            given(prompter).promptIntegrateWithServer().willReturn(false)
-            given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
-
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
+        @Test func generatesTheRightConfiguration_when_generatedAndNotConnectedToServer() async throws {
+            try await withMockedDependencies {
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
+                    .createGeneratedProject
                 )
-                .willReturn(.init(unfolding: { nil }))
+                given(prompter).promptGeneratedProjectName().willReturn("Test")
+                given(prompter).promptIntegrateWithServer().willReturn(false)
+                given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
 
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
+                try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                    temporaryDirectory in
+                    given(commandRunner).run(
+                        arguments: .matching { $0.contains("mise") }, environment: .any,
+                        workingDirectory: .any
+                    )
+                    .willReturn(.init(unfolding: { nil }))
 
-                // Then
-                let tuistSwift = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(components: [
-                        "Test",
-                        "Tuist.swift",
-                    ])
-                )
-                #expect(
-                    tuistSwift == """
-                    import ProjectDescription
+                    // When
+                    try await subject.run(from: temporaryDirectory, answers: nil)
 
-                    let tuist = Tuist(project: .tuist())
-                    """
-                )
+                    // Then
+                    let tuistSwift = try await fileSystem.readTextFile(
+                        at: temporaryDirectory.appending(components: [
+                            "Test",
+                            "Tuist.swift",
+                        ])
+                    )
+                    #expect(
+                        tuistSwift == """
+                        import ProjectDescription
+
+                        let tuist = Tuist(project: .tuist())
+                        """
+                    )
+                }
             }
         }
-    }
 
-    @Test
-    func
-        generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_connectedToServer()
-        async throws
-    {
-        try await withMockedDependencies {
-            let projectName = UUID().uuidString
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                .willReturn(.connectProjectOrSwiftPackage(projectName))
-            given(prompter).promptIntegrateWithServer().willReturn(true)
-            given(prompter).promptAccountType(
-                authenticatedUserHandle: .value("account"), organizations: .value(["org"])
-            )
-            .willReturn(.userAccount("account"))
-            given(loginService).run(
-                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
-            ).willReturn()
-            given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
-                .willReturn("account")
-            given(getProjectService).getProject(
-                fullHandle: .value("account/\(projectName)"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "account/\(projectName)"))
-            given(createProjectService).createProject(
-                fullHandle: .value("account/\(projectName)"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "account/\(projectName)"))
-            given(listOrganizationsService).listOrganizations(
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(["org"])
-
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                // Given
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
+        @Test
+        func
+            generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_connectedToServer()
+            async throws
+        {
+            try await withMockedDependencies {
+                let projectName = UUID().uuidString
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                    .willReturn(.connectProjectOrSwiftPackage(projectName))
+                given(prompter).promptIntegrateWithServer().willReturn(true)
+                given(prompter).promptAccountType(
+                    authenticatedUserHandle: .value("account"), organizations: .value(["org"])
                 )
-                .willReturn(.init(unfolding: { nil }))
-                try await fileSystem.makeDirectory(
-                    at: temporaryDirectory.appending(component: "\(projectName).xcodeproj")
-                )
+                .willReturn(.userAccount("account"))
+                given(loginService).run(
+                    email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
+                ).willReturn()
+                given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
+                    .willReturn("account")
+                given(getProjectService).getProject(
+                    fullHandle: .value("account/\(projectName)"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "account/\(projectName)"))
+                given(createProjectService).createProject(
+                    fullHandle: .value("account/\(projectName)"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "account/\(projectName)"))
+                given(listOrganizationsService).listOrganizations(
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(["org"])
 
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
+                try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                    temporaryDirectory in
+                    // Given
+                    given(commandRunner).run(
+                        arguments: .matching { $0.contains("mise") }, environment: .any,
+                        workingDirectory: .any
+                    )
+                    .willReturn(.init(unfolding: { nil }))
+                    try await fileSystem.makeDirectory(
+                        at: temporaryDirectory.appending(component: "\(projectName).xcodeproj")
+                    )
 
-                // Then
-                let tuistSwift = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(components: ["Tuist.swift"])
-                )
-                #expect(
-                    tuistSwift == """
-                    import ProjectDescription
+                    // When
+                    try await subject.run(from: temporaryDirectory, answers: nil)
 
-                    let tuist = Tuist(fullHandle: "account/\(projectName)", project: .xcode())
-                    """
-                )
+                    // Then
+                    let tuistSwift = try await fileSystem.readTextFile(
+                        at: temporaryDirectory.appending(components: ["Tuist.swift"])
+                    )
+                    #expect(
+                        tuistSwift == """
+                        import ProjectDescription
+
+                        let tuist = Tuist(fullHandle: "account/\(projectName)", project: .xcode())
+                        """
+                    )
+                }
             }
         }
-    }
 
-    @Test
-    func
-        generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_NotConnectedToServer()
-        async throws
-    {
-        try await withMockedDependencies {
-            let projectName = UUID().uuidString
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                .willReturn(.connectProjectOrSwiftPackage(projectName))
-            given(prompter).promptIntegrateWithServer().willReturn(false)
+        @Test
+        func
+            generatesTheRightConfiguration_when_connectingAnExistingXcodeProject_and_NotConnectedToServer()
+            async throws
+        {
+            try await withMockedDependencies {
+                let projectName = UUID().uuidString
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                    .willReturn(.connectProjectOrSwiftPackage(projectName))
+                given(prompter).promptIntegrateWithServer().willReturn(false)
 
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                // Given
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
-                )
-                .willReturn(.init(unfolding: { nil }))
-                try await fileSystem.makeDirectory(
-                    at: temporaryDirectory.appending(component: "\(projectName).xcodeproj")
-                )
+                try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                    temporaryDirectory in
+                    // Given
+                    given(commandRunner).run(
+                        arguments: .matching { $0.contains("mise") }, environment: .any,
+                        workingDirectory: .any
+                    )
+                    .willReturn(.init(unfolding: { nil }))
+                    try await fileSystem.makeDirectory(
+                        at: temporaryDirectory.appending(component: "\(projectName).xcodeproj")
+                    )
 
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
+                    // When
+                    try await subject.run(from: temporaryDirectory, answers: nil)
 
-                // Then
-                let tuistSwift = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(components: ["Tuist.swift"])
-                )
-                #expect(
-                    tuistSwift == """
-                    import ProjectDescription
+                    // Then
+                    let tuistSwift = try await fileSystem.readTextFile(
+                        at: temporaryDirectory.appending(components: ["Tuist.swift"])
+                    )
+                    #expect(
+                        tuistSwift == """
+                        import ProjectDescription
 
-                    let tuist = Tuist(project: .xcode())
-                    """
-                )
+                        let tuist = Tuist(project: .xcode())
+                        """
+                    )
+                }
             }
         }
-    }
 
-    @Test func generatesTheRightConfiguration_whenGeneratedForOrganization_andConnectedToServer()
-        async throws
-    {
-        try await withMockedDependencies {
-            let organizationName = UUID().uuidString
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
-                .createGeneratedProject
-            )
-            given(prompter).promptGeneratedProjectName().willReturn("Test")
-            given(prompter).promptIntegrateWithServer().willReturn(true)
-            given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
-            given(prompter).promptAccountType(
-                authenticatedUserHandle: .value("account"),
-                organizations: .value([organizationName])
-            ).willReturn(.organization(organizationName))
-            given(loginService).run(
-                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
-            ).willReturn()
-            given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
-                .willReturn("account")
-            given(getProjectService).getProject(
-                fullHandle: .value("\(organizationName)/Test"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "\(organizationName)/Test"))
-            given(createProjectService).createProject(
-                fullHandle: .value("\(organizationName)/Test"),
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(.test(fullName: "\(organizationName)/Test"))
-            given(listOrganizationsService).listOrganizations(
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn([organizationName])
-
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
+        @Test func generatesTheRightConfiguration_whenGeneratedForOrganization_andConnectedToServer()
+            async throws
+        {
+            try await withMockedDependencies {
+                let organizationName = UUID().uuidString
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any).willReturn(
+                    .createGeneratedProject
                 )
-                .willReturn(.init(unfolding: { nil }))
+                given(prompter).promptGeneratedProjectName().willReturn("Test")
+                given(prompter).promptIntegrateWithServer().willReturn(true)
+                given(prompter).promptGeneratedProjectPlatform().willReturn("ios")
+                given(prompter).promptAccountType(
+                    authenticatedUserHandle: .value("account"),
+                    organizations: .value([organizationName])
+                ).willReturn(.organization(organizationName))
+                given(loginService).run(
+                    email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
+                ).willReturn()
+                given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
+                    .willReturn("account")
+                given(getProjectService).getProject(
+                    fullHandle: .value("\(organizationName)/Test"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "\(organizationName)/Test"))
+                given(createProjectService).createProject(
+                    fullHandle: .value("\(organizationName)/Test"),
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn(.test(fullName: "\(organizationName)/Test"))
+                given(listOrganizationsService).listOrganizations(
+                    serverURL: .value(Constants.URLs.production)
+                ).willReturn([organizationName])
 
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
+                try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                    temporaryDirectory in
+                    given(commandRunner).run(
+                        arguments: .matching { $0.contains("mise") }, environment: .any,
+                        workingDirectory: .any
+                    )
+                    .willReturn(.init(unfolding: { nil }))
 
-                // Then
-                let tuistSwift = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(components: [
-                        "Test",
-                        "Tuist.swift",
-                    ])
-                )
-                #expect(
-                    tuistSwift == """
-                    import ProjectDescription
+                    // When
+                    try await subject.run(from: temporaryDirectory, answers: nil)
 
-                    let tuist = Tuist(fullHandle: "\(organizationName)/Test", project: .tuist())
-                    """
-                )
+                    // Then
+                    let tuistSwift = try await fileSystem.readTextFile(
+                        at: temporaryDirectory.appending(components: [
+                            "Test",
+                            "Tuist.swift",
+                        ])
+                    )
+                    #expect(
+                        tuistSwift == """
+                        import ProjectDescription
+
+                        let tuist = Tuist(fullHandle: "\(organizationName)/Test", project: .tuist())
+                        """
+                    )
+                }
             }
         }
-    }
+    #endif
 
     @Test func generatesTheRightConfiguration_when_connectingGradleProject_and_connectedToServer()
         async throws
     {
         try await withMockedDependencies {
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                .willReturn(.connectGradleProject)
-            given(prompter).promptIntegrateWithServer().willReturn(true)
+            #if os(macOS)
+                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                    .willReturn(.connectGradleProject)
+            #endif
             given(prompter).promptAccountType(
                 authenticatedUserHandle: .value("account"), organizations: .value(["org"])
             )
@@ -368,39 +386,6 @@ struct InitCommandServiceTests {
                 #expect(
                     tuistToml == "project = \"account/\(projectName)\"\n"
                 )
-                let tuistSwiftExists = try await fileSystem.exists(
-                    temporaryDirectory.appending(component: "Tuist.swift")
-                )
-                #expect(!tuistSwiftExists)
-            }
-        }
-    }
-
-    @Test
-    func generatesTheRightConfiguration_when_connectingGradleProject_and_notConnectedToServer()
-        async throws
-    {
-        try await withMockedDependencies {
-            given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                .willReturn(.connectGradleProject)
-            given(prompter).promptIntegrateWithServer().willReturn(false)
-
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
-                )
-                .willReturn(.init(unfolding: { nil }))
-
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
-
-                // Then
-                let tuistToml = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(component: "tuist.toml")
-                )
-                #expect(tuistToml == "")
                 let tuistSwiftExists = try await fileSystem.exists(
                     temporaryDirectory.appending(component: "Tuist.swift")
                 )
