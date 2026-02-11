@@ -40,7 +40,7 @@ defmodule Tuist.BuildsTest do
       assert build.scheme == "App"
       assert build.project_id == project_id
       assert build.account_id == account_id
-      assert build.status == :success
+      assert build.status == "success"
     end
 
     test "creates a build with cacheable tasks and calculates counts correctly" do
@@ -109,6 +109,32 @@ defmodule Tuist.BuildsTest do
       assert build.cacheable_tasks_count == 0
       assert build.cacheable_task_local_hits_count == 0
       assert build.cacheable_task_remote_hits_count == 0
+    end
+
+    test "returns error when account_id is missing" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      result =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: []
+        })
+
+      # Then
+      assert {:error, changeset} = result
+      assert %{account_id: ["can't be blank"]} = errors_on(changeset)
     end
   end
 
@@ -358,8 +384,8 @@ defmodule Tuist.BuildsTest do
         Builds.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
 
       # Then
-      assert got_builds_first_page == [Repo.reload(build_two)]
-      assert got_builds_second_page == [Repo.reload(build_one)]
+      assert Enum.map(got_builds_first_page, & &1.id) == [build_two.id]
+      assert Enum.map(got_builds_second_page, & &1.id) == [build_one.id]
     end
   end
 
@@ -416,7 +442,7 @@ defmodule Tuist.BuildsTest do
       schemes = Builds.project_build_schemes(project)
 
       # Then
-      assert schemes == ["App", "Framework"]
+      assert Enum.sort(schemes) == ["App", "Framework"]
     end
 
     test "returns an empty list when no builds exist for the project" do
@@ -593,7 +619,7 @@ defmodule Tuist.BuildsTest do
       project = ProjectsFixtures.project_fixture()
 
       for i <- 1..45 do
-        status = if rem(i, 2) == 0, do: :success, else: :failure
+        status = if rem(i, 2) == 0, do: "success", else: "failure"
 
         RunsFixtures.build_fixture(
           project_id: project.id,
@@ -615,7 +641,7 @@ defmodule Tuist.BuildsTest do
       project = ProjectsFixtures.project_fixture()
 
       for i <- 1..10 do
-        status = if i <= 5, do: :success, else: :failure
+        status = if i <= 5, do: "success", else: "failure"
 
         RunsFixtures.build_fixture(
           project_id: project.id,
@@ -711,7 +737,7 @@ defmodule Tuist.BuildsTest do
     project = ProjectsFixtures.project_fixture()
 
     for i <- 1..10 do
-      status = if i <= 5, do: :success, else: :failure
+      status = if i <= 5, do: "success", else: "failure"
 
       RunsFixtures.build_fixture(
         project_id: project.id,
@@ -854,7 +880,23 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :github,
+          ci_provider: "github",
+          ci_run_id: "123456789",
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://github.com/owner/repo/actions/runs/123456789"
+    end
+
+    test "returns GitHub CI URL for GitHub provider with custom host" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "github",
           ci_run_id: "123456789",
           ci_project_handle: "owner/repo"
         )
@@ -870,7 +912,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :gitlab,
+          ci_provider: "gitlab",
           ci_run_id: "987654321",
           ci_project_handle: "namespace/project",
           ci_host: nil
@@ -887,7 +929,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :gitlab,
+          ci_provider: "gitlab",
           ci_run_id: "987654321",
           ci_project_handle: "namespace/project",
           ci_host: "gitlab.example.com"
@@ -904,7 +946,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :bitrise,
+          ci_provider: "bitrise",
           ci_run_id: "build-slug-123",
           ci_project_handle: "app-slug-456"
         )
@@ -920,7 +962,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :circleci,
+          ci_provider: "circleci",
           ci_run_id: "42",
           ci_project_handle: "owner/project"
         )
@@ -936,7 +978,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :buildkite,
+          ci_provider: "buildkite",
           ci_run_id: "1234",
           ci_project_handle: "org/pipeline"
         )
@@ -952,7 +994,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :codemagic,
+          ci_provider: "codemagic",
           ci_run_id: "build-id-123",
           ci_project_handle: "project-id-456"
         )
@@ -984,7 +1026,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :github,
+          ci_provider: "github",
           ci_run_id: nil,
           ci_project_handle: "owner/repo"
         )
@@ -1000,7 +1042,7 @@ defmodule Tuist.BuildsTest do
       # Given
       {:ok, build} =
         RunsFixtures.build_fixture(
-          ci_provider: :github,
+          ci_provider: "github",
           ci_run_id: "123",
           ci_project_handle: nil
         )

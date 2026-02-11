@@ -48,8 +48,18 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      test -> {:ok, Repo.preload(test, preload)}
+      nil ->
+        {:error, :not_found}
+
+      test ->
+        {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 == :build_run))
+
+        test =
+          test
+          |> Repo.preload(pg_preloads)
+          |> ClickHouseRepo.preload(ch_preloads)
+
+        {:ok, test}
     end
   end
 
@@ -138,11 +148,11 @@ defmodule Tuist.Tests do
 
   defp normalize_ci_provider(provider) when is_binary(provider) do
     if provider in valid_ci_providers() do
-      String.to_existing_atom(provider)
+      provider
     end
   end
 
-  defp normalize_ci_provider(provider) when is_atom(provider), do: provider
+  defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
     test_modules = Map.get(attrs, :test_modules, [])

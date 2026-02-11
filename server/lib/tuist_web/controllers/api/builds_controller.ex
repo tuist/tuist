@@ -201,8 +201,8 @@ defmodule TuistWeb.API.BuildsController do
           %{
             id: build.id,
             duration: build.duration,
-            status: to_string(build.status),
-            category: if(build.category, do: to_string(build.category)),
+            status: build.status,
+            category: if(build.category != "", do: build.category),
             scheme: build.scheme,
             configuration: build.configuration,
             xcode_version: build.xcode_version,
@@ -328,8 +328,8 @@ defmodule TuistWeb.API.BuildsController do
           json(conn, %{
             id: build.id,
             duration: build.duration,
-            status: to_string(build.status),
-            category: if(build.category, do: to_string(build.category)),
+            status: build.status,
+            category: if(build.category != "", do: build.category),
             scheme: build.scheme,
             configuration: build.configuration,
             xcode_version: build.xcode_version,
@@ -362,16 +362,14 @@ defmodule TuistWeb.API.BuildsController do
 
     filters =
       if Map.get(params, :status) do
-        status_atom = String.to_existing_atom(params.status)
-        filters ++ [%{field: :status, op: :==, value: status_atom}]
+        filters ++ [%{field: :status, op: :==, value: params.status}]
       else
         filters
       end
 
     filters =
       if Map.get(params, :category) do
-        category_atom = String.to_existing_atom(params.category)
-        filters ++ [%{field: :category, op: :==, value: category_atom}]
+        filters ++ [%{field: :category, op: :==, value: params.category}]
       else
         filters
       end
@@ -484,12 +482,12 @@ defmodule TuistWeb.API.BuildsController do
            status: %Schema{
              type: :string,
              description: "The status of the build run.",
-             enum: [:success, :failure]
+             enum: ["success", "failure"]
            },
            category: %Schema{
              type: :string,
              description: "The category of the build run, can be clean or incremental.",
-             enum: [:clean, :incremental]
+             enum: ["clean", "incremental"]
            },
            git_commit_sha: %Schema{
              type: :string,
@@ -522,7 +520,7 @@ defmodule TuistWeb.API.BuildsController do
            ci_provider: %Schema{
              type: :string,
              description: "The CI provider.",
-             enum: [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic]
+             enum: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
            },
            issues: %Schema{
              type: :array,
@@ -676,7 +674,7 @@ defmodule TuistWeb.API.BuildsController do
                  status: %Schema{
                    type: :string,
                    description: "The status of the target's build.",
-                   enum: [:success, :failure]
+                   enum: ["success", "failure"]
                  }
                },
                required: [
@@ -862,7 +860,7 @@ defmodule TuistWeb.API.BuildsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: Map.get(params, :status, :success),
+          status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),

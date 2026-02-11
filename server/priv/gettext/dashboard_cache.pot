@@ -17,7 +17,7 @@ msgid "%{duplicates_count} duplicates"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.html.heex:516
-#: lib/tuist_web/live/xcode_cache_live.html.heex:531
+#: lib/tuist_web/live/xcode_cache_live.html.heex:533
 #, elixir-autogen, elixir-format
 msgid "%{duration}s"
 msgstr ""
@@ -36,7 +36,7 @@ msgstr ""
 #: lib/tuist_web/live/xcode_cache_live.html.heex:144
 #: lib/tuist_web/live/xcode_cache_live.html.heex:151
 #: lib/tuist_web/live/xcode_cache_live.html.heex:438
-#: lib/tuist_web/live/xcode_cache_live.html.heex:514
+#: lib/tuist_web/live/xcode_cache_live.html.heex:516
 #, elixir-autogen, elixir-format
 msgid "%{hit_rate}%"
 msgstr ""
@@ -316,7 +316,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:26
 #: lib/tuist_web/live/cache_runs_live.html.heex:104
 #: lib/tuist_web/live/module_cache_live.html.heex:513
-#: lib/tuist_web/live/xcode_cache_live.html.heex:528
+#: lib/tuist_web/live/xcode_cache_live.html.heex:530
 #, elixir-autogen, elixir-format
 msgid "Duration"
 msgstr ""
@@ -369,7 +369,7 @@ msgid "Fonts"
 msgstr ""
 
 #: lib/tuist_web/live/module_cache_live.html.heex:497
-#: lib/tuist_web/live/xcode_cache_live.html.heex:512
+#: lib/tuist_web/live/xcode_cache_live.html.heex:514
 #, elixir-autogen, elixir-format
 msgid "Hit Rate"
 msgstr ""
@@ -471,7 +471,7 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.html.heex:410
 #: lib/tuist_web/live/module_cache_live.html.heex:534
 #: lib/tuist_web/live/xcode_cache_live.html.heex:408
-#: lib/tuist_web/live/xcode_cache_live.html.heex:549
+#: lib/tuist_web/live/xcode_cache_live.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""
@@ -537,7 +537,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
 #: lib/tuist_web/live/cache_runs_live.html.heex:123
 #: lib/tuist_web/live/module_cache_live.html.heex:526
-#: lib/tuist_web/live/xcode_cache_live.html.heex:541
+#: lib/tuist_web/live/xcode_cache_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr ""
@@ -545,7 +545,7 @@ msgstr ""
 #: lib/tuist_web/live/cache_runs_live.ex:93
 #: lib/tuist_web/live/cache_runs_live.html.heex:99
 #: lib/tuist_web/live/module_cache_live.html.heex:507
-#: lib/tuist_web/live/xcode_cache_live.html.heex:522
+#: lib/tuist_web/live/xcode_cache_live.html.heex:524
 #, elixir-autogen, elixir-format
 msgid "Ran by"
 msgstr ""

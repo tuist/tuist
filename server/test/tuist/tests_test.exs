@@ -1132,12 +1132,12 @@ defmodule Tuist.TestsTest do
       assert url == "https://codemagic.io/app/project-id-456/build/build-id-123"
     end
 
-    test "returns nil when ci_run_id is nil" do
+    test "returns nil when ci_run_id is empty" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
           ci_provider: "github",
-          ci_run_id: nil,
+          ci_run_id: "",
           ci_project_handle: "owner/repo"
         )
 

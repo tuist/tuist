@@ -18,18 +18,21 @@
     <div data-part="header">
       <div data-part="title-group">
         <div data-part="title">
-          <div :if={@run.status == :success} data-part="badge-success">
+          <div :if={@run.status == "success"} data-part="badge-success">
             <div data-part="icon">
               <.circle_check />
             </div>
           </div>
-          <div :if={@run.status == :failure} data-part="badge-failure">
+          <div :if={@run.status == "failure"} data-part="badge-failure">
             <div data-part="icon">
               <.alert_circle />
             </div>
           </div>
           <h1 data-part="label">
-            {@run.scheme || dgettext("dashboard_builds", "Unknown scheme")}
+            {if(@run.scheme == "",
+              do: dgettext("dashboard_builds", "Unknown scheme"),
+              else: @run.scheme
+            )}
           </h1>
           <.badge
             :if={Enum.any?(@run.custom_tags || [])}
@@ -53,7 +56,11 @@
           }
           label={
             dgettext("dashboard_builds", "Test: %{scheme}",
-              scheme: @test_run.scheme || dgettext("dashboard_builds", "Unknown")
+              scheme:
+                if(@test_run.scheme == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: @test_run.scheme
+                )
             )
           }
           size="large"
@@ -136,7 +143,10 @@
               <div data-part="metadata">
                 <div data-part="title">{dgettext("dashboard_builds", "Configuration")}</div>
                 <span data-part="label">
-                  {@run.configuration || dgettext("dashboard_builds", "Unknown")}
+                  {if(@run.configuration == "",
+                    do: dgettext("dashboard_builds", "Unknown"),
+                    else: @run.configuration
+                  )}
                 </span>
               </div>
             </div>
@@ -144,13 +154,13 @@
               <div data-part="metadata">
                 <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
                 <.badge
-                  :if={@run.status == :success}
+                  :if={@run.status == "success"}
                   label={dgettext("dashboard_builds", "Passed")}
                   color="success"
                   style="fill"
                 />
                 <.badge
-                  :if={@run.status != :success}
+                  :if={@run.status != "success"}
                   label={dgettext("dashboard_builds", "Failed")}
                   color="destructive"
                   style="fill"
@@ -182,9 +192,9 @@
                 <div data-part="title">{dgettext("dashboard_builds", "Category")}</div>
                 <.badge
                   label={
-                    if is_nil(@run.category),
+                    if @run.category == "",
                       do: dgettext("dashboard_builds", "Unknown"),
-                      else: @run.category |> Atom.to_string() |> String.capitalize()
+                      else: @run.category |> String.capitalize()
                   }
                   style="fill"
                 />
@@ -193,7 +203,10 @@
                 <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
                 <span data-part="label">
                   <.git_branch />
-                  {@run.git_branch || dgettext("dashboard_builds", "None")}
+                  {if(@run.git_branch == "",
+                    do: dgettext("dashboard_builds", "None"),
+                    else: @run.git_branch
+                  )}
                 </span>
               </div>
               <div data-part="metadata">
