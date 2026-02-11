@@ -3,8 +3,7 @@ defmodule Tuist.Builds.AnalyticsTest do
   use Mimic
 
   alias Tuist.Builds.Analytics
-  alias Tuist.IngestRepo
-  alias Tuist.Xcode.XcodeGraph
+  alias Tuist.Xcode.XcodeGraph.Buffer
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -1150,43 +1149,53 @@ defmodule Tuist.Builds.AnalyticsTest do
 
   describe "build_time_analytics/1" do
     test "returns build time analytics with real data" do
-      # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      # Given - use dates relative to actual current time to avoid ClickHouse TTL
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
 
       project = ProjectsFixtures.project_fixture()
 
       command_event_1 =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          created_at: ~N[2024-04-29 10:00:00],
+          created_at: one_day_ago,
           duration: 1500
         )
 
       command_event_2 =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          created_at: ~N[2024-04-28 10:00:00],
+          created_at: two_days_ago,
           duration: 2000
         )
 
-      # Insert into ClickHouse XcodeGraph table
-      IngestRepo.insert_all(XcodeGraph, [
-        %{
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraph1",
           command_event_id: command_event_1.id,
           binary_build_duration: 5000,
-          inserted_at: NaiveDateTime.truncate(command_event_1.created_at, :second)
-        },
-        %{
+          inserted_at: one_day_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraph2",
           command_event_id: command_event_2.id,
           binary_build_duration: 3000,
-          inserted_at: NaiveDateTime.truncate(command_event_2.created_at, :second)
-        }
-      ])
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
 
       # When
       got = Analytics.build_time_analytics(project_id: project.id)
@@ -1199,8 +1208,10 @@ defmodule Tuist.Builds.AnalyticsTest do
 
     test "handles empty results correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
       project = ProjectsFixtures.project_fixture()
 
       # When - no command events or xcode graphs exist
@@ -1214,8 +1225,17 @@ defmodule Tuist.Builds.AnalyticsTest do
 
     test "filters by project_id correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
 
@@ -1223,33 +1243,35 @@ defmodule Tuist.Builds.AnalyticsTest do
         CommandEventsFixtures.command_event_fixture(
           project_id: project1.id,
           duration: 1500,
-          created_at: ~N[2024-04-29 10:00:00]
+          created_at: one_day_ago
         )
 
       command_event_2 =
         CommandEventsFixtures.command_event_fixture(
           project_id: project2.id,
           duration: 2000,
-          created_at: ~N[2024-04-28 10:00:00]
+          created_at: two_days_ago
         )
 
-      # Insert into ClickHouse XcodeGraph table
-      IngestRepo.insert_all(XcodeGraph, [
-        %{
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraph1",
           command_event_id: command_event_1.id,
           binary_build_duration: 3000,
-          inserted_at: NaiveDateTime.truncate(command_event_1.created_at, :second)
-        },
-        %{
+          inserted_at: one_day_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraph2",
           command_event_id: command_event_2.id,
           binary_build_duration: 4000,
-          inserted_at: NaiveDateTime.truncate(command_event_2.created_at, :second)
-        }
-      ])
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
 
       # When - query for project1 only
       got = Analytics.build_time_analytics(project_id: project1.id)
@@ -1262,8 +1284,17 @@ defmodule Tuist.Builds.AnalyticsTest do
 
     test "filters by is_ci correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
       project = ProjectsFixtures.project_fixture()
 
       command_event_ci =
@@ -1271,7 +1302,7 @@ defmodule Tuist.Builds.AnalyticsTest do
           project_id: project.id,
           duration: 1500,
           is_ci: true,
-          created_at: ~N[2024-04-29 10:00:00]
+          created_at: one_day_ago
         )
 
       command_event_local =
@@ -1279,26 +1310,28 @@ defmodule Tuist.Builds.AnalyticsTest do
           project_id: project.id,
           duration: 2000,
           is_ci: false,
-          created_at: ~N[2024-04-28 10:00:00]
+          created_at: two_days_ago
         )
 
-      # Insert into ClickHouse XcodeGraph table
-      IngestRepo.insert_all(XcodeGraph, [
-        %{
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraphCI",
           command_event_id: command_event_ci.id,
           binary_build_duration: 3000,
-          inserted_at: NaiveDateTime.truncate(command_event_ci.created_at, :second)
-        },
-        %{
+          inserted_at: one_day_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraphLocal",
           command_event_id: command_event_local.id,
           binary_build_duration: 4000,
-          inserted_at: NaiveDateTime.truncate(command_event_local.created_at, :second)
-        }
-      ])
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
 
       # When - query for CI events only
       got = Analytics.build_time_analytics(project_id: project.id, is_ci: true)
@@ -1311,45 +1344,64 @@ defmodule Tuist.Builds.AnalyticsTest do
 
     test "handles custom date range" do
       # Given
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      ten_days_ago =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-10, :day)
+        |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
       project = ProjectsFixtures.project_fixture()
 
       command_event_in_range =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          created_at: ~N[2024-04-20 10:00:00],
+          created_at: ten_days_ago,
           duration: 1000
         )
 
       command_event_out_of_range =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          created_at: ~N[2024-05-01 10:00:00],
+          created_at: two_days_ago,
           duration: 2000
         )
 
-      IngestRepo.insert_all(XcodeGraph, [
-        %{
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraphInRange",
           command_event_id: command_event_in_range.id,
           binary_build_duration: 2000,
-          inserted_at: NaiveDateTime.truncate(command_event_in_range.created_at, :second)
-        },
-        %{
+          inserted_at: ten_days_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraphOutOfRange",
           command_event_id: command_event_out_of_range.id,
           binary_build_duration: 3000,
-          inserted_at: NaiveDateTime.truncate(command_event_out_of_range.created_at, :second)
-        }
-      ])
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
 
       # When - use custom date range that excludes the second event
+      fifteen_days_ago_dt = DateTime.add(now_dt, -15, :day)
+      five_days_ago_dt = DateTime.add(now_dt, -5, :day)
+
       got =
         Analytics.build_time_analytics(
           project_id: project.id,
-          start_datetime: ~U[2024-04-15 00:00:00Z],
-          end_datetime: ~U[2024-04-29 23:59:59Z]
+          start_datetime: fifteen_days_ago_dt,
+          end_datetime: five_days_ago_dt
         )
 
       # Then - only the first event should be included
@@ -1360,26 +1412,33 @@ defmodule Tuist.Builds.AnalyticsTest do
 
     test "handles nil duration events correctly" do
       # Given
-      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
-      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
       project = ProjectsFixtures.project_fixture()
 
       command_event =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           duration: nil,
-          created_at: ~N[2024-04-29 10:00:00]
+          created_at: one_day_ago
         )
 
-      IngestRepo.insert_all(XcodeGraph, [
-        %{
+      {:ok, _} =
+        Buffer.insert(%{
           id: UUIDv7.generate(),
           name: "TestGraphNilDuration",
           command_event_id: command_event.id,
           binary_build_duration: 1500,
-          inserted_at: NaiveDateTime.truncate(command_event.created_at, :second)
-        }
-      ])
+          inserted_at: one_day_ago
+        })
+
+      Buffer.flush()
 
       # When
       got = Analytics.build_time_analytics(project_id: project.id)
