@@ -16,16 +16,16 @@ description: Debugs issues users encounter with Tuist-generated projects by repr
 
 Ask the user for:
 
-- What command they ran (e.g. `tuist generate`, `tuist build`)
+- What command they ran (e.g. `tuist generate`)
 - The error message or unexpected behavior
 - **When the issue happens**: generation time, compile time, or runtime (app launch or later)
-- Their project structure: targets, platforms, dependencies (SPM, XCFrameworks, local packages)
+- Their project structure: targets, platforms, dependencies (SwiftPM, XCFrameworks, local packages)
 - Their `Project.swift` and `Tuist.swift` content (or relevant excerpts)
 - Their Tuist version (`tuist version`)
 
 The answer to "when" determines the verification strategy:
 
-- **Generation time**: the issue is in Tuist itself. Reproduce with `tuist generate`.
+- **Generation time**: the issue might be a Tuist bug or a project misconfiguration. Reproduce with `tuist generate`.
 - **Compile time**: the generated project has incorrect build settings, missing sources, or wrong dependency wiring. Reproduce with `xcodebuild build` after generation.
 - **Runtime**: the app builds but crashes or misbehaves on launch or during use. Reproduce by installing and launching on a simulator.
 
@@ -78,7 +78,7 @@ The built binary will be at `.build/debug/tuist`. Use it to test the reproductio
 
 ### If the issue is fixed on main
 
-Tell the user the fix is already on `main` and will ship in the next release. Point them to the relevant commit if you can identify it.
+Tell the user the fix is already on `main`, and it hasn't been released, tell them it'll be in the nest release and point them to the relevant commit if you can identify it.
 
 ### If the issue persists on main
 
