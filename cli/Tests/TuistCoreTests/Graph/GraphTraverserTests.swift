@@ -3595,10 +3595,16 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
     func test_embeddableFrameworks_when_transitiveStaticXCFrameworkThroughStaticTarget() throws {
         // Given
-        // App depends on a static framework target which depends on a static XCFramework.
-        // The static XCFramework should be embedded so its resources are accessible at runtime.
+        // App depends on a static framework target (with resources) which depends on a static XCFramework.
+        // Both the static framework and the static XCFramework should be embedded so their resources are accessible at
+        // runtime.
         let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let staticTarget = Target.test(name: "StaticLib", platform: .iOS, product: .staticFramework)
+        let staticTarget = Target.test(
+            name: "StaticLib",
+            platform: .iOS,
+            product: .staticFramework,
+            resources: .init([.file(path: "/StaticLib/Resources/resource.json")])
+        )
         let project = Project.test(targets: [app, staticTarget])
 
         let staticXCFramework: GraphDependency = .testXCFramework(
@@ -3628,6 +3634,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
+            .product(
+                target: staticTarget.name,
+                productName: staticTarget.productNameWithExtension,
+                condition: nil
+            ),
             GraphDependencyReference(staticXCFramework),
         ])
     }
