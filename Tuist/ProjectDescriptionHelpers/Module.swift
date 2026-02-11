@@ -630,6 +630,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
+                    .external(name: "Crypto"),
                 ]
             case .kit:
                 [
