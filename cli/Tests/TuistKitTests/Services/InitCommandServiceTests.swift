@@ -27,7 +27,7 @@ struct InitCommandServiceTests {
     private let loginService = MockLoginCommandServicing()
     private let createProjectService = MockCreateProjectServicing()
     private let serverSessionController = MockServerSessionControlling()
-    private let startGeneratedProjectService = InitGeneratedProjectService()
+    private let startGeneratedProjectService = MockInitGeneratedProjectServicing()
     private let keystrokeListener = MockKeyStrokeListening()
     private let createOrganizationService = MockCreateOrganizationServicing()
     private let listOrganizationsService = MockListOrganizationsServicing()
@@ -55,6 +55,10 @@ struct InitCommandServiceTests {
         given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
+
+        given(startGeneratedProjectService)
+            .run(name: .any, platform: .any, path: .any)
+            .willReturn()
     }
 
     @Test func generatesTheRightConfiguration_when_generatedAndConnectedToServer() async throws {
