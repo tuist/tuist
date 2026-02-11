@@ -49,10 +49,6 @@ msgid "Any"
 msgstr "Any"
 
 #, fuzzy
-msgid "Archive"
-msgstr "アーカイブ"
-
-#, fuzzy
 msgid "Average"
 msgstr "平均"
 
@@ -71,10 +67,6 @@ msgstr "キャッシュキー書き込みの平均レイテンシ"
 #, fuzzy
 msgid "Branch"
 msgstr "Branch"
-
-#, fuzzy
-msgid "Build"
-msgstr "ビルド"
 
 #, fuzzy
 msgid "Build Details"
@@ -682,10 +674,6 @@ msgid "Task misses"
 msgstr "タスクの欠落"
 
 #, fuzzy
-msgid "Test"
-msgstr "テスト"
-
-#, fuzzy
 msgid "Test Details"
 msgstr "テスト詳細"
 
@@ -1029,3 +1017,15 @@ msgstr "タグ"
 #, fuzzy
 msgid "Value"
 msgstr "値"
+
+#, fuzzy
+#~ msgid "Archive"
+#~ msgstr "アーカイブ"
+
+#, fuzzy
+#~ msgid "Build"
+#~ msgstr "ビルド"
+
+#, fuzzy
+#~ msgid "Test"
+#~ msgstr "テスト"

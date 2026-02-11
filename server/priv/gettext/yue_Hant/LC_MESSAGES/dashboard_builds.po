@@ -42,9 +42,6 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-msgid "Archive"
-msgstr ""
-
 msgid "Average"
 msgstr ""
 
@@ -58,9 +55,6 @@ msgid "Avg. latency writing cache keys"
 msgstr ""
 
 msgid "Branch"
-msgstr ""
-
-msgid "Build"
 msgstr ""
 
 msgid "Build Details"
@@ -512,9 +506,6 @@ msgid "Task hits"
 msgstr ""
 
 msgid "Task misses"
-msgstr ""
-
-msgid "Test"
 msgstr ""
 
 msgid "Test Details"
