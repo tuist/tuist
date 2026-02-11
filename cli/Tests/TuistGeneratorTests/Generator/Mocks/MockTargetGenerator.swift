@@ -7,7 +7,7 @@ import XcodeProj
 @testable import TuistGenerator
 
 class MockTargetGenerator: TargetGenerating {
-    var generateTargetStub: (() -> PBXNativeTarget)?
+    var generateTargetStub: (() -> PBXTarget)?
 
     func generateTarget(
         target: Target,
@@ -18,14 +18,14 @@ class MockTargetGenerator: TargetGenerating {
         fileElements _: ProjectFileElements,
         path _: AbsolutePath,
         graphTraverser _: GraphTraversing
-    ) throws -> PBXNativeTarget {
+    ) async throws -> PBXTarget {
         generateTargetStub?() ?? PBXNativeTarget(name: target.name)
     }
 
     func generateTargetDependencies(
         path _: AbsolutePath,
         targets _: [Target],
-        nativeTargets _: [String: PBXNativeTarget],
+        nativeTargets _: [String: PBXTarget],
         graphTraverser _: GraphTraversing
     ) throws {}
 }

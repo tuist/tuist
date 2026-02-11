@@ -231,8 +231,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject: PBXProject,
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing
-    ) async throws -> [String: PBXNativeTarget] {
-        var nativeTargets: [String: PBXNativeTarget] = [:]
+    ) async throws -> [String: PBXTarget] {
+        var nativeTargets: [String: PBXTarget] = [:]
         let sortedTargets = project.targets.values.sorted()
         Logger.current.debug("Generating \(sortedTargets.count) targets for project \(project.name)")
         for target in sortedTargets {

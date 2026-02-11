@@ -180,15 +180,8 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                 hashedPaths: hashedPaths,
                 hash: try contentHasher.hash("xctest")
             )
-        case let .foreignBuild(name, script, output, cacheInputs, _):
-            let outputResult = try await hash(
-                graphTarget: graphTarget,
-                dependency: output,
-                hashedTargets: hashedTargets,
-                hashedPaths: hashedPaths
-            )
+        case let .foreignBuild(name, script, _, cacheInputs, _):
             var hashedPaths = hashedPaths
-            hashedPaths.merge(outputResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
 
             let inputsResult = try await foreignBuildCacheInputHasher.hash(
                 cacheInputs: cacheInputs,
@@ -198,7 +191,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
-                hash: try contentHasher.hash("foreignBuild-\(name)-\(script)-\(inputsResult.hash)-\(outputResult.hash)")
+                hash: try contentHasher.hash("foreignBuild-\(name)-\(script)-\(inputsResult.hash)")
             )
         }
     }

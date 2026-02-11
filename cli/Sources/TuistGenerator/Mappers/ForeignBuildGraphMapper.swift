@@ -1,13 +1,13 @@
-import Foundation
 import Path
 import TuistCore
 import XcodeGraph
 
-/// Transforms `.foreignBuild` dependencies into concrete binary dependencies with script build phases.
+/// Transforms `.foreignBuild` dependencies into aggregate targets with script build phases.
 ///
-/// For each `.foreignBuild` dependency:
-/// 1. Adds a `rawScriptBuildPhase` to the consuming target that runs the build script
-/// 2. Replaces the `.foreignBuild` dependency with the resolved binary dependency (`.xcframework`, `.framework`, or `.library`)
+/// For each unique `.foreignBuild` dependency in the project:
+/// 1. Creates a `PBXAggregateTarget` (via a tagged target) that runs the foreign build script
+/// 2. Adds a target dependency from the consuming target to the aggregate target (for build ordering)
+/// 3. The consuming target retains the `foreignBuildOutput` graph dependency (set by GraphLoader) for linking
 public final class ForeignBuildGraphMapper: GraphMapping {
     public init() {}
 
@@ -16,45 +16,58 @@ public final class ForeignBuildGraphMapper: GraphMapping {
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
-        var hasChanges = false
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
             var projectModified = false
 
-            for (targetName, target) in project.targets {
-                var updatedDependencies: [TargetDependency] = []
-                var scriptPhases = target.rawScriptBuildPhases
-                var targetModified = false
+            var aggregateTargetsByForeignBuildName: [String: String] = [:]
 
+            for (targetName, target) in project.targets {
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, output, _, condition) = dependency else {
-                        updatedDependencies.append(dependency)
+                    guard case let .foreignBuild(name, script, _, _, _) = dependency else {
                         continue
                     }
 
-                    targetModified = true
-                    scriptPhases.append(RawScriptBuildPhase(
-                        name: "Foreign Build: \(name)",
-                        script: script,
-                        showEnvVarsInLog: false,
-                        hashable: false
-                    ))
-                    updatedDependencies.append(output.withCondition(condition))
-                }
+                    let aggregateTargetName: String
+                    if let existing = aggregateTargetsByForeignBuildName[name] {
+                        aggregateTargetName = existing
+                    } else {
+                        aggregateTargetName = "ForeignBuild_\(name)"
+                        aggregateTargetsByForeignBuildName[name] = aggregateTargetName
 
-                if targetModified {
-                    var updatedTarget = target
-                    updatedTarget.dependencies = updatedDependencies
-                    updatedTarget.rawScriptBuildPhases = scriptPhases
-                    updatedProject.targets[targetName] = updatedTarget
-                    projectModified = true
+                        let aggregateTarget = Target(
+                            name: aggregateTargetName,
+                            destinations: target.destinations,
+                            product: .staticLibrary,
+                            productName: aggregateTargetName,
+                            bundleId: "tuist.foreign-build.\(name)",
+                            filesGroup: target.filesGroup,
+                            rawScriptBuildPhases: [
+                                RawScriptBuildPhase(
+                                    name: "Foreign Build: \(name)",
+                                    script: script,
+                                    showEnvVarsInLog: false,
+                                    hashable: false
+                                ),
+                            ],
+                            metadata: .metadata(tags: ["tuist:foreign-build-aggregate"])
+                        )
+                        updatedProject.targets[aggregateTargetName] = aggregateTarget
+                        projectModified = true
+
+                        let aggregateGraphDep = GraphDependency.target(name: aggregateTargetName, path: projectPath)
+                        graph.dependencies[aggregateGraphDep] = Set()
+                    }
+
+                    let consumingTargetGraphDep = GraphDependency.target(name: targetName, path: projectPath)
+                    let aggregateGraphDep = GraphDependency.target(name: aggregateTargetName, path: projectPath)
+                    graph.dependencies[consumingTargetGraphDep, default: Set()].insert(aggregateGraphDep)
                 }
             }
 
             if projectModified {
                 graph.projects[projectPath] = updatedProject
-                hasChanges = true
             }
         }
 

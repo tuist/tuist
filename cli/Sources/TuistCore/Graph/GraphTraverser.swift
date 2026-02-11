@@ -895,6 +895,7 @@ public class GraphTraverser: GraphTraversing {
             switch dependency {
             case let .xcframework(xcframework): return xcframework.path
             case let .framework(path, _, _, _, _, _, _): return path
+            case let .foreignBuildOutput(output): return output.path
             case .macro: return nil
             case .library: return nil
             case .bundle: return nil
@@ -1131,7 +1132,7 @@ public class GraphTraverser: GraphTraversing {
                         return !precompiledMacroDependencies(dependency).isEmpty
                     case .macro:
                         return true
-                    case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
                         return false
                     }
                 },
@@ -1139,7 +1140,7 @@ public class GraphTraverser: GraphTraversing {
                     switch dependency {
                     case .macro:
                         return true
-                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework, .foreignBuildOutput:
                         return false
                     }
                 }
@@ -1150,7 +1151,7 @@ public class GraphTraverser: GraphTraversing {
                     return Array(precompiledMacroDependencies(dependency))
                 case let .macro(path):
                     return [path]
-                case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                case .bundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
                     return []
                 }
             }
@@ -1469,7 +1470,7 @@ public class GraphTraverser: GraphTraversing {
         switch dependency {
         case .macro:
             return true
-        case .bundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct:
+        case .bundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct, .foreignBuildOutput:
             return false
         }
     }
@@ -1481,6 +1482,7 @@ public class GraphTraverser: GraphTraversing {
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro: return false
+        case .foreignBuildOutput: return true
         case .xcframework: return true
         case .framework: return true
         case .library: return true
@@ -1494,6 +1496,7 @@ public class GraphTraverser: GraphTraversing {
     func isDependencyPrecompiledFramework(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro: return false
+        case .foreignBuildOutput: return true
         case .xcframework: return true
         case .framework: return true
         case .library: return false
@@ -1533,6 +1536,8 @@ public class GraphTraverser: GraphTraversing {
         switch dependency {
         case .macro:
             return false
+        case let .foreignBuildOutput(output):
+            return output.linking == .static
         case let .xcframework(xcframework):
             return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _),
@@ -1542,6 +1547,7 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
+            if target.target.metadata.tags.contains("tuist:foreign-build-aggregate") { return false }
             return target.target.product.isStatic
         case .sdk: return false
         }
@@ -1583,6 +1589,7 @@ public class GraphTraverser: GraphTraversing {
         case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
             return target.target.canLinkStaticProducts()
+        case let .foreignBuildOutput(output): return output.linking == .dynamic
         case let .xcframework(xcframework): return xcframework.linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
         case let .library(_, _, linking, _, _): return linking == .dynamic
@@ -1651,6 +1658,12 @@ public class GraphTraverser: GraphTraversing {
         switch toDependency {
         case let .macro(path):
             return .macro(path: path)
+        case let .foreignBuildOutput(output):
+            return .foreignBuildOutput(
+                path: output.path,
+                linking: output.linking,
+                condition: condition
+            )
         case let .framework(
             path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status
         ):
@@ -1736,7 +1749,7 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .framework(_, _, _, _, linking: linking, _, _):
                     return linking == .static
-                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk, .macro:
+                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
                     return false
                 }
             }
@@ -1759,7 +1772,7 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .xcframework(xcframework):
                     return xcframework.linking == .static
-                case .framework, .library, .bundle, .packageProduct, .target, .sdk, .macro:
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
                     return false
                 }
             },
@@ -1815,7 +1828,7 @@ extension GraphDependencyReference {
             return status
         case let .sdk(_, status, _, _):
             return status
-        case .library, .bundle, .macro, .packageProduct:
+        case .library, .bundle, .macro, .packageProduct, .foreignBuildOutput:
             return nil
         }
     }

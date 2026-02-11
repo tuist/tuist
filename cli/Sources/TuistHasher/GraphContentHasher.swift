@@ -124,7 +124,10 @@ public struct GraphContentHasher: GraphContentHashing {
             name: target.target.name
         )
         .allSatisfy {
-            isHashable(
+            if $0.graphTarget.target.metadata.tags.contains("tuist:foreign-build-aggregate") {
+                return true
+            }
+            return isHashable(
                 $0.graphTarget,
                 graphTraverser: graphTraverser,
                 visited: &visited,

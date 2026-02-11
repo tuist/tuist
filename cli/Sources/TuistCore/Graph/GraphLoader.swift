@@ -1,4 +1,3 @@
-import Foundation
 import Path
 import TuistLogging
 import TuistSupport
@@ -17,7 +16,6 @@ public final class GraphLoader: GraphLoading {
     private let libraryMetadataProvider: LibraryMetadataProviding
     private let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
     private let systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProviding
-    private let system: Systeming
 
     public convenience init() {
         let xcframeworkMetadataProvider = XCFrameworkMetadataProvider(logger: Logger.current)
@@ -25,8 +23,7 @@ public final class GraphLoader: GraphLoading {
             frameworkMetadataProvider: FrameworkMetadataProvider(),
             libraryMetadataProvider: LibraryMetadataProvider(),
             xcframeworkMetadataProvider: xcframeworkMetadataProvider,
-            systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProvider(),
-            system: System.shared
+            systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProvider()
         )
     }
 
@@ -34,14 +31,12 @@ public final class GraphLoader: GraphLoading {
         frameworkMetadataProvider: FrameworkMetadataProviding,
         libraryMetadataProvider: LibraryMetadataProviding,
         xcframeworkMetadataProvider: XCFrameworkMetadataProviding,
-        systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProviding,
-        system: Systeming = System.shared
+        systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProviding
     ) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
         self.libraryMetadataProvider = libraryMetadataProvider
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
         self.systemFrameworkMetadataProvider = systemFrameworkMetadataProvider
-        self.system = system
     }
 
     // MARK: - GraphLoading
@@ -206,24 +201,14 @@ public final class GraphLoader: GraphLoading {
                 try loadXCTestSDK(platform: platform)
             }
 
-        case let .foreignBuild(_, script, output, _, _):
-            if let outputPath = outputPath(from: output),
-               !FileManager.default.fileExists(atPath: outputPath.pathString)
-            {
-                var environment = ProcessInfo.processInfo.environment
-                environment["SRCROOT"] = path.pathString
-                try system.runAndPrint(
-                    ["/bin/bash", "-c", script],
-                    verbose: true,
-                    environment: environment
-                )
-            }
-            return try await loadDependency(
-                path: path,
-                forPlatforms: platforms,
-                dependency: output,
-                cache: cache
-            )
+        case let .foreignBuild(name, _, output, _, _):
+            guard let outputPath = outputPath(from: output) else { return nil }
+            let linking: BinaryLinking = outputPath.extension == "a" ? .static : .dynamic
+            return .foreignBuildOutput(GraphDependency.ForeignBuildOutput(
+                name: name,
+                path: outputPath,
+                linking: linking
+            ))
         }
     }
 
