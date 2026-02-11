@@ -80,6 +80,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
         )
         LoggingSystem.bootstrap(loggerHandler)
         sessionController.scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
+        AnalyticsStateController().scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
 
         #if canImport(TuistCacheEE)
             Task.detached(priority: .background) {
