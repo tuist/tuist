@@ -25,7 +25,7 @@ The recommended way to install Tuist skills is with the [`skills`](https://githu
 ### Install all skills
 
 ```bash
-npx skills add tuist/tuist
+npx skills add tuist/agent-skills
 ```
 
 The interactive prompt lets you choose which skills and agents to install for.
@@ -33,13 +33,13 @@ The interactive prompt lets you choose which skills and agents to install for.
 ### Install a specific skill
 
 ```bash
-npx skills add tuist/tuist --skill migrate
+npx skills add tuist/agent-skills --skill migrate
 ```
 
 ### Install for a specific agent
 
 ```bash
-npx skills add tuist/tuist -a claude-code
+npx skills add tuist/agent-skills -a claude-code
 ```
 
 ### Install globally
@@ -47,7 +47,7 @@ npx skills add tuist/tuist -a claude-code
 Add the `-g` flag to install skills in your home directory so they are available across all projects:
 
 ```bash
-npx skills add tuist/tuist -g
+npx skills add tuist/agent-skills -g
 ```
 
 ### Update skills
@@ -59,7 +59,7 @@ npx skills update
 ### Non-interactive (CI)
 
 ```bash
-npx skills add tuist/tuist --all -y
+npx skills add tuist/agent-skills --all -y
 ```
 
 ### Manual installation {#manual}
