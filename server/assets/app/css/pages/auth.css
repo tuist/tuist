@@ -369,9 +369,9 @@
   }
 
   & a {
+    transition: color 0.2s ease;
     color: var(--noora-surface-label-secondary);
     text-decoration: underline;
-    transition: color 0.2s ease;
 
     &:hover {
       color: var(--noora-surface-label-primary);
