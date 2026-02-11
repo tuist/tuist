@@ -1,0 +1,80 @@
+Implement the following plan:
+
+# Plan: Prune stale analytics state directories and legacy logs
+
+## Context
+
+The `~/.local/state/tuist/` directory grows unbounded because analytics metadata files in `cas/`, `keyvalue/`, and `nodes/` are never cleaned up. These files track download/upload analytics and are only needed briefly (about an hour). Additionally, a legacy `logs/` directory from an older logging system (now replaced by `sessions/`) is never removed. A team member confirmed these analytics files can be safely removed after 1 hour.
+
+Current sizes observed:
+- `cas/` -- 3.7G
+- `keyvalue/` -- 4.6G (has `read/` and `write/` subdirectories)
+- `nodes/` -- 3.6G
+- `logs/` -- 221M (legacy, no longer written to)
+
+## Changes
+
+### 1. Extend `SessionController.clean()` to prune analytics directories and legacy logs
+**File:** `cli/Sources/TuistKit/Utils/SessionController.swift`
+
+Add cleanup logic at the end of the existing `clean()` method for:
+
+**Analytics directories (`cas/`, `keyvalue/`, `nodes/`):**
+- For each directory, glob all files (recursively for `keyvalue/` which has `read/` and `write/` subdirs)
+- Remove files whose **creation date** is older than 1 hour (matching the team member's guidance)
+- No max-count cap needed since age-based cleanup at 1 hour is aggressive enough
+- Use `.creationDate` (consistent with how session cleanup already works)
+
+**Legacy `logs/` directory:**
+- If `stateDirectory.appending(component: "logs")` exists, remove it entirely
+- This is a one-time cleanup since the directory is no longer written to
+
+The approach of extending `SessionController.clean()` is preferred over creating a new cleanup function because:
+- It already runs on every CLI invocation via `scheduleMaintenance()`
+- It already takes `stateDirectory` as a parameter
+- Keeps all state directory cleanup logic in one place
+
+### 2. Add tests
+**File:** `cli/Tests/TuistKitTests/Utils/SessionControllerTests.swift`
+
+Add tests following the existing `SessionControllerTests` pattern (Swift Testing with `@Test(.inTemporaryDirectory)`):
+
+- `clean_removesOldAnalyticsFiles` -- creates old files in `cas/`, `keyvalue/read/`, `keyvalue/write/`, `nodes/`, verifies they're removed after clean
+- `clean_keepsRecentAnalyticsFiles` -- creates recent files (< 1 hour), verifies they're kept
+- `clean_removesLegacyLogsDirectory` -- creates a `logs/` directory, verifies it's removed after clean
+
+## Verification
+
+Run the session controller tests:
+```bash
+xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing TuistKitTests/SessionControllerTests
+```
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+[Request interrupted by user]
+
+---
+
+I don't think the clean logic should be in the sessions since this is another kind of state
+
+---
+
+<task-notification>
+<task-id>be72815</task-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/be72815.output</output-file>
+<status>completed</status>
+<summary>Background command "Run tests without code signing" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/be72815.output
+
+---
+
+Did you push this work?
+
+---
+
+Commit and push to the branch

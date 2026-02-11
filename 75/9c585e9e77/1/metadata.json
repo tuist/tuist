@@ -1,15 +1,15 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "759c585e9e77",
+  "session_id": "38eeecd7-9729-436f-baf2-3f1595ef786c",
   "strategy": "manual-commit",
+  "created_at": "2026-02-11T18:23:50.70054Z",
   "branch": "feat/prune-old-binary-cache-entries",
-  "checkpoints_count": 6,
+  "checkpoints_count": 4,
   "files_touched": [
     "cli/Sources/TuistKit/Utils/AnalyticsStateController.swift",
     "cli/Sources/tuist/Dependencies.swift",
-    "cli/Tests/TuistCacheEETests/Storage/CacheLocalStorageTests.swift",
     "cli/Tests/TuistKitTests/Utils/AnalyticsStateControllerTests.swift",
-    "cli/TuistCacheEE/Sources/Storage/CacheLocalStorage.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -21,27 +21,22 @@
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
-  "sessions": [
-    {
-      "metadata": "/75/9c585e9e77/0/metadata.json",
-      "transcript": "/75/9c585e9e77/0/full.jsonl",
-      "context": "/75/9c585e9e77/0/context.md",
-      "content_hash": "/75/9c585e9e77/0/content_hash.txt",
-      "prompt": "/75/9c585e9e77/0/prompt.txt"
-    },
-    {
-      "metadata": "/75/9c585e9e77/1/metadata.json",
-      "transcript": "/75/9c585e9e77/1/full.jsonl",
-      "context": "/75/9c585e9e77/1/context.md",
-      "content_hash": "/75/9c585e9e77/1/content_hash.txt",
-      "prompt": "/75/9c585e9e77/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "e9a017f3-5753-42da-8a97-ae0683c81733",
   "token_usage": {
-    "input_tokens": 71,
-    "cache_creation_tokens": 168636,
-    "cache_read_tokens": 3877623,
-    "output_tokens": 972,
-    "api_call_count": 61
+    "input_tokens": 59,
+    "cache_creation_tokens": 64689,
+    "cache_read_tokens": 2821721,
+    "output_tokens": 770,
+    "api_call_count": 49
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-11T18:23:50.624003Z",
+    "agent_lines": 0,
+    "human_added": 280019,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 280019,
+    "agent_percentage": 0
   }
 }
