@@ -33,7 +33,7 @@ This returns all test cases currently flagged as flaky. Key fields:
 **Triage strategy:**
 1. Group tests by suite — multiple flaky tests in the same suite often share a root cause.
 2. Check if failures share a `test_run_id` — tests that all failed in the same run may have been killed by a process crash, not individual test bugs.
-3. Look at failure messages to categorize: test logic bugs vs infrastructure issues (network errors, server 502s, conflicts on retry) — infrastructure issues aren't fixable in test code.
+3. Look at failure messages to categorize: test logic bugs vs infrastructure issues (network errors, server 502s, conflicts on retry).
 
 ## Investigation
 
@@ -137,6 +137,12 @@ xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module>/<
 ```
 
 This runs the test up to `<count>` times and stops at the first failure. Choose the iteration count based on how long the test takes — for fast unit tests use 50–100, for slower integration or acceptance tests use 2–5.
+
+### Reproducing before fixing
+
+Before applying a fix, try to reproduce the flaky failure locally. A successful reproduction confirms your root cause analysis and lets you verify the fix directly. Use the "Running tests repeatedly" approach above, or the race condition strategies below if concurrency is suspected.
+
+Some flaky scenarios — especially race conditions, CI-specific timing issues, or environment-dependent failures — may be difficult or impossible to reproduce locally. If you cannot reproduce after reasonable effort, proceed with fixing based on code analysis and failure logs. A fix backed by clear evidence of a bug (e.g. unsynchronized shared state, TOCTOU pattern) is valid even without local reproduction.
 
 ### Reproducing race conditions
 
