@@ -33,19 +33,23 @@ public struct InitPromptAnswers: Codable {
 }
 
 public enum InitPromptingWorkflowType: Codable, Equatable, CustomStringConvertible {
-    case connectProjectOrSwiftPackage(String?)
-    case createGeneratedProject
+    #if os(macOS)
+        case connectProjectOrSwiftPackage(String?)
+        case createGeneratedProject
+    #endif
     case connectGradleProject
 
     public var description: String {
         switch self {
-        case let .connectProjectOrSwiftPackage(name):
-            if let name {
-                "Integrate with \(name)"
-            } else {
-                "Integrate an Xcode project"
-            }
-        case .createGeneratedProject: "Create a generated project"
+        #if os(macOS)
+            case let .connectProjectOrSwiftPackage(name):
+                if let name {
+                    "Integrate with \(name)"
+                } else {
+                    "Integrate an Xcode project"
+                }
+            case .createGeneratedProject: "Create a generated project"
+        #endif
         case .connectGradleProject: "Integrate a Gradle project"
         }
     }

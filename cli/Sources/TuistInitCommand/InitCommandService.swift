@@ -191,8 +191,10 @@ public struct InitCommandService {
         let successMessage: TerminalText = switch workflowType {
         case .connectGradleProject:
             "Add the Tuist plugin to your \(.command("settings.gradle.kts")) to finish the Gradle integration:\n\n  \(.command("plugins { id(\"dev.tuist\") version \"0.1.0\" }"))"
-        case .createGeneratedProject, .connectProjectOrSwiftPackage:
-            "You are all set to explore the Tuist universe"
+        #if os(macOS)
+            case .createGeneratedProject, .connectProjectOrSwiftPackage:
+                "You are all set to explore the Tuist universe"
+        #endif
         }
 
         AlertController.current.success(
