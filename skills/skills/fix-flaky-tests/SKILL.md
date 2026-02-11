@@ -103,7 +103,6 @@ Key fields:
 - **Test pollution**: One test modifies global/static state that another test depends on. Fix: reset state in setUp/tearDown or use unique instances per test.
 - **Singleton contamination**: Shared singletons carry state between tests. Fix: inject dependencies or reset singletons.
 - **File system leftovers**: Tests leave files that affect subsequent runs. Fix: use temporary directories and clean up.
-- **TOCTOU file races**: Check-then-act patterns on shared files (e.g. `if exists then remove`) race under parallel test execution. Fix: use try/catch to handle "not found" instead of pre-checking existence.
 
 ### Environment dependencies
 - **Network calls**: Tests hit real services that may be slow or unavailable. Fix: mock network calls.

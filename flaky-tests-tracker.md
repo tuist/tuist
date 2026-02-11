@@ -180,8 +180,7 @@ Race conditions are inherently timing-dependent. The Matcher crash appeared once
 Based on this experience, the skill was updated with:
 
 1. **Discovery section** — `tuist test case list --flaky` to find all flaky tests when no specific test is provided, with triage strategy guidance
-2. **TOCTOU file races** — Added to Common Flaky Patterns (check-then-act on shared files)
-3. **Test infrastructure crashes** — New pattern for thread-unsafe mocking frameworks and process-level crashes
+2. **Test infrastructure crashes** — New pattern for thread-unsafe mocking frameworks and process-level crashes
 4. **Reproducing race conditions** — New verification section with strategies: increased parallelism, broader test scope, Thread Sanitizer, and guidance for when races can't be reproduced locally
 5. **Reproducing before fixing** — New section encouraging reproduction attempts before applying fixes, while noting that some scenarios (race conditions, CI-specific timing) may not reproduce locally and fixes based on code analysis are still valid
 
