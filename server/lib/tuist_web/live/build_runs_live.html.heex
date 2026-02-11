@@ -91,12 +91,12 @@
           </:col>
           <:col :let={build_run} label="Status">
             <.status_badge_cell
-              :if={build_run.status == :success}
+              :if={build_run.status == "success"}
               label={dgettext("dashboard_builds", "Passed")}
               status="success"
             />
             <.status_badge_cell
-              :if={build_run.status != :success}
+              :if={build_run.status != "success"}
               label={dgettext("dashboard_builds", "Failed")}
               status="error"
             />

@@ -892,7 +892,7 @@
           } />
         </:col>
         <:col :let={build} label="Status">
-          <%= if build.status == :success do %>
+          <%= if build.status == "success" do %>
             <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
           <% else %>
             <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />

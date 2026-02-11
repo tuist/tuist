@@ -18,12 +18,12 @@
     <div data-part="header">
       <div data-part="title-group">
         <div data-part="title">
-          <div :if={@run.status == :success} data-part="badge-success">
+          <div :if={@run.status == "success"} data-part="badge-success">
             <div data-part="icon">
               <.circle_check />
             </div>
           </div>
-          <div :if={@run.status == :failure} data-part="badge-failure">
+          <div :if={@run.status == "failure"} data-part="badge-failure">
             <div data-part="icon">
               <.alert_circle />
             </div>
@@ -144,13 +144,13 @@
               <div data-part="metadata">
                 <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
                 <.badge
-                  :if={@run.status == :success}
+                  :if={@run.status == "success"}
                   label={dgettext("dashboard_builds", "Passed")}
                   color="success"
                   style="fill"
                 />
                 <.badge
-                  :if={@run.status != :success}
+                  :if={@run.status != "success"}
                   label={dgettext("dashboard_builds", "Failed")}
                   color="destructive"
                   style="fill"
