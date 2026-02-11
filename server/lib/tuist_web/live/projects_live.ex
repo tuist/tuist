@@ -30,6 +30,7 @@ defmodule TuistWeb.ProjectsLive do
      socket
      |> assign(:form, form)
      |> assign(:selected_tab, "projects")
+     |> assign(:selected_build_system, "xcode")
      |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}
   end
@@ -122,7 +123,12 @@ defmodule TuistWeb.ProjectsLive do
     <div id="projects">
       <div data-part="row">
         <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
-        <.create_project_form id="create-project-form" form={@form} source="header" />
+        <.create_project_form
+          id="create-project-form"
+          form={@form}
+          source="header"
+          selected_build_system={@selected_build_system}
+        />
       </div>
 
       <%= if @total_project_count <= @pagination_threshold do %>
@@ -133,6 +139,7 @@ defmodule TuistWeb.ProjectsLive do
               id="create-project-form-empty-state"
               form={@form}
               source="empty-state"
+              selected_build_system={@selected_build_system}
             />
             <.project_background />
           </div>
@@ -243,6 +250,7 @@ defmodule TuistWeb.ProjectsLive do
                 id="create-project-form-empty-state"
                 form={@form}
                 source="empty-state"
+                selected_build_system={@selected_build_system}
               />
               <.project_background />
             </div>
@@ -298,6 +306,11 @@ defmodule TuistWeb.ProjectsLive do
     """
   end
 
+  attr :id, :string, required: true
+  attr :form, :any, required: true
+  attr :source, :string, required: true
+  attr :selected_build_system, :string, required: true
+
   defp create_project_form(assigns) do
     ~H"""
     <.form id={@id} for={@form} phx-submit="create-project">
@@ -322,11 +335,29 @@ defmodule TuistWeb.ProjectsLive do
           />
         </:trigger>
         <.line_divider />
-        <.text_input
-          id={"#{@id}-input"}
-          field={@form[:name]}
-          label={dgettext("dashboard_projects", "Name")}
-        />
+        <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-6); padding: var(--noora-spacing-9) 0 var(--noora-spacing-9) 0;">
+          <.text_input
+            id={"#{@id}-input"}
+            field={@form[:name]}
+            label={dgettext("dashboard_projects", "Name")}
+          />
+          <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-2);">
+            <.label
+              label={dgettext("dashboard_projects", "Select build system")}
+              required
+            />
+            <.select
+              id={"#{@id}-build-system-selection"}
+              name="build_system"
+              label={dgettext("dashboard_projects", "Build system")}
+              value={@selected_build_system}
+              on_value_change="select_build_system"
+            >
+              <:item value="xcode" label="Xcode" />
+              <:item value="gradle" label="Gradle" />
+            </.select>
+          </div>
+        </div>
         <.line_divider />
         <:footer>
           <.modal_footer>
@@ -339,7 +370,7 @@ defmodule TuistWeb.ProjectsLive do
               />
             </:action>
             <:action>
-              <.button label="Save" type="submit" />
+              <.button label={dgettext("dashboard_projects", "Create")} type="submit" />
             </:action>
           </.modal_footer>
         </:footer>
@@ -370,11 +401,18 @@ defmodule TuistWeb.ProjectsLive do
     {:noreply, push_patch(socket, to: path)}
   end
 
+  def handle_event("select_build_system", %{"value" => [value]}, socket) do
+    {:noreply, assign(socket, selected_build_system: value)}
+  end
+
   def handle_event("create-project", %{"project" => %{"name" => name}}, socket) do
     account = socket.assigns.selected_account
 
     with :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
-         {:ok, _project} <- Projects.create_project(%{name: name, account: account}) do
+         {:ok, _project} <-
+           Projects.create_project(%{name: name, account: account},
+             build_system: String.to_existing_atom(socket.assigns.selected_build_system)
+           ) do
       socket =
         socket
         |> push_event("close-modal", %{id: "create-project-form-modal"})

@@ -148,11 +148,6 @@ msgstr ""
 msgid "Commit"
 msgstr ""
 
-#: lib/tuist_web/live/gradle_cache_live.html.heex:7
-#, elixir-autogen, elixir-format
-msgid "Configure the Tuist Gradle plugin to start tracking your builds:"
-msgstr ""
-
 #: lib/tuist_web/live/gradle_cache_live.html.heex:90
 #: lib/tuist_web/live/gradle_overview_live.html.heex:62
 #, elixir-autogen, elixir-format
@@ -595,4 +590,9 @@ msgstr ""
 #: lib/tuist_web/live/gradle_build_live.html.heex:608
 #, elixir-autogen, elixir-format
 msgid "Cache key"
+msgstr ""
+
+#: lib/tuist_web/live/gradle_cache_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "You can set up the Gradle cache for your project by running:"
 msgstr ""
