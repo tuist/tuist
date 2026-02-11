@@ -32,7 +32,7 @@ struct InitCommandServiceTests {
     private let listOrganizationsService = MockListOrganizationsServicing()
     private let getProjectService = MockGetProjectServicing()
     #if os(macOS)
-    private let commandRunner = MockCommandRunning()
+        private let commandRunner = MockCommandRunning()
     #endif
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let subject: InitCommandService
@@ -340,60 +340,60 @@ struct InitCommandServiceTests {
     #endif
 
     #if os(macOS)
-    @Test func generatesTheRightConfiguration_when_connectingGradleProject_and_connectedToServer()
-        async throws
-    {
-        try await withMockedDependencies {
-            #if os(macOS)
-                given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
-                    .willReturn(.connectGradleProject)
-            #endif
-            given(prompter).promptAccountType(
-                authenticatedUserHandle: .value("account"), organizations: .value(["org"])
-            )
-            .willReturn(.userAccount("account"))
-            given(loginService).run(
-                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
-            ).willReturn()
-            given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
-                .willReturn("account")
-            given(listOrganizationsService).listOrganizations(
-                serverURL: .value(Constants.URLs.production)
-            ).willReturn(["org"])
-
-            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
-                temporaryDirectory in
-                let projectName = temporaryDirectory.basename
-                given(getProjectService).getProject(
-                    fullHandle: .value("account/\(projectName)"),
+        @Test func generatesTheRightConfiguration_when_connectingGradleProject_and_connectedToServer()
+            async throws
+        {
+            try await withMockedDependencies {
+                #if os(macOS)
+                    given(prompter).promptWorkflowType(xcodeProjectOrWorkspace: .any)
+                        .willReturn(.connectGradleProject)
+                #endif
+                given(prompter).promptAccountType(
+                    authenticatedUserHandle: .value("account"), organizations: .value(["org"])
+                )
+                .willReturn(.userAccount("account"))
+                given(loginService).run(
+                    email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
+                ).willReturn()
+                given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
+                    .willReturn("account")
+                given(listOrganizationsService).listOrganizations(
                     serverURL: .value(Constants.URLs.production)
-                ).willReturn(.test(fullName: "account/\(projectName)"))
-                given(createProjectService).createProject(
-                    fullHandle: .value("account/\(projectName)"),
-                    serverURL: .value(Constants.URLs.production)
-                ).willReturn(.test(fullName: "account/\(projectName)"))
-                given(commandRunner).run(
-                    arguments: .matching { $0.contains("mise") }, environment: .any,
-                    workingDirectory: .any
-                )
-                .willReturn(.init(unfolding: { nil }))
+                ).willReturn(["org"])
 
-                // When
-                try await subject.run(from: temporaryDirectory, answers: nil)
+                try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                    temporaryDirectory in
+                    let projectName = temporaryDirectory.basename
+                    given(getProjectService).getProject(
+                        fullHandle: .value("account/\(projectName)"),
+                        serverURL: .value(Constants.URLs.production)
+                    ).willReturn(.test(fullName: "account/\(projectName)"))
+                    given(createProjectService).createProject(
+                        fullHandle: .value("account/\(projectName)"),
+                        serverURL: .value(Constants.URLs.production)
+                    ).willReturn(.test(fullName: "account/\(projectName)"))
+                    given(commandRunner).run(
+                        arguments: .matching { $0.contains("mise") }, environment: .any,
+                        workingDirectory: .any
+                    )
+                    .willReturn(.init(unfolding: { nil }))
 
-                // Then
-                let tuistToml = try await fileSystem.readTextFile(
-                    at: temporaryDirectory.appending(component: "tuist.toml")
-                )
-                #expect(
-                    tuistToml == "project = \"account/\(projectName)\"\n"
-                )
-                let tuistSwiftExists = try await fileSystem.exists(
-                    temporaryDirectory.appending(component: "Tuist.swift")
-                )
-                #expect(!tuistSwiftExists)
+                    // When
+                    try await subject.run(from: temporaryDirectory, answers: nil)
+
+                    // Then
+                    let tuistToml = try await fileSystem.readTextFile(
+                        at: temporaryDirectory.appending(component: "tuist.toml")
+                    )
+                    #expect(
+                        tuistToml == "project = \"account/\(projectName)\"\n"
+                    )
+                    let tuistSwiftExists = try await fileSystem.exists(
+                        temporaryDirectory.appending(component: "Tuist.swift")
+                    )
+                    #expect(!tuistSwiftExists)
+                }
             }
         }
-    }
     #endif
 }

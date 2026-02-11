@@ -253,18 +253,18 @@ extension Array where Element: CustomStringConvertible {
     /// - Returns: <#description#>
     public func listed() -> String {
         #if canImport(Darwin)
-        let listFormatter = ListFormatter()
-        listFormatter.locale = Locale(identifier: "en-US")
-        return listFormatter.string(from: self) ?? ""
+            let listFormatter = ListFormatter()
+            listFormatter.locale = Locale(identifier: "en-US")
+            return listFormatter.string(from: self) ?? ""
         #else
-        switch count {
-        case 0: return ""
-        case 1: return String(describing: self[0])
-        case 2: return "\(self[0]) and \(self[1])"
-        default:
-            let allButLast = self.dropLast().map { String(describing: $0) }.joined(separator: ", ")
-            return "\(allButLast), and \(last!)"
-        }
+            switch count {
+            case 0: return ""
+            case 1: return String(describing: self[0])
+            case 2: return "\(self[0]) and \(self[1])"
+            default:
+                let allButLast = self.dropLast().map { String(describing: $0) }.joined(separator: ", ")
+                return "\(allButLast), and \(last!)"
+            }
         #endif
     }
 }
