@@ -63,10 +63,8 @@ final class TargetGenerator: TargetGenerating {
     ) async throws -> PBXTarget {
         Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
 
-        let isForeignBuildAggregate = target.metadata.tags.contains("tuist:foreign-build-aggregate")
-
         let pbxTarget: PBXTarget
-        if isForeignBuildAggregate {
+        if target.isAggregate {
             Logger.current.debug("TargetGenerator: Creating PBXAggregateTarget for \(target.name)")
             pbxTarget = PBXAggregateTarget(
                 name: target.name,
