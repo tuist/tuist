@@ -25,7 +25,7 @@ public final class ForeignBuildGraphMapper: GraphMapping {
 
             for (targetName, target) in project.targets {
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, _, _, _) = dependency else {
+                    guard case let .foreignBuild(name, script, output, _, _) = dependency else {
                         continue
                     }
 
@@ -36,21 +36,23 @@ public final class ForeignBuildGraphMapper: GraphMapping {
                         aggregateTargetName = "ForeignBuild_\(name)"
                         aggregateTargetsByForeignBuildName[name] = aggregateTargetName
 
+                        let outputPath = Self.outputPath(from: output)
                         let aggregateTarget = Target(
                             name: aggregateTargetName,
                             destinations: target.destinations,
                             product: .staticLibrary,
                             productName: aggregateTargetName,
                             bundleId: "tuist.foreign-build.\(name)",
-                            filesGroup: target.filesGroup,
-                            rawScriptBuildPhases: [
-                                RawScriptBuildPhase(
+                            scripts: [
+                                TargetScript(
                                     name: "Foreign Build: \(name)",
-                                    script: script,
-                                    showEnvVarsInLog: false,
-                                    hashable: false
+                                    order: .pre,
+                                    script: .embedded(script),
+                                    outputPaths: outputPath.map { [$0.pathString] } ?? [],
+                                    showEnvVarsInLog: false
                                 ),
                             ],
+                            filesGroup: target.filesGroup,
                             metadata: .metadata(tags: ["tuist:foreign-build-aggregate"])
                         )
                         updatedProject.targets[aggregateTargetName] = aggregateTarget
@@ -72,5 +74,14 @@ public final class ForeignBuildGraphMapper: GraphMapping {
         }
 
         return (graph, [], environment)
+    }
+
+    private static func outputPath(from output: TargetDependency) -> AbsolutePath? {
+        switch output {
+        case let .framework(path, _, _): return path
+        case let .xcframework(path, _, _, _): return path
+        case let .library(path, _, _, _): return path
+        default: return nil
+        }
     }
 }
