@@ -117,6 +117,7 @@ if config_env() == :prod do
 
   if otel_endpoint do
     config :opentelemetry,
+      traces_exporter: :otlp,
       span_processor: :batch,
       resource: [
         service: [name: "tuist-cache", namespace: "tuist"],
