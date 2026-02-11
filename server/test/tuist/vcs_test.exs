@@ -118,10 +118,10 @@ defmodule Tuist.VCSTest do
       assert VCS.ci_run_url(ci_metadata) == "https://codemagic.io/app/app-id-123/build/build-abc123"
     end
 
-    test "returns nil when ci_run_id is nil" do
+    test "returns nil when ci_run_id is empty" do
       ci_metadata = %{
         ci_provider: "github",
-        ci_run_id: nil,
+        ci_run_id: "",
         ci_project_handle: "tuist/tuist"
       }
 
@@ -781,7 +781,7 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        git_ref: nil,
+        git_ref: "",
         git_commit_sha: @git_commit_sha,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,

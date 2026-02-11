@@ -562,18 +562,18 @@ defmodule TuistWeb.API.RunsControllerTest do
       [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
-      assert build.macos_version == nil
-      assert build.xcode_version == nil
+      assert build.macos_version == ""
+      assert build.xcode_version == ""
       assert build.is_ci == false
-      assert build.model_identifier == nil
-      assert build.scheme == nil
-      assert build.configuration == nil
+      assert build.model_identifier == ""
+      assert build.scheme == ""
+      assert build.configuration == ""
       assert build.project_id == project.id
       assert build.account_id == user.account.id
       assert build.status == "success"
-      assert build.ci_run_id == nil
-      assert build.ci_project_handle == nil
-      assert build.ci_host == nil
+      assert build.ci_run_id == ""
+      assert build.ci_project_handle == ""
+      assert build.ci_host == ""
       assert build.ci_provider == ""
 
       assert response == %{
@@ -616,7 +616,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.is_ci == true
       assert build.ci_run_id == "1234567890"
       assert build.ci_project_handle == "tuist/tuist"
-      assert build.ci_host == nil
+      assert build.ci_host == ""
       assert build.ci_provider == "github"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
