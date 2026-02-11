@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2026-02-11 11:33+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_auth/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -345,11 +345,13 @@ msgstr "使用命令行界面"
 msgid "By continuing, you agree to Tuist's"
 msgstr "继续操作即表示您同意Tuist的"
 
+#, fuzzy
 msgid "Privacy Policy"
-msgstr ""
+msgstr "隐私政策"
 
+#, fuzzy
 msgid "Terms of Service"
-msgstr ""
+msgstr "服务条款"
 
 #, fuzzy
 msgid "and"
