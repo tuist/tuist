@@ -1106,8 +1106,10 @@ struct GenerateAcceptanceTestiOSAppWithCatalyst {
     @Test(
         .withFixture("generated_ios_app_with_catalyst"),
         .inTemporaryDirectory,
-        .enabled(if: ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
-                 "Mac Catalyst destinations are not available on macOS 26+")
+        .enabled(
+            if: ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
+            "Mac Catalyst destinations are not available on macOS 26+"
+        )
     )
     func ios_app_with_catalyst() async throws {
         try await run(GenerateCommand.self)
