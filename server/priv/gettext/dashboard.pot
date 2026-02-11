@@ -91,7 +91,7 @@ msgid "Cache Runs"
 msgstr ""
 
 #: lib/tuist_web/live/layout_live.ex:96
-#: lib/tuist_web/live/layout_live.ex:165
+#: lib/tuist_web/live/layout_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -312,7 +312,7 @@ msgstr ""
 msgid "The account %{account_handle} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:142
+#: lib/tuist_web/live/layout_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -355,7 +355,7 @@ msgstr ""
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:242
+#: lib/tuist_web/live/layout_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -469,4 +469,9 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:186
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
+msgstr ""
+
+#: lib/tuist_web/live/layout_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "Create project"
 msgstr ""
