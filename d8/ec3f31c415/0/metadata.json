@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "d8ec3f31c415",
+  "session_id": "c62c0ce6-7e94-4f0a-935c-c0a360981872",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-11T15:53:15.051703Z",
+  "branch": "feat/prune-old-binary-cache-entries",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "cli/Sources/tuist/Dependencies.swift",
+    "cli/Tests/TuistCacheEETests/Storage/CacheLocalStorageTests.swift",
+    "cli/TuistCacheEE/Sources/Storage/CacheLocalStorage.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 66,
+    "cache_creation_tokens": 63991,
+    "cache_read_tokens": 3704758,
+    "output_tokens": 721,
+    "api_call_count": 58
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-11T15:53:14.997005Z",
+    "agent_lines": 0,
+    "human_added": 139826,
+    "human_modified": 249,
+    "human_removed": 0,
+    "total_committed": 139980,
+    "agent_percentage": 0
+  }
+}
