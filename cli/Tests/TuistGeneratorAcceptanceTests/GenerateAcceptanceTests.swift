@@ -1103,13 +1103,13 @@ struct GenerateAcceptanceTestiOSAppWithWeaklyLinkedFramework {
 }
 
 struct GenerateAcceptanceTestiOSAppWithCatalyst {
-    @Test(.withFixture("generated_ios_app_with_catalyst"), .inTemporaryDirectory)
+    @Test(
+        .withFixture("generated_ios_app_with_catalyst"),
+        .inTemporaryDirectory,
+        .enabled(if: ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 26,
+                 "Mac Catalyst destinations are not available on macOS 26+")
+    )
     func ios_app_with_catalyst() async throws {
-        let osVersion = ProcessInfo.processInfo.operatingSystemVersion
-        if osVersion.majorVersion >= 26 {
-            throw Skip("Mac Catalyst destinations are not available on macOS 26+")
-        }
-
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "macos")
         try await run(BuildCommand.self, "App", "--platform", "ios")
@@ -1460,13 +1460,12 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         )
     }
 
-    /// Tests that external local Swift packages configured as dynamic frameworks
-    /// compile and run without crashing when accessing Bundle.module.
-    /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
-    func test_app_with_external_dynamic_framework_with_resources() async throws {
-        try await setUpFixture("generated_app_with_mac_bundle")
+    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
+    func app_with_external_dynamic_framework_with_resources() async throws {
+        let fixturePath = try fixtureDirectory()
+        let derivedData = try derivedDataPath()
+        let fileSystem = FileSystem()
 
-        // Modify the Tuist/Package.swift to use dynamic framework for ResourcesFramework
         let packageSwiftPath = fixturePath.appending(components: "Tuist", "Package.swift")
         let dynamicFrameworkPackageSwift = """
         // swift-tools-version: 6.0
@@ -1498,7 +1497,6 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
 
-        // Launch app on simulator to verify it doesn't crash when accessing Bundle.module
         let commandRunner = CommandRunner()
         let simulatorId = UUID().uuidString
         try await commandRunner.run(
@@ -1517,7 +1515,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
             arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
         ).pipedStream().awaitCompletion()
 
-        let appPath = derivedDataPath
+        let appPath = derivedData
             .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
 
         try await commandRunner.run(
@@ -1528,15 +1526,13 @@ struct GenerateAcceptanceTestAppWithMacBundle {
             arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
 
-        // Wait for app to initialize and potentially crash
         try await Task.sleep(for: .seconds(2))
 
-        // Verify the app is still running (didn't crash due to bundle accessor issue)
         let listOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
         ).concatenatedString()
 
-        XCTAssertTrue(
+        #expect(
             listOutput.contains("UIKitApplication:dev.tuist.App"),
             "App should still be running. If it crashed, the bundle accessor for external dynamic frameworks with resources may be broken."
         )
@@ -2043,7 +2039,7 @@ private func XCTAssertTrue(
     _ message: String = "",
     sourceLocation: SourceLocation = #_sourceLocation
 ) rethrows {
-    #expect(try expression(), message, sourceLocation: sourceLocation)
+    #expect(try expression(), Comment(rawValue: message), sourceLocation: sourceLocation)
 }
 
 private func XCTAssertFalse(
@@ -2051,7 +2047,7 @@ private func XCTAssertFalse(
     _ message: String = "",
     sourceLocation: SourceLocation = #_sourceLocation
 ) rethrows {
-    #expect(try expression() == false, message, sourceLocation: sourceLocation)
+    #expect(try expression() == false, Comment(rawValue: message), sourceLocation: sourceLocation)
 }
 
 private func XCTAssertEqual<T: Equatable>(
@@ -2060,7 +2056,7 @@ private func XCTAssertEqual<T: Equatable>(
     _ message: String = "",
     sourceLocation: SourceLocation = #_sourceLocation
 ) rethrows {
-    #expect(try first() == second(), message, sourceLocation: sourceLocation)
+    #expect(try first() == second(), Comment(rawValue: message), sourceLocation: sourceLocation)
 }
 
 private func XCTAssertEqualDictionaries<T: Hashable>(
@@ -2096,5 +2092,5 @@ private func XCTUnwrapTarget(
     in xcodeproj: XcodeProj,
     sourceLocation: SourceLocation = #_sourceLocation
 ) throws -> PBXTarget {
-    try await TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+    try TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
 }
