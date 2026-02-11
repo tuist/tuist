@@ -2,7 +2,7 @@
 {
   "title": "Selective testing",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Use selective testing to run only the tests that have changed since the last successful test run."
+  "description": "Use Tuist Selective Testing to run only the Xcode tests affected by your latest changes."
 }
 ---
 # Selective testing {#selective-testing}

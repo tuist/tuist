@@ -15,6 +15,8 @@ defmodule Cache.Application do
 
     Oban.Telemetry.attach_default_logger()
     start_sentry_logger()
+    start_loki_logger()
+    start_opentelemetry()
 
     base_children = [
       Cache.Repo,
@@ -38,7 +40,7 @@ defmodule Cache.Application do
 
     children =
       if Cache.Config.analytics_enabled?() do
-        base_children ++ [Cache.CASEventsPipeline]
+        base_children ++ [Cache.CASEventsPipeline, Cache.GradleCacheEventsPipeline]
       else
         base_children
       end
@@ -60,6 +62,34 @@ defmodule Cache.Application do
       :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
         config: %{metadata: [:file, :line]}
       })
+    end
+  end
+
+  defp start_loki_logger do
+    loki_url = System.get_env("LOKI_URL")
+
+    if loki_url do
+      LokiLoggerHandler.attach(:loki_handler,
+        loki_url: loki_url,
+        storage: :memory,
+        labels: %{
+          app: {:static, "tuist-cache"},
+          env: {:static, System.get_env("DEPLOY_ENV") || "production"},
+          level: :level
+        },
+        structured_metadata: [:trace_id, :span_id, :request_id]
+      )
+    end
+  end
+
+  defp start_opentelemetry do
+    if Application.get_env(:opentelemetry, :traces_exporter) != :none do
+      OpentelemetryLoggerMetadata.setup()
+      OpentelemetryBandit.setup()
+      OpentelemetryPhoenix.setup(adapter: :bandit)
+      OpentelemetryEcto.setup(event_prefix: [:cache, :repo])
+      OpentelemetryFinch.setup()
+      OpentelemetryBroadway.setup()
     end
   end
 

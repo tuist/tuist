@@ -31,7 +31,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
             }
 
             rootProject.name = "test-project"
@@ -55,7 +55,7 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin gracefully handles missing fullHandle`() {
+    fun `plugin gracefully handles missing project`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
@@ -84,14 +84,14 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin warns when fullHandle is blank`() {
+    fun `plugin warns when project is blank`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
             }
 
             tuist {
-                fullHandle = ""
+                project = ""
             }
 
             rootProject.name = "test-project"
@@ -112,7 +112,7 @@ class TuistPluginTest {
             .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
-        assertTrue(result.output.contains("fullHandle not configured"))
+        assertTrue(result.output.contains("project not configured"))
     }
 
     @Test
@@ -123,7 +123,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildCache {
                     enabled = false
@@ -159,7 +159,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
                 executablePath = "/usr/local/bin/tuist"
 
                 buildCache {
@@ -195,7 +195,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildCache {
                     enabled = true
@@ -231,7 +231,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "test-account/test-project"
+                project = "test-account/test-project"
 
                 buildCache {
                     enabled = true
@@ -260,6 +260,74 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `custom server URL can be configured`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "test-account/test-project"
+                url = "https://custom.server.dev"
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello") {
+                doLast {
+                    println("Hello!")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
+    }
+
+    @Test
+    fun `build insights logs message when configured`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                project = "my-org/my-project"
+
+                buildCache {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello") {
+                doLast {
+                    println("Hello!")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
+        assertTrue(result.output.contains("Build insights configured for my-org/my-project"))
+    }
+
+    @Test
     fun `plugin logs message when build cache is configured`() {
         settingsFile.writeText("""
             plugins {
@@ -267,7 +335,7 @@ class TuistPluginTest {
             }
 
             tuist {
-                fullHandle = "my-org/my-project"
+                project = "my-org/my-project"
 
                 buildCache {
                     enabled = true

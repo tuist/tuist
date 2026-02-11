@@ -11,6 +11,7 @@ alias Tuist.Builds.Build
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
+alias Tuist.Gradle
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
@@ -345,6 +346,21 @@ if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name
   })
   |> Repo.insert!()
 end
+
+android_app_project =
+  case Projects.get_project_by_slug("tuist/android-app") do
+    {:ok, project} ->
+      project
+
+    {:error, _} ->
+      Projects.create_project!(
+        %{
+          name: "android-app",
+          account: %{id: organization.account.id}
+        },
+        build_system: :gradle
+      )
+  end
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
@@ -2374,6 +2390,224 @@ if slack_installation do
   end
 end
 
+# =============================================================================
+# Gradle Build Analytics
+# =============================================================================
+
+IO.puts("Generating Gradle builds with tasks and cache events...")
+
+gradle_project_id = android_app_project.id
+gradle_account_id = organization.account.id
+gradle_build_count = 50
+
+gradle_task_paths = [
+  ":app:compileDebugKotlin",
+  ":app:compileReleaseKotlin",
+  ":app:assembleDebug",
+  ":app:assembleRelease",
+  ":app:mergeDebugResources",
+  ":app:processDebugResources",
+  ":app:dexBuilderDebug",
+  ":app:mergeExtDexDebug",
+  ":app:packageDebug",
+  ":app:lintDebug",
+  ":core:compileDebugKotlin",
+  ":core:compileReleaseKotlin",
+  ":core:assembleDebug",
+  ":core:assembleRelease",
+  ":core:processDebugResources",
+  ":network:compileDebugKotlin",
+  ":network:compileReleaseKotlin",
+  ":network:assembleDebug",
+  ":network:processDebugResources",
+  ":ui:compileDebugKotlin",
+  ":ui:compileReleaseKotlin",
+  ":ui:assembleDebug",
+  ":ui:processDebugResources",
+  ":ui:mergeDebugResources",
+  ":data:compileDebugKotlin",
+  ":data:assembleDebug",
+  ":data:processDebugResources",
+  ":app:compileDebugJavaWithJavac",
+  ":app:kaptGenerateStubsDebugKotlin",
+  ":app:kaptDebugKotlin",
+  ":app:mergeDebugJavaResource",
+  ":app:checkDebugDuplicateClasses",
+  ":app:createDebugCompatibleScreenManifests",
+  ":app:extractDeepLinksDebug",
+  ":app:generateDebugBuildConfig",
+  ":app:javaPreCompileDebug",
+  ":app:mergeDebugNativeLibs",
+  ":app:stripDebugDebugSymbols",
+  ":app:validateSigningDebug",
+  ":core:generateDebugBuildConfig",
+  ":core:javaPreCompileDebug",
+  ":network:generateDebugBuildConfig",
+  ":ui:generateDebugBuildConfig",
+  ":data:generateDebugBuildConfig",
+  ":app:preBuild",
+  ":core:preBuild",
+  ":network:preBuild",
+  ":ui:preBuild",
+  ":data:preBuild",
+  ":app:preDebugBuild"
+]
+
+gradle_branches = ["main", "develop", "feat/gradle-build-insights", "feat/new-feature", "fix/build-error"]
+gradle_versions = ["8.5", "8.7", "8.10", "9.0", "9.2.1"]
+java_versions = ["17.0.10", "17.0.12", "21.0.3", "21.0.10"]
+root_project_names = ["SimpleAndroidApp", "MyAndroidApp", "SampleProject"]
+
+gradle_build_counter = :counters.new(1, [:atomics])
+
+Enum.each(1..gradle_build_count, fn _i ->
+  is_ci = Enum.random([true, false])
+  status = Enum.random(["success", "success", "success", "failure", "cancelled"])
+  day_offset = Enum.random(0..60)
+  base_time = DateTime.add(DateTime.utc_now(), -day_offset * 86_400, :second)
+
+  # Build start time with second precision
+  build_start_naive =
+    NaiveDateTime.new!(
+      Date.add(Date.utc_today(), -day_offset),
+      Time.new!(Enum.random(6..22), Enum.random(0..59), Enum.random(0..59))
+    )
+
+  # Select a random subset of tasks for this build
+  task_count = Enum.random(15..50)
+  selected_tasks = Enum.take_random(gradle_task_paths, task_count)
+
+  # Determine outcome distribution for cacheable tasks
+  cacheable_ratio = Enum.random(40..80) / 100
+  cacheable_count = trunc(task_count * cacheable_ratio)
+  {cacheable_tasks, non_cacheable_tasks} = Enum.split(selected_tasks, cacheable_count)
+
+  # Distribute cacheable tasks across outcomes
+  local_hit_count = trunc(cacheable_count * Enum.random(10..40) / 100)
+  remote_hit_count = trunc(cacheable_count * Enum.random(10..30) / 100)
+  executed_count = cacheable_count - local_hit_count - remote_hit_count
+
+  cacheable_outcomes =
+    List.duplicate("local_hit", local_hit_count) ++
+      List.duplicate("remote_hit", remote_hit_count) ++
+      List.duplicate("executed", executed_count)
+
+  # Non-cacheable outcomes
+  non_cacheable_outcomes =
+    Enum.map(non_cacheable_tasks, fn _task ->
+      Enum.random(["up_to_date", "up_to_date", "executed", "skipped", "no_source", "no_source"])
+    end)
+
+  # Build tasks with started_at timestamps (accumulating from build start)
+  {tasks, _current_offset} =
+    selected_tasks
+    |> Enum.zip(Enum.shuffle(cacheable_outcomes) ++ non_cacheable_outcomes)
+    |> Enum.map_reduce(0, fn {task_path, outcome}, offset_ms ->
+      duration = Enum.random(50..8000)
+      started_at_naive = NaiveDateTime.add(build_start_naive, offset_ms, :millisecond)
+      # Ensure usec precision for DateTime64(6)
+      {usec, _} = started_at_naive.microsecond
+      started_at_usec = %{started_at_naive | microsecond: {usec, 6}}
+      is_cacheable = outcome in ["local_hit", "remote_hit", "executed"]
+
+      task = %{
+        task_path: task_path,
+        outcome: outcome,
+        cacheable: is_cacheable,
+        duration_ms: duration,
+        started_at: started_at_usec,
+        cache_key:
+          if(is_cacheable,
+            do: SeedHelpers.random_hex(64)
+          ),
+        cache_artifact_size:
+          if(is_cacheable,
+            do: Enum.random(10_000..5_000_000)
+          )
+      }
+
+      # Next task starts after this one (with some overlap for parallelism)
+      next_offset = offset_ms + max(div(duration, Enum.random(2..4)), 10)
+      {task, next_offset}
+    end)
+
+  build_duration = Enum.random(3000..30_000)
+
+  attrs = %{
+    project_id: gradle_project_id,
+    account_id: gradle_account_id,
+    duration_ms: build_duration,
+    status: status,
+    gradle_version: Enum.random(gradle_versions),
+    java_version: Enum.random(java_versions),
+    is_ci: is_ci,
+    git_branch: Enum.random(gradle_branches),
+    git_commit_sha: SeedHelpers.random_hex(40),
+    git_ref: "4.138.1-#{Enum.random(1..200)}-g#{SeedHelpers.random_hex(10)}",
+    root_project_name: Enum.random(root_project_names),
+    inserted_at: NaiveDateTime.truncate(DateTime.to_naive(base_time), :second),
+    tasks: tasks
+  }
+
+  case Gradle.create_build(attrs) do
+    {:ok, build_id} ->
+      :counters.add(gradle_build_counter, 1, 1)
+
+      # Create cache events for cacheable tasks
+      cache_events =
+        tasks
+        |> Enum.filter(& &1.cacheable)
+        |> Enum.flat_map(fn task ->
+          case task.outcome do
+            "remote_hit" ->
+              [
+                %{
+                  action: "download",
+                  cache_key: task.cache_key,
+                  size: task.cache_artifact_size,
+                  duration_ms: Enum.random(100..2000),
+                  is_hit: true,
+                  is_ci: is_ci,
+                  gradle_build_id: build_id,
+                  project_id: gradle_project_id,
+                  account_handle: organization.account.name,
+                  project_handle: "android-app"
+                }
+              ]
+
+            "executed" ->
+              [
+                %{
+                  action: "upload",
+                  cache_key: task.cache_key,
+                  size: task.cache_artifact_size,
+                  duration_ms: Enum.random(200..3000),
+                  is_hit: false,
+                  is_ci: is_ci,
+                  gradle_build_id: build_id,
+                  project_id: gradle_project_id,
+                  account_handle: organization.account.name,
+                  project_handle: "android-app"
+                }
+              ]
+
+            _ ->
+              []
+          end
+        end)
+
+      if length(cache_events) > 0 do
+        Gradle.create_cache_events(cache_events)
+      end
+
+    {:error, reason} ->
+      IO.puts("  Warning: Failed to create Gradle build: #{inspect(reason)}")
+  end
+end)
+
+gradle_builds_created = :counters.get(gradle_build_counter, 1)
+IO.puts("  - Created #{gradle_builds_created} Gradle builds with tasks and cache events")
+
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")
 IO.puts("Generated:")
@@ -2382,6 +2616,7 @@ IO.puts("  - #{seed_config.test_runs} test runs")
 IO.puts("  - #{seed_config.command_events} command events")
 IO.puts("  - #{seed_config.previews} previews")
 IO.puts("  - #{seed_config.bundles} bundles")
+IO.puts("  - #{gradle_builds_created} gradle builds")
 IO.puts("")
 IO.puts("To generate production-like volumes, run:")
 IO.puts("  SEED_SCALE=medium mix run priv/repo/seeds.exs")

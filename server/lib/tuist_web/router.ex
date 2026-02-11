@@ -370,6 +370,12 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           scope "/test-cases" do
             get "/", TestCasesController, :index
+            get "/:test_case_id", TestCasesController, :show
+            get "/:test_case_id/runs", TestCaseRunsController, :index
+
+            scope "/runs" do
+              get "/:test_case_run_id", TestCaseRunsController, :show
+            end
           end
 
           post "/", TestsController, :create
@@ -379,6 +385,12 @@ defmodule TuistWeb.Router do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
+        end
+
+        scope "/gradle" do
+          post "/builds", GradleController, :create_build
+          get "/builds", GradleController, :list_builds
+          get "/builds/:build_id", GradleController, :get_build
         end
 
         scope "/previews" do
@@ -775,6 +787,7 @@ defmodule TuistWeb.Router do
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
+      live "/gradle-cache", GradleCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive

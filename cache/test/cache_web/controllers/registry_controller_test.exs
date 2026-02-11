@@ -3,7 +3,7 @@ defmodule CacheWeb.RegistryControllerTest do
   use Mimic
 
   alias Cache.CacheArtifacts
-  alias Cache.Disk
+  alias Cache.Registry
   alias Cache.Registry.Metadata
   alias Cache.S3
   alias Cache.S3Transfers
@@ -330,9 +330,9 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> true end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> true end)
 
-      expect(Disk, :registry_local_accel_path, fn ^scope, ^name, ^version, "source_archive.zip" ->
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "source_archive.zip" ->
         "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
       end)
 
@@ -356,7 +356,7 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -384,7 +384,7 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -406,7 +406,7 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -440,9 +440,9 @@ defmodule CacheWeb.RegistryControllerTest do
         }
       }
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> true end)
 
-      expect(Disk, :registry_local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
+      expect(Registry.Disk, :local_accel_path, fn ^scope, ^name, ^version, "Package.swift" ->
         "/internal/local/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
       end)
 
@@ -472,7 +472,7 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
@@ -494,7 +494,7 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
 
       expect(S3, :exists?, fn _key, _opts -> true end)
 
@@ -525,7 +525,7 @@ defmodule CacheWeb.RegistryControllerTest do
       name = "swift-argument-parser"
       version = "1.0.0"
 
-      expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
+      expect(Registry.Disk, :exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
 
       expect(S3, :exists?, fn _key, _opts -> false end)
 
