@@ -77,14 +77,3 @@ let tuist = Tuist(
     project: .tuist(generationOptions: .options(enforceExplicitDependencies: true))
 )
 ```
-
-## tuist.toml {#tuisttoml}
-
-`tuist.toml` is a build-system agnostic configuration file and an evolution of `Tuist.swift`. If you only need to configure server-related settings (project handle and server URL), you can use it instead of or alongside `Tuist.swift`. Unlike `Tuist.swift`, it does not require Swift, making it usable across any platform and build system.
-
-```toml
-project = "myorg/myapp"
-url = "https://tuist.dev"
-```
-
-`Tuist.swift` takes precedence over `tuist.toml`, so the two can coexist. For a full list of supported keys and the precedence order, see the <LocalizedLink href="/references/tuist-toml">`tuist.toml` reference</LocalizedLink>.
