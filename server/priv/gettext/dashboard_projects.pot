@@ -38,7 +38,7 @@ msgstr ""
 msgid "%{selective_tests_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:75
+#: lib/tuist_web/live/create_project_live.ex:92
 #, elixir-autogen, elixir-format
 msgid "Account"
 msgstr ""
@@ -159,17 +159,17 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:77
+#: lib/tuist_web/live/create_project_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "Choose an account to create your project or set up a new organization."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:96
+#: lib/tuist_web/live/create_project_live.ex:113
 #, elixir-autogen, elixir-format
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:59
+#: lib/tuist_web/live/create_project_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "Create a Tuist project to continue"
 msgstr ""
@@ -179,12 +179,12 @@ msgstr ""
 msgid "Create a new project"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:57
+#: lib/tuist_web/live/create_project_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Create a project"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:101
+#: lib/tuist_web/live/create_project_live.ex:118
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -285,7 +285,7 @@ msgstr ""
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:66
+#: lib/tuist_web/live/create_project_live.ex:67
 #: lib/tuist_web/live/project_notifications_live.html.heex:309
 #: lib/tuist_web/live/project_notifications_live.html.heex:448
 #: lib/tuist_web/live/project_notifications_live.html.heex:527
@@ -325,7 +325,7 @@ msgstr ""
 msgid "Only organization members"
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:99
+#: lib/tuist_web/live/create_project_live.ex:116
 #, elixir-autogen, elixir-format
 msgid "Or set up a new organization"
 msgstr ""
@@ -420,7 +420,7 @@ msgstr ""
 msgid "Search projects..."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:71
+#: lib/tuist_web/live/create_project_live.ex:88
 #, elixir-autogen, elixir-format
 msgid "Select account"
 msgstr ""
@@ -467,7 +467,7 @@ msgstr ""
 msgid "This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/create_project_live.ex:49
+#: lib/tuist_web/live/create_project_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -889,4 +889,14 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:64
 #, elixir-autogen, elixir-format
 msgid "Tests will be marked as flaky after the specified number of flaky occurrences within the last 30 days"
+msgstr ""
+
+#: lib/tuist_web/live/create_project_live.ex:79
+#, elixir-autogen, elixir-format
+msgid "Build system"
+msgstr ""
+
+#: lib/tuist_web/live/create_project_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Select build system"
 msgstr ""
