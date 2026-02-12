@@ -350,6 +350,10 @@ defmodule Tuist.Environment do
     get([:slack, :client_secret], secrets)
   end
 
+  def slack_signing_secret(secrets \\ secrets()) do
+    get([:slack, :signing_secret], secrets)
+  end
+
   def slack_configured?(secrets \\ secrets()) do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
