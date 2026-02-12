@@ -1,26 +1,18 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import XcodeGraph
-import XCTest
 @testable import TuistCore
 @testable import TuistGenerator
 @testable import TuistTesting
 
-final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
-    var subject: ForeignBuildGraphMapper!
+struct ForeignBuildGraphMapperTests {
+    private let subject = ForeignBuildGraphMapper()
 
-    override func setUp() {
-        super.setUp()
-        subject = ForeignBuildGraphMapper()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_map_configuresForeignBuildTargetWithScriptPhase() async throws {
+    @Test
+    func map_configuresForeignBuildTargetWithScriptPhase() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
@@ -46,17 +38,18 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["SharedKMP"])
+        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let mappedForeignTarget = try #require(mappedProject.targets["SharedKMP"])
 
-        XCTAssertTrue(mappedForeignTarget.metadata.tags.contains("tuist:foreign-build-aggregate"))
-        XCTAssertEqual(mappedForeignTarget.scripts.count, 1)
-        XCTAssertEqual(mappedForeignTarget.scripts.first?.name, "Foreign Build: SharedKMP")
-        XCTAssertEqual(mappedForeignTarget.scripts.first?.script, .embedded("gradle build"))
-        XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
+        #expect(mappedForeignTarget.metadata.tags.contains("tuist:foreign-build-aggregate"))
+        #expect(mappedForeignTarget.scripts.count == 1)
+        #expect(mappedForeignTarget.scripts.first?.name == "Foreign Build: SharedKMP")
+        #expect(mappedForeignTarget.scripts.first?.script == .embedded("gradle build"))
+        #expect(mappedForeignTarget.scripts.first?.outputPaths == [outputPath.pathString])
     }
 
-    func test_map_addsForeignBuildOutputDependencyForConsumingTarget() async throws {
+    @Test
+    func map_addsForeignBuildOutputDependencyForConsumingTarget() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
@@ -89,13 +82,14 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let expectedOutputDep = GraphDependency.foreignBuildOutput(
             GraphDependency.ForeignBuildOutput(name: "SharedKMP", path: outputPath, linking: .dynamic)
         )
-        XCTAssertTrue(mappedGraph.dependencies[consumingDep]?.contains(expectedOutputDep) == true)
+        #expect(mappedGraph.dependencies[consumingDep]?.contains(expectedOutputDep) == true)
 
         let foreignBuildDep = GraphDependency.target(name: "SharedKMP", path: projectPath)
-        XCTAssertEqual(mappedGraph.dependencies[foreignBuildDep], Set())
+        #expect(mappedGraph.dependencies[foreignBuildDep] == Set())
     }
 
-    func test_map_multipleConsumersShareSameForeignBuildTarget() async throws {
+    @Test
+    func map_multipleConsumersShareSameForeignBuildTarget() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
@@ -135,11 +129,12 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         )
         let dep1 = GraphDependency.target(name: "Framework1", path: projectPath)
         let dep2 = GraphDependency.target(name: "Framework2", path: projectPath)
-        XCTAssertTrue(mappedGraph.dependencies[dep1]?.contains(expectedOutputDep) == true)
-        XCTAssertTrue(mappedGraph.dependencies[dep2]?.contains(expectedOutputDep) == true)
+        #expect(mappedGraph.dependencies[dep1]?.contains(expectedOutputDep) == true)
+        #expect(mappedGraph.dependencies[dep2]?.contains(expectedOutputDep) == true)
     }
 
-    func test_map_setsInputPathsFromInputs() async throws {
+    @Test
+    func map_setsInputPathsFromInputs() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
@@ -173,17 +168,18 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["SharedKMP"])
-        let script = try XCTUnwrap(mappedForeignTarget.scripts.first)
-        XCTAssertEqual(script.inputPaths, [
+        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let mappedForeignTarget = try #require(mappedProject.targets["SharedKMP"])
+        let script = try #require(mappedForeignTarget.scripts.first)
+        #expect(script.inputPaths == [
             srcFolder.pathString,
             gradleFile.pathString,
             ktFile.pathString,
         ])
     }
 
-    func test_map_doesNothingWhenNoForeignBuildTargets() async throws {
+    @Test
+    func map_doesNothingWhenNoForeignBuildTargets() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let target = Target.test(
@@ -200,11 +196,12 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEmpty(sideEffects)
-        XCTAssertEqual(mappedGraph.projects[projectPath]?.targets.count, project.targets.count)
+        #expect(sideEffects.isEmpty)
+        #expect(mappedGraph.projects[projectPath]?.targets.count == project.targets.count)
     }
 
-    func test_map_handlesFrameworkOutput() async throws {
+    @Test
+    func map_handlesFrameworkOutput() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/Lib.framework")
@@ -230,12 +227,13 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["Lib"])
-        XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
+        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let mappedForeignTarget = try #require(mappedProject.targets["Lib"])
+        #expect(mappedForeignTarget.scripts.first?.outputPaths == [outputPath.pathString])
     }
 
-    func test_map_handlesLibraryOutput() async throws {
+    @Test
+    func map_handlesLibraryOutput() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/libRust.a")
@@ -262,12 +260,13 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["RustLib"])
-        XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
+        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let mappedForeignTarget = try #require(mappedProject.targets["RustLib"])
+        #expect(mappedForeignTarget.scripts.first?.outputPaths == [outputPath.pathString])
     }
 
-    func test_map_returnsSideEffectWhenOutputDoesNotExist() async throws {
+    @Test
+    func map_returnsSideEffectWhenOutputDoesNotExist() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
@@ -293,20 +292,21 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(sideEffects.count, 1)
+        #expect(sideEffects.count == 1)
         guard case let .command(commandDescriptor) = sideEffects.first else {
-            XCTFail("Expected a command side effect")
+            Issue.record("Expected a command side effect")
             return
         }
-        XCTAssertEqual(commandDescriptor.command.first, "/bin/sh")
-        XCTAssertTrue(commandDescriptor.command.last?.contains("gradle build") == true)
-        XCTAssertTrue(commandDescriptor.command.last?.contains("SRCROOT=/Project") == true)
+        #expect(commandDescriptor.command.first == "/bin/sh")
+        #expect(commandDescriptor.command.last?.contains("gradle build") == true)
+        #expect(commandDescriptor.command.last?.contains("SRCROOT=/Project") == true)
     }
 
-    func test_map_doesNotReturnSideEffectWhenOutputExists() async throws {
+    @Test(.inTemporaryDirectory)
+    func map_doesNotReturnSideEffectWhenOutputExists() async throws {
         // Given
-        let temporaryDir = try temporaryPath()
-        let outputPath = temporaryDir.appending(components: "build", "SharedKMP.xcframework")
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let outputPath = temporaryDirectory.appending(components: "build", "SharedKMP.xcframework")
         try await FileSystem().makeDirectory(at: outputPath)
 
         let foreignBuildTarget = Target.test(
@@ -321,16 +321,16 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
             name: "Framework1",
             dependencies: [.target(name: "SharedKMP")]
         )
-        let project = Project.test(path: temporaryDir, targets: [foreignBuildTarget, consumingTarget])
+        let project = Project.test(path: temporaryDirectory, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
-            path: temporaryDir,
-            projects: [temporaryDir: project]
+            path: temporaryDirectory,
+            projects: [temporaryDirectory: project]
         )
 
         // When
         let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEmpty(sideEffects)
+        #expect(sideEffects.isEmpty)
     }
 }
