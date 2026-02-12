@@ -107,10 +107,10 @@ public struct Target: Codable, Equatable, Sendable {
     public var buildableFolders: [BuildableFolder]
 
     /// Properties for a foreign build target. Set when this target was created with ``foreignBuild(name:destinations:script:inputs:output:metadata:)``.
-    public var foreignBuild: ForeignBuildProperties?
+    public var foreignBuild: ForeignBuild?
 
     /// Describes the properties of a foreign (non-Xcode) build target.
-    public struct ForeignBuildProperties: Codable, Equatable, Sendable {
+    public struct ForeignBuild: Codable, Equatable, Sendable {
         public let script: String
         public let inputs: [Input]
         public let output: ForeignBuildOutput
@@ -185,7 +185,7 @@ public struct Target: Codable, Equatable, Sendable {
             metadata: metadata,
             buildableFolders: []
         )
-        target.foreignBuild = ForeignBuildProperties(
+        target.foreignBuild = ForeignBuild(
             script: script,
             inputs: inputs,
             output: output
