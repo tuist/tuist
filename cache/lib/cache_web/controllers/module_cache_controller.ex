@@ -322,6 +322,7 @@ defmodule CacheWeb.ModuleCacheController do
             send_resp(conn_after, :no_content, "")
 
           {:error, :total_size_exceeded} ->
+            MultipartUploads.abort_upload(upload_id)
             {:error, :total_size_exceeded}
 
           {:error, _reason} ->
@@ -383,9 +384,10 @@ defmodule CacheWeb.ModuleCacheController do
           normalize_part_numbers(Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"))
 
         result =
-          with :ok <- verify_parts(upload.parts, parts_from_client),
-               {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, parts_from_client),
-               :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths, parts_from_client) do
+          with {:ok, validated_parts} <- validate_part_numbers(parts_from_client),
+               :ok <- verify_parts(upload.parts, validated_parts),
+               {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, validated_parts),
+               :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths, validated_parts) do
             Enum.each(buffered_part_paths, &File.rm/1)
             :ok
           end
@@ -414,6 +416,7 @@ defmodule CacheWeb.ModuleCacheController do
             {:error, :parts_mismatch}
 
           {:error, :exists} ->
+            cleanup_failed_completion(upload)
             send_resp(conn, :no_content, "")
 
           {:error, _reason} ->
@@ -458,6 +461,7 @@ defmodule CacheWeb.ModuleCacheController do
   end
 
   defp translate_add_part_error(:upload_not_found), do: {:error, :not_found}
+  defp translate_add_part_error(:part_write_in_progress), do: {:error, :persist_error}
   defp translate_add_part_error(reason), do: {:error, reason}
 
   defp read_part_body(conn) do
@@ -488,6 +492,18 @@ defmodule CacheWeb.ModuleCacheController do
     unique = :erlang.unique_integer([:positive, :monotonic])
     Path.join(base, "cache-part-#{unique}")
   end
+
+  defp validate_part_numbers(:invalid), do: {:error, :parts_mismatch}
+
+  defp validate_part_numbers(parts) when is_list(parts) do
+    if Enum.any?(parts, &(&1 == :invalid)) do
+      {:error, :parts_mismatch}
+    else
+      {:ok, parts}
+    end
+  end
+
+  defp validate_part_numbers(_), do: {:error, :parts_mismatch}
 
   defp verify_parts(server_parts, client_parts) do
     server_part_numbers = server_parts |> Map.keys() |> Enum.sort()
@@ -530,11 +546,21 @@ defmodule CacheWeb.ModuleCacheController do
   end
 
   defp normalize_part_numbers(parts) when is_list(parts) do
-    Enum.map(parts, fn
+    parts
+    |> Enum.map(fn
       n when is_integer(n) -> n
-      n when is_binary(n) -> String.to_integer(n)
+      n when is_binary(n) -> parse_part_number(n)
+      _ -> :invalid
     end)
+    |> Enum.sort()
+    |> Enum.uniq()
   end
 
-  defp normalize_part_numbers(parts), do: parts
+  defp normalize_part_numbers(_parts), do: :invalid
+
+  defp parse_part_number(n) do
+    String.to_integer(n)
+  rescue
+    ArgumentError -> :invalid
+  end
 end

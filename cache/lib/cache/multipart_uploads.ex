@@ -154,19 +154,9 @@ defmodule Cache.MultipartUploads do
         {:reply, {:error, :upload_not_found}, state}
 
       [{^upload_id, upload_data}] ->
-        existing_part = Map.get(upload_data.parts, part_number)
-
-        cond do
-          existing_part != nil and Map.get(existing_part, :written) == true ->
-            {:reply, {:error, :part_already_written}, state}
-
-          size_bytes > @max_part_size ->
-            {:reply, {:error, :part_too_large}, state}
-
-          projected_total(upload_data, part_number, size_bytes) > @max_total_size ->
-            {:reply, {:error, :total_size_exceeded}, state}
-
-          true ->
+        case validate_add_part(upload_data, part_number, size_bytes) do
+          :ok ->
+            existing_part = Map.get(upload_data.parts, part_number)
             maybe_cleanup_old_part(existing_part)
 
             updated_parts = Map.put(upload_data.parts, part_number, %{path: temp_file_path, size: size_bytes})
@@ -180,6 +170,9 @@ defmodule Cache.MultipartUploads do
 
             :ets.insert(@table_name, {upload_id, updated_data})
             {:reply, :ok, state}
+
+          {:error, _reason} = error ->
+            {:reply, error, state}
         end
     end
   end
@@ -191,7 +184,10 @@ defmodule Cache.MultipartUploads do
         {:reply, {:error, :upload_not_found}, state}
 
       [{^upload_id, upload_data}] ->
-        if upload_data.next_sequential == part_number and upload_data.write_in_progress == nil do
+        part_already_buffered = Map.has_key?(upload_data.parts, part_number)
+
+        if upload_data.next_sequential == part_number and upload_data.write_in_progress == nil and
+             not part_already_buffered do
           case ensure_assembly_device(upload_data) do
             {:ok, device, upload_data} ->
               offset = upload_data.assembly_offset
@@ -218,43 +214,55 @@ defmodule Cache.MultipartUploads do
   end
 
   @impl true
-  def handle_call({:confirm_write, upload_id, part_number, size_bytes}, _from, state) do
+  def handle_call({:confirm_write, upload_id, part_number, size_bytes}, {caller_pid, _tag}, state) do
     case :ets.lookup(@table_name, upload_id) do
       [] ->
         {:reply, {:error, :upload_not_found}, state}
 
-      [{^upload_id, upload_data}] ->
+      [{^upload_id, %{write_in_progress: %{pid: ^caller_pid}} = upload_data}] ->
         state = demonitor_write(upload_data, state)
         new_total = projected_total(upload_data, part_number, size_bytes)
-        part_data = %{size: size_bytes, written: true}
-
-        updated_data = %{
-          upload_data
-          | parts: Map.put(upload_data.parts, part_number, part_data),
-            total_bytes: new_total,
-            assembly_offset: upload_data.assembly_offset + size_bytes,
-            next_sequential: max(upload_data.next_sequential, part_number + 1),
-            write_in_progress: nil,
-            last_activity_at: DateTime.utc_now()
-        }
-
-        :ets.insert(@table_name, {upload_id, updated_data})
 
         if new_total > @max_total_size do
+          truncate_to_offset(upload_data)
+
+          updated_data = %{
+            upload_data
+            | write_in_progress: nil,
+              last_activity_at: DateTime.utc_now()
+          }
+
+          :ets.insert(@table_name, {upload_id, updated_data})
           {:reply, {:error, :total_size_exceeded}, state}
         else
+          part_data = %{size: size_bytes, written: true}
+
+          updated_data = %{
+            upload_data
+            | parts: Map.put(upload_data.parts, part_number, part_data),
+              total_bytes: new_total,
+              assembly_offset: upload_data.assembly_offset + size_bytes,
+              next_sequential: max(upload_data.next_sequential, part_number + 1),
+              write_in_progress: nil,
+              last_activity_at: DateTime.utc_now()
+          }
+
+          :ets.insert(@table_name, {upload_id, updated_data})
           {:reply, :ok, state}
         end
+
+      [{^upload_id, _upload_data}] ->
+        {:reply, {:error, :not_claimant}, state}
     end
   end
 
   @impl true
-  def handle_call({:abort_write, upload_id}, _from, state) do
+  def handle_call({:abort_write, upload_id}, {caller_pid, _tag}, state) do
     case :ets.lookup(@table_name, upload_id) do
       [] ->
         {:reply, {:error, :upload_not_found}, state}
 
-      [{^upload_id, upload_data}] ->
+      [{^upload_id, %{write_in_progress: %{pid: ^caller_pid}} = upload_data}] ->
         state = demonitor_write(upload_data, state)
         truncate_to_offset(upload_data)
 
@@ -266,6 +274,9 @@ defmodule Cache.MultipartUploads do
 
         :ets.insert(@table_name, {upload_id, updated_data})
         {:reply, :ok, state}
+
+      [{^upload_id, _upload_data}] ->
+        {:reply, {:error, :not_claimant}, state}
     end
   end
 
@@ -349,7 +360,7 @@ defmodule Cache.MultipartUploads do
         fn {upload_id, upload_data}, acc_state ->
           age_ms = DateTime.diff(now, upload_data.last_activity_at, :millisecond)
 
-          if age_ms > @upload_timeout_ms do
+          if age_ms > @upload_timeout_ms and upload_data.write_in_progress == nil do
             Logger.info("Cleaning up abandoned multipart upload #{upload_id}")
             acc_state = demonitor_write(upload_data, acc_state)
             close_assembly_device(upload_data)
@@ -399,6 +410,21 @@ defmodule Cache.MultipartUploads do
   end
 
   defp demonitor_write(_upload_data, state), do: state
+
+  defp validate_add_part(upload_data, part_number, size_bytes) do
+    existing_part = Map.get(upload_data.parts, part_number)
+
+    write_in_progress_for_part =
+      upload_data.write_in_progress != nil and upload_data.write_in_progress.part_number == part_number
+
+    cond do
+      write_in_progress_for_part -> {:error, :part_write_in_progress}
+      existing_part != nil and Map.get(existing_part, :written) == true -> {:error, :part_already_written}
+      size_bytes > @max_part_size -> {:error, :part_too_large}
+      projected_total(upload_data, part_number, size_bytes) > @max_total_size -> {:error, :total_size_exceeded}
+      true -> :ok
+    end
+  end
 
   defp maybe_cleanup_old_part(%{path: old_path}), do: File.rm(old_path)
   defp maybe_cleanup_old_part(_), do: :ok
