@@ -6,6 +6,7 @@ import OpenAPIURLSession
 public protocol CreateProjectServicing {
     func createProject(
         fullHandle: String,
+        buildSystem: ServerProject.BuildSystem?,
         serverURL: URL
     ) async throws -> ServerProject
 }
@@ -31,14 +32,25 @@ public final class CreateProjectService: CreateProjectServicing {
 
     public func createProject(
         fullHandle: String,
+        buildSystem: ServerProject.BuildSystem?,
         serverURL: URL
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
+
+        let apiBuildSystem: Operations.createProject.Input.Body.jsonPayload.build_systemPayload? = switch buildSystem {
+        case .xcode:
+            .xcode
+        case .gradle:
+            .gradle
+        case nil:
+            nil
+        }
 
         let response = try await client.createProject(
             .init(
                 body: .json(
                     .init(
+                        build_system: apiBuildSystem,
                         full_handle: fullHandle
                     )
                 )

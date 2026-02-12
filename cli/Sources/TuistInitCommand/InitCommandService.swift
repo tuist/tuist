@@ -342,6 +342,7 @@ extension InitCommandService {
                 )) == nil {
                     _ = try await createProjectService.createProject(
                         fullHandle: fullHandle,
+                        buildSystem: nil,
                         serverURL: serverURL
                     )
                 }

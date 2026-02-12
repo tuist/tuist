@@ -6,18 +6,24 @@ public struct ServerProject: Codable, Identifiable {
         case `public`, `private`
     }
 
+    public enum BuildSystem: String, Codable, CaseIterable {
+        case xcode, gradle
+    }
+
     public init(
         id: Int,
         fullName: String,
         defaultBranch: String,
         repositoryURL: String?,
-        visibility: Visibility
+        visibility: Visibility,
+        buildSystem: BuildSystem
     ) {
         self.id = id
         self.fullName = fullName
         self.defaultBranch = defaultBranch
         self.repositoryURL = repositoryURL
         self.visibility = visibility
+        self.buildSystem = buildSystem
     }
 
     public let id: Int
@@ -25,6 +31,7 @@ public struct ServerProject: Codable, Identifiable {
     public let defaultBranch: String
     public let repositoryURL: String?
     public let visibility: Visibility
+    public let buildSystem: BuildSystem
 }
 
 extension ServerProject {
@@ -38,6 +45,12 @@ extension ServerProject {
             .private
         case ._public:
             .public
+        }
+        buildSystem = switch project.build_system {
+        case .gradle:
+            .gradle
+        case .xcode, nil:
+            .xcode
         }
     }
 }
@@ -55,14 +68,16 @@ extension ServerProject: CustomStringConvertible {
             fullName: String = "test/test",
             defaultBranch: String = "main",
             repositoryURL: String? = nil,
-            visibility: Visibility = .private
+            visibility: Visibility = .private,
+            buildSystem: BuildSystem = .xcode
         ) -> Self {
             .init(
                 id: id,
                 fullName: fullName,
                 defaultBranch: defaultBranch,
                 repositoryURL: repositoryURL,
-                visibility: visibility
+                visibility: visibility,
+                buildSystem: buildSystem
             )
         }
     }

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistServer
 
 public struct ProjectCreateCommand: AsyncParsableCommand {
     public init() {}
@@ -27,10 +28,20 @@ public struct ProjectCreateCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Option(
+        name: .long,
+        help: "The build system used by the project (xcode or gradle). Defaults to xcode.",
+        envKey: .projectCreateBuildSystem
+    )
+    var buildSystem: ServerProject.BuildSystem?
+
     public func run() async throws {
         try await ProjectCreateService().run(
             fullHandle: fullHandle,
-            directory: path
+            directory: path,
+            buildSystem: buildSystem
         )
     }
 }
+
+extension ServerProject.BuildSystem: @retroactive ExpressibleByArgument {}

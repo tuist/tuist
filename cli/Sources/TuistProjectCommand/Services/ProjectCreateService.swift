@@ -8,7 +8,8 @@ import TuistServer
 protocol ProjectCreateServicing {
     func run(
         fullHandle: String,
-        directory: String?
+        directory: String?,
+        buildSystem: ServerProject.BuildSystem?
     ) async throws
 }
 
@@ -29,7 +30,8 @@ final class ProjectCreateService: ProjectCreateServicing {
 
     func run(
         fullHandle: String,
-        directory: String?
+        directory: String?,
+        buildSystem: ServerProject.BuildSystem?
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let config = try await configLoader.loadConfig(path: directoryPath)
@@ -38,6 +40,7 @@ final class ProjectCreateService: ProjectCreateServicing {
 
         let project = try await createProjectService.createProject(
             fullHandle: fullHandle,
+            buildSystem: buildSystem,
             serverURL: serverURL
         )
 
