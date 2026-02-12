@@ -287,36 +287,6 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
             .called(2)
     }
 
-    func test_hash_whenDependencyIsForeignBuild_callsContentHasherAsExpected() async throws {
-        // Given
-        let foreignBuildInputHasher = MockForeignBuildInputHashing()
-        subject = DependenciesContentHasher(
-            contentHasher: contentHasher,
-            foreignBuildInputHasher: foreignBuildInputHasher
-        )
-
-        let outputPath = try AbsolutePath(validating: "/build/SharedKMP.xcframework")
-        let srcFolder = try AbsolutePath(validating: "/project/src")
-        let inputs: [ForeignBuildInput] = [.folder(srcFolder)]
-        let dependency = TargetDependency.foreignBuild(
-            name: "SharedKMP",
-            script: "gradle build",
-            inputs: inputs,
-            output: .xcframework(path: outputPath, linking: .dynamic)
-        )
-        given(foreignBuildInputHasher)
-            .hash(inputs: .value(inputs), hashedPaths: .any)
-            .willReturn((hash: "inputs-hash", hashedPaths: [srcFolder: "folder-hash"]))
-
-        // When
-        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
-        let result = try await subject.hash(graphTarget: graphTarget, hashedTargets: hashedTargets, hashedPaths: hashedPaths)
-
-        // Then
-        XCTAssertEqual(result.hash, "foreignBuild-SharedKMP-gradle build-inputs-hash-hash-hash")
-        XCTAssertEqual(result.hashedPaths[srcFolder], "folder-hash")
-    }
-
     func test_hash_sorts_dependency_hashes() async throws {
         // Given
         let dependencyFoo = TargetDependency.target(name: "foo")

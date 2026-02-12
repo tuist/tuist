@@ -395,8 +395,6 @@ extension TargetDependency {
             return "xcframework"
         case .xctest:
             return "xctest"
-        case .foreignBuild:
-            return "foreignBuild"
         }
     }
 
@@ -418,8 +416,6 @@ extension TargetDependency {
             return name
         case .xctest:
             return "xctest"
-        case let .foreignBuild(name, _, _, _, _):
-            return name
         }
     }
 }

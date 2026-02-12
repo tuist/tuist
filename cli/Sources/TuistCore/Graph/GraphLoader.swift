@@ -200,13 +200,6 @@ public final class GraphLoader: GraphLoading {
             return try platforms.sorted().first.map { platform in
                 try loadXCTestSDK(platform: platform)
             }
-
-        case let .foreignBuild(name, _, _, output, _):
-            return .foreignBuildOutput(GraphDependency.ForeignBuildOutput(
-                name: name,
-                path: output.path,
-                linking: output.linking
-            ))
         }
     }
 

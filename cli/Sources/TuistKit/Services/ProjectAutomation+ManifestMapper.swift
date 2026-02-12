@@ -160,23 +160,6 @@ extension ProjectAutomation.Target {
             return .sdk(name: name, status: projectAutomationStatus)
         case .xctest:
             return .xctest
-        case let .foreignBuild(name, _, _, output, _):
-            return .foreignBuild(name: name, output: Self.from(output))
-        }
-    }
-
-    static func from(_ output: XcodeGraph.ForeignBuildArtifact) -> ProjectAutomation.TargetDependency {
-        switch output {
-        case let .xcframework(path, _):
-            return .xcframework(path: path.pathString, status: .required)
-        case let .framework(path, _):
-            return .framework(path: path.pathString, status: .required)
-        case let .library(path, publicHeaders, swiftModuleMap, _):
-            return .library(
-                path: path.pathString,
-                publicHeaders: publicHeaders.pathString,
-                swiftModuleMap: swiftModuleMap?.pathString
-            )
         }
     }
 }

@@ -112,21 +112,6 @@ extension XcodeGraph.TargetDependency {
             }
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
-        case let .foreignBuild(name, script, inputs, output, condition):
-            let mappedOutput = try XcodeGraph.ForeignBuildArtifact.from(
-                manifest: output,
-                generatorPaths: generatorPaths
-            )
-            let mappedInputs = try inputs.map { input -> XcodeGraph.ForeignBuildInput in
-                try XcodeGraph.ForeignBuildInput.from(manifest: input, generatorPaths: generatorPaths)
-            }
-            return [.foreignBuild(
-                name: name,
-                script: script,
-                inputs: mappedInputs,
-                output: mappedOutput,
-                condition: condition?.asGraphCondition
-            )]
         }
     }
 }

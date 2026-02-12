@@ -4,13 +4,13 @@ import Path
 import TuistCore
 import XcodeGraph
 
-/// Transforms `.foreignBuild` dependencies into aggregate targets with script build phases.
+/// Configures foreign build targets with script build phases and wires up linking dependencies.
 ///
-/// For each unique `.foreignBuild` dependency in the project:
-/// 1. Creates a `PBXAggregateTarget` (via a tagged target) that runs the foreign build script
-/// 2. Adds a target dependency from the consuming target to the aggregate target (for build ordering)
-/// 3. The consuming target retains the `foreignBuildOutput` graph dependency (set by GraphLoader) for linking
-/// 4. If the output artifact doesn't exist yet, runs the foreign build script so that the artifact
+/// For each target where `target.foreignBuild != nil`:
+/// 1. Configures the target as an aggregate (adds the build script phase)
+/// 2. For each consuming target that depends on this foreign build target (via `.target(name:)`),
+///    inserts a `foreignBuildOutput` graph dependency for linking
+/// 3. If the output artifact doesn't exist yet, runs the foreign build script so that the artifact
 ///    is available for Xcode to resolve file references during project generation
 public struct ForeignBuildGraphMapper: GraphMapping {
     private let fileSystem: FileSystem
@@ -39,55 +39,61 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             var updatedProject = project
             var projectModified = false
 
-            var aggregateTargetsByForeignBuildName: [String: String] = [:]
+            let foreignBuildTargetNames = Set(
+                project.targets.values
+                    .filter { $0.foreignBuild != nil }
+                    .map(\.name)
+            )
 
             for (targetName, target) in project.targets {
+                guard let foreignBuild = target.foreignBuild else { continue }
+
+                let inputPaths = Self.inputPaths(from: foreignBuild.inputs)
+                var updatedTarget = target
+                updatedTarget.scripts = [
+                    TargetScript(
+                        name: "Foreign Build: \(targetName)",
+                        order: .pre,
+                        script: .embedded(foreignBuild.script),
+                        inputPaths: inputPaths,
+                        outputPaths: [foreignBuild.output.path.pathString],
+                        showEnvVarsInLog: false
+                    ),
+                ]
+                updatedTarget.metadata = .metadata(
+                    tags: target.metadata.tags.union(["tuist:foreign-build-aggregate"])
+                )
+                updatedProject.targets[targetName] = updatedTarget
+                projectModified = true
+
+                let foreignBuildGraphDep = GraphDependency.target(name: targetName, path: projectPath)
+                if graph.dependencies[foreignBuildGraphDep] == nil {
+                    graph.dependencies[foreignBuildGraphDep] = Set()
+                }
+
+                if try await !fileSystem.exists(foreignBuild.output.path) {
+                    try scriptRunner(targetName, foreignBuild.script, projectPath)
+                }
+            }
+
+            for (targetName, target) in project.targets {
+                guard target.foreignBuild == nil else { continue }
+
                 for dependency in target.dependencies {
-                    guard case let .foreignBuild(name, script, inputs, output, _) = dependency else {
-                        continue
-                    }
+                    guard case let .target(depName, _, _) = dependency,
+                          foreignBuildTargetNames.contains(depName)
+                    else { continue }
 
-                    let aggregateTargetName: String
-                    if let existing = aggregateTargetsByForeignBuildName[name] {
-                        aggregateTargetName = existing
-                    } else {
-                        aggregateTargetName = "ForeignBuild_\(name)"
-                        aggregateTargetsByForeignBuildName[name] = aggregateTargetName
-
-                        let inputPaths = Self.inputPaths(from: inputs)
-                        let aggregateTarget = Target(
-                            name: aggregateTargetName,
-                            destinations: target.destinations,
-                            product: .staticLibrary,
-                            productName: aggregateTargetName,
-                            bundleId: "tuist.foreign-build.\(name)",
-                            scripts: [
-                                TargetScript(
-                                    name: "Foreign Build: \(name)",
-                                    order: .pre,
-                                    script: .embedded(script),
-                                    inputPaths: inputPaths,
-                                    outputPaths: [output.path.pathString],
-                                    showEnvVarsInLog: false
-                                ),
-                            ],
-                            filesGroup: target.filesGroup,
-                            metadata: .metadata(tags: ["tuist:foreign-build-aggregate"])
-                        )
-                        updatedProject.targets[aggregateTargetName] = aggregateTarget
-                        projectModified = true
-
-                        let aggregateGraphDep = GraphDependency.target(name: aggregateTargetName, path: projectPath)
-                        graph.dependencies[aggregateGraphDep] = Set()
-
-                        if try await !fileSystem.exists(output.path) {
-                            try scriptRunner(name, script, projectPath)
-                        }
-                    }
-
+                    let foreignBuild = project.targets[depName]!.foreignBuild!
                     let consumingTargetGraphDep = GraphDependency.target(name: targetName, path: projectPath)
-                    let aggregateGraphDep = GraphDependency.target(name: aggregateTargetName, path: projectPath)
-                    graph.dependencies[consumingTargetGraphDep, default: Set()].insert(aggregateGraphDep)
+                    let foreignBuildOutputDep = GraphDependency.foreignBuildOutput(
+                        GraphDependency.ForeignBuildOutput(
+                            name: depName,
+                            path: foreignBuild.output.path,
+                            linking: foreignBuild.output.linking
+                        )
+                    )
+                    graph.dependencies[consumingTargetGraphDep, default: Set()].insert(foreignBuildOutputDep)
                 }
             }
 
@@ -106,6 +112,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", script]
         process.currentDirectoryURL = URL(fileURLWithPath: projectPath.pathString)
+        process.standardInput = FileHandle.nullDevice
         var env = ProcessInfo.processInfo.environment
         env["SRCROOT"] = projectPath.pathString
         process.environment = env

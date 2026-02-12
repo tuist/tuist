@@ -30,22 +30,23 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_createsAggregateTargetForForeignBuildDependency() async throws {
+    func test_map_configuresForeignBuildTargetWithScriptPhase() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let target = Target.test(
-            name: "Framework1",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuildInfo(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
         )
-        let project = Project.test(path: projectPath, targets: [target])
+        let consumingTarget = Target.test(
+            name: "Framework1",
+            dependencies: [.target(name: "SharedKMP")]
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -56,34 +57,32 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let aggregateTarget = try XCTUnwrap(mappedProject.targets["ForeignBuild_SharedKMP"])
+        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["SharedKMP"])
 
-        XCTAssertEqual(aggregateTarget.name, "ForeignBuild_SharedKMP")
-        XCTAssertEqual(aggregateTarget.product, .staticLibrary)
-        XCTAssertEqual(aggregateTarget.bundleId, "tuist.foreign-build.SharedKMP")
-        XCTAssertEqual(aggregateTarget.metadata.tags, ["tuist:foreign-build-aggregate"])
-        XCTAssertEqual(aggregateTarget.scripts.count, 1)
-        XCTAssertEqual(aggregateTarget.scripts.first?.name, "Foreign Build: SharedKMP")
-        XCTAssertEqual(aggregateTarget.scripts.first?.script, .embedded("gradle build"))
-        XCTAssertEqual(aggregateTarget.scripts.first?.outputPaths, [outputPath.pathString])
+        XCTAssertTrue(mappedForeignTarget.metadata.tags.contains("tuist:foreign-build-aggregate"))
+        XCTAssertEqual(mappedForeignTarget.scripts.count, 1)
+        XCTAssertEqual(mappedForeignTarget.scripts.first?.name, "Foreign Build: SharedKMP")
+        XCTAssertEqual(mappedForeignTarget.scripts.first?.script, .embedded("gradle build"))
+        XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
     }
 
-    func test_map_addsDependencyFromConsumingTargetToAggregateTarget() async throws {
+    func test_map_addsForeignBuildOutputDependencyForConsumingTarget() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let target = Target.test(
-            name: "Framework1",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuildInfo(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
         )
-        let project = Project.test(path: projectPath, targets: [target])
+        let consumingTarget = Target.test(
+            name: "Framework1",
+            dependencies: [.target(name: "SharedKMP")]
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -94,38 +93,36 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let consumingDep = GraphDependency.target(name: "Framework1", path: projectPath)
-        let aggregateDep = GraphDependency.target(name: "ForeignBuild_SharedKMP", path: projectPath)
-        XCTAssertTrue(mappedGraph.dependencies[consumingDep]?.contains(aggregateDep) == true)
-        XCTAssertEqual(mappedGraph.dependencies[aggregateDep], Set())
+        let expectedOutputDep = GraphDependency.foreignBuildOutput(
+            GraphDependency.ForeignBuildOutput(name: "SharedKMP", path: outputPath, linking: .dynamic)
+        )
+        XCTAssertTrue(mappedGraph.dependencies[consumingDep]?.contains(expectedOutputDep) == true)
+
+        let foreignBuildDep = GraphDependency.target(name: "SharedKMP", path: projectPath)
+        XCTAssertEqual(mappedGraph.dependencies[foreignBuildDep], Set())
     }
 
-    func test_map_reusesAggregateTargetForSameForeignBuildName() async throws {
+    func test_map_multipleConsumersShareSameForeignBuildTarget() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let target1 = Target.test(
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuildInfo(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let consumer1 = Target.test(
             name: "Framework1",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+            dependencies: [.target(name: "SharedKMP")]
         )
-        let target2 = Target.test(
+        let consumer2 = Target.test(
             name: "Framework2",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+            dependencies: [.target(name: "SharedKMP")]
         )
-        let project = Project.test(path: projectPath, targets: [target1, target2])
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumer1, consumer2])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -135,52 +132,13 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let aggregateTargets = mappedProject.targets.values.filter { $0.name.hasPrefix("ForeignBuild_") }
-        XCTAssertEqual(aggregateTargets.count, 1)
-
-        let aggregateDep = GraphDependency.target(name: "ForeignBuild_SharedKMP", path: projectPath)
+        let expectedOutputDep = GraphDependency.foreignBuildOutput(
+            GraphDependency.ForeignBuildOutput(name: "SharedKMP", path: outputPath, linking: .dynamic)
+        )
         let dep1 = GraphDependency.target(name: "Framework1", path: projectPath)
         let dep2 = GraphDependency.target(name: "Framework2", path: projectPath)
-        XCTAssertTrue(mappedGraph.dependencies[dep1]?.contains(aggregateDep) == true)
-        XCTAssertTrue(mappedGraph.dependencies[dep2]?.contains(aggregateDep) == true)
-    }
-
-    func test_map_createsSeparateAggregateTargetsForDifferentForeignBuilds() async throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let outputPath1 = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let outputPath2 = try AbsolutePath(validating: "/Project/build/RustLib.a")
-        let target = Target.test(
-            name: "App",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath1, linking: .dynamic)
-                ),
-                .foreignBuild(
-                    name: "RustLib",
-                    script: "cargo build",
-                    inputs: [],
-                    output: .library(path: outputPath2, publicHeaders: try AbsolutePath(validating: "/Project/headers"), swiftModuleMap: nil, linking: .static)
-                ),
-            ]
-        )
-        let project = Project.test(path: projectPath, targets: [target])
-        let graph = Graph.test(
-            path: projectPath,
-            projects: [projectPath: project]
-        )
-
-        // When
-        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
-
-        // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        XCTAssertNotNil(mappedProject.targets["ForeignBuild_SharedKMP"])
-        XCTAssertNotNil(mappedProject.targets["ForeignBuild_RustLib"])
+        XCTAssertTrue(mappedGraph.dependencies[dep1]?.contains(expectedOutputDep) == true)
+        XCTAssertTrue(mappedGraph.dependencies[dep2]?.contains(expectedOutputDep) == true)
     }
 
     func test_map_setsInputPathsFromInputs() async throws {
@@ -189,23 +147,24 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
         let srcFolder = try AbsolutePath(validating: "/Project/SharedKMP/src")
         let gradleFile = try AbsolutePath(validating: "/Project/SharedKMP/build.gradle.kts")
-        let target = Target.test(
-            name: "Framework1",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [
-                        .folder(srcFolder),
-                        .file(gradleFile),
-                        .glob("/Project/SharedKMP/**/*.kt"),
-                        .script("git rev-parse HEAD"),
-                    ],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuildInfo(
+                script: "gradle build",
+                inputs: [
+                    .folder(srcFolder),
+                    .file(gradleFile),
+                    .glob("/Project/SharedKMP/**/*.kt"),
+                    .script("git rev-parse HEAD"),
+                ],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
         )
-        let project = Project.test(path: projectPath, targets: [target])
+        let consumingTarget = Target.test(
+            name: "Framework1",
+            dependencies: [.target(name: "SharedKMP")]
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -216,8 +175,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let aggregateTarget = try XCTUnwrap(mappedProject.targets["ForeignBuild_SharedKMP"])
-        let script = try XCTUnwrap(aggregateTarget.scripts.first)
+        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["SharedKMP"])
+        let script = try XCTUnwrap(mappedForeignTarget.scripts.first)
         XCTAssertEqual(script.inputPaths, [
             srcFolder.pathString,
             gradleFile.pathString,
@@ -225,7 +184,7 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         ])
     }
 
-    func test_map_doesNothingWhenNoForeignBuildDependencies() async throws {
+    func test_map_doesNothingWhenNoForeignBuildTargets() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let target = Target.test(
@@ -250,18 +209,19 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/Lib.framework")
-        let target = Target.test(
-            name: "App",
-            dependencies: [
-                .foreignBuild(
-                    name: "Lib",
-                    script: "make build",
-                    inputs: [],
-                    output: .framework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+        let foreignBuildTarget = Target.test(
+            name: "Lib",
+            foreignBuild: ForeignBuildInfo(
+                script: "make build",
+                inputs: [],
+                output: .framework(path: outputPath, linking: .dynamic)
+            )
         )
-        let project = Project.test(path: projectPath, targets: [target])
+        let consumingTarget = Target.test(
+            name: "App",
+            dependencies: [.target(name: "Lib")]
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -272,8 +232,8 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let aggregateTarget = try XCTUnwrap(mappedProject.targets["ForeignBuild_Lib"])
-        XCTAssertEqual(aggregateTarget.scripts.first?.outputPaths, [outputPath.pathString])
+        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["Lib"])
+        XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
     }
 
     func test_map_handlesLibraryOutput() async throws {
@@ -281,18 +241,19 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/libRust.a")
         let headersPath = try AbsolutePath(validating: "/Project/headers")
-        let target = Target.test(
+        let foreignBuildTarget = Target.test(
+            name: "RustLib",
+            foreignBuild: ForeignBuildInfo(
+                script: "cargo build",
+                inputs: [],
+                output: .library(path: outputPath, publicHeaders: headersPath, swiftModuleMap: nil, linking: .static)
+            )
+        )
+        let consumingTarget = Target.test(
             name: "App",
-            dependencies: [
-                .foreignBuild(
-                    name: "RustLib",
-                    script: "cargo build",
-                    inputs: [],
-                    output: .library(path: outputPath, publicHeaders: headersPath, swiftModuleMap: nil, linking: .static)
-                ),
-            ]
+            dependencies: [.target(name: "RustLib")]
         )
-        let project = Project.test(path: projectPath, targets: [target])
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -303,58 +264,27 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let aggregateTarget = try XCTUnwrap(mappedProject.targets["ForeignBuild_RustLib"])
-        XCTAssertEqual(aggregateTarget.scripts.first?.outputPaths, [outputPath.pathString])
-    }
-
-    func test_map_aggregateTargetInheritsDestinationsFromConsumingTarget() async throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let destinations: Destinations = [.iPhone, .iPad, .macCatalyst]
-        let target = Target.test(
-            name: "Framework1",
-            destinations: destinations,
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
-        )
-        let project = Project.test(path: projectPath, targets: [target])
-        let graph = Graph.test(
-            path: projectPath,
-            projects: [projectPath: project]
-        )
-
-        // When
-        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
-
-        // Then
-        let mappedProject = try XCTUnwrap(mappedGraph.projects[projectPath])
-        let aggregateTarget = try XCTUnwrap(mappedProject.targets["ForeignBuild_SharedKMP"])
-        XCTAssertEqual(aggregateTarget.destinations, destinations)
+        let mappedForeignTarget = try XCTUnwrap(mappedProject.targets["RustLib"])
+        XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
     }
 
     func test_map_runsScriptWhenOutputDoesNotExist() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let target = Target.test(
-            name: "Framework1",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuildInfo(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
         )
-        let project = Project.test(path: projectPath, targets: [target])
+        let consumingTarget = Target.test(
+            name: "Framework1",
+            dependencies: [.target(name: "SharedKMP")]
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
             projects: [projectPath: project]
@@ -375,18 +305,19 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let outputPath = temporaryDir.appending(components: "build", "SharedKMP.xcframework")
         try await FileSystem().makeDirectory(at: outputPath)
 
-        let target = Target.test(
-            name: "Framework1",
-            dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: "gradle build",
-                    inputs: [],
-                    output: .xcframework(path: outputPath, linking: .dynamic)
-                ),
-            ]
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuildInfo(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
         )
-        let project = Project.test(path: temporaryDir, targets: [target])
+        let consumingTarget = Target.test(
+            name: "Framework1",
+            dependencies: [.target(name: "SharedKMP")]
+        )
+        let project = Project.test(path: temporaryDir, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: temporaryDir,
             projects: [temporaryDir: project]

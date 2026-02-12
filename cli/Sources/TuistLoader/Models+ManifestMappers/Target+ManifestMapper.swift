@@ -143,6 +143,24 @@ extension XcodeGraph.Target {
             generatorPaths: generatorPaths
         ) }
 
+        let foreignBuild: XcodeGraph.ForeignBuildInfo?
+        if let fb = manifest.foreignBuild {
+            let mappedOutput = try XcodeGraph.ForeignBuildArtifact.from(
+                manifest: fb.output,
+                generatorPaths: generatorPaths
+            )
+            let mappedInputs = try fb.inputs.map { input -> XcodeGraph.ForeignBuildInput in
+                try XcodeGraph.ForeignBuildInput.from(manifest: input, generatorPaths: generatorPaths)
+            }
+            foreignBuild = XcodeGraph.ForeignBuildInfo(
+                script: fb.script,
+                inputs: mappedInputs,
+                output: mappedOutput
+            )
+        } else {
+            foreignBuild = nil
+        }
+
         return XcodeGraph.Target(
             name: name,
             destinations: destinations,
@@ -171,7 +189,8 @@ extension XcodeGraph.Target {
             onDemandResourcesTags: onDemandResourcesTags,
             metadata: metadata,
             type: type,
-            buildableFolders: buildableFolders
+            buildableFolders: buildableFolders,
+            foreignBuild: foreignBuild
         )
     }
 

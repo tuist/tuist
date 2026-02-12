@@ -149,47 +149,6 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case external(name: String, condition: PlatformCondition? = nil)
 
-    /// Dependency on an artifact produced by a foreign (non-Xcode) build system such as KMP, Rust, CMake, etc.
-    ///
-    /// Tuist will generate an aggregate target that runs the build script and produce the output binary.
-    /// The `inputs` are used both as the input file list for the Xcode build phase and to compute a content
-    /// hash for Tuist's binary caching so that the foreign build step can be skipped when inputs haven't changed.
-    ///
-    /// ### Example: Kotlin Multiplatform (KMP)
-    ///
-    /// ```swift
-    /// .foreignBuild(
-    ///     name: "SharedKMP",
-    ///     script: """
-    ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-    ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
-    ///         """,
-    ///     inputs: [
-    ///         .folder("SharedKMP/src"),
-    ///         .file("SharedKMP/build.gradle.kts"),
-    ///     ],
-    ///     output: .xcframework(
-    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
-    ///         linking: .dynamic
-    ///     )
-    /// )
-    /// ```
-    ///
-    /// - Parameters:
-    ///   - name: A unique name for this foreign build dependency (used as the aggregate target name).
-    ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
-    /// directory.
-    ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
-    ///   - output: The binary dependency produced by the script (`.xcframework`, `.framework`, or `.library`).
-    ///   - condition: Condition under which to use this dependency, `nil` if this should always be used.
-    case foreignBuild(
-        name: String,
-        script: String,
-        inputs: [Input] = [],
-        output: ForeignBuildOutput,
-        condition: PlatformCondition? = nil
-    )
-
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -232,8 +191,6 @@ public enum TargetDependency: Codable, Hashable, Sendable {
             return "xctest"
         case .external:
             return "external"
-        case .foreignBuild:
-            return "foreignBuild"
         }
     }
 }

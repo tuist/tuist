@@ -22,19 +22,21 @@ let project = Project(
             deploymentTargets: .iOS("17.0"),
             sources: "Framework1/Sources/**",
             dependencies: [
-                .foreignBuild(
-                    name: "SharedKMP",
-                    script: """
-                        eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-                        cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
-                        """,
-                    inputs: [
-                        .folder("SharedKMP/src"),
-                        .file("SharedKMP/build.gradle.kts"),
-                    ],
-                    output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework", linking: .dynamic)
-                ),
+                .target(name: "SharedKMP"),
             ]
+        ),
+        .foreignBuild(
+            name: "SharedKMP",
+            destinations: .iOS,
+            script: """
+                eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+                cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
+                """,
+            inputs: [
+                .folder("SharedKMP/src"),
+                .file("SharedKMP/build.gradle.kts"),
+            ],
+            output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework", linking: .dynamic)
         ),
     ]
 )

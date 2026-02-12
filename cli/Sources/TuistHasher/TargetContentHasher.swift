@@ -53,6 +53,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let plistContentHasher: PlistContentHashing
     private let settingsContentHasher: SettingsContentHashing
     private let dependenciesContentHasher: DependenciesContentHashing
+    private let foreignBuildInputHasher: ForeignBuildInputHashing
 
     // MARK: - Init
 
@@ -82,7 +83,8 @@ public final class TargetContentHasher: TargetContentHashing {
             settingsContentHasher: SettingsContentHasher(
                 contentHasher: contentHasher, xcconfigHasher: xcconfigHasher
             ),
-            dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
+            dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher),
+            foreignBuildInputHasher: ForeignBuildInputHasher(contentHasher: contentHasher)
         )
     }
 
@@ -97,7 +99,8 @@ public final class TargetContentHasher: TargetContentHashing {
         deploymentTargetContentHasher: DeploymentTargetsContentHashing,
         plistContentHasher: PlistContentHashing,
         settingsContentHasher: SettingsContentHashing,
-        dependenciesContentHasher: DependenciesContentHashing
+        dependenciesContentHasher: DependenciesContentHashing,
+        foreignBuildInputHasher: ForeignBuildInputHashing? = nil
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
@@ -110,6 +113,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.plistContentHasher = plistContentHasher
         self.settingsContentHasher = settingsContentHasher
         self.dependenciesContentHasher = dependenciesContentHasher
+        self.foreignBuildInputHasher = foreignBuildInputHasher ?? ForeignBuildInputHasher(contentHasher: contentHasher)
     }
 
     // MARK: - TargetContentHashing
@@ -302,6 +306,21 @@ public final class TargetContentHasher: TargetContentHashing {
 
         if let settingsHash {
             stringsToHash.append(settingsHash)
+        }
+
+        let foreignBuildHash: String?
+        if let foreignBuild = graphTarget.target.foreignBuild {
+            let inputsResult = try await foreignBuildInputHasher.hash(
+                inputs: foreignBuild.inputs,
+                hashedPaths: hashedPaths
+            )
+            hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
+            foreignBuildHash = try contentHasher.hash(
+                "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.script)-\(inputsResult.hash)"
+            )
+            stringsToHash.append(foreignBuildHash!)
+        } else {
+            foreignBuildHash = nil
         }
 
         let hash = try contentHasher.hash(stringsToHash)

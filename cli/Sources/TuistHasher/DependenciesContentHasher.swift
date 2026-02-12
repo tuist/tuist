@@ -54,16 +54,13 @@ enum DependenciesContentHasherError: FatalError, Equatable {
 /// is responsible for computing a hash that uniquely identifies a target dependency
 public final class DependenciesContentHasher: DependenciesContentHashing {
     private let contentHasher: ContentHashing
-    private let foreignBuildInputHasher: ForeignBuildInputHashing
 
     // MARK: - Init
 
     public init(
-        contentHasher: ContentHashing,
-        foreignBuildInputHasher: ForeignBuildInputHashing? = nil
+        contentHasher: ContentHashing
     ) {
         self.contentHasher = contentHasher
-        self.foreignBuildInputHasher = foreignBuildInputHasher ?? ForeignBuildInputHasher(contentHasher: contentHasher)
     }
 
     // MARK: - DependenciesContentHashing
@@ -179,19 +176,6 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
                 hash: try contentHasher.hash("xctest")
-            )
-        case let .foreignBuild(name, script, inputs, _, _):
-            var hashedPaths = hashedPaths
-
-            let inputsResult = try await foreignBuildInputHasher.hash(
-                inputs: inputs,
-                hashedPaths: hashedPaths
-            )
-            hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
-
-            return DependenciesContentHash(
-                hashedPaths: hashedPaths,
-                hash: try contentHasher.hash("foreignBuild-\(name)-\(script)-\(inputsResult.hash)")
             )
         }
     }

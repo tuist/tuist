@@ -106,6 +106,93 @@ public struct Target: Codable, Equatable, Sendable {
     /// The target's buildable folders.
     public var buildableFolders: [BuildableFolder]
 
+    /// Properties for a foreign build target. Set when this target was created with ``foreignBuild(name:destinations:script:inputs:output:metadata:)``.
+    public var foreignBuild: ForeignBuildProperties?
+
+    /// Describes the properties of a foreign (non-Xcode) build target.
+    public struct ForeignBuildProperties: Codable, Equatable, Sendable {
+        public let script: String
+        public let inputs: [Input]
+        public let output: ForeignBuildOutput
+    }
+
+    /// Creates a foreign build target that wraps a non-Xcode build system (KMP, Rust, CMake, etc.).
+    ///
+    /// The target will become an aggregate target that runs the build script and produces the output binary.
+    /// Other targets can depend on this target using `.target(name:)`.
+    ///
+    /// ### Example: Kotlin Multiplatform (KMP)
+    ///
+    /// ```swift
+    /// .foreignBuild(
+    ///     name: "SharedKMP",
+    ///     destinations: .iOS,
+    ///     script: """
+    ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+    ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
+    ///         """,
+    ///     inputs: [
+    ///         .folder("SharedKMP/src"),
+    ///         .file("SharedKMP/build.gradle.kts"),
+    ///     ],
+    ///     output: .xcframework(
+    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+    ///         linking: .dynamic
+    ///     )
+    /// )
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - name: A unique name for this foreign build target.
+    ///   - destinations: The destinations this target supports.
+    ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
+    /// directory.
+    ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
+    ///   - output: The binary artifact produced by the script (`.xcframework`, `.framework`, or `.library`).
+    ///   - metadata: The target's metadata.
+    public static func foreignBuild(
+        name: String,
+        destinations: Destinations,
+        script: String,
+        inputs: [Input] = [],
+        output: ForeignBuildOutput,
+        metadata: TargetMetadata = .default
+    ) -> Self {
+        var target = self.init(
+            name: name,
+            destinations: destinations,
+            product: .staticLibrary,
+            productName: nil,
+            bundleId: "tuist.foreign-build.\(name)",
+            deploymentTargets: nil,
+            infoPlist: nil,
+            sources: nil,
+            resources: nil,
+            copyFiles: nil,
+            headers: nil,
+            entitlements: nil,
+            scripts: [],
+            dependencies: [],
+            settings: nil,
+            coreDataModels: [],
+            environmentVariables: [:],
+            launchArguments: [],
+            additionalFiles: [],
+            buildRules: [],
+            mergedBinaryType: .disabled,
+            mergeable: false,
+            onDemandResourcesTags: nil,
+            metadata: metadata,
+            buildableFolders: []
+        )
+        target.foreignBuild = ForeignBuildProperties(
+            script: script,
+            inputs: inputs,
+            output: output
+        )
+        return target
+    }
+
     public static func target(
         name: String,
         destinations: Destinations,

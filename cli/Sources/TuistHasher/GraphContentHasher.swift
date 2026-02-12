@@ -83,6 +83,26 @@ public struct GraphContentHasher: GraphContentHashing {
             }
         }
 
+        let foreignBuildTargets = sortedCacheableTargets.filter { $0.target.isAggregate }
+        for target in foreignBuildTargets {
+            let hash = try await targetContentHasher.contentHash(
+                for: target,
+                hashedTargets: hashedTargets.value,
+                hashedPaths: hashedPaths.value,
+                destination: destination,
+                additionalStrings: additionalStrings
+            )
+            hashedPaths.mutate { $0 = hash.hashedPaths }
+            hashedTargets.mutate {
+                $0[
+                    GraphHashedTarget(
+                        projectPath: target.path,
+                        targetName: target.target.name
+                    )
+                ] = hash.hash
+            }
+        }
+
         let hashes = try await hashableTargets
             .serialMap { (target: GraphTarget) async throws -> TargetContentHash in
                 let hash = try await targetContentHasher.contentHash(
