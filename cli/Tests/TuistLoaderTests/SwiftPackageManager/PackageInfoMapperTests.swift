@@ -967,6 +967,64 @@ struct PackageInfoMapperTests {
         )
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyNameContainsPlus_sanitizesDependencyReference() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath1 = basePath.appending(try RelativePath(validating: "Package/Sources/Target+1"))
+        let sourcesPath2 = basePath.appending(try RelativePath(validating: "Package/Sources/Target2"))
+        try await fileSystem.makeDirectory(at: sourcesPath1)
+        try await fileSystem.makeDirectory(at: sourcesPath2)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target2"]),
+                    ],
+                    targets: [
+                        .test(name: "Target+1"),
+                        .test(
+                            name: "Target2",
+                            dependencies: [.target(name: "Target+1", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target_1",
+                            basePath: basePath,
+                            customBundleID: "dev.tuist.Target.1",
+                            customSources: .custom(.sourceFilesList(globs: [
+                                basePath
+                                    .appending(try RelativePath(validating: "Package/Sources/Target+1/**"))
+                                    .pathString,
+                            ]))
+                        ),
+                        .test(
+                            "Target2",
+                            basePath: basePath,
+                            dependencies: [.target(name: "Target_1")]
+                        ),
+                    ]
+                )
+        )
+    }
+
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenSettingsDefinesContainsQuotes() async throws {
         // When having a manifest that includes a GCC definition like `FOO="BAR"`, SPM successfully maintains the quotes
         // and it will convert it to a compiler parameter like `-DFOO=\"BAR\"`.
