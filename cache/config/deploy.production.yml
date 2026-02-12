@@ -2,6 +2,7 @@ servers:
   web:
     hosts:
       - cache-eu-central.tuist.dev
+      - cache-eu-north.tuist.dev
       - cache-us-east.tuist.dev
       - cache-us-west.tuist.dev
       - cache-ap-southeast.tuist.dev
