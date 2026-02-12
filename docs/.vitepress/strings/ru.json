@@ -127,6 +127,14 @@
                             "text": "Сгенерированные проекты"
                         }
                     }
+                },
+                "configuration": {
+                    "text": "Настройка",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
