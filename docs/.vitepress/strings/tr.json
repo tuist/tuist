@@ -127,6 +127,14 @@
                             "text": "Oluşturulmuş projeler"
                         }
                     }
+                },
+                "configuration": {
+                    "text": "Yapılandırma",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
