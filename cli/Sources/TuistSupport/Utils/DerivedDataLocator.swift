@@ -38,10 +38,15 @@ public final class DerivedDataLocator: DerivedDataLocating {
     /// Extracts the derived data root from `BUILD_DIR`.
     /// `BUILD_DIR` is typically `<derived-data-root>/Build/Products/<Configuration>[-<SDK>]`.
     private static func derivedDataRoot(from buildDir: String) -> AbsolutePath? {
-        guard let range = buildDir.range(of: "/Build/Products") else { return nil }
-        let root = String(buildDir[buildDir.startIndex ..< range.lowerBound])
-        guard !root.isEmpty else { return nil }
-        return try? AbsolutePath(validating: root)
+        guard let path = try? AbsolutePath(validating: buildDir) else { return nil }
+        var current = path
+        while !current.isRoot {
+            if current.basename == "Products", current.parentDirectory.basename == "Build" {
+                return current.parentDirectory.parentDirectory
+            }
+            current = current.parentDirectory
+        }
+        return nil
     }
 }
 
