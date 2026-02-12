@@ -124,6 +124,14 @@
               "text": "From v3 to v4"
             }
           }
+        },
+        "configuration": {
+          "text": "Configuration",
+          "items": {
+            "tuist-toml": {
+              "text": "tuist.toml"
+            }
+          }
         }
       }
     },
