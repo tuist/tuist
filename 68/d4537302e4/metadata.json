@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "68d4537302e4",
+  "strategy": "manual-commit",
+  "branch": "fix/static-xcframework-module-map-without-package-manifest",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/68/d4537302e4/0/metadata.json",
+      "transcript": "/68/d4537302e4/0/full.jsonl",
+      "context": "/68/d4537302e4/0/context.md",
+      "content_hash": "/68/d4537302e4/0/content_hash.txt",
+      "prompt": "/68/d4537302e4/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 28,
+    "cache_creation_tokens": 12998,
+    "cache_read_tokens": 2494939,
+    "output_tokens": 658,
+    "api_call_count": 24
+  }
+}
