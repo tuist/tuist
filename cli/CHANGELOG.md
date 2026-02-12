@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.144.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fall back to BUILD_DIR for derived data resolution by [@fortmarek](https://github.com/fortmarek) in [#9429](https://github.com/tuist/tuist/pull/9429)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.3...4.144.4
+
 ## What's Changed in 4.144.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
