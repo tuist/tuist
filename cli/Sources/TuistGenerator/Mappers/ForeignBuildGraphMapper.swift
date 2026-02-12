@@ -39,7 +39,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             for (targetName, target) in project.targets {
                 guard let foreignBuild = target.foreignBuild else { continue }
 
-                let inputPaths = Self.inputPaths(from: foreignBuild.inputs)
+                let inputPaths = inputPaths(from: foreignBuild.inputs)
                 var updatedTarget = target
                 updatedTarget.scripts = [
                     TargetScript(
@@ -103,7 +103,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
 
     // MARK: - Helpers
 
-    private static func inputPaths(from inputs: [ForeignBuildInput]) -> [String] {
+    private func inputPaths(from inputs: [ForeignBuildInput]) -> [String] {
         inputs.compactMap { input in
             switch input {
             case let .file(path): return path.pathString
