@@ -146,7 +146,12 @@ Race conditions and concurrency bugs often only manifest under CI-level parallel
 
 1. **Increase parallelism**: Add `-parallel-testing-enabled YES` to run test suites concurrently.
 2. **Run broader test suites**: Instead of running a single test, run the entire module (e.g. `-only-testing ModuleTests`) to increase contention on shared resources.
-3. **Thread Sanitizer**: Add `-enableThreadSanitizer YES` to detect data races deterministically. Note: TSan adds overhead which can change timing, so some races may not trigger under TSan.
+3. **Thread Sanitizer**: Run with TSan enabled to detect data races deterministically. Note: TSan adds overhead which can change timing, so some races may not trigger under TSan.
+
+```bash
+xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module> -enableThreadSanitizer YES
+```
+
 4. **High iteration count with broad scope**: Combine all the above — run the full module with parallelism and many iterations.
 
 If a race condition cannot be reproduced locally but the code is provably thread-unsafe (e.g. unsynchronized mutation of shared state), the fix is still valid. Verify the fix by confirming the tests pass with the same reproduction strategies above. Document in the commit message that the fix addresses a CI-only race condition identified through code analysis and failure logs.
