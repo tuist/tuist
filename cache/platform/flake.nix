@@ -13,6 +13,7 @@
   }: let
     hetznerMachines = [
       "cache-eu-central"
+      "cache-eu-north"
       "cache-us-east"
       "cache-us-west"
       "cache-ap-southeast"
