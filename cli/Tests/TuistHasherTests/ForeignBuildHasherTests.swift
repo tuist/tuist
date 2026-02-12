@@ -9,14 +9,11 @@ import XcodeGraph
 @testable import TuistHasher
 
 struct ForeignBuildHasherTests {
-    private var subject: ForeignBuildHasher!
-    private var contentHasher: MockContentHashing!
-    private var system: MockSystem!
+    private let subject: ForeignBuildHasher
+    private let contentHasher = MockContentHashing()
+    private let system = MockSystem()
 
     init() {
-        contentHasher = .init()
-        system = MockSystem()
-
         given(contentHasher)
             .hash(Parameter<String>.any)
             .willProduce { $0 + "-hash" }
