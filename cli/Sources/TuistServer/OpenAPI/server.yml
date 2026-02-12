@@ -2960,6 +2960,57 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
       x-validate:
+    StackTraceParams:
+      description: Parameters to upload a single crash stack trace.
+      properties:
+        app_name:
+          description: The name of the crashed application.
+          type: string
+          x-struct:
+          x-validate:
+        exception_subtype:
+          description: The exception subtype or additional details.
+          type: string
+          x-struct:
+          x-validate:
+        exception_type:
+          description: The exception type (e.g., EXC_CRASH).
+          type: string
+          x-struct:
+          x-validate:
+        file_name:
+          description: The human-readable name of the crash log file.
+          type: string
+          x-struct:
+          x-validate:
+        id:
+          description: Deterministic UUID generated from content hash and file name.
+          type: string
+          x-struct:
+          x-validate:
+        os_version:
+          description: The OS version when the crash occurred.
+          type: string
+          x-struct:
+          x-validate:
+        raw_content:
+          description: The full raw content of the crash log.
+          type: string
+          x-struct:
+          x-validate:
+        signal:
+          description: The signal that caused the crash (e.g., SIGABRT).
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - file_name
+        - raw_content
+      title: StackTraceParams
+      type: object
+      x-struct:
+      x-validate:
     RunsIndexPage:
       default: 1
       description: The page number to return.
@@ -3164,6 +3215,11 @@ components:
                         x-struct:
                         x-validate:
                       type: array
+                      x-struct:
+                      x-validate:
+                    stack_trace_id:
+                      description: The deterministic UUID of the crash stack trace associated with this test case.
+                      type: string
                       x-struct:
                       x-validate:
                     status:
@@ -6014,6 +6070,123 @@ paths:
       summary: It initiates a multipart upload for a run artifact
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces:
+    post:
+      callbacks: {}
+      operationId: uploadStackTrace
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The UUID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Parameters to upload a single crash stack trace.
+              properties:
+                app_name:
+                  description: The name of the crashed application.
+                  type: string
+                  x-struct:
+                  x-validate:
+                exception_subtype:
+                  description: The exception subtype or additional details.
+                  type: string
+                  x-struct:
+                  x-validate:
+                exception_type:
+                  description: The exception type (e.g., EXC_CRASH).
+                  type: string
+                  x-struct:
+                  x-validate:
+                file_name:
+                  description: The human-readable name of the crash log file.
+                  type: string
+                  x-struct:
+                  x-validate:
+                id:
+                  description: Deterministic UUID generated from content hash and file name.
+                  type: string
+                  x-struct:
+                  x-validate:
+                os_version:
+                  description: The OS version when the crash occurred.
+                  type: string
+                  x-struct:
+                  x-validate:
+                raw_content:
+                  description: The full raw content of the crash log.
+                  type: string
+                  x-struct:
+                  x-validate:
+                signal:
+                  description: The signal that caused the crash (e.g., SIGABRT).
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - id
+                - file_name
+                - raw_content
+              title: StackTraceParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Stack trace params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json: {}
+          description: The stack trace was uploaded
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Upload a crash stack trace for a test run.
+      tags:
+        - Tests
   /api/projects:
     get:
       callbacks: {}
@@ -8367,6 +8540,337 @@ paths:
       summary: Get a single bundle by ID
       tags:
         - Bundles
+  /api/projects/{account_handle}/{project_handle}/gradle/builds:
+    get:
+      callbacks: {}
+      operationId: listGradleBuilds
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Maximum number of builds to return.
+          in: query
+          name: limit
+          required: false
+          schema:
+            default: 50
+            maximum: 100
+            minimum: 1
+            type: integer
+            x-struct:
+            x-validate:
+        - description: Number of builds to skip.
+          in: query
+          name: offset
+          required: false
+          schema:
+            default: 0
+            minimum: 0
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  builds:
+                    items:
+                      properties:
+                        cache_hit_rate:
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        cacheable_tasks_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        gradle_version:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        java_version:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        root_project_name:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          enum:
+                            - success
+                            - failure
+                            - cancelled
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tasks_executed_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        tasks_local_hit_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        tasks_remote_hit_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        tasks_up_to_date_count:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - builds
+                type: object
+                x-struct:
+                x-validate:
+          description: List of Gradle builds
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List Gradle builds for a project.
+      tags:
+        - Gradle
+    post:
+      callbacks: {}
+      operationId: createGradleBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                duration_ms:
+                  description: Build duration in milliseconds.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                git_branch:
+                  description: Git branch.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_commit_sha:
+                  description: Git commit SHA.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_ref:
+                  description: Git ref.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                gradle_version:
+                  description: Gradle version.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                is_ci:
+                  description: Whether the build ran on CI.
+                  type: boolean
+                  x-struct:
+                  x-validate:
+                java_version:
+                  description: Java version.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                root_project_name:
+                  description: Root project name.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                status:
+                  description: Build status.
+                  enum:
+                    - success
+                    - failure
+                    - cancelled
+                  type: string
+                  x-struct:
+                  x-validate:
+                tasks:
+                  items:
+                    properties:
+                      cache_artifact_size:
+                        description: Size of cache artifact in bytes.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      cache_key:
+                        description: Cache key for cacheable tasks.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      cacheable:
+                        description: Whether the task is cacheable.
+                        type: boolean
+                        x-struct:
+                        x-validate:
+                      duration_ms:
+                        description: Task duration in milliseconds.
+                        nullable: true
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      outcome:
+                        description: Task outcome.
+                        enum:
+                          - local_hit
+                          - remote_hit
+                          - up_to_date
+                          - executed
+                          - failed
+                          - skipped
+                          - no_source
+                        type: string
+                        x-struct:
+                        x-validate:
+                      started_at:
+                        description: When the task started executing.
+                        format: date-time
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      task_path:
+                        description: Task path (e.g., :app:compileKotlin).
+                        type: string
+                        x-struct:
+                        x-validate:
+                      task_type:
+                        description: Task type class name.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - task_path
+                      - outcome
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - duration_ms
+                - status
+                - tasks
+              type: object
+              x-struct:
+              x-validate:
+        description: Gradle build data
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The build ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                type: object
+                x-struct:
+                x-validate:
+          description: Build created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: Create a Gradle build with task data.
+      tags:
+        - Gradle
   /api/accounts/{account_handle}/tokens:
     get:
       callbacks: {}
@@ -9232,6 +9736,169 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs:
+    get:
+      callbacks: {}
+      operationId: listTestCaseRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case.
+          in: path
+          name: test_case_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by flaky status. When true, only returns flaky runs.
+          in: query
+          name: flaky
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of test case runs to return in a single page.
+            maximum: 500
+            minimum: 1
+            title: TestCaseRunsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestCaseRunsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  test_case_runs:
+                    items:
+                      properties:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The test case run ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the run was on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the run was flaky.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        is_new:
+                          description: Whether this was a new test case.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: ISO 8601 timestamp when the run executed.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: Build scheme.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Run status.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - status
+                        - duration
+                        - is_ci
+                        - is_flaky
+                        - is_new
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_case_runs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test case runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List runs for a test case.
+      tags:
+        - Test Case Runs
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}:
     get:
       callbacks: {}
@@ -9712,169 +10379,6 @@ paths:
       summary: Returns a preview with a given id.
       tags:
         - Previews
-  /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs:
-    get:
-      callbacks: {}
-      operationId: listTestCaseRuns
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The ID of the test case.
-          in: path
-          name: test_case_id
-          required: true
-          schema:
-            format: uuid
-            type: string
-            x-struct:
-            x-validate:
-        - description: Filter by flaky status. When true, only returns flaky runs.
-          in: query
-          name: flaky
-          required: false
-          schema:
-            type: boolean
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: page_size
-          required: false
-          schema:
-            default: 20
-            description: The maximum number of test case runs to return in a single page.
-            maximum: 500
-            minimum: 1
-            title: TestCaseRunsIndexPageSize
-            type: integer
-            x-struct:
-            x-validate:
-        - description: ''
-          in: query
-          name: page
-          required: false
-          schema:
-            default: 1
-            description: The page number to return.
-            minimum: 1
-            title: TestCaseRunsIndexPage
-            type: integer
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  pagination_metadata:
-                    $ref: '#/components/schemas/PaginationMetadata'
-                  test_case_runs:
-                    items:
-                      properties:
-                        duration:
-                          description: Duration in milliseconds.
-                          type: integer
-                          x-struct:
-                          x-validate:
-                        git_branch:
-                          description: Git branch.
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        git_commit_sha:
-                          description: Git commit SHA.
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        id:
-                          description: The test case run ID.
-                          format: uuid
-                          type: string
-                          x-struct:
-                          x-validate:
-                        is_ci:
-                          description: Whether the run was on CI.
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        is_flaky:
-                          description: Whether the run was flaky.
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        is_new:
-                          description: Whether this was a new test case.
-                          type: boolean
-                          x-struct:
-                          x-validate:
-                        ran_at:
-                          description: ISO 8601 timestamp when the run executed.
-                          format: date-time
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        scheme:
-                          description: Build scheme.
-                          nullable: true
-                          type: string
-                          x-struct:
-                          x-validate:
-                        status:
-                          description: Run status.
-                          enum:
-                            - success
-                            - failure
-                            - skipped
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - id
-                        - status
-                        - duration
-                        - is_ci
-                        - is_flaky
-                        - is_new
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - test_case_runs
-                  - pagination_metadata
-                type: object
-                x-struct:
-                x-validate:
-          description: List of test case runs
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You don't have permission to access this resource
-      summary: List runs for a test case.
-      tags:
-        - Test Case Runs
   /api/cache/exists:
     get:
       callbacks: {}
@@ -10044,6 +10548,199 @@ paths:
       summary: Revokes a project token.
       tags:
         - Project tokens
+  /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}:
+    get:
+      callbacks: {}
+      operationId: getGradleBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The build ID.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_hit_rate:
+                    nullable: true
+                    type: number
+                    x-struct:
+                    x-validate:
+                  cacheable_tasks_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  duration_ms:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  gradle_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  java_version:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  root_project_name:
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    enum:
+                      - success
+                      - failure
+                      - cancelled
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tasks:
+                    items:
+                      properties:
+                        cache_artifact_size:
+                          nullable: true
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        cache_key:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cacheable:
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        duration_ms:
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        outcome:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        started_at:
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task_path:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        task_type:
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  tasks_executed_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_failed_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_local_hit_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_no_source_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_remote_hit_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_skipped_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  tasks_up_to_date_count:
+                    type: integer
+                    x-struct:
+                    x-validate:
+                type: object
+                x-struct:
+                x-validate:
+          description: Gradle build details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: Get a Gradle build by ID.
+      tags:
+        - Gradle
   /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
@@ -12376,6 +13073,11 @@ paths:
                               type: array
                               x-struct:
                               x-validate:
+                            stack_trace_id:
+                              description: The deterministic UUID of the crash stack trace associated with this test case.
+                              type: string
+                              x-struct:
+                              x-validate:
                             status:
                               description: The status of the test case.
                               enum:
@@ -12547,6 +13249,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:4002
+  - url: http://localhost:8080
     variables: {}
 tags: []

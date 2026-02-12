@@ -1,4 +1,5 @@
 import Command
+import CryptoKit
 import FileSystem
 import Foundation
 import Mockable
@@ -170,6 +171,25 @@ public struct XCResultService: XCResultServicing {
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
+        let crashResult = await extractCrashAttachments(from: xcresultPath)
+
+        allTestCases = allTestCases.map { testCase in
+            let testIdentifier = testCase.testSuite.map { "\($0)/\(testCase.name)" } ?? testCase.name
+            guard let stackTraceId = crashResult.testIdentifierToStackTraceId[testIdentifier] else {
+                return testCase
+            }
+            return TestCase(
+                name: testCase.name,
+                testSuite: testCase.testSuite,
+                module: testCase.module,
+                duration: testCase.duration,
+                status: testCase.status,
+                failures: testCase.failures,
+                repetitions: testCase.repetitions,
+                stackTraceId: stackTraceId
+            )
+        }
+
         let overallStatus = overallStatus(from: allTestCases)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
 
@@ -177,7 +197,8 @@ public struct XCResultService: XCResultServicing {
             testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
             status: overallStatus,
             duration: overallDuration,
-            testModules: testModules
+            testModules: testModules,
+            stackTraces: crashResult.stackTraces
         )
     }
 
@@ -473,6 +494,168 @@ public struct XCResultService: XCResultServicing {
             updated.duration = duration
             return updated
         }
+    }
+
+    // MARK: - Crash Attachment Extraction
+
+    struct CrashAttachmentResult {
+        let stackTraces: [CrashStackTrace]
+        let testIdentifierToStackTraceId: [String: String]
+    }
+
+    private struct AttachmentManifest: Decodable {
+        let testIdentifier: String?
+        let attachments: [Attachment]
+
+        struct Attachment: Decodable {
+            let exportedFileName: String
+            let suggestedHumanReadableName: String?
+            let isAssociatedWithFailure: Bool?
+        }
+    }
+
+    private func extractCrashAttachments(from xcresultPath: AbsolutePath) async -> CrashAttachmentResult {
+        let emptyResult = CrashAttachmentResult(stackTraces: [], testIdentifierToStackTraceId: [:])
+
+        do {
+            return try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-crash-attachments") {
+                temporaryDirectory in
+
+                _ = try await commandRunner.run(
+                    arguments: [
+                        "/bin/sh", "-c",
+                        "/usr/bin/xcrun xcresulttool export attachments --only-failures --path '\(xcresultPath.pathString)' --output-directory '\(temporaryDirectory.pathString)' 2>/dev/null",
+                    ]
+                ).concatenatedString()
+
+                let manifestPath = temporaryDirectory.appending(component: "manifest.json")
+                guard try await fileSystem.exists(manifestPath) else {
+                    return emptyResult
+                }
+
+                let manifestData = try await fileSystem.readFile(at: manifestPath)
+                let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
+
+                var stackTracesByKey: [String: CrashStackTrace] = [:]
+                var testIdentifierToStackTraceId: [String: String] = [:]
+
+                for entry in manifestEntries {
+                    guard let testIdentifier = entry.testIdentifier else { continue }
+
+                    for attachment in entry.attachments {
+                        guard attachment.exportedFileName.hasSuffix(".ips"),
+                              attachment.isAssociatedWithFailure == true
+                        else { continue }
+
+                        let filePath = temporaryDirectory.appending(component: attachment.exportedFileName)
+                        guard try await fileSystem.exists(filePath) else { continue }
+
+                        let content = try await fileSystem.readTextFile(at: filePath)
+                        let contentHash = SHA256.hash(data: Data(content.utf8))
+                        let hashString = contentHash.map { String(format: "%02x", $0) }.joined()
+                        let humanReadableName =
+                            attachment.suggestedHumanReadableName ?? attachment.exportedFileName
+                        let deduplicationKey = "\(hashString):\(humanReadableName)"
+
+                        if stackTracesByKey[deduplicationKey] == nil {
+                            let idInput = deduplicationKey
+                            let idHash = SHA256.hash(data: Data(idInput.utf8))
+                            let idBytes = Array(idHash.prefix(16))
+                            let deterministicId = formatAsUUID(bytes: idBytes)
+
+                            let metadata = parseIPSMetadata(content)
+
+                            stackTracesByKey[deduplicationKey] = CrashStackTrace(
+                                id: deterministicId,
+                                fileName: humanReadableName,
+                                appName: metadata.appName,
+                                osVersion: metadata.osVersion,
+                                exceptionType: metadata.exceptionType,
+                                signal: metadata.signal,
+                                exceptionSubtype: metadata.exceptionSubtype,
+                                rawContent: content
+                            )
+                        }
+
+                        let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
+                        testIdentifierToStackTraceId[normalizedIdentifier] =
+                            stackTracesByKey[deduplicationKey]!.id
+                    }
+                }
+
+                return CrashAttachmentResult(
+                    stackTraces: Array(stackTracesByKey.values),
+                    testIdentifierToStackTraceId: testIdentifierToStackTraceId
+                )
+            }
+        } catch {
+            Logger.current.debug("Failed to extract crash attachments: \(error)")
+            return emptyResult
+        }
+    }
+
+    private func normalizeTestIdentifier(_ identifier: String) -> String {
+        var normalized = identifier
+        if normalized.hasSuffix("()") {
+            normalized = String(normalized.dropLast(2))
+        }
+        let components = normalized.split(separator: "/")
+        if components.count >= 2 {
+            return "\(components[components.count - 2])/\(components[components.count - 1])"
+        }
+        return normalized
+    }
+
+    private struct IPSMetadata {
+        var appName: String?
+        var osVersion: String?
+        var exceptionType: String?
+        var signal: String?
+        var exceptionSubtype: String?
+    }
+
+    private func parseIPSMetadata(_ content: String) -> IPSMetadata {
+        var metadata = IPSMetadata()
+
+        let lines = content.components(separatedBy: .newlines)
+        guard lines.count >= 2 else { return metadata }
+
+        if let headerData = lines[0].data(using: .utf8),
+           let header = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any]
+        {
+            metadata.appName = header["app_name"] as? String
+                ?? header["name"] as? String
+            metadata.osVersion = header["os_version"] as? String
+        }
+
+        if let payloadData = lines[1].data(using: .utf8),
+           let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any]
+        {
+            if let exception = payload["exception"] as? [String: Any] {
+                metadata.exceptionType = exception["type"] as? String
+                metadata.signal = exception["signal"] as? String
+                metadata.exceptionSubtype = exception["subtype"] as? String
+            }
+        }
+
+        return metadata
+    }
+
+    private func formatAsUUID(bytes: [UInt8]) -> String {
+        var uuidBytes = Array(bytes.prefix(16))
+        while uuidBytes.count < 16 {
+            uuidBytes.append(0)
+        }
+        // Set version 5 (SHA-based) and variant bits
+        uuidBytes[6] = (uuidBytes[6] & 0x0F) | 0x50
+        uuidBytes[8] = (uuidBytes[8] & 0x3F) | 0x80
+
+        let hex = uuidBytes.map { String(format: "%02x", $0) }.joined()
+        let idx = hex.index(hex.startIndex, offsetBy: 8)
+        let idx2 = hex.index(idx, offsetBy: 4)
+        let idx3 = hex.index(idx2, offsetBy: 4)
+        let idx4 = hex.index(idx3, offsetBy: 4)
+        return "\(hex[hex.startIndex..<idx])-\(hex[idx..<idx2])-\(hex[idx2..<idx3])-\(hex[idx3..<idx4])-\(hex[idx4...])"
     }
 
     // MARK: - Swift Testing Duration Parsing

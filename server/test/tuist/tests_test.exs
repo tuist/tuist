@@ -944,6 +944,146 @@ defmodule Tuist.TestsTest do
       assert failure.test_case_name == "testThatFails"
       assert failure.test_module_name == "FailingTestModule"
     end
+
+    test "creates a test with stack_trace_id on test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      stack_trace_id = UUIDv7.generate()
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "failure",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "CrashingModule",
+            status: "failure",
+            duration: 500,
+            test_cases: [
+              %{
+                name: "testThatCrashes",
+                status: "failure",
+                duration: 100,
+                stack_trace_id: stack_trace_id
+              },
+              %{
+                name: "testThatPasses",
+                status: "success",
+                duration: 200
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      {test_case_runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_case_runs) == 2
+
+      crashing_case = Enum.find(test_case_runs, &(&1.name == "testThatCrashes"))
+      assert crashing_case.stack_trace_id == stack_trace_id
+
+      passing_case = Enum.find(test_case_runs, &(&1.name == "testThatPasses"))
+      assert is_nil(passing_case.stack_trace_id)
+    end
+
+    test "creates a test without stack_trace_id (backward compatibility)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 500,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "NormalModule",
+            status: "success",
+            duration: 500,
+            test_cases: [
+              %{name: "testNormal", status: "success", duration: 200}
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Tests.create_test(test_attrs)
+
+      # Then
+      {test_case_runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_case_runs) == 1
+      assert is_nil(hd(test_case_runs).stack_trace_id)
+    end
+  end
+
+  describe "upload_stack_trace/1" do
+    test "uploads a stack trace successfully" do
+      # Given
+      stack_trace_id = UUIDv7.generate()
+
+      attrs = %{
+        id: stack_trace_id,
+        file_name: "MyApp-2024-01-15-123456.ips",
+        app_name: "MyApp",
+        os_version: "17.2",
+        exception_type: "EXC_CRASH",
+        signal: "SIGABRT",
+        exception_subtype: "KERN_INVALID_ADDRESS",
+        raw_content: "Full crash log content here...",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      # When
+      {:ok, stack_trace} = Tests.upload_stack_trace(attrs)
+
+      # Then
+      assert stack_trace.id == stack_trace_id
+    end
+
+    test "returns error for missing required fields" do
+      # Given
+      attrs = %{
+        id: UUIDv7.generate()
+      }
+
+      # When
+      result = Tests.upload_stack_trace(attrs)
+
+      # Then
+      assert {:error, _changeset} = result
+    end
   end
 
   describe "list_test_module_runs/1" do
