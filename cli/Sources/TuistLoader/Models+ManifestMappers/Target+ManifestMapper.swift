@@ -143,29 +143,11 @@ extension XcodeGraph.Target {
             generatorPaths: generatorPaths
         ) }
 
-        let foreignBuild: XcodeGraph.ForeignBuildInfo?
-        if let fb = manifest.foreignBuild {
-            let mappedOutput = try XcodeGraph.ForeignBuildArtifact.from(
-                manifest: fb.output,
-                generatorPaths: generatorPaths
-            )
-            var mappedInputs: [XcodeGraph.ForeignBuildInput] = []
-            for input in fb.inputs {
-                let resolved = try await XcodeGraph.ForeignBuildInput.from(
-                    manifest: input,
-                    generatorPaths: generatorPaths,
-                    fileSystem: fileSystem
-                )
-                mappedInputs.append(contentsOf: resolved)
-            }
-            foreignBuild = XcodeGraph.ForeignBuildInfo(
-                script: fb.script,
-                inputs: mappedInputs,
-                output: mappedOutput
-            )
-        } else {
-            foreignBuild = nil
-        }
+        let foreignBuild = try await foreignBuildInfo(
+            from: manifest.foreignBuild,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         return XcodeGraph.Target(
             name: name,
@@ -201,6 +183,31 @@ extension XcodeGraph.Target {
     }
 
     // MARK: - Fileprivate
+
+    private static func foreignBuildInfo(
+        from manifest: ProjectDescription.Target.ForeignBuild?,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph.ForeignBuildInfo? {
+        guard let manifest else { return nil }
+        var mappedInputs: [XcodeGraph.ForeignBuildInput] = []
+        for input in manifest.inputs {
+            let resolved = try await XcodeGraph.ForeignBuildInput.from(
+                manifest: input,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+            mappedInputs.append(contentsOf: resolved)
+        }
+        return XcodeGraph.ForeignBuildInfo(
+            script: manifest.script,
+            inputs: mappedInputs,
+            output: try XcodeGraph.ForeignBuildArtifact.from(
+                manifest: manifest.output,
+                generatorPaths: generatorPaths
+            )
+        )
+    }
 
     fileprivate static func resourcesAndOthers(
         manifest: ProjectDescription.Target,
