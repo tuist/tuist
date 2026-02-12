@@ -1,0 +1,192 @@
+A user reported this bug, can you reproduce it and fix it?
+
+https://github.com/Alex-Ozun/TuistTestCaching
+
+---
+
+How come it replaces it with a dynamic framework. FeatureA continues to be static after the replacement
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the conversation:
+
+1. User's initial request: "A user reported this bug, can you reproduce it and fix it?" with a link to https://github.com/Alex-Ozun/TuistTestCaching
+
+2. I investigated the repo - it has:
+   - App (iOS app) depending on FeatureA
+   - FeatureA (static framework) depending on GoogleMaps.xcframework, GoogleMapsCore.xcframework, GoogleMapsBase.xcframework (all static xcframeworks with resources)
+   - Steps to reproduce: `tuist cache App` then `tuist build App`
+
+3. I found a recent commit a80615d521 "fix(cli): embed cached static xcframeworks with resources transitively" that seemed related.
+
+4. I initially misanalyzed the bug, thinking the cached FeatureA.xcframework was dynamic. I made a code change removing `dependency.isPrecompiledDynamicAndLinkable` from the skip condition and added a test.
+
+5. USER FEEDBACK: "How come it replaces it with a dynamic framework. FeatureA continues to be static after the replacement" - The user corrected my wrong assumption.
+
+6. I investigated and confirmed: the cache preserves the linking type. Static frameworks are cached as static xcframeworks (the Mach-O binary type is preserved). So my initial fix was wrong.
+
+7. I reverted my changes:
+   - Reverted the edit to GraphTraverser.swift (restored `dependency.isPrecompiledDynamicAndLinkable` in skip)
+   - Removed the test I added
+
+8. I then tried to actually reproduce the bug by cloning the repo and running the commands:
+   - `tuist generate --no-open` worked
+   - `tuist cache App` worked - cached FeatureA
+   - `tuist build App` failed with scheme not found (auto-generated schemes disabled)
+   - `tuist build App --generate` built from source (cache not used because no Tuist.swift with fullHandle)
+   - Discovered cache profile system: default is `.onlyExternal` which only replaces external deps
+   - `tuist generate --no-open --cache-profile all-possible` correctly replaced FeatureA from cache
+   - `xcodebuild build` then failed with: `error: Unable to find module dependency: 'GoogleMaps'`
+
+9. This revealed the ACTUAL bug: it's a module/search path issue, not an embedding issue. The cached FeatureA.xcframework's Swift module references GoogleMaps, but GoogleMaps.xcframework's module map/headers aren't findable by the compiler.
+
+10. I examined the generated pbxproj and confirmed:
+    - Only FeatureA.xcframework is in the Frameworks build phase
+    - GoogleMaps, GoogleMapsCore, GoogleMapsBase xcframeworks are completely absent
+    - FRAMEWORK_SEARCH_PATHS only has the cache directory for FeatureA
+
+11. I entered plan mode and launched explore agents to investigate:
+    - One agent investigated `combinedCondition` and `dependencyConditions` 
+    - Another investigated `LinkGenerator.generateLinkingPhase`
+
+12. I then investigated `combinedCondition` - for a simple iOS-only project, `dependencyConditions` should be empty, so `combinedCondition` returns `.condition(nil)` unconditionally. This rules out the condition theory.
+
+13. I investigated `TreeShakePrunedTargetsGraphMapper` - this runs AFTER cache replacement and prunes targets. I was examining whether it incorrectly removes dependencies.
+
+14. I was in the middle of investigating the TreeShakePrunedTargetsGraphMapper when the summary was requested. The key observation is:
+    - Line 29: `var treeShakenDependencies: [GraphDependency: Set<GraphDependency>] = graph.dependencies` (starts with all deps)
+    - Line 51-53: For each project, it processes targets and overwrites entries
+    - Line 125-148: For each surviving target, it builds new dependencies, keeping non-target deps (line 144-145) but removing pruned target deps
+
+The critical question is: after tree shaking, does the `graph.dependencies` still contain the entry for `FeatureA.xcframework -> {GoogleMaps.xcframework, ...}`? The tree shaker only processes TARGET dependencies (line 117 checks `dependencies.keys.first(where: ...)` matching `.target(...)` case). So xcframework entries might be preserved since they're not in `treeShakenDependencies` overwrites... but they might also be lost since the mapper starts fresh and only adds back entries for surviving targets.
+
+Actually wait - line 29 starts with ALL deps, and line 51-53 only overwrites entries for specific targets processed by `treeShake(targets:...)`. So xcframework entries from the original graph should survive. But the pruned FeatureA target's entry would be removed (since FeatureA is pruned, it's not in sourceTargets, so it's skipped at line 93).
+
+But the key entry we need is `FeatureA.xcframework -> {GoogleMaps...}`, not `FeatureA.target -> {GoogleMaps...}`. The xcframework entry was created by CacheGraphMutator. It would be in `graph.dependencies` but NOT be processed by treeShake since treeShakenDependencies only overwrites entries for targets in the current project. So it should survive.
+
+I'm still in plan mode, investigating the root cause. The key files involved are:
+
+- `cli/Sources/TuistCore/Graph/GraphTraverser.swift` - `linkableDependencies`, `searchablePathDependencies`, `transitiveStaticDependencies`, `combinedCondition`, `embeddableFrameworks`, `filterDependencies`
+- `cli/TuistCacheEE/Sources/Generator/CacheGraphMutator.swift` - `map`, `mapDependencies`, `traverse`
+- `cli/Sources/TuistKit/Mappers/TreeShakePrunedTargetsGraphMapper.swift` - tree shaking after cache replacement
+- `cli/Sources/TuistGenerator/Generator/LinkGenerator.swift` - `generateLinkingPhase`, `setupFrameworkSearchPath`
+- `cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift` - module map handling for ObjC xcframeworks
+- `cli/Sources/TuistKit/Mappers/Factories/GraphMapperFactory.swift` - mapper chain configuration
+- `cli/Sources/TuistKit/Commands/Cache/Tuist+CacheProfileResolver.swift` - cache profile resolution
+
+Summary:
+1. Primary Request and Intent:
+   The user asked to reproduce and fix a bug reported at https://github.com/Alex-Ozun/TuistTestCaching. The reproduction steps are `tuist cache App` followed by `tuist build App`. The project has an App target depending on FeatureA (static framework), which depends on GoogleMaps.xcframework, GoogleMapsCore.xcframework, and GoogleMapsBase.xcframework (all static xcframeworks containing `.framework` bundles with resources like GoogleMaps.bundle).
+
+2. Key Technical Concepts:
+   - **Tuist binary caching**: Replaces source targets with precompiled xcframeworks to speed up builds
+   - **Static vs dynamic xcframeworks**: Cache preserves the linking type - static frameworks become static xcframeworks (Mach-O binary type preserved)
+   - **Cache profile system**: Default is `.onlyExternal` (only external SPM deps replaced). Need `--cache-profile all-possible` to replace internal targets like FeatureA
+   - **Graph dependency preservation**: `CacheGraphMutator.mapDependencies()` preserves transitive dependencies when replacing targets
+   - **TreeShakePrunedTargetsGraphMapper**: Runs after cache replacement to prune replaced targets from the project
+   - **`linkableDependencies`**: Determines what frameworks/libraries get added to Frameworks build phase
+   - **`searchablePathDependencies`**: Determines FRAMEWORK_SEARCH_PATHS
+   - **`combinedCondition`**: Checks platform conditions for dependencies; returns `.condition(nil)` when `dependencyConditions` is empty
+   - **`StaticXCFrameworkModuleMapGraphMapper`**: Handles ObjC module maps for static xcframeworks linked by dynamic xcframeworks (NOT applicable here since FeatureA is static)
+   - **`filterDependencies`**: Depth-first graph traversal with test/skip closures for finding transitive dependencies
+
+3. Files and Code Sections:
+
+   - **Test Repo Files** (from GitHub API):
+     - `App/Project.swift`: App target depending on FeatureA and SDK deps
+     - `FeatureA/Project.swift`: Static framework depending on GoogleMaps.xcframework, GoogleMapsCore.xcframework, GoogleMapsBase.xcframework
+     - `Workspace.swift`: Workspace with auto-generated schemes disabled
+     - `mise.toml`: `tuist = "latest"`
+
+   - **`cli/Sources/TuistCore/Graph/GraphTraverser.swift`** - Central file for dependency graph traversal
+     - `embeddableFrameworks` (line 414-527): Determines which frameworks to embed. Recent fix at commit a80615d521 changed static xcframework search from direct-only to transitive via `filterDependencies`.
+     - `searchablePathDependencies` (line 529-534): Returns linkable deps + static precompiled framework deps. Used by LinkGenerator for FRAMEWORK_SEARCH_PATHS.
+       ```swift
+       public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+           try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+               .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
+       }
+       ```
+     - `linkableDependencies` (line 543-694): Determines what to link. Key block at line 632-682 handles transitive static dependencies.
+     - `transitiveStaticDependencies` (line 1457-1463): Uses `filterDependencies` with `isDependencyStatic` test and `canDependencyLinkStaticProducts` skip.
+     - `filterDependencies` (line 1209-1247): Stack-based DFS traversal. Root deps excluded from results. Skip stops traversal but still includes node if it passes test.
+     - `combinedCondition` (line 1254-1311): Returns `.condition(nil)` when `dependencyConditions` is empty.
+     - `staticPrecompiledXCFrameworksDependencies` (line 1765-1788): Finds transitive static xcframeworks. Called by `copyProductDependencies` but NOT by `searchablePathDependencies`.
+     - `isDependencyStatic` (line 1545-1561): Returns true for static xcframeworks, static frameworks, static libraries, static targets.
+
+   - **`cli/TuistCacheEE/Sources/Generator/CacheGraphMutator.swift`** - Replaces targets with cached artifacts
+     - `mapDependencies` (line 135-203): Iterates topologically sorted targets, replaces each with cached artifact via `traverse()`. Preserves transitive dependencies.
+     - Line 169: `for dependency in graphTraverser.dependencies[target, default: Set()]` - iterates original target's deps
+     - Line 191: `graphDependencies[replacedTarget] = targetDependencies` - stores deps under new xcframework key
+     - Only targets are processed. Non-target deps (xcframeworks) are kept as-is (line 174).
+     - After mapDependencies, `graph.dependencies` is COMPLETELY REPLACED (line 65).
+
+   - **`cli/Sources/TuistKit/Mappers/TreeShakePrunedTargetsGraphMapper.swift`** - Prunes replaced targets
+     - Line 29: Starts with all graph dependencies: `var treeShakenDependencies = graph.dependencies`
+     - Lines 80-152: `treeShake(targets:...)` only processes TARGET dependencies, keeping non-target deps (xcframeworks etc.)
+     - Lines 117-148: For each surviving target, builds new dependency set removing pruned target deps
+
+   - **`cli/Sources/TuistGenerator/Generator/LinkGenerator.swift`** - Generates Xcode project build phases
+     - `setupFrameworkSearchPath` (line 283-309): Gets `searchablePathDependencies`, extracts `precompiledPath`, removes last component for directory, sets FRAMEWORK_SEARCH_PATHS
+     - `generateLinkingPhase` (line ~396-461): Calls `graphTraverser.linkableDependencies` to build Frameworks build phase
+
+   - **`cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift`** - Only handles static ObjC xcframeworks linked by DYNAMIC xcframeworks. Not applicable here.
+
+   - **`cli/Sources/TuistKit/Mappers/Factories/GraphMapperFactory.swift`** - Mapper chain:
+     - `generation()` (line 215): Uses `TargetsToCacheBinariesGraphMapper` + `TreeShakePrunedTargetsGraphMapper` + `StaticXCFrameworkModuleMapGraphMapper`
+     - `build()` (line 179): Uses `.onlyExternal` profile by default
+
+   - **`cli/Sources/TuistKit/Commands/Cache/Tuist+CacheProfileResolver.swift`** - Default profile is `.onlyExternal` (line 61)
+
+   - **Generated project** (`/tmp/TuistTestCaching/App/App.xcodeproj/project.pbxproj`):
+     - FRAMEWORK_SEARCH_PATHS only has cache dir for FeatureA
+     - Only FeatureA.xcframework in Frameworks build phase
+     - GoogleMaps, GoogleMapsCore, GoogleMapsBase completely absent
+
+4. Errors and Fixes:
+   - **Wrong assumption about linking type**: Initially assumed cache produces dynamic xcframeworks. Made code changes based on this. User corrected: "How come it replaces it with a dynamic framework. FeatureA continues to be static after the replacement." Reverted all changes.
+   - **Build signing error**: `xcodebuild test` failed with signing certificate error. Fixed by adding `CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`.
+   - **Missing TuistInitCommand module**: Build failed after first code signing fix. Fixed by running `tuist generate --no-open` to regenerate the project.
+   - **tuist build scheme not found**: `tuist build App` failed because auto-generated schemes were disabled. Used `tuist build App --generate` or `xcodebuild` directly.
+   - **Cache not used during build**: `tuist build App --generate` compiled FeatureA from source because default cache profile is `.onlyExternal`. Discovered need for `--cache-profile all-possible`.
+
+5. Problem Solving:
+   - **Successfully reproduced the bug**: After `tuist generate --no-open --cache-profile all-possible`, then `xcodebuild build`, got: `error: Unable to find module dependency: 'GoogleMaps'`
+   - **Identified it's NOT an embedding issue**: It's a module resolution / search path issue. The cached FeatureA.xcframework's Swift module references GoogleMaps, but GoogleMaps.xcframework's headers/module maps are not in search paths.
+   - **Ongoing investigation**: Tracing through `linkableDependencies` → `transitiveStaticDependencies` → `dependencyReference` → `combinedCondition` to understand why GoogleMaps.xcframework doesn't end up in the generated project. Theoretically, the code should include it. Currently investigating `TreeShakePrunedTargetsGraphMapper` to see if it incorrectly removes the dependency entries.
+
+6. All User Messages:
+   - "A user reported this bug, can you reproduce it and fix it? https://github.com/Alex-Ozun/TuistTestCaching"
+   - "How come it replaces it with a dynamic framework. FeatureA continues to be static after the replacement"
+
+7. Pending Tasks:
+   - Find the root cause of why GoogleMaps.xcframework is missing from the generated Xcode project after cache replacement
+   - Implement the fix
+   - Add appropriate tests
+   - Currently in plan mode - need to complete investigation, write plan, and get approval before implementing
+
+8. Current Work:
+   In plan mode investigating the root cause. The bug has been reproduced: after `tuist generate --no-open --cache-profile all-possible`, the generated Xcode project is missing GoogleMaps/GoogleMapsCore/GoogleMapsBase xcframeworks entirely (not in Frameworks build phase, not in FRAMEWORK_SEARCH_PATHS).
+
+   The investigation has been tracing through the code path:
+   1. `LinkGenerator.setupFrameworkSearchPath` → calls `searchablePathDependencies`
+   2. `searchablePathDependencies` → calls `linkableDependencies` + `staticPrecompiledFrameworksDependencies`
+   3. `linkableDependencies` → uses `transitiveStaticDependencies` which should find GoogleMaps.xcframework through FeatureA.xcframework
+   4. `dependencyReference` → calls `combinedCondition` which should return `.condition(nil)` for this simple case
+
+   Was reading `TreeShakePrunedTargetsGraphMapper` to check if it strips the xcframework dependency entries. Key observation: it starts with all deps (line 29) and only overwrites entries for processed targets. The entry `FeatureA.xcframework -> {GoogleMaps.xcframework, ...}` (created by CacheGraphMutator) should survive tree shaking since it's not a target entry.
+
+   The theoretical analysis says GoogleMaps.xcframework SHOULD appear in `linkableDependencies` output, but the generated project proves it DOESN'T. There is likely a subtle issue in one of the intermediate steps that hasn't been identified yet. May need to add debug logging or write a targeted unit test to isolate the exact failure point.
+
+9. Optional Next Step:
+   Continue investigating in plan mode. The most promising approach is to write a unit test that mimics the exact post-cache-replacement graph structure (App target → FeatureA.xcframework(static) → GoogleMaps.xcframework(static)) and call `linkableDependencies` and `searchablePathDependencies` to see what they return. This would definitively identify which method is dropping GoogleMaps.xcframework. Alternatively, add temporary debug logging to the generation flow and re-run `tuist generate --cache-profile all-possible` on the test repo.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]
