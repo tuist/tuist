@@ -295,8 +295,19 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api]
 
     get "/openid-configuration", WellKnownController, :openid_configuration
+    get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
+    get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
+    get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    post "/mcp", MCPController, :request
+    get "/mcp", MCPController, :request
+    delete "/mcp", MCPController, :request
   end
 
   scope path: "/api",
@@ -530,6 +541,7 @@ defmodule TuistWeb.Router do
     pipe_through :non_authenticated_api
 
     post "/token", TokenController, :token
+    post "/register", RegistrationController, :register
   end
 
   # Ops Routes

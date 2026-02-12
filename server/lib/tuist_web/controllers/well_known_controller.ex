@@ -4,6 +4,11 @@ defmodule TuistWeb.WellKnownController do
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
 
+  @mcp_path "/mcp"
+  @oauth_token_path "/oauth2/token"
+  @oauth_authorize_path "/oauth2/authorize"
+  @oauth_registration_path "/oauth2/register"
+
   @doc """
   Returns the OpenID configuration for JWT verification.
   """
@@ -23,6 +28,63 @@ defmodule TuistWeb.WellKnownController do
     conn
     |> put_resp_content_type("application/json")
     |> json(configuration)
+  end
+
+  @doc """
+  Returns OAuth Authorization Server metadata.
+  """
+  def oauth_authorization_server(conn, _params) do
+    issuer = Environment.app_url()
+
+    configuration = %{
+      issuer: issuer,
+      authorization_endpoint: "#{issuer}#{@oauth_authorize_path}",
+      token_endpoint: "#{issuer}#{@oauth_token_path}",
+      registration_endpoint: "#{issuer}#{@oauth_registration_path}",
+      grant_types_supported: ["authorization_code", "refresh_token"],
+      response_types_supported: ["code"],
+      code_challenge_methods_supported: ["S256"],
+      token_endpoint_auth_methods_supported: [
+        "none",
+        "client_secret_basic",
+        "client_secret_post",
+        "client_secret_jwt",
+        "private_key_jwt"
+      ]
+    }
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> json(configuration)
+  end
+
+  @doc """
+  Returns OAuth Protected Resource metadata for the MCP endpoint.
+  """
+  def oauth_protected_resource(conn, %{"resource_path" => ["mcp"]}) do
+    app_url = Environment.app_url()
+
+    metadata = %{
+      resource: "#{app_url}#{@mcp_path}",
+      authorization_servers: [app_url],
+      bearer_methods_supported: ["header"],
+      scopes_supported: [],
+      resource_documentation: "#{app_url}/docs/en/guides/features/agentic-coding/mcp"
+    }
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> json(metadata)
+  end
+
+  def oauth_protected_resource(conn, %{"resource_path" => []}) do
+    oauth_protected_resource(conn, %{"resource_path" => ["mcp"]})
+  end
+
+  def oauth_protected_resource(conn, _params) do
+    conn
+    |> put_status(:not_found)
+    |> json(%{error: "not_found"})
   end
 
   @doc """
