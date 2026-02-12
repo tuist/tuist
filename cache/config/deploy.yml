@@ -26,6 +26,7 @@ env:
     PHX_SOCKET_PATH: /run/cache/cache.sock
     PHX_SOCKET_LINK: /run/cache/current.sock
     LOKI_URL: http://127.0.0.1:3100
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://127.0.0.1:4317
 
   secret:
     - SECRET_KEY_BASE
