@@ -32,7 +32,6 @@ import XcodeGraph
         private let pluginService: PluginServicing
         private let generatorFactory: CacheGeneratorFactorying
         private let cacheWarmGraphLinter: CacheWarmGraphLinting
-        private let cacheBuiltArtifactsFetcher: CacheBuiltArtifactsFetching
         private let defaultConfigurationFetcher: DefaultConfigurationFetching
         private let simulatorController: SimulatorControlling
         private let xcodeBuildController: XcodeBuildControlling
@@ -48,7 +47,6 @@ import XcodeGraph
             self.init(
                 generatorFactory: CacheGeneratorFactory(contentHasher: contentHasher),
                 cacheWarmGraphLinter: CacheWarmGraphLinter(),
-                cacheBuiltArtifactsFetcher: CacheBuiltArtifactsFetcher(),
                 defaultConfigurationFetcher: DefaultConfigurationFetcher(),
                 xcodeBuildController: XcodeBuildController(),
                 simulatorController: SimulatorController(),
@@ -64,7 +62,6 @@ import XcodeGraph
         init(
             generatorFactory: CacheGeneratorFactorying,
             cacheWarmGraphLinter: CacheWarmGraphLinting,
-            cacheBuiltArtifactsFetcher: CacheBuiltArtifactsFetching,
             defaultConfigurationFetcher: DefaultConfigurationFetching,
             xcodeBuildController: XcodeBuildControlling,
             simulatorController: SimulatorControlling,
@@ -80,7 +77,6 @@ import XcodeGraph
             pluginService = PluginService()
             self.generatorFactory = generatorFactory
             self.cacheWarmGraphLinter = cacheWarmGraphLinter
-            self.cacheBuiltArtifactsFetcher = cacheBuiltArtifactsFetcher
             self.defaultConfigurationFetcher = defaultConfigurationFetcher
             self.xcodeBuildController = xcodeBuildController
             self.simulatorController = simulatorController
