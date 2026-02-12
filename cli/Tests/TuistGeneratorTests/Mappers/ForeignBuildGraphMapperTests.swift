@@ -9,24 +9,14 @@ import XCTest
 
 final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
     var subject: ForeignBuildGraphMapper!
-    var scriptRunnerCallCount: Int!
-    var lastScriptRunnerArgs: (name: String, script: String, projectPath: AbsolutePath)?
 
     override func setUp() {
         super.setUp()
-        scriptRunnerCallCount = 0
-        subject = ForeignBuildGraphMapper(
-            scriptRunner: { [unowned self] name, script, projectPath in
-                self.scriptRunnerCallCount += 1
-                self.lastScriptRunnerArgs = (name, script, projectPath)
-            }
-        )
+        subject = ForeignBuildGraphMapper()
     }
 
     override func tearDown() {
         subject = nil
-        scriptRunnerCallCount = nil
-        lastScriptRunnerArgs = nil
         super.tearDown()
     }
 
@@ -268,7 +258,7 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         XCTAssertEqual(mappedForeignTarget.scripts.first?.outputPaths, [outputPath.pathString])
     }
 
-    func test_map_runsScriptWhenOutputDoesNotExist() async throws {
+    func test_map_returnsSideEffectWhenOutputDoesNotExist() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
@@ -291,15 +281,20 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(scriptRunnerCallCount, 1)
-        XCTAssertEqual(lastScriptRunnerArgs?.script, "gradle build")
-        XCTAssertEqual(lastScriptRunnerArgs?.projectPath, projectPath)
+        XCTAssertEqual(sideEffects.count, 1)
+        guard case let .command(commandDescriptor) = sideEffects.first else {
+            XCTFail("Expected a command side effect")
+            return
+        }
+        XCTAssertEqual(commandDescriptor.command.first, "/bin/sh")
+        XCTAssertTrue(commandDescriptor.command.last?.contains("gradle build") == true)
+        XCTAssertTrue(commandDescriptor.command.last?.contains("SRCROOT=/Project") == true)
     }
 
-    func test_map_doesNotRunScriptWhenOutputExists() async throws {
+    func test_map_doesNotReturnSideEffectWhenOutputExists() async throws {
         // Given
         let temporaryDir = try temporaryPath()
         let outputPath = temporaryDir.appending(components: "build", "SharedKMP.xcframework")
@@ -324,9 +319,9 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertEqual(scriptRunnerCallCount, 0)
+        XCTAssertEmpty(sideEffects)
     }
 }

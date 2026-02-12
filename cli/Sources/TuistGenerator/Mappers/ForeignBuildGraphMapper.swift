@@ -10,23 +10,13 @@ import XcodeGraph
 /// 1. Configures the target as an aggregate (adds the build script phase)
 /// 2. For each consuming target that depends on this foreign build target (via `.target(name:)`),
 ///    inserts a `foreignBuildOutput` graph dependency for linking
-/// 3. If the output artifact doesn't exist yet, runs the foreign build script so that the artifact
-///    is available for Xcode to resolve file references during project generation
+/// 3. If the output artifact doesn't exist yet, emits a side effect to run the foreign build script
+///    so that the artifact is available for Xcode to resolve file references
 public struct ForeignBuildGraphMapper: GraphMapping {
     private let fileSystem: FileSystem
-    private let scriptRunner: @Sendable (_ name: String, _ script: String, _ projectPath: AbsolutePath) throws -> Void
 
     public init(fileSystem: FileSystem = FileSystem()) {
         self.fileSystem = fileSystem
-        self.scriptRunner = Self.runScript
-    }
-
-    init(
-        fileSystem: FileSystem = FileSystem(),
-        scriptRunner: @escaping @Sendable (_ name: String, _ script: String, _ projectPath: AbsolutePath) throws -> Void
-    ) {
-        self.fileSystem = fileSystem
-        self.scriptRunner = scriptRunner
     }
 
     public func map(
@@ -34,6 +24,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
+        var sideEffects = [SideEffectDescriptor]()
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
@@ -72,7 +63,12 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 }
 
                 if try await !fileSystem.exists(foreignBuild.output.path) {
-                    try scriptRunner(targetName, foreignBuild.script, projectPath)
+                    sideEffects.append(
+                        .command(CommandDescriptor(command: [
+                            "/bin/sh", "-c",
+                            "export SRCROOT=\(projectPath.pathString)\ncd \"$SRCROOT\"\n\(foreignBuild.script)",
+                        ]))
+                    )
                 }
             }
 
@@ -102,25 +98,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             }
         }
 
-        return (graph, [], environment)
-    }
-
-    // MARK: - Script execution
-
-    private static func runScript(_ name: String, _ script: String, projectPath: AbsolutePath) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", script]
-        process.currentDirectoryURL = URL(fileURLWithPath: projectPath.pathString)
-        process.standardInput = FileHandle.nullDevice
-        var env = ProcessInfo.processInfo.environment
-        env["SRCROOT"] = projectPath.pathString
-        process.environment = env
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw ForeignBuildError.scriptFailed(exitCode: Int(process.terminationStatus))
-        }
+        return (graph, sideEffects, environment)
     }
 
     // MARK: - Helpers
@@ -133,17 +111,6 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             case let .glob(pattern): return pattern
             case .script: return nil
             }
-        }
-    }
-}
-
-enum ForeignBuildError: LocalizedError {
-    case scriptFailed(exitCode: Int)
-
-    var errorDescription: String? {
-        switch self {
-        case let .scriptFailed(exitCode):
-            return "Foreign build script failed with exit code \(exitCode)"
         }
     }
 }
