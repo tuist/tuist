@@ -127,6 +127,14 @@
                             "text": "プロジェクト生成"
                         }
                     }
+                },
+                "configuration": {
+                    "text": "設定",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
