@@ -117,11 +117,26 @@ defmodule TuistWeb.Plugs.SlackWebhookPlugTest do
   end
 
   describe "call/2 with url_verification" do
-    test "echoes back the challenge token" do
+    test "echoes back the challenge token after signature verification" do
       secret = "slack-signing-secret"
       challenge = "test-challenge-token-12345"
       payload = Jason.encode!(%{type: "url_verification", challenge: challenge})
 
+      options = [at: "/webhooks/slack", secret: secret, handler: TestHandler]
+      conn = slack_request("/webhooks/slack", payload, secret)
+
+      result = SlackWebhookPlug.call(conn, SlackWebhookPlug.init(options))
+
+      assert result.status == 200
+      assert result.resp_body == challenge
+      assert result.halted == true
+      refute_receive {:handled, _, _}
+    end
+
+    test "rejects unsigned challenge requests" do
+      secret = "slack-signing-secret"
+      challenge = "test-challenge-token-12345"
+      payload = Jason.encode!(%{type: "url_verification", challenge: challenge})
       options = [at: "/webhooks/slack", secret: secret, handler: TestHandler]
 
       conn =
@@ -133,8 +148,8 @@ defmodule TuistWeb.Plugs.SlackWebhookPlugTest do
 
       result = SlackWebhookPlug.call(conn, SlackWebhookPlug.init(options))
 
-      assert result.status == 200
-      assert result.resp_body == challenge
+      assert result.status == 401
+      assert result.resp_body == "Missing Slack signature headers"
       assert result.halted == true
       refute_receive {:handled, _, _}
     end

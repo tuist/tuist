@@ -23,8 +23,16 @@ defmodule TuistWeb.Webhooks.SlackControllerTest do
         project_id: 1
       }
 
+      build_with_project = %{
+        build
+        | project: %Tuist.Projects.Project{
+            id: 1,
+            account: %Tuist.Accounts.Account{id: installation.account_id}
+          }
+      }
+
       stub(Tuist.Builds, :get_build, fn "06a2b6e4-1234-5678-9abc-def012345678" -> build end)
-      stub(Tuist.Repo, :preload, fn ^build, [project: :account] -> build end)
+      stub(Tuist.Repo, :preload, fn ^build, [project: :account] -> build_with_project end)
 
       expect(Client, :unfurl, fn token, channel, ts, unfurls ->
         assert token == installation.access_token
@@ -46,7 +54,10 @@ defmodule TuistWeb.Webhooks.SlackControllerTest do
           "channel" => "C12345",
           "message_ts" => "1234567890.123456",
           "links" => [
-            %{"url" => "https://tuist.dev/tuist/tuist/builds/build-runs/06a2b6e4-1234-5678-9abc-def012345678"}
+            %{
+              "url" =>
+                "https://tuist.dev/tuist/tuist/builds/build-runs/06a2b6e4-1234-5678-9abc-def012345678"
+            }
           ]
         }
       }
@@ -112,6 +123,58 @@ defmodule TuistWeb.Webhooks.SlackControllerTest do
           "message_ts" => "1234567890.123456",
           "links" => [
             %{"url" => "https://tuist.dev/tuist/tuist/builds/build-runs/nonexistent-id"}
+          ]
+        }
+      }
+
+      result = SlackController.handle(conn, params)
+
+      assert result.status == 200
+    end
+
+    test "skips unfurling when build belongs to a different account", %{conn: conn} do
+      SlackFixtures.slack_installation_fixture(team_id: "T12345")
+
+      build = %Tuist.Builds.Build{
+        id: "06a2b6e4-1234-5678-9abc-def012345678",
+        scheme: "MyApp",
+        status: "success",
+        duration: 125_000,
+        git_branch: "main",
+        git_commit_sha: "abc1234567890",
+        is_ci: true,
+        ci_provider: "github",
+        category: "clean",
+        project_id: 1
+      }
+
+      build_with_different_account = %{
+        build
+        | project: %Tuist.Projects.Project{
+            id: 1,
+            account: %Tuist.Accounts.Account{id: 999_999}
+          }
+      }
+
+      stub(Tuist.Builds, :get_build, fn "06a2b6e4-1234-5678-9abc-def012345678" -> build end)
+
+      stub(Tuist.Repo, :preload, fn ^build, [project: :account] ->
+        build_with_different_account
+      end)
+
+      reject(Client, :unfurl, 4)
+
+      params = %{
+        "team_id" => "T12345",
+        "event" => %{
+          "type" => "link_shared",
+          "channel" => "C12345",
+          "message_ts" => "1234567890.123456",
+          "links" => [
+            %{
+              "url" =>
+                "https://tuist.dev/tuist/tuist/builds/build-runs/06a2b6e4-1234-5678-9abc-def012345678"
+            }
           ]
         }
       }

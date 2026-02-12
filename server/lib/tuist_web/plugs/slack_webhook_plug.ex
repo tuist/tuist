@@ -5,7 +5,8 @@ defmodule TuistWeb.Plugs.SlackWebhookPlug do
   Slack signs requests with `v0={hmac_sha256(signing_secret, "v0:{timestamp}:{body}")}`.
   This plug verifies that signature and rejects stale timestamps (> 5 minutes).
 
-  It also handles `url_verification` challenges inline, echoing back the challenge token.
+  It also handles `url_verification` challenges inline, echoing back the challenge token
+  after request verification.
   """
 
   @behaviour Plug
@@ -61,16 +62,7 @@ defmodule TuistWeb.Plugs.SlackWebhookPlug do
     if conn.halted do
       conn
     else
-      case conn.body_params do
-        %{"type" => "url_verification", "challenge" => challenge} ->
-          conn
-          |> put_resp_content_type("text/plain")
-          |> send_resp(200, challenge)
-          |> halt()
-
-        _ ->
-          verify_and_dispatch(conn, secret, options)
-      end
+      verify_and_dispatch(conn, secret, options)
     end
   end
 
@@ -109,12 +101,21 @@ defmodule TuistWeb.Plugs.SlackWebhookPlug do
   end
 
   defp handle_verified_webhook(conn, module) do
-    result_conn = module.handle(conn, conn.body_params)
+    case conn.body_params do
+      %{"type" => "url_verification", "challenge" => challenge} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, challenge)
+        |> halt()
 
-    if result_conn.status do
-      result_conn
-    else
-      result_conn |> send_resp(200, "OK") |> halt()
+      _ ->
+        result_conn = module.handle(conn, conn.body_params)
+
+        if result_conn.status do
+          result_conn
+        else
+          result_conn |> send_resp(200, "OK") |> halt()
+        end
     end
   end
 
