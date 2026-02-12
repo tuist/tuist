@@ -129,7 +129,12 @@
                     }
                 },
                 "configuration": {
-                    "text": "빌드 환경"
+                    "text": "빌드 환경",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
