@@ -51,6 +51,7 @@ The following data is stored in ClickHouse for analytics purposes:
 ### Non-Exportable Data
 - Swift package registry data (shared community resources)
 - Encrypted passwords and authentication secrets
+- OAuth dynamic client registrations (`oauth_clients`) are currently global service configuration and are not associated with a single account export
 
 ## Binary Files
 

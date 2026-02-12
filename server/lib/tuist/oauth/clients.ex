@@ -1,67 +1,80 @@
 defmodule Tuist.OAuth.Clients do
   @moduledoc """
-  Custom OAuth clients adapter for Boruta that loads client configuration from environment
-  instead of the database, similar to how TokenGenerator was reimplemented.
+  Custom OAuth clients adapter for Boruta that supports both:
 
-  This adapter implements both Boruta.Oauth.Clients and Boruta.Openid.Clients behaviors
-  to provide OAuth client information from environment configuration.
+  - a static environment-configured client used by Tuist, and
+  - dynamically registered clients persisted by Boruta Ecto.
   """
 
   @behaviour Boruta.Oauth.Clients
   @behaviour Boruta.Openid.Clients
 
+  alias Boruta.Ecto.Clients, as: EctoClients
+  alias Boruta.Oauth.Client
   alias Boruta.Oauth.Clients
   alias Tuist.Environment
 
   @impl Clients
   def get_client(client_id) do
-    client = tuist_oauth_client()
-
-    if client_id == client.id do
-      client
-    else
-      {:error, :not_found}
+    case tuist_oauth_client() do
+      %Client{id: ^client_id} = client -> client
+      _ -> EctoClients.get_client(client_id)
     end
   end
 
   @impl Clients
   def public! do
-    {:error, :not_found}
+    case tuist_oauth_client() do
+      %Client{} = client -> client
+      _ -> EctoClients.public!()
+    end
   end
 
   @impl Clients
-  def authorized_scopes(_client) do
-    []
+  def authorized_scopes(%Client{id: client_id} = client) do
+    case tuist_oauth_client() do
+      %Client{id: ^client_id} -> []
+      _ -> EctoClients.authorized_scopes(client)
+    end
   end
 
   @impl Clients
-  def get_client_by_did(_did) do
-    {:error, "Client lookup by DID not supported"}
+  def get_client_by_did(did) do
+    EctoClients.get_client_by_did(did)
   end
 
   @impl Boruta.Openid.Clients
-  def create_client(_registration_params) do
-    {:error, "Client creation not supported"}
+  def create_client(registration_params) do
+    EctoClients.create_client(registration_params)
   end
 
   @impl Clients
   def list_clients_jwk do
-    [tuist_oauth_client()]
-    |> Enum.map(fn client ->
-      jwk = JOSE.JWK.from_pem(client.jwt_private_key)
-      Map.put(jwk, "kid", Boruta.Oauth.Client.Crypto.kid_from_private_key(client.private_key))
-      jwk
-    end)
-    |> Enum.uniq_by(& &1["kid"])
+    tuist_client_jwk =
+      case tuist_oauth_client() do
+        %Client{} = client ->
+          case to_client_jwk(client) do
+            nil -> []
+            jwk -> [{client, jwk}]
+          end
+
+        _ ->
+          []
+      end
+
+    Enum.uniq_by(tuist_client_jwk ++ EctoClients.list_clients_jwk(), fn {_client, jwk} -> jwk["kid"] end)
   end
 
   @impl Boruta.Openid.Clients
-  def refresh_jwk_from_jwks_uri(_client_id) do
-    {:error, "JWK refresh from JWKS URI not supported"}
+  def refresh_jwk_from_jwks_uri(client_id) do
+    case tuist_oauth_client() do
+      %Client{id: ^client_id} -> {:error, "JWK refresh from JWKS URI not supported"}
+      _ -> EctoClients.refresh_jwk_from_jwks_uri(client_id)
+    end
   end
 
   defp tuist_oauth_client do
-    %Boruta.Oauth.Client{
+    %Client{
       id: Environment.oauth_client_id(),
       secret: Environment.oauth_client_secret(),
       name: Environment.oauth_client_name(),
@@ -98,4 +111,11 @@ defmodule Tuist.OAuth.Clients do
       enforce_dpop: false
     }
   end
+
+  defp to_client_jwk(%Client{private_key: private_key}) when is_binary(private_key) do
+    jwk = JOSE.JWK.from_pem(private_key)
+    Map.put(jwk, "kid", Boruta.Oauth.Client.Crypto.kid_from_private_key(private_key))
+  end
+
+  defp to_client_jwk(_), do: nil
 end
