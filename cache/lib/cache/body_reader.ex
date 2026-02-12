@@ -40,6 +40,62 @@ defmodule Cache.BodyReader do
   end
 
   @doc """
+  Reads the request body and writes it directly to an IO device.
+
+  Returns `{:ok, bytes_written, conn}` on success,
+  or `{:error, reason, conn}` on failure.
+  """
+  def read_to_device(conn, device, opts \\ []) do
+    merged_opts = Keyword.merge(read_opts(conn), opts)
+    max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
+    writer = fn chunk -> IO.binwrite(device, chunk) end
+
+    conn
+    |> Plug.Conn.read_body(merged_opts)
+    |> handle_device_result(conn, merged_opts, device, writer, max_bytes)
+  rescue
+    Bandit.TransportError ->
+      {:error, :cancelled, conn}
+  end
+
+  defp handle_device_result({:ok, body, conn_after}, _conn, _opts, _device, writer, max_bytes) do
+    bytes = byte_size(body)
+
+    cond do
+      bytes > max_bytes -> {:error, :too_large, conn_after}
+      bytes == 0 -> {:ok, 0, conn_after}
+      true -> write_device_body(writer, body, bytes, conn_after)
+    end
+  end
+
+  defp handle_device_result({:more, chunk, conn_after}, _conn, opts, device, writer, max_bytes) do
+    bytes_read = byte_size(chunk)
+
+    if bytes_read > max_bytes do
+      {:error, :too_large, conn_after}
+    else
+      with :ok <- writer.(chunk),
+           {:ok, conn_final, total_bytes} <- read_loop(conn_after, opts, device, bytes_read, writer, max_bytes) do
+        {:ok, total_bytes, conn_final}
+      else
+        {:error, reason} -> {:error, reason, conn_after}
+        {:error, reason, conn_final} -> {:error, reason, conn_final}
+      end
+    end
+  end
+
+  defp handle_device_result({:error, reason}, conn, _opts, _device, _writer, _max_bytes) do
+    normalize_error(reason, conn)
+  end
+
+  defp write_device_body(writer, body, bytes, conn_after) do
+    case writer.(body) do
+      :ok -> {:ok, bytes, conn_after}
+      {:error, reason} -> {:error, reason, conn_after}
+    end
+  end
+
+  @doc """
   Drains the request body without storing it.
   Useful when the upload already exists and we need to consume the body.
   """
@@ -72,12 +128,16 @@ defmodule Cache.BodyReader do
     end
   end
 
+  defp normalize_error(:too_large, conn), do: {:error, :too_large, conn}
+  defp normalize_error(reason, conn) when reason in [:timeout, :econnaborted], do: {:error, :timeout, conn}
+  defp normalize_error(reason, conn), do: {:error, reason, conn}
+
   defp read_chunks(conn, opts, _first_chunk, bytes_read, :discard, max_bytes) do
     read_loop(conn, opts, nil, bytes_read, fn _chunk -> :ok end, max_bytes)
   end
 
   defp read_chunks(conn, opts, first_chunk, bytes_read, :store, max_bytes) do
-    tmp_path = tmp_path()
+    tmp_path = tmp_path(opts)
 
     case File.open(tmp_path, [:write, :binary]) do
       {:ok, device} ->
@@ -156,10 +216,10 @@ defmodule Cache.BodyReader do
     end
   end
 
-  defp tmp_path do
-    base = System.tmp_dir!()
+  defp tmp_path(opts) do
+    base = Keyword.get(opts, :tmp_dir, System.tmp_dir!())
     unique = :erlang.unique_integer([:positive, :monotonic])
-    Path.join(base, "cache-upload-#{unique}")
+    Path.join(base, ".cache-upload-#{unique}")
   end
 
   defp read_opts(conn) do

@@ -78,6 +78,15 @@ defmodule Cache.CAS.Disk do
     end
   end
 
+  def ensure_artifact_directory(account_handle, project_handle, id) do
+    path = account_handle |> key(project_handle, id) |> Disk.artifact_path()
+    dir = Path.dirname(path)
+
+    with :ok <- Disk.ensure_directory(path) do
+      dir
+    end
+  end
+
   @doc """
   Returns file stat information for a Xcode compilation cache (CAS) artifact.
 

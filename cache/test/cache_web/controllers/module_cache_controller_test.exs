@@ -364,12 +364,19 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       tmp_path = Path.join(System.tmp_dir!(), "test-part-#{:erlang.unique_integer([:positive])}")
       File.write!(tmp_path, "test content")
       MultipartUploads.add_part(upload_id, 1, tmp_path, 12)
+      {:ok, upload} = MultipartUploads.get_upload(upload_id)
+      assembly_path = upload.assembly_path
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, [^tmp_path] ->
+      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path], [1] ->
+        assert completed_upload.account_handle == "test-account"
+        assert completed_upload.project_handle == "test-project"
+        assert completed_upload.category == "builds"
+        assert completed_upload.hash == hash
+        assert completed_upload.name == name
         :ok
       end)
 
@@ -459,12 +466,19 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       MultipartUploads.add_part(upload_id, 1, tmp_path1, 5)
       MultipartUploads.add_part(upload_id, 2, tmp_path2, 5)
       MultipartUploads.add_part(upload_id, 3, tmp_path3, 5)
+      {:ok, upload} = MultipartUploads.get_upload(upload_id)
+      assembly_path = upload.assembly_path
 
       expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :put_from_parts, fn "test-account", "test-project", "builds", ^hash, ^name, part_paths ->
+      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths, [1, 2, 3] ->
+        assert completed_upload.account_handle == "test-account"
+        assert completed_upload.project_handle == "test-project"
+        assert completed_upload.category == "builds"
+        assert completed_upload.hash == hash
+        assert completed_upload.name == name
         assert part_paths == [tmp_path1, tmp_path2, tmp_path3]
         :ok
       end)
