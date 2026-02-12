@@ -17,29 +17,27 @@ public final class DerivedDataLocator: DerivedDataLocating {
     public func locate(
         for projectPath: AbsolutePath
     ) async throws -> AbsolutePath {
+        let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
         if let derivedDataDir = Environment.current.variables["DERIVED_DATA_DIR"] {
-            let derivedDataDirPath = try AbsolutePath(validating: derivedDataDir)
-            let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
-            if derivedDataDirPath != defaultDerivedDataDirectory {
-                return derivedDataDirPath
+            let path = try AbsolutePath(validating: derivedDataDir)
+            if path != defaultDerivedDataDirectory {
+                return path
             }
         }
         if let buildDir = Environment.current.variables["BUILD_DIR"],
-           let derivedDataRoot = Self.derivedDataRoot(from: buildDir)
+           let root = Self.derivedDataRoot(from: buildDir),
+           root != defaultDerivedDataDirectory
         {
-            let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
-            if derivedDataRoot != defaultDerivedDataDirectory {
-                return derivedDataRoot
-            }
+            return root
         }
         let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
-        return try await Environment.current.derivedDataDirectory()
+        return defaultDerivedDataDirectory
             .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
     }
 
     /// Extracts the derived data root from `BUILD_DIR`.
     /// `BUILD_DIR` is typically `<derived-data-root>/Build/Products/<Configuration>[-<SDK>]`.
-    static func derivedDataRoot(from buildDir: String) -> AbsolutePath? {
+    private static func derivedDataRoot(from buildDir: String) -> AbsolutePath? {
         guard let range = buildDir.range(of: "/Build/Products") else { return nil }
         let root = String(buildDir[buildDir.startIndex ..< range.lowerBound])
         guard !root.isEmpty else { return nil }

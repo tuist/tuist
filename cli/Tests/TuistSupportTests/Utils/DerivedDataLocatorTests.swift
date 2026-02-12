@@ -86,26 +86,4 @@ struct DerivedDataLocatorTests {
         #expect(result.parentDirectory == defaultDerivedDataDirectory)
         #expect(result.basename.hasPrefix("App-"))
     }
-
-    @Test
-    func derivedDataRoot_extracts_root_from_BUILD_DIR() {
-        let result = DerivedDataLocator.derivedDataRoot(
-            from: "/Users/runner/custom-dd/Build/Products/Debug-iphonesimulator"
-        )
-        #expect(result?.pathString == "/Users/runner/custom-dd")
-    }
-
-    @Test
-    func derivedDataRoot_extracts_root_from_BUILD_DIR_without_sdk() {
-        let result = DerivedDataLocator.derivedDataRoot(
-            from: "/Users/runner/custom-dd/Build/Products/Release"
-        )
-        #expect(result?.pathString == "/Users/runner/custom-dd")
-    }
-
-    @Test
-    func derivedDataRoot_returns_nil_for_path_without_Build_Products() {
-        let result = DerivedDataLocator.derivedDataRoot(from: "/Users/runner/some-path")
-        #expect(result == nil)
-    }
 }
