@@ -64,7 +64,7 @@ final class TargetGenerator: TargetGenerating {
         Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
 
         let pbxTarget: PBXTarget
-        if target.foreignBuild != nil {
+        if target.isAggregate {
             Logger.current.debug("TargetGenerator: Creating PBXAggregateTarget for \(target.name)")
             pbxTarget = PBXAggregateTarget(
                 name: target.name,
