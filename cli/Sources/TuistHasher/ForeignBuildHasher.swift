@@ -13,7 +13,7 @@ public protocol ForeignBuildHashing {
     ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String])
 }
 
-public final class ForeignBuildHasher: ForeignBuildHashing {
+public struct ForeignBuildHasher: ForeignBuildHashing {
     private let contentHasher: ContentHashing
     private let system: Systeming
 
