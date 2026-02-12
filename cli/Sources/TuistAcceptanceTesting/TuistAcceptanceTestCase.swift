@@ -10,6 +10,7 @@ import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistExtension
 @_exported import TuistGenerateCommand
+import TuistInitCommand
 @_exported import TuistKit
 @_exported import TuistRegistryCommand
 @_exported import TuistTestCommand
