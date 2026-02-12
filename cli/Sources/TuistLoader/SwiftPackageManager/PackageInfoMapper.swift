@@ -640,9 +640,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
-                return .target(name: aliasedName, condition: platformCondition)
+                return .target(name: PackageInfoMapper.sanitize(targetName: aliasedName), condition: platformCondition)
             } else {
-                return .target(name: name, condition: platformCondition)
+                return .target(name: PackageInfoMapper.sanitize(targetName: name), condition: platformCondition)
             }
         } else {
             if let aliasedName = moduleAliases?[name] {
