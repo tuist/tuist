@@ -2,6 +2,7 @@ import FileSystem
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistInitCommand
 import TuistSupport
 import TuistTesting
 import XCTest

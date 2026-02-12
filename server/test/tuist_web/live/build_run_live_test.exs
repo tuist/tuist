@@ -124,7 +124,7 @@ defmodule TuistWeb.BuildRunLiveTest do
       RunsFixtures.build_fixture(
         project_id: project.id,
         scheme: "App",
-        ci_provider: :github,
+        ci_provider: "github",
         ci_run_id: "1234567890",
         ci_project_handle: "tuist/tuist"
       )

@@ -248,8 +248,8 @@ defmodule TuistWeb.OverviewLive do
     Enum.map(recent_build_runs, fn run ->
       color =
         case run.status do
-          :success -> "var:noora-chart-primary"
-          :failure -> "var:noora-chart-destructive"
+          "success" -> "var:noora-chart-primary"
+          "failure" -> "var:noora-chart-destructive"
         end
 
       value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)

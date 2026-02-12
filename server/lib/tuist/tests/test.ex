@@ -39,9 +39,9 @@ defmodule Tuist.Tests.Test do
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
     field :build_run_id, Ecto.UUID
-    field :ci_run_id, Ch, type: "String"
-    field :ci_project_handle, Ch, type: "String"
-    field :ci_host, Ch, type: "String"
+    field :ci_run_id, Ch, type: "String", default: ""
+    field :ci_project_handle, Ch, type: "String", default: ""
+    field :ci_host, Ch, type: "String", default: ""
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false

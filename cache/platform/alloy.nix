@@ -144,7 +144,7 @@
       host       = "unix:///var/run/docker.sock"
       targets    = discovery.docker.linux.targets
       labels     = {
-        app = "docker",
+        app = "cache-docker",
         instance = "${config.networking.hostName}",
       }
       forward_to = [loki.write.grafana_cloud.receiver]
@@ -154,7 +154,7 @@
       targets    = [
         {
           __path__  = "/var/log/nginx/error.log",
-          job       = "nginx",
+          job       = "cache-nginx",
           stream    = "error",
           instance  = "${config.networking.hostName}",
         },
@@ -166,7 +166,7 @@
       targets    = [
         {
           __path__  = "/var/log/nginx/access.log",
-          job       = "nginx",
+          job       = "cache-nginx",
           stream    = "access",
           instance  = "${config.networking.hostName}",
         },

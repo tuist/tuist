@@ -320,8 +320,8 @@ defmodule TuistWeb.BuildsLive do
       Enum.map(recent_builds, fn run ->
         color =
           case run.status do
-            :success -> "var:noora-chart-primary"
-            :failure -> "var:noora-chart-destructive"
+            "success" -> "var:noora-chart-primary"
+            "failure" -> "var:noora-chart-destructive"
           end
 
         value = run.duration

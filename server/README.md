@@ -11,7 +11,6 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 ### Requirements
 
 - [Postgres](https://formulae.brew.sh/formula/postgresql@16)
-- [TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/installation-macos/)
 - [Mise](https://mise.jdx.dev/)
 
 ### Set up
@@ -41,5 +40,4 @@ Pass: tuistrocks
 1. Run `tuist auth` to authenticate.
 1. You are now connected to the local Tuist Server!  You can try running `tuist cache` and see the binaries being uploaded.
 
-> [!IMPORTANT]
-> If the execution of database migrations fails because the TimescaleDB extension is not installed, you'll have to [install the extension](https://docs.timescale.com/self-hosted/latest/install/installation-macos/#set-up-the-timescaledb-extension) in the `tuist_development` database.
+

@@ -1,9 +1,9 @@
 ---
 name: fix-flaky-tests
-description: Fixes a specific flaky test by analyzing its failure patterns from Tuist, identifying the root cause, and applying a targeted correction. Typically invoked with a Tuist test case URL in the format such as `https://tuist.dev/{account}/{project}/tests/test-cases/{id}`.
+description: Fixes flaky tests by analyzing failure patterns from Tuist test insights, identifying root causes, and applying targeted corrections. Can be invoked with a specific test case URL (e.g. `https://tuist.dev/{account}/{project}/tests/test-cases/{id}`) or without arguments to discover and fix all flaky tests in the project.
 ---
 
-# Fix Flaky Test
+# Fix Flaky Tests
 
 ## Quick Start
 
@@ -14,6 +14,26 @@ You'll typically receive a Tuist test case URL or identifier. Follow these steps
 3. Run `tuist test case run show <run-id> --json` on failing flaky runs to get failure messages and file paths.
 4. Read the test source at the reported path and line, identify the flaky pattern, and fix it.
 5. Verify by running the test multiple times to confirm it passes consistently.
+
+If no specific test is provided, start with the Discovery section below.
+
+## Discovery
+
+When no specific test case is provided, find all flaky tests in the project:
+
+```bash
+tuist test case list --flaky --json --page-size 50
+```
+
+This returns all test cases currently flagged as flaky. Key fields:
+- `module.name` / `suite.name` / `name` — the test identifier
+- `avg_duration` — helps prioritize (fix fast unit tests first)
+- `is_quarantined` — whether the test is already quarantined
+
+**Triage strategy:**
+1. Group tests by suite — multiple flaky tests in the same suite often share a root cause.
+2. Check if failures share a `test_run_id` — tests that all failed in the same run may have been killed by a process crash, not individual test bugs.
+3. Look at failure messages to categorize: test logic bugs vs infrastructure issues (network errors, server 502s, conflicts on retry).
 
 ## Investigation
 
@@ -93,6 +113,7 @@ Key fields:
 - **Implicit ordering**: Test passes only when run after another test that sets up required state. Fix: make each test self-contained.
 - **Parallel execution conflicts**: Tests that work in isolation but fail when run concurrently. Fix: use unique resources per test.
 
+
 ## Fix Implementation
 
 After identifying the pattern:
@@ -103,6 +124,8 @@ After identifying the pattern:
 
 ## Verification
 
+### Running tests repeatedly
+
 Run the specific test repeatedly until failure using `xcodebuild`'s built-in repetition support:
 
 ```bash
@@ -110,6 +133,28 @@ xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module>/<
 ```
 
 This runs the test up to `<count>` times and stops at the first failure. Choose the iteration count based on how long the test takes — for fast unit tests use 50–100, for slower integration or acceptance tests use 2–5.
+
+### Reproducing before fixing
+
+Before applying a fix, try to reproduce the flaky failure locally. A successful reproduction confirms your root cause analysis and lets you verify the fix directly. Use the "Running tests repeatedly" approach above, or the race condition strategies below if concurrency is suspected.
+
+Some flaky scenarios — especially race conditions, CI-specific timing issues, or environment-dependent failures — may be difficult or impossible to reproduce locally. If you cannot reproduce after reasonable effort, proceed with fixing based on code analysis and failure logs. A fix backed by clear evidence of a bug (e.g. unsynchronized shared state, TOCTOU pattern) is valid even without local reproduction.
+
+### Reproducing race conditions
+
+Race conditions and concurrency bugs often only manifest under CI-level parallelism and are hard to reproduce locally. Try these strategies in order:
+
+1. **Increase parallelism**: Add `-parallel-testing-enabled YES` to run test suites concurrently.
+2. **Run broader test suites**: Instead of running a single test, run the entire module (e.g. `-only-testing ModuleTests`) to increase contention on shared resources.
+3. **Thread Sanitizer**: Run with TSan enabled to detect data races deterministically. Note: TSan adds overhead which can change timing, so some races may not trigger under TSan.
+
+```bash
+xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module> -enableThreadSanitizer YES
+```
+
+4. **High iteration count with broad scope**: Combine all the above — run the full module with parallelism and many iterations.
+
+If a race condition cannot be reproduced locally but the code is provably thread-unsafe (e.g. unsynchronized mutation of shared state), the fix is still valid. Verify the fix by confirming the tests pass with the same reproduction strategies above. Document in the commit message that the fix addresses a CI-only race condition identified through code analysis and failure logs.
 
 ## Done Checklist
 

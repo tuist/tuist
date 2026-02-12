@@ -1,4 +1,4 @@
-#if canImport(TuistSupport)
+#if os(macOS)
     import Foundation
     import Mockable
     import TuistConfigLoader

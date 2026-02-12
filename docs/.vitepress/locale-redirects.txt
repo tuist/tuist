@@ -40,8 +40,6 @@
 /guides/start/new-project /en/guides/start/new-project 301
 /guides/start/migrate/swift-package /en/guides/start/migrate/swift-package 301
 /guides/start/swift-package /en/guides/start/swift-package 301
-/ /en/ 301
-/index /en/index 301
 /references/migrations/from-v3-to-v4 /en/references/migrations/from-v3-to-v4 301
 /server/on-premise/metrics /en/server/on-premise/metrics 301
 /server/introduction/authentication /en/server/introduction/authentication 301
@@ -292,4 +290,3 @@
 /references/project-description/typealiases/settingsdictionary /en/references/project-description/typealiases/settingsdictionary 301
 /:locale/guides/quick-start/create-a-project /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/guides/quick-start/optimize-workflows /:locale/tutorials/xcode/create-a-generated-project 301
-/en 301

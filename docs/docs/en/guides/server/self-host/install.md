@@ -55,15 +55,8 @@ Tuist server has been tested and is compatible with the following minimum versio
 
 | Component | Minimum Version | Notes |
 | --- | --- | --- |
-| PostgreSQL | 15 | With TimescaleDB extension |
-| TimescaleDB | 2.16.1 | Required PostgreSQL extension (deprecated) |
+| PostgreSQL | 15 | |
 | ClickHouse | 25 | Required for analytics |
-
-::: warning TIMESCALEDB DEPRECATION
-<!-- -->
-TimescaleDB is currently a required PostgreSQL extension for Tuist server, used for time-series data storage and querying. However, **TimescaleDB is deprecated** and will be dropped as a required dependency in the near future as we migrate all time-series functionality to ClickHouse. For now, ensure your PostgreSQL instance has TimescaleDB installed and enabled.
-<!-- -->
-:::
 
 ### Running Docker-virtualized images {#running-dockervirtualized-images}
 
@@ -73,19 +66,17 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 ### Postgres database {#postgres-database}
 
-In addition to running the Docker images, you'll need a [Postgres database](https://www.postgresql.org/) with the [TimescaleDB extension](https://www.timescale.com/) to store relational and time-series data. Most infrastructure providers include Postgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
-
-**TimescaleDB Extension Required:** Tuist requires the TimescaleDB extension for efficient time-series data storage and querying. This extension is used for command events, analytics, and other time-based features. Ensure your PostgreSQL instance has TimescaleDB installed and enabled before running Tuist.
+In addition to running the Docker images, you'll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Postgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
 ::: info MIGRATIONS
 <!-- -->
-The Docker image's entrypoint automatically runs any pending schema migrations before starting the service. If migrations fail due to a missing TimescaleDB extension, you'll need to install it in your database first.
+The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
 <!-- -->
 :::
 
 ### ClickHouse database {#clickhouse-database}
 
-Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large amounts of analytics data. ClickHouse is **required** for features like build insights and will be the primary time-series database as we phase out TimescaleDB. You can choose whether to self-host ClickHouse or use their hosted service.
+Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large amounts of analytics data. ClickHouse is **required** for features like build insights. You can choose whether to self-host ClickHouse or use their hosted service.
 
 ::: info MIGRATIONS
 <!-- -->
@@ -301,7 +292,7 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
 
-- PostgreSQL 15 with TimescaleDB 2.16 extension (deprecated)
+- PostgreSQL 15
 - ClickHouse 25 for analytics
 - ClickHouse Keeper for coordination
 - MinIO for S3-compatible storage

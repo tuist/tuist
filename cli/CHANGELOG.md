@@ -1,10 +1,35 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.143.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.144.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* embed cached static xcframeworks with resources transitively by [@pepicrft](https://github.com/pepicrft) in [#9419](https://github.com/tuist/tuist/pull/9419)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.2...4.144.3
+
+## What's Changed in 4.144.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* run StaticXCFrameworkModuleMapGraphMapper after cache replacement by [@pepicrft](https://github.com/pepicrft) in [#9427](https://github.com/tuist/tuist/pull/9427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.1...4.144.2
+
+## What's Changed in 4.144.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix flaky tests caused by Matcher.register race and TOCTOU in CachedManifestLoader by [@fortmarek](https://github.com/fortmarek) in [#9424](https://github.com/tuist/tuist/pull/9424)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.0...4.144.1
+
+## What's Changed in 4.144.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* add Gradle project integration to tuist init by [@fortmarek](https://github.com/fortmarek) in [#9422](https://github.com/tuist/tuist/pull/9422)
 * add test case show and run commands with fix-flaky-tests skill by [@fortmarek](https://github.com/fortmarek) in [#9379](https://github.com/tuist/tuist/pull/9379)
 ### 🐛 Bug Fixes
 
@@ -12,7 +37,7 @@ All notable changes to this project will be documented in this file.
 * use correct TUIST_URL key for env variable lookup in login command by [@fortmarek](https://github.com/fortmarek) in [#9398](https://github.com/tuist/tuist/pull/9398)
 * strip debug symbols (dSYM/DWARF) from cached XCFrameworks by [@pepicrft](https://github.com/pepicrft) in [#9287](https://github.com/tuist/tuist/pull/9287)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.143.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.144.0
 
 ## What's Changed in 4.142.1<!-- RELEASE NOTES START -->
 

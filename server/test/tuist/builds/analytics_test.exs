@@ -744,21 +744,21 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-30 02:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
 
@@ -766,7 +766,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-04-29 01:00:00Z]
       )
 
@@ -795,14 +795,14 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
 
@@ -827,14 +827,14 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
 
@@ -879,14 +879,14 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-26 12:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-04-26 11:00:00Z]
       )
 
@@ -894,28 +894,28 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         inserted_at: ~U[2024-04-29 02:00:00Z]
       )
 
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         inserted_at: ~U[2024-04-29 01:00:00Z]
       )
 
@@ -943,7 +943,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         scheme: "AppOne",
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
@@ -951,7 +951,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         scheme: "AppOne",
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
@@ -959,7 +959,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         scheme: "AppOne",
         inserted_at: ~U[2024-04-28 03:00:00Z]
       )
@@ -967,7 +967,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         scheme: "AppOne",
         inserted_at: ~U[2024-04-28 02:00:00Z]
       )
@@ -976,7 +976,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         scheme: "AppTwo",
         inserted_at: ~U[2024-04-30 02:00:00Z]
       )
@@ -1002,7 +1002,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         configuration: "Debug",
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
@@ -1010,7 +1010,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         configuration: "Debug",
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
@@ -1018,7 +1018,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         configuration: "Debug",
         inserted_at: ~U[2024-04-28 03:00:00Z]
       )
@@ -1026,7 +1026,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         configuration: "Release",
         inserted_at: ~U[2024-04-30 02:00:00Z]
       )
@@ -1034,7 +1034,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         configuration: "Release",
         inserted_at: ~U[2024-04-29 02:00:00Z]
       )
@@ -1061,7 +1061,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         custom_tags: ["nightly", "ci"],
         inserted_at: ~U[2024-04-30 03:00:00Z]
       )
@@ -1069,7 +1069,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :success,
+        status: "success",
         custom_tags: ["nightly"],
         inserted_at: ~U[2024-04-29 03:00:00Z]
       )
@@ -1077,7 +1077,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         custom_tags: ["nightly", "release"],
         inserted_at: ~U[2024-04-28 03:00:00Z]
       )
@@ -1086,7 +1086,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         custom_tags: ["ci"],
         inserted_at: ~U[2024-04-30 02:00:00Z]
       )
@@ -1094,7 +1094,7 @@ defmodule Tuist.Builds.AnalyticsTest do
       RunsFixtures.build_fixture(
         id: UUIDv7.generate(),
         project_id: project.id,
-        status: :failure,
+        status: "failure",
         custom_tags: [],
         inserted_at: ~U[2024-04-29 02:00:00Z]
       )

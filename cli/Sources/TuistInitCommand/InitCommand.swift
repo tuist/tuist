@@ -4,13 +4,12 @@ import Foundation
 import Path
 import TuistEnvironment
 import TuistNooraExtension
-import TuistSupport
 
 public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "init",
-            abstract: "Get started with Tuist in your Xcode project or create a generated project."
+            abstract: "Get started with Tuist in your project."
         )
     }
 

@@ -3,6 +3,8 @@ defmodule TuistWeb.AcceptInvitationLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
 
   def mount(params, session, socket) do
@@ -167,6 +169,7 @@ defmodule TuistWeb.AcceptInvitationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end

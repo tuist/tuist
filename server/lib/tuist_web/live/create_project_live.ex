@@ -3,14 +3,15 @@ defmodule TuistWeb.CreateProjectLive do
   use TuistWeb, :live_view
   use Noora
 
-  alias Phoenix.Flash
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     form = to_form(Project.create_changeset(%{}))
 
     current_user = socket.assigns.current_user
@@ -18,20 +19,27 @@ defmodule TuistWeb.CreateProjectLive do
     organization_accounts =
       current_user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
 
+    all_accounts = [current_user.account | organization_accounts]
+
     selected_account =
-      if Flash.get(socket.assigns.flash, :organization_id) do
-        organization_accounts
-        |> Enum.find(&(&1.organization_id == Flash.get(socket.assigns.flash, :organization_id)))
-        |> Map.get(:id)
-      else
-        current_user.account.id
+      case Map.get(params, "account_id") do
+        account_id when is_binary(account_id) ->
+          account_id = String.to_integer(account_id)
+
+          if Enum.any?(all_accounts, &(&1.id == account_id)),
+            do: account_id,
+            else: current_user.account.id
+
+        _ ->
+          current_user.account.id
       end
 
     socket =
       assign(socket,
         form: form,
         selected_account: selected_account,
-        accounts: [current_user.account | organization_accounts]
+        selected_build_system: "xcode",
+        accounts: all_accounts
       )
 
     {:ok, socket}
@@ -67,6 +75,22 @@ defmodule TuistWeb.CreateProjectLive do
                 show_required={false}
                 required
               />
+              <div data-part="dropdown">
+                <.label
+                  label={dgettext("dashboard_projects", "Select build system")}
+                  required
+                />
+                <.select
+                  id="build-system-selection"
+                  name="build_system"
+                  label={dgettext("dashboard_projects", "Build system")}
+                  value={@selected_build_system}
+                  on_value_change="select_build_system"
+                >
+                  <:item value="xcode" label="Xcode" />
+                  <:item value="gradle" label="Gradle" />
+                </.select>
+              </div>
               <div data-part="dropdown">
                 <.label label={dgettext("dashboard_projects", "Select account")} />
                 <.select
@@ -112,8 +136,14 @@ defmodule TuistWeb.CreateProjectLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("select_build_system", %{"value" => [value]}, socket) do
+    {:noreply, assign(socket, selected_build_system: value)}
   end
 
   @impl true
@@ -127,7 +157,10 @@ defmodule TuistWeb.CreateProjectLive do
   def handle_event("create_project", %{"project" => params}, socket) do
     with {:ok, account} <- Accounts.get_account_by_id(socket.assigns.selected_account),
          :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
-         {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do
+         {:ok, project} <-
+           Projects.create_project(%{name: params["name"], account: account},
+             build_system: String.to_existing_atom(socket.assigns.selected_build_system)
+           ) do
       {:noreply,
        push_navigate(socket,
          to: ~p"/#{account.name}/#{project.name}/connect"

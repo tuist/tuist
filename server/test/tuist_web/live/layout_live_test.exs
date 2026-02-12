@@ -144,10 +144,19 @@ defmodule TuistWeb.LayoutLiveTest do
                      label: project.name,
                      value: project.id,
                      selected: true,
-                     href: ~p"/#{organization.account.name}/#{project.name}"
+                     href: ~p"/#{organization.account.name}/#{project.name}",
+                     badge: %{label: "Xcode", color: "focus"}
+                   },
+                   %{
+                     label: "Create project",
+                     value: "create-project",
+                     href: ~p"/projects/new?account_id=#{organization.account.id}",
+                     icon: "circle_plus",
+                     selected: false
                    }
                  ],
-                 label: project.name
+                 label: project.name,
+                 badge: %{label: "Xcode", color: "focus"}
                }
              ]
 
