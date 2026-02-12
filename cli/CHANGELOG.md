@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.144.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* embed cached static xcframeworks with resources transitively by [@pepicrft](https://github.com/pepicrft) in [#9419](https://github.com/tuist/tuist/pull/9419)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.2...4.144.3
+
 ## What's Changed in 4.144.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
