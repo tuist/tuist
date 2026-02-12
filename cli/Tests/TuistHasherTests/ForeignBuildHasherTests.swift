@@ -132,5 +132,4 @@ struct ForeignBuildHasherTests {
         // Then
         #expect(result.hash == "-hash")
     }
-
 }
