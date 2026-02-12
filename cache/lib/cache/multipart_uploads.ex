@@ -27,7 +27,6 @@ defmodule Cache.MultipartUploads do
   Start a new multipart upload.
 
   Returns `{:ok, upload_id}` where upload_id is a UUID string.
-  The assembly file descriptor is opened lazily on the first sequential write claim.
   """
   def start_upload(account_handle, project_handle, category, hash, name) do
     GenServer.call(__MODULE__, {:start_upload, account_handle, project_handle, category, hash, name})
@@ -44,10 +43,13 @@ defmodule Cache.MultipartUploads do
   end
 
   @doc """
-  Claims the assembly device for a direct sequential write when possible.
+  Claims the assembly file for a direct sequential write when possible.
 
-  Returns `{:direct_write, device}` when `part_number` matches the next expected
+  Returns `{:direct_write, path, offset}` when `part_number` matches the next expected
   sequential part and no write is currently in progress, `:buffer` otherwise.
+
+  The caller is expected to open the file at `path`, seek to `offset`, and write
+  directly using `:raw` mode for maximum throughput.
 
   The caller process is monitored; if it dies before calling `confirm_write/3` or
   `abort_write/1`, the lock is automatically released and partial bytes are truncated.
@@ -136,7 +138,6 @@ defmodule Cache.MultipartUploads do
           created_at: now,
           last_activity_at: now,
           assembly_path: assembly_path,
-          assembly_device: nil,
           assembly_offset: 0,
           next_sequential: 1,
           write_in_progress: nil
@@ -161,8 +162,6 @@ defmodule Cache.MultipartUploads do
         case validate_add_part(upload_data, part_number, size_bytes) do
           :ok ->
             existing_part = Map.get(upload_data.parts, part_number)
-            maybe_cleanup_old_part(existing_part)
-
             updated_parts = Map.put(upload_data.parts, part_number, %{path: temp_file_path, size: size_bytes})
 
             updated_data = %{
@@ -173,6 +172,7 @@ defmodule Cache.MultipartUploads do
             }
 
             :ets.insert(@table_name, {upload_id, updated_data})
+            maybe_cleanup_old_part_async(existing_part)
             {:reply, :ok, state}
 
           {:error, _reason} = error ->
@@ -194,25 +194,18 @@ defmodule Cache.MultipartUploads do
 
         if upload_data.next_sequential == part_number and upload_data.write_in_progress == nil and
              not part_already_buffered and has_headroom do
-          case ensure_assembly_device(upload_data) do
-            {:ok, device, upload_data} ->
-              offset = upload_data.assembly_offset
-              ref = Process.monitor(caller_pid)
+          offset = upload_data.assembly_offset
+          ref = Process.monitor(caller_pid)
 
-              updated_data = %{
-                upload_data
-                | write_in_progress: %{pid: caller_pid, ref: ref, offset: offset, part_number: part_number},
-                  last_activity_at: DateTime.utc_now()
-              }
+          updated_data = %{
+            upload_data
+            | write_in_progress: %{pid: caller_pid, ref: ref, offset: offset, part_number: part_number},
+              last_activity_at: DateTime.utc_now()
+          }
 
-              :ets.insert(@table_name, {upload_id, updated_data})
-              monitors = Map.put(state.monitors, ref, upload_id)
-              {:reply, {:direct_write, device}, %{state | monitors: monitors}}
-
-            {:error, reason} ->
-              Logger.error("Failed to open assembly device for upload #{upload_id}: #{inspect(reason)}")
-              {:reply, :buffer, state}
-          end
+          :ets.insert(@table_name, {upload_id, updated_data})
+          monitors = Map.put(state.monitors, ref, upload_id)
+          {:reply, {:direct_write, upload_data.assembly_path, offset}, %{state | monitors: monitors}}
         else
           {:reply, :buffer, state}
         end
@@ -225,7 +218,7 @@ defmodule Cache.MultipartUploads do
       [] ->
         {:reply, {:error, :upload_not_found}, state}
 
-      [{^upload_id, %{write_in_progress: %{pid: ^caller_pid}} = upload_data}] ->
+      [{^upload_id, %{write_in_progress: %{pid: ^caller_pid, part_number: ^part_number}} = upload_data}] ->
         state = demonitor_write(upload_data, state)
         new_total = projected_total(upload_data, part_number, size_bytes)
 
@@ -294,7 +287,6 @@ defmodule Cache.MultipartUploads do
 
       [{^upload_id, upload_data}] ->
         if upload_data.write_in_progress == nil do
-          close_assembly_device(upload_data)
           :ets.delete(@table_name, upload_id)
           {:reply, {:ok, upload_data}, state}
         else
@@ -311,7 +303,6 @@ defmodule Cache.MultipartUploads do
 
       [{^upload_id, upload_data}] ->
         state = demonitor_write(upload_data, state)
-        close_assembly_device(upload_data)
         File.rm(upload_data.assembly_path)
         cleanup_temp_files(upload_data.parts)
         :ets.delete(@table_name, upload_id)
@@ -374,7 +365,6 @@ defmodule Cache.MultipartUploads do
       Task.start(fn ->
         Enum.each(abandoned, fn {upload_id, upload_data} ->
           Logger.info("Cleaning up abandoned multipart upload #{upload_id}")
-          close_assembly_device(upload_data)
           File.rm(upload_data.assembly_path)
           cleanup_temp_files(upload_data.parts)
         end)
@@ -389,21 +379,15 @@ defmodule Cache.MultipartUploads do
     Process.send_after(self(), :cleanup_abandoned, @cleanup_interval_ms)
   end
 
-  defp ensure_assembly_device(%{assembly_device: nil, assembly_path: path} = upload_data) do
-    case File.open(path, [:write, :binary]) do
-      {:ok, device} -> {:ok, device, %{upload_data | assembly_device: device}}
-      {:error, reason} -> {:error, reason}
-    end
-  end
+  defp truncate_to_offset(%{write_in_progress: %{offset: offset}, assembly_path: path}) do
+    case :file.open(String.to_charlist(path), [:write, :read, :binary, :raw]) do
+      {:ok, fd} ->
+        :file.position(fd, offset)
+        :file.truncate(fd)
+        :file.close(fd)
 
-  defp ensure_assembly_device(%{assembly_device: device} = upload_data) do
-    {:ok, device, upload_data}
-  end
-
-  defp truncate_to_offset(%{write_in_progress: %{offset: offset}, assembly_device: device}) when device != nil do
-    case :file.position(device, offset) do
-      {:ok, _} -> :file.truncate(device)
-      _ -> :ok
+      _ ->
+        :ok
     end
   end
 
@@ -431,22 +415,14 @@ defmodule Cache.MultipartUploads do
     end
   end
 
-  defp maybe_cleanup_old_part(%{path: old_path}), do: File.rm(old_path)
-  defp maybe_cleanup_old_part(_), do: :ok
+  defp maybe_cleanup_old_part_async(%{path: old_path}), do: Task.start(fn -> File.rm(old_path) end)
+  defp maybe_cleanup_old_part_async(_), do: :ok
 
   defp cleanup_temp_files(parts) do
     Enum.each(parts, fn
       {_part_number, %{path: path}} -> File.rm(path)
       _ -> :ok
     end)
-  end
-
-  defp close_assembly_device(upload_data) do
-    case upload_data do
-      %{assembly_device: nil} -> :ok
-      %{assembly_device: device} -> File.close(device)
-      _ -> :ok
-    end
   end
 
   defp projected_total(upload_data, part_number, incoming_size) do

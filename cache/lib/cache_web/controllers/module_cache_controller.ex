@@ -288,8 +288,8 @@ defmodule CacheWeb.ModuleCacheController do
 
   def upload_part(conn, %{upload_id: upload_id, part_number: part_number}) do
     case MultipartUploads.claim_sequential_write(upload_id, part_number) do
-      {:direct_write, device} ->
-        handle_direct_part_upload(conn, device, upload_id, part_number)
+      {:direct_write, path, offset} ->
+        handle_direct_part_upload(conn, path, offset, upload_id, part_number)
 
       :buffer ->
         handle_buffered_part_upload(conn, upload_id, part_number)
@@ -299,7 +299,21 @@ defmodule CacheWeb.ModuleCacheController do
     end
   end
 
-  defp handle_direct_part_upload(conn, device, upload_id, part_number) do
+  defp handle_direct_part_upload(conn, path, offset, upload_id, part_number) do
+    case :file.open(String.to_charlist(path), [:write, :read, :binary, :raw]) do
+      {:ok, device} ->
+        :file.position(device, offset)
+        result = do_direct_write(conn, device, upload_id, part_number)
+        :file.close(device)
+        result
+
+      {:error, _reason} ->
+        MultipartUploads.abort_write(upload_id)
+        {:error, :persist_error}
+    end
+  end
+
+  defp do_direct_write(conn, device, upload_id, part_number) do
     opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
 
     case BodyReader.read_to_device(conn, device, opts) do
@@ -556,8 +570,9 @@ defmodule CacheWeb.ModuleCacheController do
   defp normalize_part_numbers(_parts), do: :invalid
 
   defp parse_part_number(n) do
-    String.to_integer(n)
-  rescue
-    ArgumentError -> :invalid
+    case Integer.parse(n) do
+      {int, ""} -> int
+      _ -> :invalid
+    end
   end
 end

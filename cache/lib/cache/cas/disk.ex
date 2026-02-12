@@ -83,7 +83,7 @@ defmodule Cache.CAS.Disk do
     dir = Path.dirname(path)
 
     with :ok <- Disk.ensure_directory(path) do
-      dir
+      {:ok, dir}
     end
   end
 

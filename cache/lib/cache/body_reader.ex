@@ -141,7 +141,7 @@ defmodule Cache.BodyReader do
 
     case File.open(tmp_path, [:write, :binary]) do
       {:ok, device} ->
-        writer = fn chunk -> IO.binwrite(device, chunk) end
+        writer = fn chunk -> :file.write(device, chunk) end
 
         case writer.(first_chunk) do
           :ok ->

@@ -147,7 +147,7 @@ defmodule CacheWeb.CASController do
 
   defp save_new_artifact(conn, account_handle, project_handle, id) do
     case CAS.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
-      target_dir when is_binary(target_dir) ->
+      {:ok, target_dir} ->
         case BodyReader.read(conn, tmp_dir: target_dir) do
           {:ok, data, conn_after} ->
             size = get_data_size(data)
