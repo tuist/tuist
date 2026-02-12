@@ -1547,7 +1547,7 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
-            if target.target.isAggregate { return false }
+            if target.target.foreignBuild != nil { return false }
             return target.target.product.isStatic
         case .sdk: return false
         }

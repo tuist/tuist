@@ -83,7 +83,7 @@ public struct GraphContentHasher: GraphContentHashing {
             }
         }
 
-        let foreignBuildTargets = sortedCacheableTargets.filter { $0.target.isAggregate }
+        let foreignBuildTargets = sortedCacheableTargets.filter { $0.target.foreignBuild != nil }
         for target in foreignBuildTargets {
             let hash = try await targetContentHasher.contentHash(
                 for: target,
@@ -144,7 +144,7 @@ public struct GraphContentHasher: GraphContentHashing {
             name: target.target.name
         )
         .allSatisfy {
-            if $0.graphTarget.target.isAggregate {
+            if $0.graphTarget.target.foreignBuild != nil {
                 return true
             }
             return isHashable(
