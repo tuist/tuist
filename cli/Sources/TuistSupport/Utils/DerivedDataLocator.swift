@@ -24,9 +24,26 @@ public final class DerivedDataLocator: DerivedDataLocating {
                 return derivedDataDirPath
             }
         }
+        if let buildDir = Environment.current.variables["BUILD_DIR"],
+           let derivedDataRoot = Self.derivedDataRoot(from: buildDir)
+        {
+            let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
+            if derivedDataRoot != defaultDerivedDataDirectory {
+                return derivedDataRoot
+            }
+        }
         let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
         return try await Environment.current.derivedDataDirectory()
             .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
+    }
+
+    /// Extracts the derived data root from `BUILD_DIR`.
+    /// `BUILD_DIR` is typically `<derived-data-root>/Build/Products/<Configuration>[-<SDK>]`.
+    static func derivedDataRoot(from buildDir: String) -> AbsolutePath? {
+        guard let range = buildDir.range(of: "/Build/Products") else { return nil }
+        let root = String(buildDir[buildDir.startIndex ..< range.lowerBound])
+        guard !root.isEmpty else { return nil }
+        return try? AbsolutePath(validating: root)
     }
 }
 
