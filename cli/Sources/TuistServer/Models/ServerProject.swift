@@ -6,8 +6,15 @@ public struct ServerProject: Codable, Identifiable {
         case `public`, `private`
     }
 
-    public enum BuildSystem: String, Codable, CaseIterable {
+    public enum BuildSystem: String, Codable, CaseIterable, CustomStringConvertible, Equatable {
         case xcode, gradle
+
+        public var description: String {
+            switch self {
+            case .xcode: "Xcode"
+            case .gradle: "Gradle"
+            }
+        }
     }
 
     public init(

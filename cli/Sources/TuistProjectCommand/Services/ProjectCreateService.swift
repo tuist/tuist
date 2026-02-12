@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import Path
 import TuistConfigLoader
 import TuistEnvironment
@@ -38,9 +39,15 @@ final class ProjectCreateService: ProjectCreateServicing {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
+        let resolvedBuildSystem: ServerProject.BuildSystem = buildSystem ?? Noora.current.singleChoicePrompt(
+            title: "Build system",
+            question: "Which build system does your project use?",
+            collapseOnSelection: true
+        )
+
         let project = try await createProjectService.createProject(
             fullHandle: fullHandle,
-            buildSystem: buildSystem,
+            buildSystem: resolvedBuildSystem,
             serverURL: serverURL
         )
 
