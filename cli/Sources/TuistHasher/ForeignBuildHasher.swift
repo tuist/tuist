@@ -45,8 +45,13 @@ public struct ForeignBuildHasher: ForeignBuildHashing {
                 hashes.append(fileHash)
 
             case let .folder(path):
-                let folderHash = try await contentHasher.hash(path: path)
-                hashedPaths[path] = folderHash
+                let folderHash: String
+                if let existing = hashedPaths[path] {
+                    folderHash = existing
+                } else {
+                    folderHash = try await contentHasher.hash(path: path)
+                    hashedPaths[path] = folderHash
+                }
                 hashes.append(folderHash)
 
             case let .script(script):

@@ -308,19 +308,16 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(settingsHash)
         }
 
-        let foreignBuildHash: String?
         if let foreignBuild = graphTarget.target.foreignBuild {
             let inputsResult = try await foreignBuildHasher.hash(
                 inputs: foreignBuild.inputs,
                 hashedPaths: hashedPaths
             )
             hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
-            foreignBuildHash = try contentHasher.hash(
+            let foreignBuildHash = try contentHasher.hash(
                 "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.script)-\(inputsResult.hash)"
             )
-            stringsToHash.append(foreignBuildHash!)
-        } else {
-            foreignBuildHash = nil
+            stringsToHash.append(foreignBuildHash)
         }
 
         let hash = try contentHasher.hash(stringsToHash)

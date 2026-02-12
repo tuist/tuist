@@ -131,20 +131,8 @@ extension XcodeGraph.ForeignBuildInput {
             return [.folder(try generatorPaths.resolve(path: path))]
         case let .glob(path):
             let resolvedPath = try generatorPaths.resolve(path: path)
-            let directory: AbsolutePath
-            let include: String
-            let pathString = resolvedPath.pathString
-            if let lastSlash = pathString.lastIndex(of: "/"),
-               !pathString[pathString.startIndex ... lastSlash].contains("*")
-            {
-                let dirString = String(pathString[pathString.startIndex ..< lastSlash])
-                directory = try AbsolutePath(validating: dirString)
-                include = String(pathString[pathString.index(after: lastSlash)...])
-            } else {
-                directory = try AbsolutePath(validating: "/")
-                include = pathString
-            }
-            let matchedPaths = try await fileSystem.glob(directory: directory, include: [include]).collect().sorted()
+            let pattern = String(resolvedPath.pathString.dropFirst())
+            let matchedPaths = try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().sorted()
             return matchedPaths.map { .file($0) }
         case let .script(script):
             return [.script(script)]

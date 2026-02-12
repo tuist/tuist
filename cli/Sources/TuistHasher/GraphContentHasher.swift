@@ -71,6 +71,7 @@ public struct GraphContentHasher: GraphContentHashing {
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
+            guard target.target.foreignBuild == nil else { return nil }
             if isHashable(
                 target,
                 graphTraverser: graphTraverser,

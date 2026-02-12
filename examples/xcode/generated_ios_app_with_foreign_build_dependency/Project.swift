@@ -35,6 +35,8 @@ let project = Project(
             inputs: [
                 .folder("SharedKMP/src"),
                 .file("SharedKMP/build.gradle.kts"),
+                .file("SharedKMP/settings.gradle.kts"),
+                .file("SharedKMP/gradle.properties"),
             ],
             output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework", linking: .dynamic)
         ),
