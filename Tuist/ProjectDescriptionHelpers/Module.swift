@@ -299,7 +299,7 @@ public enum Module: String, CaseIterable {
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-             .registryCommand, .buildCommand, .generateCommand, .testCommand:
+             .registryCommand, .buildCommand, .generateCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -1269,8 +1269,20 @@ public enum Module: String, CaseIterable {
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-                 .registryCommand, .buildCommand, .generateCommand, .testCommand:
+                 .registryCommand, .buildCommand, .generateCommand:
                 []
+            case .testCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "Noora"),
+                ]
             case .configLoader:
                 [
                     .target(name: Module.config.targetName),

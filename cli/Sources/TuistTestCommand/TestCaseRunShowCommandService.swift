@@ -155,6 +155,30 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
             }
         }
 
+        // Stack Trace
+        if let stackTrace = run.stack_trace {
+            info.append("")
+            info.append("Stack Trace".bold())
+            info.append("  File:      \(stackTrace.file_name)")
+            if let appName = stackTrace.app_name, !appName.isEmpty {
+                info.append("  App:       \(appName)")
+            }
+            if let osVersion = stackTrace.os_version, !osVersion.isEmpty {
+                info.append("  OS:        \(osVersion)")
+            }
+            if let exceptionType = stackTrace.exception_type, !exceptionType.isEmpty {
+                info.append("  Exception: \(exceptionType)")
+            }
+            if let signal = stackTrace.signal, !signal.isEmpty {
+                info.append("  Signal:    \(signal)")
+            }
+            if let subtype = stackTrace.exception_subtype, !subtype.isEmpty {
+                info.append("  Subtype:   \(subtype)")
+            }
+            info.append("")
+            info.append(stackTrace.raw_content)
+        }
+
         return info.joined(separator: "\n") + "\n"
     }
 }

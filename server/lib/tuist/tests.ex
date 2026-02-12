@@ -48,6 +48,19 @@ defmodule Tuist.Tests do
     end
   end
 
+  def get_stack_trace_by_id(id) do
+    query =
+      from(st in StackTrace,
+        where: st.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      stack_trace -> {:ok, stack_trace}
+    end
+  end
+
   def get_test(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 

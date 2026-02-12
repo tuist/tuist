@@ -1668,7 +1668,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8080",
+                validatingOpenAPIServerURL: "http://localhost:4002",
                 variables: []
             )
         }
@@ -1676,7 +1676,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8080",
+            validatingOpenAPIServerURL: "http://localhost:4002",
             variables: []
         )
     }
@@ -11623,6 +11623,87 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
+                        /// Crash stack trace associated with this test case run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
+                        public struct stack_tracePayload: Codable, Hashable, Sendable {
+                            /// The app name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/app_name`.
+                            public var app_name: Swift.String?
+                            /// The exception subtype.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_subtype`.
+                            public var exception_subtype: Swift.String?
+                            /// The exception type (e.g., EXC_CRASH).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_type`.
+                            public var exception_type: Swift.String?
+                            /// The crash log file name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/file_name`.
+                            public var file_name: Swift.String
+                            /// The stack trace ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/id`.
+                            public var id: Swift.String
+                            /// The OS version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/os_version`.
+                            public var os_version: Swift.String?
+                            /// The full crash log content.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/raw_content`.
+                            public var raw_content: Swift.String
+                            /// The signal (e.g., SIGABRT).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/signal`.
+                            public var signal: Swift.String?
+                            /// Creates a new `stack_tracePayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - app_name: The app name.
+                            ///   - exception_subtype: The exception subtype.
+                            ///   - exception_type: The exception type (e.g., EXC_CRASH).
+                            ///   - file_name: The crash log file name.
+                            ///   - id: The stack trace ID.
+                            ///   - os_version: The OS version.
+                            ///   - raw_content: The full crash log content.
+                            ///   - signal: The signal (e.g., SIGABRT).
+                            public init(
+                                app_name: Swift.String? = nil,
+                                exception_subtype: Swift.String? = nil,
+                                exception_type: Swift.String? = nil,
+                                file_name: Swift.String,
+                                id: Swift.String,
+                                os_version: Swift.String? = nil,
+                                raw_content: Swift.String,
+                                signal: Swift.String? = nil
+                            ) {
+                                self.app_name = app_name
+                                self.exception_subtype = exception_subtype
+                                self.exception_type = exception_type
+                                self.file_name = file_name
+                                self.id = id
+                                self.os_version = os_version
+                                self.raw_content = raw_content
+                                self.signal = signal
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case app_name
+                                case exception_subtype
+                                case exception_type
+                                case file_name
+                                case id
+                                case os_version
+                                case raw_content
+                                case signal
+                            }
+                        }
+                        /// Crash stack trace associated with this test case run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
+                        public var stack_trace: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.stack_tracePayload?
                         /// Run status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/status`.
@@ -11663,6 +11744,7 @@ public enum Operations {
                         ///   - ran_at: ISO 8601 timestamp when the run executed.
                         ///   - repetitions:
                         ///   - scheme: Build scheme.
+                        ///   - stack_trace: Crash stack trace associated with this test case run.
                         ///   - status: Run status.
                         ///   - suite_name: Suite name.
                         ///   - test_case_id: The test case ID.
@@ -11681,6 +11763,7 @@ public enum Operations {
                             ran_at: Foundation.Date? = nil,
                             repetitions: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayload,
                             scheme: Swift.String? = nil,
+                            stack_trace: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.stack_tracePayload? = nil,
                             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload,
                             suite_name: Swift.String? = nil,
                             test_case_id: Swift.String? = nil,
@@ -11699,6 +11782,7 @@ public enum Operations {
                             self.ran_at = ran_at
                             self.repetitions = repetitions
                             self.scheme = scheme
+                            self.stack_trace = stack_trace
                             self.status = status
                             self.suite_name = suite_name
                             self.test_case_id = test_case_id
@@ -11718,6 +11802,7 @@ public enum Operations {
                             case ran_at
                             case repetitions
                             case scheme
+                            case stack_trace
                             case status
                             case suite_name
                             case test_case_id
@@ -11942,28 +12027,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query

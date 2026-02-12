@@ -5684,6 +5684,63 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  stack_trace:
+                    description: Crash stack trace associated with this test case run.
+                    nullable: true
+                    properties:
+                      app_name:
+                        description: The app name.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      exception_subtype:
+                        description: The exception subtype.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      exception_type:
+                        description: The exception type (e.g., EXC_CRASH).
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      file_name:
+                        description: The crash log file name.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      id:
+                        description: The stack trace ID.
+                        format: uuid
+                        type: string
+                        x-struct:
+                        x-validate:
+                      os_version:
+                        description: The OS version.
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      raw_content:
+                        description: The full crash log content.
+                        type: string
+                        x-struct:
+                        x-validate:
+                      signal:
+                        description: The signal (e.g., SIGABRT).
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                    required:
+                      - id
+                      - file_name
+                      - raw_content
+                    type: object
+                    x-struct:
+                    x-validate:
                   status:
                     description: Run status.
                     enum:
@@ -5748,6 +5805,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -5764,12 +5829,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Page number for pagination.
+        - description: Filter bundles by git branch.
           in: query
-          name: page
+          name: git_branch
           required: false
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -5778,14 +5843,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
       responses:
@@ -13249,6 +13306,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:4002
     variables: {}
 tags: []
