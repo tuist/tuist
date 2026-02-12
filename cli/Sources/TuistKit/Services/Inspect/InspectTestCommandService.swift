@@ -139,10 +139,6 @@ struct InspectTestCommandService {
                 validating: derivedDataPath,
                 relativeTo: currentWorkingDirectory
             )
-        } else if let derivedDataDir = Environment.current.variables["DERIVED_DATA_DIR"] {
-            projectDerivedDataDirectory = try AbsolutePath(validating: derivedDataDir)
-            Logger.current
-                .debug("Inspect test: derived data directory resolved from DERIVED_DATA_DIR environment variable")
         } else {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
