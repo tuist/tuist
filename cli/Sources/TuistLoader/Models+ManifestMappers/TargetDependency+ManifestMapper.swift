@@ -235,13 +235,6 @@ extension XcodeGraph.ForeignBuild.Artifact {
                 path: try generatorPaths.resolve(path: path),
                 linking: .from(manifest: linking)
             )
-        case let .library(path, publicHeaders, swiftModuleMap, linking):
-            return .library(
-                path: try generatorPaths.resolve(path: path),
-                publicHeaders: try generatorPaths.resolve(path: publicHeaders),
-                swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) },
-                linking: .from(manifest: linking)
-            )
         }
     }
 }

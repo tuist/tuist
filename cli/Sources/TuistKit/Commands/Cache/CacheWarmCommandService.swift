@@ -283,6 +283,11 @@ import XcodeGraph
                     temporaryDirectory: temporaryDirectory
                 ))
 
+                artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
+                    cacheableTargets: hashesByTargetToBeCached,
+                    temporaryDirectory: temporaryDirectory
+                ))
+
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
                 let successfullyStoredTargets = try await store(
@@ -475,7 +480,7 @@ import XcodeGraph
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             var xcframeworks: [CacheGraphTargetBuiltArtifact] = []
-            let cacheableTargets = cacheableTargets.filter(\.0.target.product.isFramework)
+            let cacheableTargets = cacheableTargets.filter { $0.0.target.product.isFramework && !$0.0.target.isAggregate }
 
             for cacheableTarget in cacheableTargets {
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
@@ -512,6 +517,45 @@ import XcodeGraph
             }
 
             return xcframeworks
+        }
+
+        private func collectForeignBuildArtifacts(
+            cacheableTargets: [(GraphTarget, String)],
+            temporaryDirectory: AbsolutePath
+        ) async throws -> [CacheGraphTargetBuiltArtifact] {
+            let foreignBuildTargets = cacheableTargets.filter { $0.0.target.foreignBuild != nil }
+            guard !foreignBuildTargets.isEmpty else { return [] }
+
+            Logger.current.info("Collecting foreign build artifacts", metadata: .section)
+
+            var artifacts: [CacheGraphTargetBuiltArtifact] = []
+            for (graphTarget, hash) in foreignBuildTargets {
+                guard let foreignBuild = graphTarget.target.foreignBuild else { continue }
+                let outputPath = foreignBuild.output.path
+                guard try await fileSystem.exists(outputPath) else {
+                    Logger.current.warning("Foreign build artifact not found at \(outputPath.pathString) for \(graphTarget.target.name)")
+                    continue
+                }
+
+                let destinationPath = temporaryDirectory.appending(component: outputPath.basename)
+                try fileHandler.copy(from: outputPath, to: destinationPath)
+
+                let artifactType: CacheGraphTargetBuiltArtifact.ArtifactType
+                switch foreignBuild.output {
+                case .xcframework: artifactType = .xcframework
+                case .framework: artifactType = .xcframework
+                }
+
+                artifacts.append(CacheGraphTargetBuiltArtifact(
+                    type: artifactType,
+                    graphTarget: graphTarget,
+                    hash: hash,
+                    path: destinationPath,
+                    metadata: .init()
+                ))
+            }
+
+            return artifacts
         }
 
         // swiftlint:disable:next function_body_length

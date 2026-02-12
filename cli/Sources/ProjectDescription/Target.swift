@@ -149,7 +149,7 @@ public struct Target: Codable, Equatable, Sendable {
     ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
     /// directory.
     ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
-    ///   - output: The binary artifact produced by the script (`.xcframework`, `.framework`, or `.library`).
+    ///   - output: The binary artifact produced by the script (`.xcframework` or `.framework`).
     ///   - metadata: The target's metadata.
     public static func foreignBuild(
         name: String,
@@ -162,7 +162,7 @@ public struct Target: Codable, Equatable, Sendable {
         var target = self.init(
             name: name,
             destinations: destinations,
-            product: .staticLibrary,
+            product: output.product,
             productName: nil,
             bundleId: "tuist.foreign-build.\(name)",
             deploymentTargets: nil,

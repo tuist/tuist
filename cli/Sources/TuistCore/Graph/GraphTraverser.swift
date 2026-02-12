@@ -1714,6 +1714,7 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .target(name, path, status):
             guard let target = target(path: path, name: name) else { return nil }
+            if target.target.isAggregate { return nil }
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,

@@ -233,39 +233,6 @@ struct ForeignBuildGraphMapperTests {
     }
 
     @Test
-    func map_handlesLibraryOutput() async throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let outputPath = try AbsolutePath(validating: "/Project/build/libRust.a")
-        let headersPath = try AbsolutePath(validating: "/Project/headers")
-        let foreignBuildTarget = Target.test(
-            name: "RustLib",
-            foreignBuild: ForeignBuild(
-                script: "cargo build",
-                inputs: [],
-                output: .library(path: outputPath, publicHeaders: headersPath, swiftModuleMap: nil, linking: .static)
-            )
-        )
-        let consumingTarget = Target.test(
-            name: "App",
-            dependencies: [.target(name: "RustLib")]
-        )
-        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
-        let graph = Graph.test(
-            path: projectPath,
-            projects: [projectPath: project]
-        )
-
-        // When
-        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
-
-        // Then
-        let mappedProject = try #require(mappedGraph.projects[projectPath])
-        let mappedForeignTarget = try #require(mappedProject.targets["RustLib"])
-        #expect(mappedForeignTarget.scripts.first?.outputPaths == [outputPath.pathString])
-    }
-
-    @Test
     func map_returnsSideEffectWhenOutputDoesNotExist() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")

@@ -36,6 +36,7 @@ final class SettingsHelper {
     }
 
     func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
+        if target.isAggregate { return nil }
         switch target.product {
         case .app, .watch2App, .appClip:
             return .application

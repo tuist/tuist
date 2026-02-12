@@ -19,12 +19,10 @@ public enum ForeignBuildOutput: Codable, Hashable, Sendable {
     ///   - linking: Whether the framework is statically or dynamically linked.
     case framework(path: Path, linking: Linking)
 
-    /// A library output.
-    ///
-    /// - Parameters:
-    ///   - path: Relative path to the library binary.
-    ///   - publicHeaders: Relative path to the library's public headers directory.
-    ///   - swiftModuleMap: Relative path to the library's Swift module map file.
-    ///   - linking: Whether the library is statically or dynamically linked.
-    case library(path: Path, publicHeaders: Path, swiftModuleMap: Path?, linking: Linking)
+    var product: Product {
+        switch self {
+        case let .xcframework(_, linking), let .framework(_, linking):
+            return linking == .static ? .staticFramework : .framework
+        }
+    }
 }

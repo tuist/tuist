@@ -85,6 +85,7 @@ public struct GraphContentHasher: GraphContentHashing {
         }
 
         let foreignBuildTargets = sortedCacheableTargets.filter { $0.target.foreignBuild != nil }
+        var includedForeignBuildHashes: [GraphTarget: TargetContentHash] = [:]
         for target in foreignBuildTargets {
             let hash = try await targetContentHasher.contentHash(
                 for: target,
@@ -101,6 +102,9 @@ public struct GraphContentHasher: GraphContentHashing {
                         targetName: target.target.name
                     )
                 ] = hash.hash
+            }
+            if include(target) {
+                includedForeignBuildHashes[target] = hash
             }
         }
 
@@ -124,7 +128,9 @@ public struct GraphContentHasher: GraphContentHashing {
                 }
                 return hash
             }
-        return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
+        var result = Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
+        result.merge(includedForeignBuildHashes) { _, new in new }
+        return result
     }
 
     // MARK: - Private
