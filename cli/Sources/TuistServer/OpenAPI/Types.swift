@@ -13303,14 +13303,14 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The build system used by the project.
+                    /// The build system used by the project. Defaults to xcode.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/build_system`.
                     @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case xcode = "xcode"
                         case gradle = "gradle"
                     }
-                    /// The build system used by the project.
+                    /// The build system used by the project. Defaults to xcode.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/build_system`.
                     public var build_system: Operations.createProject.Input.Body.jsonPayload.build_systemPayload?
@@ -13331,7 +13331,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - build_system: The build system used by the project.
+                    ///   - build_system: The build system used by the project. Defaults to xcode.
                     ///   - full_handle: The full handle of the project that should be created.
                     ///   - name: The name of the project that should be created.
                     ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.

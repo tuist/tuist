@@ -43,7 +43,7 @@ defmodule TuistWeb.API.ProjectsController do
            },
            build_system: %Schema{
              type: :string,
-             description: "The build system used by the project.",
+             description: "The build system used by the project. Defaults to xcode.",
              enum: ["xcode", "gradle"]
            }
          }
