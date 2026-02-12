@@ -5,16 +5,16 @@
   "description": "Learn how to use Tuist with a Swift Package."
 }
 ---
-# Tuist'i Swift paketi ile Kullanma <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
+# Tuist'i Swift package ile kullanma <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
 Tuist, projeleriniz için DSL olarak `Package.swift` kullanımını destekler ve
 paket hedeflerinizi yerel bir Xcode projesi ve hedeflerine dönüştürür.
 
 ::: warning
 <!-- -->
-Bu özelliğin amacı, geliştiricilere Swift paketlerinde Tuist'i kullanmanın
+Bu özelliğin amacı, geliştiricilere Swift Package'lerde Tuist'i kullanmanın
 etkisini kolayca değerlendirebilmeleri için bir yol sunmaktır. Bu nedenle, Swift
-Paket Yöneticisi'nin tüm özelliklerini desteklemeyi veya
+Package Yöneticisi'nin tüm özelliklerini desteklemeyi veya
 <LocalizedLink href="/guides/features/projects/code-sharing">proje açıklaması
 yardımcıları</LocalizedLink> gibi Tuist'in tüm benzersiz özelliklerini paket
 dünyasına getirmeyi planlamıyoruz.
@@ -29,9 +29,9 @@ yapısı</LocalizedLink> bekler.
 <!-- -->
 :::
 
-## Tuist'i Swift paketi ile Kullanma {#using-tuist-with-a-swift-package}
+## Tuist'i Swift package ile kullanma {#using-tuist-with-a-swift-package}
 
-Tuist'i, Swift paketi içeren [TootSDK
+Tuist'i, Swift package'ini içeren [TootSDK
 Paketi](https://github.com/TootSDK/TootSDK) deposuyla kullanacağız. Yapmamız
 gereken ilk şey, depoyu klonlamaktır:
 
@@ -40,15 +40,16 @@ git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Depo dizinine girdikten sonra, Swift paketi paket yöneticisi bağımlılıklarını
-yüklememiz gerekir:
+Deponun dizinine girdikten sonra, Swift package paket yöneticisi
+bağımlılıklarını yüklememiz gerekir:
 
 ```bash
 tuist install
 ```
 
-Arka planda `tuist install`, Swift paketi kullanarak paketin bağımlılıklarını
-çözer ve çeker. Çözümleme tamamlandıktan sonra projeyi oluşturabilirsiniz:
+Arka planda `tuist install`, Swift package manager'ı kullanarak paketin
+bağımlılıklarını çözer ve çeker. Çözümleme tamamlandıktan sonra projeyi
+oluşturabilirsiniz:
 
 ```bash
 tuist generate
