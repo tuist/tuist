@@ -127,6 +127,14 @@
                             "text": "生成的项目"
                         }
                     }
+                },
+                "configuration": {
+                    "text": "配置",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
