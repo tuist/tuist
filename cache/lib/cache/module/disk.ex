@@ -119,7 +119,7 @@ defmodule Cache.Module.Disk do
   Finalizes a multipart assembly file by appending buffered parts (if any)
   and atomically renaming to the final artifact destination.
   """
-  def complete_assembly(assembly_path, upload, buffered_part_paths, _client_parts) do
+  def complete_assembly(assembly_path, upload, buffered_part_paths) do
     dest_path =
       upload.account_handle
       |> key(upload.project_handle, upload.category, upload.hash, upload.name)

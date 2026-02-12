@@ -302,14 +302,7 @@ defmodule CacheWeb.ModuleCacheController do
   defp handle_direct_part_upload(conn, device, upload_id, part_number) do
     opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
 
-    result =
-      try do
-        BodyReader.read_to_device(conn, device, opts)
-      rescue
-        e -> {:error, e, conn}
-      end
-
-    case result do
+    case BodyReader.read_to_device(conn, device, opts) do
       {:ok, size, conn_after} ->
         case MultipartUploads.confirm_write(upload_id, part_number, size) do
           :ok ->
@@ -328,6 +321,10 @@ defmodule CacheWeb.ModuleCacheController do
           {:error, _reason} ->
             {:error, :persist_error}
         end
+
+      {:error, :cancelled, conn_after} ->
+        MultipartUploads.abort_write(upload_id)
+        send_resp(conn_after, :no_content, "")
 
       {:error, :too_large, _conn_after} ->
         MultipartUploads.abort_write(upload_id)
@@ -387,7 +384,7 @@ defmodule CacheWeb.ModuleCacheController do
           with {:ok, validated_parts} <- validate_part_numbers(parts_from_client),
                :ok <- verify_parts(upload.parts, validated_parts),
                {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, validated_parts),
-               :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths, validated_parts) do
+               :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths) do
             Enum.each(buffered_part_paths, &File.rm/1)
             :ok
           end

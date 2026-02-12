@@ -186,8 +186,10 @@ defmodule Cache.MultipartUploads do
       [{^upload_id, upload_data}] ->
         part_already_buffered = Map.has_key?(upload_data.parts, part_number)
 
+        has_headroom = upload_data.total_bytes < @max_total_size
+
         if upload_data.next_sequential == part_number and upload_data.write_in_progress == nil and
-             not part_already_buffered do
+             not part_already_buffered and has_headroom do
           case ensure_assembly_device(upload_data) do
             {:ok, device, upload_data} ->
               offset = upload_data.assembly_offset
@@ -355,26 +357,33 @@ defmodule Cache.MultipartUploads do
   def handle_info(:cleanup_abandoned, state) do
     now = DateTime.utc_now()
 
-    state =
+    {abandoned, state} =
       :ets.foldl(
-        fn {upload_id, upload_data}, acc_state ->
+        fn {upload_id, upload_data}, {acc_abandoned, acc_state} ->
           age_ms = DateTime.diff(now, upload_data.last_activity_at, :millisecond)
 
           if age_ms > @upload_timeout_ms and upload_data.write_in_progress == nil do
-            Logger.info("Cleaning up abandoned multipart upload #{upload_id}")
             acc_state = demonitor_write(upload_data, acc_state)
-            close_assembly_device(upload_data)
-            File.rm(upload_data.assembly_path)
-            cleanup_temp_files(upload_data.parts)
             :ets.delete(@table_name, upload_id)
-            acc_state
+            {[{upload_id, upload_data} | acc_abandoned], acc_state}
           else
-            acc_state
+            {acc_abandoned, acc_state}
           end
         end,
-        state,
+        {[], state},
         @table_name
       )
+
+    if abandoned != [] do
+      Task.start(fn ->
+        Enum.each(abandoned, fn {upload_id, upload_data} ->
+          Logger.info("Cleaning up abandoned multipart upload #{upload_id}")
+          close_assembly_device(upload_data)
+          File.rm(upload_data.assembly_path)
+          cleanup_temp_files(upload_data.parts)
+        end)
+      end)
+    end
 
     schedule_cleanup()
     {:noreply, state}

@@ -371,7 +371,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path], [1] ->
+      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, [^tmp_path] ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
         assert completed_upload.category == "builds"
@@ -473,7 +473,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths, [1, 2, 3] ->
+      expect(ModuleDisk, :complete_assembly, fn ^assembly_path, completed_upload, part_paths ->
         assert completed_upload.account_handle == "test-account"
         assert completed_upload.project_handle == "test-project"
         assert completed_upload.category == "builds"
