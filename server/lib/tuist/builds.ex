@@ -11,6 +11,7 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
+  alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -19,7 +20,9 @@ defmodule Tuist.Builds do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def get_build(id) do
-    Repo.one(from(b in Build, where: b.id == ^id, order_by: [desc: b.inserted_at], limit: 1))
+    Build
+    |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)
+    |> ClickHouseRepo.one()
   end
 
   def create_build(attrs) do
@@ -38,33 +41,45 @@ defmodule Tuist.Builds do
 
     attrs = Map.merge(attrs, cacheable_task_counts)
 
-    case %Build{}
-         |> Build.create_changeset(attrs)
-         |> Repo.insert() do
-      {:ok, build} ->
-        Task.await_many(
-          [
-            Task.async(fn -> create_build_issues(build, attrs.issues) end),
-            Task.async(fn -> create_build_files(build, attrs.files) end),
-            Task.async(fn -> create_build_targets(build, attrs.targets) end),
-            Task.async(fn -> create_cacheable_tasks(build, cacheable_tasks) end),
-            Task.async(fn -> create_cas_outputs(build, cas_outputs) end)
-          ],
-          30_000
-        )
+    attrs =
+      Map.update(attrs, :status, "success", fn
+        nil -> "success"
+        value when is_atom(value) -> Atom.to_string(value)
+        other -> other
+      end)
 
-        build = Repo.preload(build, project: :account)
+    changeset = Build.create_changeset(%Build{}, attrs)
 
+    if changeset.valid? do
+      build = Ecto.Changeset.apply_changes(changeset)
+      build_map = Build.to_buffer_map(build)
+
+      {:ok, build_map} = Build.Buffer.insert(build_map)
+
+      Task.await_many(
+        [
+          Task.async(fn -> create_build_issues(build_map, Map.get(attrs, :issues, [])) end),
+          Task.async(fn -> create_build_files(build_map, Map.get(attrs, :files, [])) end),
+          Task.async(fn -> create_build_targets(build_map, Map.get(attrs, :targets, [])) end),
+          Task.async(fn -> create_cacheable_tasks(build_map, cacheable_tasks) end),
+          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end)
+        ],
+        30_000
+      )
+
+      project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
+
+      if project do
         Tuist.PubSub.broadcast(
           build,
-          "#{build.project.account.name}/#{build.project.name}",
+          "#{project.account.name}/#{project.name}",
           :build_created
         )
+      end
 
-        {:ok, build}
-
-      {:error, changeset} ->
-        {:error, changeset}
+      {:ok, build}
+    else
+      {:error, changeset}
     end
   end
 
@@ -190,19 +205,19 @@ defmodule Tuist.Builds do
   end
 
   def list_build_files(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
+    ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
   end
 
   def list_build_targets(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
+    ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
   end
 
   def list_cacheable_tasks(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
+    ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
   end
 
   def list_cas_outputs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
+    ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
   end
 
   def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
@@ -231,8 +246,16 @@ defmodule Tuist.Builds do
       countIf(operation = 'upload') as upload_count,
       sumIf(size, operation = 'download') as download_bytes,
       sumIf(size, operation = 'upload') as upload_bytes,
-      sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000 as time_weighted_avg_download_throughput,
-      sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000 as time_weighted_avg_upload_throughput
+      if(
+        sumIf(duration, operation = 'download' AND duration > 0) = 0,
+        0,
+        sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000
+      ) as time_weighted_avg_download_throughput,
+      if(
+        sumIf(duration, operation = 'upload' AND duration > 0) = 0,
+        0,
+        sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000
+      ) as time_weighted_avg_upload_throughput
     FROM cas_outputs
     WHERE build_run_id = {build_run_id:UUID}
     """
@@ -264,14 +287,14 @@ defmodule Tuist.Builds do
   def cacheable_task_latency_metrics(build_run_id) do
     query = """
     SELECT
-      avg(read_duration) as avg_read_duration,
-      avg(write_duration) as avg_write_duration,
-      quantile(0.99)(read_duration) as p99_read_duration,
-      quantile(0.99)(write_duration) as p99_write_duration,
-      quantile(0.90)(read_duration) as p90_read_duration,
-      quantile(0.90)(write_duration) as p90_write_duration,
-      quantile(0.50)(read_duration) as p50_read_duration,
-      quantile(0.50)(write_duration) as p50_write_duration
+      avgOrNull(read_duration) as avg_read_duration,
+      avgOrNull(write_duration) as avg_write_duration,
+      quantileOrNull(0.99)(read_duration) as p99_read_duration,
+      quantileOrNull(0.99)(write_duration) as p99_write_duration,
+      quantileOrNull(0.90)(read_duration) as p90_read_duration,
+      quantileOrNull(0.90)(write_duration) as p90_write_duration,
+      quantileOrNull(0.50)(read_duration) as p50_read_duration,
+      quantileOrNull(0.50)(write_duration) as p50_write_duration
     FROM cacheable_tasks
     WHERE build_run_id = {build_run_id:UUID}
     AND (read_duration IS NOT NULL OR write_duration IS NOT NULL)
@@ -309,60 +332,85 @@ defmodule Tuist.Builds do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
 
-    Build
-    |> apply_custom_values_filter(custom_values)
-    |> preload(^preload)
-    |> Flop.validate_and_run!(attrs, for: Build)
+    base_query = apply_custom_values_filter(Build, custom_values)
+
+    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
+
+    results = Repo.preload(results, preload)
+
+    {results, meta}
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 40)
-    order = Keyword.get(opts, :order, :desc)
+    order_direction = if Keyword.get(opts, :order, :desc) == :desc, do: "DESC", else: "ASC"
 
-    subquery =
-      from(b in Build)
-      |> where([b], b.project_id == ^project_id)
-      |> order_by([b], [{^order, b.inserted_at}])
-      |> limit(^limit)
-      |> select([b], b.status)
+    query = """
+    SELECT
+      countIf(status = 'success') as successful_count,
+      countIf(status = 'failure') as failed_count
+    FROM (
+      SELECT status
+      FROM build_runs
+      WHERE project_id = {project_id:Int64}
+      ORDER BY inserted_at #{order_direction}
+      LIMIT {limit:UInt32}
+    )
+    """
 
-    from(s in subquery(subquery))
-    |> select([s], %{
-      successful_count: count(fragment("CASE WHEN ? = 0 THEN 1 END", s.status)),
-      failed_count: count(fragment("CASE WHEN ? = 1 THEN 1 END", s.status))
-    })
-    |> Repo.one()
+    {:ok, %{rows: [[successful_count, failed_count]]}} =
+      ClickHouseRepo.query(query, %{project_id: project_id, limit: limit})
+
+    %{
+      successful_count: successful_count,
+      failed_count: failed_count
+    }
   end
 
   def project_build_schemes(%Project{} = project) do
-    from(b in Build)
-    |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.scheme))
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
-    |> distinct([b], b.scheme)
-    |> select([b], b.scheme)
-    |> Repo.all()
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    ClickHouseRepo.all(
+      from(b in Build,
+        where: b.project_id == ^project.id,
+        where: b.scheme != "",
+        where: b.inserted_at > ^thirty_days_ago,
+        distinct: true,
+        select: b.scheme
+      )
+    )
   end
 
   def project_build_configurations(%Project{} = project) do
-    from(b in Build)
-    |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.configuration))
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
-    |> distinct([b], b.configuration)
-    |> select([b], b.configuration)
-    |> Repo.all()
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    ClickHouseRepo.all(
+      from(b in Build,
+        where: b.project_id == ^project.id,
+        where: b.configuration != "",
+        where: b.inserted_at > ^thirty_days_ago,
+        distinct: true,
+        select: b.configuration
+      )
+    )
   end
 
   def project_build_tags(%Project{} = project) do
-    from(b in Build)
-    |> where([b], b.project_id == ^project.id)
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
-    |> where([b], fragment("cardinality(?) > 0", b.custom_tags))
-    |> select([b], fragment("unnest(?)", b.custom_tags))
-    |> distinct(true)
-    |> Repo.all()
-    |> Enum.sort()
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query = """
+    SELECT DISTINCT arrayJoin(custom_tags) as tag
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND length(custom_tags) > 0
+      AND inserted_at > {since:DateTime64(6)}
+    ORDER BY tag
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago})
+
+    Enum.map(rows, fn [tag] -> tag end)
   end
 
   defp apply_custom_values_filter(query, nil), do: query
@@ -370,7 +418,7 @@ defmodule Tuist.Builds do
 
   defp apply_custom_values_filter(query, values_map) when is_map(values_map) do
     Enum.reduce(values_map, query, fn {key, value}, q ->
-      from(b in q, where: fragment("? ->> ? = ?", b.custom_values, ^key, ^value))
+      from(b in q, where: fragment("custom_values[?] = ?", ^key, ^value))
     end)
   end
 

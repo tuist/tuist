@@ -1,6 +1,4 @@
 import {
-  bookOpen01Icon,
-  codeBrowserIcon,
   cacheIcon,
   testIcon,
   registryIcon,
@@ -18,8 +16,6 @@ import {
   telemetryIcon,
   gitForgesIcon,
   selfHostingIcon,
-  installTuistIcon,
-  getStartedIcon,
   agenticBuildingIcon,
   qaIcon,
   slackIcon,
@@ -65,36 +61,65 @@ async function projectDescriptionSidebar(locale) {
 export async function referencesSidebar(locale) {
   return [
     {
-      text: localizedString(locale, "sidebars.references.text"),
+      text: localizedString(
+        locale,
+        "sidebars.references.items.configuration.text",
+      ),
+      collapsed: false,
       items: [
-        await projectDescriptionSidebar(locale),
         {
           text: localizedString(
             locale,
-            "sidebars.references.items.examples.text",
+            "sidebars.references.items.configuration.items.tuist-toml.text",
           ),
-          link: `/${locale}/references/examples`,
-          collapsed: true,
-          items: (await loadExamplesData()).map((item) => {
-            return {
-              text: item.title,
-              link: `/${locale}/references/examples/${item.name}`,
-            };
-          }),
+          link: `/${locale}/references/tuist-toml`,
         },
+      ],
+    },
+    {
+      text: localizedString(
+        locale,
+        "sidebars.references.items.xcode.text",
+      ),
+      collapsed: false,
+      items: [
         {
           text: localizedString(
             locale,
-            "sidebars.references.items.migrations.text",
+            "sidebars.references.items.xcode.items.generated-projects.text",
           ),
           collapsed: true,
           items: [
+            await projectDescriptionSidebar(locale),
             {
               text: localizedString(
                 locale,
-                "sidebars.references.items.migrations.items.from-v3-to-v4.text",
+                "sidebars.references.items.examples.text",
               ),
-              link: `/${locale}/references/migrations/from-v3-to-v4`,
+              link: `/${locale}/references/examples/generated-projects`,
+              collapsed: true,
+              items: (await loadExamplesData()).map((item) => {
+                return {
+                  text: item.title,
+                  link: `/${locale}/references/examples/generated-projects/${item.name}`,
+                };
+              }),
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.references.items.migrations.text",
+              ),
+              collapsed: true,
+              items: [
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.references.items.migrations.items.from-v3-to-v4.text",
+                  ),
+                  link: `/${locale}/references/migrations/from-v3-to-v4`,
+                },
+              ],
             },
           ],
         },
@@ -106,17 +131,11 @@ export async function referencesSidebar(locale) {
 export function navBar(locale) {
   return [
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "navbar.guides.text",
-      )} ${bookOpen01Icon()}</span>`,
+      text: localizedString(locale, "navbar.guides.text"),
       link: `/${locale}/`,
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "navbar.cli.text",
-      )} ${codeBrowserIcon()}</span>`,
+      text: localizedString(locale, "navbar.cli.text"),
       link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
     {
@@ -127,7 +146,7 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/structs/project`,
+          link: `/${MANIFEST_REFERENCE_LOCALE}/references/tuist-toml`,
         },
         {
           text: localizedString(
@@ -272,21 +291,34 @@ export function contributorsSidebar(locale) {
 export async function guidesSidebar(locale) {
   return [
     {
-      text: localizedString(locale, "sidebars.guides.items.quick-start.text"),
+      text: localizedString(locale, "sidebars.guides.text"),
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installTuistIcon()} ${localizedString(
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} ${localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.install-tuist.text",
+            "sidebars.guides.items.install-tuist.text",
           )}</span>`,
-          link: `/${locale}/guides/quick-start/install-tuist`,
+          link: `/${locale}/guides/install-tuist`,
         },
+      ],
+    },
+    {
+      text: localizedString(locale, "sidebars.tutorials.text"),
+      items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${getStartedIcon()} ${localizedString(
+          text: localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.get-started.text",
-          )}</span>`,
-          link: `/${locale}/guides/quick-start/get-started`,
+            "sidebars.tutorials.items.xcode.text",
+          ),
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.tutorials.items.xcode.items.create-a-generated-project.text",
+              ),
+              link: `/${locale}/tutorials/xcode/create-a-generated-project`,
+            },
+          ],
         },
       ],
     },
@@ -613,25 +645,6 @@ export async function guidesSidebar(locale) {
               link: `/${locale}/guides/features/agentic-coding/skills`,
             },
           ],
-        },
-      ],
-    },
-    {
-      text: localizedString(locale, "sidebars.guides.items.examples.text"),
-      items: [
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${codeBrowserIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.examples.items.generated-projects.text",
-          )}</span>`,
-          link: `/${locale}/guides/examples/generated-projects`,
-          collapsed: true,
-          items: (await loadExamplesData()).map((item) => {
-            return {
-              text: item.title,
-              link: `/${locale}/guides/examples/generated-projects/${item.name}`,
-            };
-          }),
         },
       ],
     },

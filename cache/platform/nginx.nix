@@ -139,6 +139,7 @@
           extraConfig = ''
             internal;
             alias /cas/;
+            types { }
             default_type application/octet-stream;
             gzip off;
             add_header Cache-Control "public, max-age=31536000, immutable";
@@ -161,6 +162,18 @@
             proxy_buffering off;
             proxy_intercept_errors on;
             error_page 301 302 307 = @handle_remote_redirect;
+            error_page 403 404 = @handle_remote_not_found;
+          '';
+        };
+
+        locations."@handle_remote_not_found" = {
+          extraConfig = ''
+            # Disable MIME type detection. The request URI contains filenames like
+            # &name=SwiftCompilerPluginMessageHandling.zip which would otherwise
+            # trigger nginx to set Content-Type: application/zip instead of JSON.
+            types { }
+            default_type application/json;
+            return 404 '{"message":"Not found"}';
           '';
         };
 

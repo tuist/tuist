@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 
 extension URLRequest {
     public static func test(url: URL = URL.test()) -> URLRequest {

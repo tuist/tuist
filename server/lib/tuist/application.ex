@@ -4,9 +4,12 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias Tuist.Builds.Build
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
+  alias Tuist.Gradle
+  alias Tuist.Gradle.Build.Buffer
   alias Tuist.QA.Logs
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
@@ -22,6 +25,7 @@ defmodule Tuist.Application do
     start_posthog()
     start_telemetry()
     start_sentry_logger()
+    start_loki_logger()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -55,6 +59,15 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+
+    if Application.get_env(:opentelemetry, :traces_exporter) != :none do
+      OpentelemetryLoggerMetadata.setup()
+      OpentelemetryBandit.setup()
+      OpentelemetryPhoenix.setup(adapter: :bandit)
+      OpentelemetryEcto.setup(event_prefix: [:tuist, :repo])
+      OpentelemetryFinch.setup()
+      OpentelemetryBroadway.setup()
+    end
   end
 
   defp start_sentry_logger do
@@ -62,6 +75,24 @@ defmodule Tuist.Application do
       :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
         config: %{metadata: [:file, :line]}
       })
+    end
+  end
+
+  defp start_loki_logger do
+    loki_url = Environment.loki_url()
+
+    if loki_url do
+      LokiLoggerHandler.attach(:loki_handler,
+        loki_url: loki_url,
+        storage: :memory,
+        labels: %{
+          app: {:static, "tuist-server"},
+          service_name: {:static, "tuist-server"},
+          env: {:static, to_string(Environment.env())},
+          level: :level
+        },
+        structured_metadata: [:trace_id, :span_id, :request_id]
+      )
     end
   end
 
@@ -73,10 +104,13 @@ defmodule Tuist.Application do
         Tuist.ClickHouseRepo,
         Tuist.IngestRepo,
         Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
+        Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
         Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
+        Supervisor.child_spec(Buffer, id: Buffer),
+        Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
         Tuist.Vault,
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},

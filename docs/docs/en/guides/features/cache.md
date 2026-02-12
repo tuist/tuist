@@ -2,12 +2,12 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize your build times with Tuist Cache."
+  "description": "Optimize build times with Tuist Cache, including module cache and Xcode cache (Xcode compilation cache)."
 }
 ---
 # Cache {#cache}
 
-Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over – either in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments (your Mac).
+Build systems provide [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over -- either in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments.
 
 Tuist addresses these challenges with its caching feature, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
 
@@ -24,6 +24,8 @@ While you can also use the new Xcode cache, this feature is currently optimized 
 <LocalizedLink href="/guides/features/cache/module-cache">Learn more about Module cache →</LocalizedLink>
 
 ## Xcode cache {#xcode-cache}
+
+The Xcode cache (also called the Xcode compilation cache or Xcode build cache) stores compilation artifacts so Xcode can reuse them across builds. With Tuist, you can share those artifacts across environments, including local, CI, and agentic environments, to speed up clean builds.
 
 ::: warning STATE OF CACHE IN XCODE
 <!-- -->

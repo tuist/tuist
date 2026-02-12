@@ -49,7 +49,7 @@ defmodule Tuist.MixProject do
       {:heroicons,
        github: "tailwindlabs/heroicons", tag: "v2.1.1", sparse: "optimized", app: false, compile: false, depth: 1},
       {:bamboo, "~> 2.4"},
-      {:finch, "~> 0.20.0"},
+      {:finch, "~> 0.21.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0", override: true},
@@ -84,7 +84,6 @@ defmodule Tuist.MixProject do
       {:req_telemetry, "~> 0.1.1"},
       {:telemetry_test, "~> 0.1.2"},
       {:sweet_xml, "~> 0.7.4"},
-      {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
@@ -130,7 +129,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.8.3"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.61.0"},
+        {:noora, "== 0.63.2"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
@@ -143,7 +142,18 @@ defmodule Tuist.MixProject do
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false}
+      {:posthog, "~> 1.0", runtime: false},
+      {:opentelemetry_api, "~> 1.4"},
+      {:opentelemetry, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.8"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto,
+       github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
+      {:opentelemetry_finch, "~> 0.2"},
+      {:opentelemetry_logger_metadata, "~> 0.1"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_broadway, "~> 0.3"},
+      {:loki_logger_handler, "~> 0.2"}
     ]
   end
 

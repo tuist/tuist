@@ -31,6 +31,10 @@ services:
         value: 50
       - key: TUIST_APP_URL
         value: https://tuist.dev
+      - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://tuist-fmpt:4317
+      - key: TUIST_LOKI_URL
+        value: http://tuist-fmpt:3100
     domains:
       - tuist.dev
 
@@ -61,6 +65,10 @@ services:
         value: 6
       - key: TUIST_APP_URL
         value: https://canary.tuist.dev
+      - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://tuist-fmpt:4317
+      - key: TUIST_LOKI_URL
+        value: http://tuist-fmpt:3100
     domains:
       - canary.tuist.dev
 
@@ -86,6 +94,10 @@ services:
         value: 15
       - key: TUIST_APP_URL
         value: https://staging.tuist.dev
+      - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://tuist-fmpt:4317
+      - key: TUIST_LOKI_URL
+        value: http://tuist-fmpt:3100
     domains:
       - staging.tuist.dev
 
@@ -101,7 +113,21 @@ services:
     plan: standard
     autoDeployTrigger: commit
     envVars:
+      - key: PROMETHEUS_URL
+        sync: false
       - key: PROMETHEUS_TOKEN
         sync: false
       - key: PROMETHEUS_USERNAME
+        sync: false
+      - key: TEMPO_URL
+        sync: false
+      - key: TEMPO_USERNAME
+        sync: false
+      - key: TEMPO_TOKEN
+        sync: false
+      - key: LOKI_URL
+        sync: false
+      - key: LOKI_USERNAME
+        sync: false
+      - key: LOKI_TOKEN
         sync: false

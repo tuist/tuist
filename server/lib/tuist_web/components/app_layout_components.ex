@@ -7,6 +7,8 @@ defmodule TuistWeb.AppLayoutComponents do
 
   import TuistWeb.AccountDropdown
 
+  alias Tuist.Projects.Project
+
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
   attr(:selected_run, :map, required: true)
@@ -24,6 +26,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={overview_path == @current_path}
       />
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
@@ -54,6 +57,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
@@ -117,6 +121,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"
         label={dgettext("dashboard", "Module Cache")}
         icon="database"
@@ -168,6 +173,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Xcode Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
@@ -176,6 +182,19 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.gradle_project?(@selected_project)}
+        label={dgettext("dashboard", "Gradle Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
+          )
+        }
+      />
+      <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
@@ -187,7 +206,10 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
+        :if={
+          Project.xcode_project?(@selected_project) and
+            FunWithFlags.enabled?(:qa, for: @selected_account)
+        }
         label={dgettext("dashboard", "QA")}
         icon="checkup_list"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
@@ -199,6 +221,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
@@ -302,6 +325,8 @@ defmodule TuistWeb.AppLayoutComponents do
           label={breadcrumb.label}
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
+          badge_label={breadcrumb[:badge] && breadcrumb.badge.label}
+          badge_color={breadcrumb[:badge] && breadcrumb.badge.color}
         >
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
@@ -314,6 +339,8 @@ defmodule TuistWeb.AppLayoutComponents do
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             icon={Map.get(breadcrumb_item, :icon)}
+            badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
+            badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
           />
         </.breadcrumb>
       <% end %>

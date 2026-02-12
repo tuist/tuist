@@ -53,6 +53,7 @@ defmodule TuistWeb.Endpoint do
     cookie_key: "request_logger"
 
   plug Plug.RequestId
+  plug TuistCommon.OtelRequestIdPlug
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug Sentry.PlugContext
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
@@ -73,6 +74,12 @@ defmodule TuistWeb.Endpoint do
   plug WebhookPlug,
     at: "/webhooks/cache",
     handler: TuistWeb.Webhooks.CacheController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/gradle-cache",
+    handler: TuistWeb.Webhooks.GradleCacheController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 

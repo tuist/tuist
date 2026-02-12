@@ -33,7 +33,7 @@ rm -rf $BUILD_DIRECTORY
 mkdir -p $BUILD_DIRECTORY
 
 echo "==> Building tuist executable"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --static-swift-stdlib
 
 BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --show-bin-path)
 echo "==> Copying binary from $BIN_PATH"

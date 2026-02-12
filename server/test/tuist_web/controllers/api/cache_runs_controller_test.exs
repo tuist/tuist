@@ -21,7 +21,7 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
           project_id: project.id,
           name: "cache",
           duration: 12_000,
-          status: :success,
+          status: "success",
           is_ci: true,
           git_branch: "main",
           cacheable_targets: ["TargetA", "TargetB", "TargetC"],
@@ -98,7 +98,7 @@ defmodule TuistWeb.API.CacheRunsControllerTest do
           project_id: project.id,
           name: "cache",
           duration: 12_000,
-          status: :success,
+          status: "success",
           is_ci: true,
           git_branch: "main",
           command_arguments: ["warm"]

@@ -55,15 +55,8 @@ Tuist server has been tested and is compatible with the following minimum versio
 
 | Component | Minimum Version | Notes |
 | --- | --- | --- |
-| PostgreSQL | 15 | With TimescaleDB extension |
-| TimescaleDB | 2.16.1 | Required PostgreSQL extension (deprecated) |
+| PostgreSQL | 15 | |
 | ClickHouse | 25 | Required for analytics |
-
-::: warning TIMESCALEDB DEPRECATION
-<!-- -->
-TimescaleDB is currently a required PostgreSQL extension for Tuist server, used for time-series data storage and querying. However, **TimescaleDB is deprecated** and will be dropped as a required dependency in the near future as we migrate all time-series functionality to ClickHouse. For now, ensure your PostgreSQL instance has TimescaleDB installed and enabled.
-<!-- -->
-:::
 
 ### Running Docker-virtualized images {#running-dockervirtualized-images}
 
@@ -73,19 +66,17 @@ To run it, your infrastructure must support running Docker images. Note that mos
 
 ### Postgres database {#postgres-database}
 
-In addition to running the Docker images, you'll need a [Postgres database](https://www.postgresql.org/) with the [TimescaleDB extension](https://www.timescale.com/) to store relational and time-series data. Most infrastructure providers include Postgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
-
-**TimescaleDB Extension Required:** Tuist requires the TimescaleDB extension for efficient time-series data storage and querying. This extension is used for command events, analytics, and other time-based features. Ensure your PostgreSQL instance has TimescaleDB installed and enabled before running Tuist.
+In addition to running the Docker images, you'll need a [Postgres database](https://www.postgresql.org/) to store relational data. Most infrastructure providers include Postgres databases in their offering (e.g., [AWS](https://aws.amazon.com/rds/postgresql/) & [Google Cloud](https://cloud.google.com/sql/docs/postgres)).
 
 ::: info MIGRATIONS
 <!-- -->
-The Docker image's entrypoint automatically runs any pending schema migrations before starting the service. If migrations fail due to a missing TimescaleDB extension, you'll need to install it in your database first.
+The Docker image's entrypoint automatically runs any pending schema migrations before starting the service.
 <!-- -->
 :::
 
 ### ClickHouse database {#clickhouse-database}
 
-Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large amounts of analytics data. ClickHouse is **required** for features like build insights and will be the primary time-series database as we phase out TimescaleDB. You can choose whether to self-host ClickHouse or use their hosted service.
+Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large amounts of analytics data. ClickHouse is **required** for features like build insights. You can choose whether to self-host ClickHouse or use their hosted service.
 
 ::: info MIGRATIONS
 <!-- -->
@@ -104,6 +95,13 @@ If your goal is primarily to bring your own bucket for storing binaries and redu
 See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
 <!-- -->
 :::
+
+### Self-hosted cache nodes {#self-hosted-cache-nodes}
+
+To use self-hosted cache nodes with a self-hosted Tuist server:
+
+1. Deploy your cache nodes following the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
+2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
 
 ## Configuration {#configuration}
 
@@ -148,6 +146,8 @@ Licenses have an expiration date. Users will receive a warning while using Tuist
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
+| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
+| `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
 
 ### Database configuration {#database-configuration}
 
@@ -292,7 +292,7 @@ On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 
 We provide a comprehensive Docker Compose configuration that includes all required dependencies for testing Tuist server on your local machine before deploying to your infrastructure:
 
-- PostgreSQL 15 with TimescaleDB 2.16 extension (deprecated)
+- PostgreSQL 15
 - ClickHouse 25 for analytics
 - ClickHouse Keeper for coordination
 - MinIO for S3-compatible storage

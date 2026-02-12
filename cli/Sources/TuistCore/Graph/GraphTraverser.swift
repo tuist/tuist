@@ -487,6 +487,31 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
+        let staticXCFrameworksWithResources = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
+                guard case let .xcframework(xcframework) = dependency,
+                      xcframework.linking == .static
+                else { return false }
+                return xcframework.infoPlist.libraries.contains { $0.path.extension == "framework" }
+            },
+            skip: { [self] dependency in
+                canDependencyEmbedBinaries(dependency: dependency) ||
+                    isDependencyPrecompiledMacro(dependency) ||
+                    isDependencyMacroTarget(dependency) ||
+                    dependency.isPrecompiledDynamicAndLinkable ||
+                    isDependencyDynamicTarget(dependency: dependency)
+            }
+        )
+        references.formUnionPreferringRequiredStatus(
+            staticXCFrameworksWithResources.lazy.compactMap {
+                self.dependencyReference(
+                    to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
@@ -1507,6 +1532,10 @@ public class GraphTraverser: GraphTraversing {
 
     private func isDependencyDynamicNonMergeableTarget(dependency: GraphDependency) -> Bool {
         testTarget(dependency: dependency) { !$0.mergeable }
+    }
+
+    private func isDependencyDynamicTarget(dependency: GraphDependency) -> Bool {
+        testTarget(dependency: dependency, test: \.product.isDynamic)
     }
 
     private func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {

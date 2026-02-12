@@ -12,12 +12,26 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Tests
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
+  def mount(params, session, %{assigns: %{selected_project: project}} = socket) when is_struct(project) do
+    if Project.gradle_project?(project) do
+      mount_gradle(params, session, socket)
+    else
+      mount_xcode(params, session, socket)
+    end
+  end
+
+  defp mount_gradle(params, _session, socket) do
+    socket = TuistWeb.GradleBuildLive.assign_mount(socket, params["build_run_id"])
+    {:ok, socket}
+  end
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
+  defp mount_xcode(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Builds.get_build(params["build_run_id"]) do
         nil ->
@@ -31,7 +45,7 @@ defmodule TuistWeb.BuildRunLive do
 
     run =
       run
-      |> Tuist.Repo.preload([:project, :ran_by_account, project: :vcs_connection])
+      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
       |> Tuist.ClickHouseRepo.preload([:issues])
 
     command_event =
@@ -88,23 +102,30 @@ defmodule TuistWeb.BuildRunLive do
     {:ok, socket}
   end
 
+  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+    if Project.gradle_project?(project) do
+      {:noreply, TuistWeb.GradleBuildLive.assign_handle_params(socket, params)}
+    else
+      handle_params_xcode(params, socket)
+    end
+  end
+
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def handle_params(
-        params,
-        _uri,
-        %{
-          assigns: %{
-            file_breakdown_available_filters: file_breakdown_available_filters,
-            file_breakdown_active_filters: file_breakdown_active_filters,
-            module_breakdown_available_filters: module_breakdown_available_filters,
-            module_breakdown_active_filters: module_breakdown_active_filters,
-            cacheable_tasks_available_filters: cacheable_tasks_available_filters,
-            cacheable_tasks_active_filters: cacheable_tasks_active_filters,
-            cas_outputs_available_filters: cas_outputs_available_filters,
-            cas_outputs_active_filters: cas_outputs_active_filters
-          }
-        } = socket
-      ) do
+  defp handle_params_xcode(
+         params,
+         %{
+           assigns: %{
+             file_breakdown_available_filters: file_breakdown_available_filters,
+             file_breakdown_active_filters: file_breakdown_active_filters,
+             module_breakdown_available_filters: module_breakdown_available_filters,
+             module_breakdown_active_filters: module_breakdown_active_filters,
+             cacheable_tasks_available_filters: cacheable_tasks_available_filters,
+             cacheable_tasks_active_filters: cacheable_tasks_active_filters,
+             cas_outputs_available_filters: cas_outputs_available_filters,
+             cas_outputs_active_filters: cas_outputs_active_filters
+           }
+         } = socket
+       ) do
     uri = URI.new!("?" <> URI.encode_query(params))
     selected_breakdown_tab = params["breakdown-tab"] || "module"
     selected_cache_tab = params["cache-tab"] || "cacheable-tasks"
@@ -153,6 +174,15 @@ defmodule TuistWeb.BuildRunLive do
     }
   end
 
+  def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
+      when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and is_struct(project) do
+    if Project.gradle_project?(project) do
+      TuistWeb.GradleBuildLive.handle_event(event, params, socket)
+    else
+      handle_event_xcode(event, params, socket)
+    end
+  end
+
   def handle_event(
         "search-file-breakdown",
         %{"search" => search},
@@ -184,21 +214,6 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event(
-        "search-cacheable-tasks",
-        %{"search" => search},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
-      )
-
-    {:noreply, socket}
-  end
-
-  def handle_event(
         "search-cas-outputs",
         %{"search" => search},
         %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
@@ -211,33 +226,6 @@ defmodule TuistWeb.BuildRunLive do
       )
 
     {:noreply, socket}
-  end
-
-  def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
-
-    {:noreply,
-     socket
-     |> push_patch(
-       to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_params}"
-     )
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
-  end
-
-  def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
-
-    {:noreply,
-     socket
-     |> push_patch(
-       to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_query_params}"
-     )
-     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
-     |> push_event("close-dropdown", %{id: "all", all: true})
-     |> push_event("close-popover", %{id: "all", all: true})}
   end
 
   def handle_event(
@@ -287,6 +275,48 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, assign(socket, :expanded_task_keys, updated_expanded_keys)}
   end
 
+  defp handle_event_xcode(
+         "search-cacheable-tasks",
+         %{"search" => search},
+         %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} =
+           socket
+       ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("cacheable-tasks-search", search) |> Query.drop("cacheable-tasks-page")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  defp handle_event_xcode("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_params}"
+     )
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  defp handle_event_xcode("update_filter", params, socket) do
+    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+
+    {:noreply,
+     socket
+     |> push_patch(
+       to:
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs/#{socket.assigns.run.id}?#{updated_query_params}"
+     )
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
   defp file_breakdown_filters(run, params, available_filters, search) do
     base_filters =
       [
@@ -306,12 +336,8 @@ defmodule TuistWeb.BuildRunLive do
 
   defp module_breakdown_filters(run, params, available_filters, search) do
     base_filters =
-      map_filter_status_value(
-        [%{field: :build_run_id, op: :==, value: run.id}] ++
-          Filter.Operations.convert_filters_to_flop(
-            Filter.Operations.decode_filters_from_query(params, available_filters)
-          )
-      )
+      [%{field: :build_run_id, op: :==, value: run.id}] ++
+        Filter.Operations.convert_filters_to_flop(Filter.Operations.decode_filters_from_query(params, available_filters))
 
     if search && search != "" do
       base_filters ++
@@ -467,24 +493,6 @@ defmodule TuistWeb.BuildRunLive do
     |> assign(:module_breakdown_sort_order, module_breakdown_sort_order)
     |> assign(:module_breakdown_modules_meta, modules_meta)
     |> assign(:module_breakdown_active_filters, filters)
-  end
-
-  defp map_filter_status_value(filters) do
-    map_value = fn filter ->
-      case filter.value do
-        :success -> %{filter | value: 0}
-        :failure -> %{filter | value: 1}
-        _ -> filter
-      end
-    end
-
-    Enum.map(filters, fn filter ->
-      if filter.field == :status do
-        map_value.(filter)
-      else
-        filter
-      end
-    end)
   end
 
   attr(:issues, :list, required: true)
@@ -850,10 +858,10 @@ defmodule TuistWeb.BuildRunLive do
         field: :status,
         display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
-        options: [:success, :failure],
+        options: ["success", "failure"],
         options_display_names: %{
-          :success => dgettext("dashboard_builds", "Passed"),
-          :failure => dgettext("dashboard_builds", "Failed")
+          "success" => dgettext("dashboard_builds", "Passed"),
+          "failure" => dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil

@@ -22,6 +22,7 @@ const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
+  sidebar[`/${locale}/tutorials/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/guides/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
@@ -221,7 +222,7 @@ export default withMermaid(
   defineConfig({
     title: "Tuist",
     titleTemplate: ":title | Tuist",
-    description: "Scale your Xcode app development",
+    description: "Scale your app development",
     srcDir: "docs",
     lastUpdated: false,
     ignoreDeadLinks: [
@@ -379,6 +380,8 @@ export default withMermaid(
         )
         .join("\n");
       const redirects = `
+/ /en/ 301
+/index /en/index 301
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -411,7 +414,7 @@ export default withMermaid(
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
-/guide/introduction/installation /guides/quick-start/install-tuist 301
+/guide/introduction/installation /guides/install-tuist 301
 /guide/introduction/adopting-tuist/new-project /guides/start/new-project 301
 /guide/introduction/adopting-tuist/swift-package /guides/start/swift-package 301
 /guide/introduction/adopting-tuist/migrate-from-xcodeproj /guides/start/migrate/xcode-project 301
@@ -443,7 +446,7 @@ export default withMermaid(
 /cloud/on-premise /guides/dashboard/on-premise/install 301
 /cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
 /reference/project-description/* /references/project-description/:splat 301
-/reference/examples/* /references/examples/:splat 301
+/reference/examples/* /references/examples/generated-projects/:splat 301
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
@@ -479,8 +482,18 @@ export default withMermaid(
 /:locale/guides/server/install /:locale/guides/server/self-host/install 301
 /:locale/guides/server/metrics /:locale/guides/server/self-host/telemetry 301
 /:locale/server /:locale/guides/server/accounts-and-projects 301
-/:locale/references/examples /:locale/guides/examples/generated-projects 301
-/:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/guides/examples/generated-projects /:locale/references/examples/generated-projects 301
+/:locale/guides/examples/generated-projects/* /:locale/references/examples/generated-projects/:splat 301
+/:locale/references/examples /:locale/references/examples/generated-projects 301
+/:locale/guides/quick-start/install-tuist /:locale/guides/install-tuist 301
+/:locale/tutorials/xcode/install-tuist /:locale/guides/install-tuist 301
+/:locale/tutorials/install-tuist /:locale/guides/install-tuist 301
+/:locale/guides/quick-start/get-started /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/guides/quick-start/add-dependencies /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/guides/quick-start/gather-insights /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/tutorials/xcode/get-started /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/tutorials/xcode/add-dependencies /:locale/tutorials/xcode/create-a-generated-project 301
+/:locale/tutorials/xcode/gather-insights /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/cli/logging /:locale/cli/debugging 301
 ${cliLocaleRedirects}
 ${projectDescriptionLocaleRedirects}
@@ -488,7 +501,7 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
     `;
-      fs.writeFile(redirectsPath, redirects);
+      await fs.writeFile(redirectsPath, redirects);
     },
     themeConfig: {
       logo: "/logo.png",

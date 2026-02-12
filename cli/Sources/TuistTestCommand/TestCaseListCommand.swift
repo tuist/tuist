@@ -16,7 +16,7 @@ public struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
     @Option(
         name: [.customLong("project"), .customShort("P")],
         help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
-        envKey: .testCaseListFullHandle
+        envKey: .testCaseListProject
     )
     var project: String?
 

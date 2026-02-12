@@ -3518,9 +3518,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_embeddableFrameworks_when_dependencyIsStaticXCFramework() throws {
         // Given
         // App depends on a static XCFramework directly
-        // Static precompiled XCFrameworks should NOT be embedded because embedding them
-        // can cause runtime errors when the inner .framework lacks an Info.plist.
-        // Resources are handled separately via .bundle dependencies.
+        // Static XCFrameworks with .framework bundles are embedded so their resources
+        // are accessible at runtime (resources live inside the .framework itself).
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let project = Project.test(targets: [app])
 
@@ -3549,7 +3548,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.count, 0)
+        XCTAssertEqual(got, [
+            GraphDependencyReference(staticXCFramework),
+        ])
     }
 
     func test_embeddableFrameworks_when_dependencyIsTransitiveStaticXCFramework() throws {
@@ -3589,6 +3590,56 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got, [
             .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+        ])
+    }
+
+    func test_embeddableFrameworks_when_transitiveStaticXCFrameworkThroughStaticTarget() throws {
+        // Given
+        // App depends on a static framework target (with resources) which depends on a static XCFramework.
+        // Both the static framework and the static XCFramework should be embedded so their resources are accessible at
+        // runtime.
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let staticTarget = Target.test(
+            name: "StaticLib",
+            platform: .iOS,
+            product: .staticFramework,
+            resources: .init([.file(path: "/StaticLib/Resources/resource.json")])
+        )
+        let project = Project.test(targets: [app, staticTarget])
+
+        let staticXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/StaticFramework.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "StaticFramework.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            status: .required
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [.target(name: staticTarget.name, path: project.path)],
+            .target(name: staticTarget.name, path: project.path): [staticXCFramework],
+            staticXCFramework: [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            .product(
+                target: staticTarget.name,
+                productName: staticTarget.productNameWithExtension,
+                condition: nil
+            ),
+            GraphDependencyReference(staticXCFramework),
         ])
     }
 

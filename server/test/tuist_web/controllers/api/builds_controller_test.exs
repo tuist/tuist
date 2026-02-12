@@ -51,7 +51,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           user_id: user.account.id,
-          status: :success,
+          status: "success",
           duration: 5000,
           scheme: "MyApp",
           configuration: "Debug"
@@ -90,12 +90,12 @@ defmodule TuistWeb.API.BuildsControllerTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           user_id: user.account.id,
-          status: :failure,
+          status: "failure",
           duration: 3000
         )
 
       expect(Builds, :list_build_runs, fn attrs, _opts ->
-        assert %{field: :status, op: :==, value: :failure} in attrs.filters
+        assert %{field: :status, op: :==, value: "failure"} in attrs.filters
 
         {[failure_build],
          %{
@@ -318,7 +318,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           user_id: user.account.id,
-          status: :success,
+          status: "success",
           duration: 5000,
           scheme: "MyApp",
           configuration: "Release",

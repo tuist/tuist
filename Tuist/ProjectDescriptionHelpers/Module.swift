@@ -64,6 +64,7 @@ public enum Module: String, CaseIterable {
     case buildCommand = "TuistBuildCommand"
     case generateCommand = "TuistGenerateCommand"
     case testCommand = "TuistTestCommand"
+    case initCommand = "TuistInitCommand"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -342,6 +343,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.kit.targetName),
+                    .target(name: Module.initCommand.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.core.targetName),
@@ -369,6 +371,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.kit.targetName),
+                    .target(name: Module.initCommand.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.core.targetName),
@@ -431,7 +434,8 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-             .registryCommand, .buildCommand, .generateCommand, .testCommand:
+             .registryCommand, .buildCommand, .generateCommand, .testCommand,
+             .initCommand:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -536,6 +540,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
+                    .target(name: Module.initCommand.targetName),
                     .target(name: Module.organizationCommand.targetName),
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.registryCommand.targetName),
@@ -568,6 +573,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.testCommand.targetName),
+                    .target(name: Module.initCommand.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
@@ -624,6 +630,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
+                    .external(name: "Crypto"),
                 ]
             case .kit:
                 [
@@ -1226,6 +1233,27 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
                 ]
+            case .initCommand:
+                [
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.authCommand.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.scaffold.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Command"),
+                    .external(name: "XcodeGraph"),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -1283,9 +1311,28 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.userInputReader.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .initCommand:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.scaffold.targetName),
+                    .target(name: Module.authCommand.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "Command"),
                 ]
             case .har:
                 [
