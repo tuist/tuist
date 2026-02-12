@@ -302,28 +302,42 @@ defmodule CacheWeb.ModuleCacheController do
   defp handle_direct_part_upload(conn, device, upload_id, part_number) do
     opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
 
-    case BodyReader.read_to_device(conn, device, opts) do
+    result =
+      try do
+        BodyReader.read_to_device(conn, device, opts)
+      rescue
+        e -> {:error, e, conn}
+      end
+
+    case result do
       {:ok, size, conn_after} ->
-        :ok = MultipartUploads.confirm_write(upload_id, part_number, size)
+        case MultipartUploads.confirm_write(upload_id, part_number, size) do
+          :ok ->
+            :telemetry.execute(
+              [:cache, :xcode_module, :multipart, :part],
+              %{size: size, part_number: part_number},
+              %{}
+            )
 
-        :telemetry.execute(
-          [:cache, :xcode_module, :multipart, :part],
-          %{size: size, part_number: part_number},
-          %{}
-        )
+            send_resp(conn_after, :no_content, "")
 
-        send_resp(conn_after, :no_content, "")
+          {:error, :total_size_exceeded} ->
+            {:error, :total_size_exceeded}
+
+          {:error, _reason} ->
+            {:error, :persist_error}
+        end
 
       {:error, :too_large, _conn_after} ->
-        :ok = MultipartUploads.abort_write(upload_id)
+        MultipartUploads.abort_write(upload_id)
         {:error, :part_too_large}
 
       {:error, :timeout, _conn_after} ->
-        :ok = MultipartUploads.abort_write(upload_id)
+        MultipartUploads.abort_write(upload_id)
         {:error, :timeout}
 
       {:error, _reason, _conn_after} ->
-        :ok = MultipartUploads.abort_write(upload_id)
+        MultipartUploads.abort_write(upload_id)
         {:error, :persist_error}
     end
   end
@@ -363,55 +377,62 @@ defmodule CacheWeb.ModuleCacheController do
   )
 
   def complete_multipart(conn, %{upload_id: upload_id}) do
-    with {:ok, upload} <- MultipartUploads.complete_upload(upload_id),
-         parts_from_client = Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"),
-         :ok <- verify_parts(upload.parts, parts_from_client),
-         {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, parts_from_client),
-         :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths, parts_from_client) do
-      Enum.each(buffered_part_paths, &File.rm/1)
+    case MultipartUploads.complete_upload(upload_id) do
+      {:ok, upload} ->
+        parts_from_client =
+          normalize_part_numbers(Map.get(conn.body_params, :parts) || Map.get(conn.body_params, "parts"))
 
-      key = ModuleDisk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
-      :ok = CacheArtifacts.track_artifact_access(key)
-      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
+        result =
+          with :ok <- verify_parts(upload.parts, parts_from_client),
+               {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, parts_from_client),
+               :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths, parts_from_client) do
+            Enum.each(buffered_part_paths, &File.rm/1)
+            :ok
+          end
 
-      :telemetry.execute(
-        [:cache, :xcode_module, :multipart, :complete],
-        %{
-          size: upload.total_bytes,
-          parts_count: map_size(upload.parts)
-        },
-        %{}
-      )
+        case result do
+          :ok ->
+            key =
+              ModuleDisk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
 
-      send_resp(conn, :no_content, "")
-    else
-      {:error, :not_found} -> {:error, :not_found}
-      {:error, :parts_mismatch} -> {:error, :parts_mismatch}
-      {:error, :exists} -> send_resp(conn, :no_content, "")
-      {:error, _reason} -> {:error, :persist_error}
+            :ok = CacheArtifacts.track_artifact_access(key)
+            S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
+
+            :telemetry.execute(
+              [:cache, :xcode_module, :multipart, :complete],
+              %{
+                size: upload.total_bytes,
+                parts_count: map_size(upload.parts)
+              },
+              %{}
+            )
+
+            send_resp(conn, :no_content, "")
+
+          {:error, :parts_mismatch} ->
+            cleanup_failed_completion(upload)
+            {:error, :parts_mismatch}
+
+          {:error, :exists} ->
+            send_resp(conn, :no_content, "")
+
+          {:error, _reason} ->
+            cleanup_failed_completion(upload)
+            {:error, :persist_error}
+        end
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:error, :write_in_progress} ->
+        {:error, :persist_error}
     end
   end
 
   defp handle_buffered_part_upload(conn, upload_id, part_number) do
     case read_part_body(conn) do
       {:ok, tmp_path, size, conn_after} ->
-        case MultipartUploads.add_part(upload_id, part_number, tmp_path, size) do
-          :ok ->
-            :telemetry.execute([:cache, :xcode_module, :multipart, :part], %{size: size, part_number: part_number}, %{})
-            send_resp(conn_after, :no_content, "")
-
-          {:error, :upload_not_found} ->
-            File.rm(tmp_path)
-            {:error, :not_found}
-
-          {:error, :part_too_large} ->
-            File.rm(tmp_path)
-            {:error, :part_too_large}
-
-          {:error, :total_size_exceeded} ->
-            File.rm(tmp_path)
-            {:error, :total_size_exceeded}
-        end
+        register_buffered_part(conn_after, upload_id, part_number, tmp_path, size)
 
       {:error, :too_large, _conn_after} ->
         {:error, :part_too_large}
@@ -423,6 +444,21 @@ defmodule CacheWeb.ModuleCacheController do
         {:error, :persist_error}
     end
   end
+
+  defp register_buffered_part(conn_after, upload_id, part_number, tmp_path, size) do
+    case MultipartUploads.add_part(upload_id, part_number, tmp_path, size) do
+      :ok ->
+        :telemetry.execute([:cache, :xcode_module, :multipart, :part], %{size: size, part_number: part_number}, %{})
+        send_resp(conn_after, :no_content, "")
+
+      {:error, reason} ->
+        File.rm(tmp_path)
+        translate_add_part_error(reason)
+    end
+  end
+
+  defp translate_add_part_error(:upload_not_found), do: {:error, :not_found}
+  defp translate_add_part_error(reason), do: {:error, reason}
 
   defp read_part_body(conn) do
     opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
@@ -483,4 +519,22 @@ defmodule CacheWeb.ModuleCacheController do
       error -> error
     end)
   end
+
+  defp cleanup_failed_completion(upload) do
+    File.rm(upload.assembly_path)
+
+    Enum.each(upload.parts, fn
+      {_part_number, %{path: path}} -> File.rm(path)
+      _ -> :ok
+    end)
+  end
+
+  defp normalize_part_numbers(parts) when is_list(parts) do
+    Enum.map(parts, fn
+      n when is_integer(n) -> n
+      n when is_binary(n) -> String.to_integer(n)
+    end)
+  end
+
+  defp normalize_part_numbers(parts), do: parts
 end
