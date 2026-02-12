@@ -8,8 +8,8 @@ import TuistTesting
 import XcodeGraph
 @testable import TuistHasher
 
-struct ForeignBuildInputHasherTests {
-    private var subject: ForeignBuildInputHasher!
+struct ForeignBuildHasherTests {
+    private var subject: ForeignBuildHasher!
     private var contentHasher: MockContentHashing!
     private var system: MockSystem!
 
@@ -21,7 +21,7 @@ struct ForeignBuildInputHasherTests {
             .hash(Parameter<String>.any)
             .willProduce { $0 + "-hash" }
 
-        subject = ForeignBuildInputHasher(
+        subject = ForeignBuildHasher(
             contentHasher: contentHasher,
             system: system
         )

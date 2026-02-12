@@ -6,14 +6,14 @@ import TuistSupport
 import XcodeGraph
 
 @Mockable
-public protocol ForeignBuildInputHashing {
+public protocol ForeignBuildHashing {
     func hash(
         inputs: [ForeignBuildInput],
         hashedPaths: [AbsolutePath: String]
     ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String])
 }
 
-public final class ForeignBuildInputHasher: ForeignBuildInputHashing {
+public final class ForeignBuildHasher: ForeignBuildHashing {
     private let contentHasher: ContentHashing
     private let system: Systeming
 
