@@ -8,7 +8,7 @@ import XcodeGraph
 ///
 /// For each target where `target.foreignBuild != nil`:
 /// 1. Configures the target as an aggregate (adds the build script phase)
-/// 2. For each consuming target that depends on this foreign build target (via `.target(name:)`),
+/// 2. For each consuming target that depends on this foreign build target (via `.target(name:)` or `.project(target:path:)`),
 ///    inserts a `foreignBuildOutput` graph dependency for linking
 /// 3. If the output artifact doesn't exist yet, emits a side effect to run the foreign build script
 ///    so that the artifact is available for Xcode to resolve file references
@@ -26,14 +26,10 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         var graph = graph
         var sideEffects = [SideEffectDescriptor]()
 
+        var foreignBuildTargets = [GraphDependency: (name: String, info: ForeignBuildInfo)]()
+
         for (projectPath, project) in graph.projects {
             var updatedProject = project
-
-            let foreignBuildTargetNames = Set(
-                project.targets.values
-                    .filter { $0.foreignBuild != nil }
-                    .map(\.name)
-            )
 
             for (targetName, target) in project.targets {
                 guard let foreignBuild = target.foreignBuild else { continue }
@@ -55,9 +51,10 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 )
                 updatedProject.targets[targetName] = updatedTarget
 
-                let foreignBuildGraphDep = GraphDependency.target(name: targetName, path: projectPath)
-                if graph.dependencies[foreignBuildGraphDep] == nil {
-                    graph.dependencies[foreignBuildGraphDep] = Set()
+                let graphDep = GraphDependency.target(name: targetName, path: projectPath)
+                foreignBuildTargets[graphDep] = (name: targetName, info: foreignBuild)
+                if graph.dependencies[graphDep] == nil {
+                    graph.dependencies[graphDep] = Set()
                 }
 
                 if try await !fileSystem.exists(foreignBuild.output.path) {
@@ -70,34 +67,25 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 }
             }
 
-            for (targetName, target) in project.targets {
-                guard target.foreignBuild == nil else { continue }
-
-                for dependency in target.dependencies {
-                    guard case let .target(depName, _, _) = dependency,
-                          foreignBuildTargetNames.contains(depName)
-                    else { continue }
-
-                    let foreignBuild = project.targets[depName]!.foreignBuild!
-                    let consumingTargetGraphDep = GraphDependency.target(name: targetName, path: projectPath)
-                    let foreignBuildOutputDep = GraphDependency.foreignBuildOutput(
-                        GraphDependency.ForeignBuildOutput(
-                            name: depName,
-                            path: foreignBuild.output.path,
-                            linking: foreignBuild.output.linking
-                        )
-                    )
-                    graph.dependencies[consumingTargetGraphDep, default: Set()].insert(foreignBuildOutputDep)
-                }
-            }
-
             graph.projects[projectPath] = updatedProject
+        }
+
+        for (consumer, deps) in graph.dependencies {
+            for dep in deps {
+                guard let (name, foreignBuild) = foreignBuildTargets[dep] else { continue }
+                let foreignBuildOutputDep = GraphDependency.foreignBuildOutput(
+                    GraphDependency.ForeignBuildOutput(
+                        name: name,
+                        path: foreignBuild.output.path,
+                        linking: foreignBuild.output.linking
+                    )
+                )
+                graph.dependencies[consumer, default: Set()].insert(foreignBuildOutputDep)
+            }
         }
 
         return (graph, sideEffects, environment)
     }
-
-    // MARK: - Helpers
 
     private func inputPaths(from inputs: [ForeignBuildInput]) -> [String] {
         inputs.compactMap { input in

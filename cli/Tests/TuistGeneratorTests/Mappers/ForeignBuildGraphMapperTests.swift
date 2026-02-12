@@ -75,7 +75,10 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
         let graph = Graph.test(
             path: projectPath,
-            projects: [projectPath: project]
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "Framework1", path: projectPath): Set([.target(name: "SharedKMP", path: projectPath)]),
+            ]
         )
 
         // When
@@ -113,9 +116,14 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
             dependencies: [.target(name: "SharedKMP")]
         )
         let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumer1, consumer2])
+        let foreignBuildDep = GraphDependency.target(name: "SharedKMP", path: projectPath)
         let graph = Graph.test(
             path: projectPath,
-            projects: [projectPath: project]
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "Framework1", path: projectPath): Set([foreignBuildDep]),
+                .target(name: "Framework2", path: projectPath): Set([foreignBuildDep]),
+            ]
         )
 
         // When
