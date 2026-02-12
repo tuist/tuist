@@ -149,8 +149,14 @@ extension XcodeGraph.Target {
                 manifest: fb.output,
                 generatorPaths: generatorPaths
             )
-            let mappedInputs = try fb.inputs.map { input -> XcodeGraph.ForeignBuildInput in
-                try XcodeGraph.ForeignBuildInput.from(manifest: input, generatorPaths: generatorPaths)
+            var mappedInputs: [XcodeGraph.ForeignBuildInput] = []
+            for input in fb.inputs {
+                let resolved = try await XcodeGraph.ForeignBuildInput.from(
+                    manifest: input,
+                    generatorPaths: generatorPaths,
+                    fileSystem: fileSystem
+                )
+                mappedInputs.append(contentsOf: resolved)
             }
             foreignBuild = XcodeGraph.ForeignBuildInfo(
                 script: fb.script,

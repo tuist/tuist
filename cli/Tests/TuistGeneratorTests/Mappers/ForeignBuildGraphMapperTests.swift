@@ -145,6 +145,7 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
         let srcFolder = try AbsolutePath(validating: "/Project/SharedKMP/src")
         let gradleFile = try AbsolutePath(validating: "/Project/SharedKMP/build.gradle.kts")
+        let ktFile = try AbsolutePath(validating: "/Project/SharedKMP/src/Main.kt")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuildInfo(
@@ -152,7 +153,7 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
                 inputs: [
                     .folder(srcFolder),
                     .file(gradleFile),
-                    .glob("/Project/SharedKMP/**/*.kt"),
+                    .file(ktFile),
                     .script("git rev-parse HEAD"),
                 ],
                 output: .xcframework(path: outputPath, linking: .dynamic)
@@ -178,7 +179,7 @@ final class ForeignBuildGraphMapperTests: TuistUnitTestCase {
         XCTAssertEqual(script.inputPaths, [
             srcFolder.pathString,
             gradleFile.pathString,
-            "/Project/SharedKMP/**/*.kt",
+            ktFile.pathString,
         ])
     }
 

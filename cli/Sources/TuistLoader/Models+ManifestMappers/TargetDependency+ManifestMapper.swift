@@ -1,4 +1,6 @@
+import FileSystem
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import TuistLogging
@@ -119,17 +121,33 @@ extension XcodeGraph.TargetDependency {
 extension XcodeGraph.ForeignBuildInput {
     static func from(
         manifest: ProjectDescription.Input,
-        generatorPaths: GeneratorPaths
-    ) throws -> XcodeGraph.ForeignBuildInput {
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [XcodeGraph.ForeignBuildInput] {
         switch manifest {
         case let .file(path):
-            return .file(try generatorPaths.resolve(path: path))
+            return [.file(try generatorPaths.resolve(path: path))]
         case let .folder(path):
-            return .folder(try generatorPaths.resolve(path: path))
+            return [.folder(try generatorPaths.resolve(path: path))]
         case let .glob(path):
-            return .glob(try generatorPaths.resolve(path: path).pathString)
+            let resolvedPath = try generatorPaths.resolve(path: path)
+            let directory: AbsolutePath
+            let include: String
+            let pathString = resolvedPath.pathString
+            if let lastSlash = pathString.lastIndex(of: "/"),
+               !pathString[pathString.startIndex ... lastSlash].contains("*")
+            {
+                let dirString = String(pathString[pathString.startIndex ..< lastSlash])
+                directory = try AbsolutePath(validating: dirString)
+                include = String(pathString[pathString.index(after: lastSlash)...])
+            } else {
+                directory = try AbsolutePath(validating: "/")
+                include = pathString
+            }
+            let matchedPaths = try await fileSystem.glob(directory: directory, include: [include]).collect().sorted()
+            return matchedPaths.map { .file($0) }
         case let .script(script):
-            return .script(script)
+            return [.script(script)]
         }
     }
 }

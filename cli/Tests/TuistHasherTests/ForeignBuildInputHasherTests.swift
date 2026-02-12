@@ -1,5 +1,3 @@
-import FileSystem
-import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -138,41 +136,4 @@ struct ForeignBuildInputHasherTests {
         #expect(result.hash == "-hash")
     }
 
-    @Test(.inTemporaryDirectory)
-    func hash_globInput_hashesMatchedFiles() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let fileSystem = FileSystem()
-        let subjectWithRealFS = ForeignBuildInputHasher(
-            contentHasher: contentHasher,
-            fileSystem: fileSystem,
-            system: system
-        )
-
-        let srcDir = temporaryDirectory.appending(component: "src")
-        try await fileSystem.makeDirectory(at: srcDir)
-        let file1 = srcDir.appending(component: "File1.kt")
-        let file2 = srcDir.appending(component: "File2.kt")
-        try await fileSystem.writeText("content1", at: file1)
-        try await fileSystem.writeText("content2", at: file2)
-
-        given(contentHasher)
-            .hash(path: .value(file1))
-            .willReturn("file1-hash")
-        given(contentHasher)
-            .hash(path: .value(file2))
-            .willReturn("file2-hash")
-
-        let globPattern = srcDir.pathString + "/*.kt"
-
-        // When
-        let result = try await subjectWithRealFS.hash(
-            inputs: [.glob(globPattern)],
-            hashedPaths: [:]
-        )
-
-        // Then
-        #expect(result.hashedPaths[file1] == "file1-hash")
-        #expect(result.hashedPaths[file2] == "file2-hash")
-    }
 }

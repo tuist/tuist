@@ -92,7 +92,6 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             switch input {
             case let .file(path): return path.pathString
             case let .folder(path): return path.pathString
-            case let .glob(pattern): return pattern
             case .script: return nil
             }
         }
