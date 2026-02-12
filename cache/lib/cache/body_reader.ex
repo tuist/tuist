@@ -48,7 +48,7 @@ defmodule Cache.BodyReader do
   def read_to_device(conn, device, opts \\ []) do
     merged_opts = Keyword.merge(read_opts(conn), opts)
     max_bytes = Keyword.get(opts, :max_bytes, @max_upload_bytes)
-    writer = fn chunk -> IO.binwrite(device, chunk) end
+    writer = fn chunk -> :file.write(device, chunk) end
 
     conn
     |> Plug.Conn.read_body(merged_opts)

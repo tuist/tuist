@@ -78,11 +78,6 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
-  Resolves an artifact key to an absolute path.
-  """
-  def artifact_path_from_key(key), do: Disk.artifact_path(key)
-
-  @doc """
   Assembles multiple part files into a single module artifact.
 
   Creates the artifact from ordered part files using efficient file copying.

@@ -300,7 +300,7 @@ defmodule CacheWeb.ModuleCacheController do
   end
 
   defp handle_direct_part_upload(conn, path, offset, upload_id, part_number) do
-    case :file.open(String.to_charlist(path), [:write, :read, :binary, :raw]) do
+    case :file.open(path, [:write, :read, :binary, :raw]) do
       {:ok, device} ->
         :file.position(device, offset)
         result = do_direct_write(conn, device, upload_id, part_number)

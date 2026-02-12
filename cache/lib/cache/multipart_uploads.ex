@@ -16,6 +16,7 @@ defmodule Cache.MultipartUploads do
   @table_name :multipart_uploads
   @cleanup_interval_ms 60_000
   @upload_timeout_ms 5 * 60 * 1000
+  @max_upload_duration_ms 30 * 60 * 1000
   @max_part_size 10 * 1024 * 1024
   @max_total_size 2 * 1024 * 1024 * 1024
 
@@ -65,7 +66,14 @@ defmodule Cache.MultipartUploads do
   total bytes over the limit, or `{:error, :upload_not_found}`.
   """
   def confirm_write(upload_id, part_number, size_bytes) do
-    GenServer.call(__MODULE__, {:confirm_write, upload_id, part_number, size_bytes})
+    case GenServer.call(__MODULE__, {:confirm_write, upload_id, part_number, size_bytes}) do
+      {:truncate, path, offset} ->
+        do_truncate(path, offset)
+        {:error, :total_size_exceeded}
+
+      other ->
+        other
+    end
   end
 
   @doc """
@@ -73,7 +81,14 @@ defmodule Cache.MultipartUploads do
   Truncates the assembly file back to the offset recorded at claim time.
   """
   def abort_write(upload_id) do
-    GenServer.call(__MODULE__, {:abort_write, upload_id})
+    case GenServer.call(__MODULE__, {:abort_write, upload_id}) do
+      {:truncate, path, offset} ->
+        do_truncate(path, offset)
+        :ok
+
+      other ->
+        other
+    end
   end
 
   @doc """
@@ -223,7 +238,7 @@ defmodule Cache.MultipartUploads do
         new_total = projected_total(upload_data, part_number, size_bytes)
 
         if new_total > @max_total_size do
-          truncate_to_offset(upload_data)
+          %{write_in_progress: %{offset: offset}, assembly_path: path} = upload_data
 
           updated_data = %{
             upload_data
@@ -232,7 +247,7 @@ defmodule Cache.MultipartUploads do
           }
 
           :ets.insert(@table_name, {upload_id, updated_data})
-          {:reply, {:error, :total_size_exceeded}, state}
+          {:reply, {:truncate, path, offset}, state}
         else
           part_data = %{size: size_bytes, written: true}
 
@@ -263,7 +278,7 @@ defmodule Cache.MultipartUploads do
 
       [{^upload_id, %{write_in_progress: %{pid: ^caller_pid}} = upload_data}] ->
         state = demonitor_write(upload_data, state)
-        truncate_to_offset(upload_data)
+        %{write_in_progress: %{offset: offset}, assembly_path: path} = upload_data
 
         updated_data = %{
           upload_data
@@ -272,7 +287,7 @@ defmodule Cache.MultipartUploads do
         }
 
         :ets.insert(@table_name, {upload_id, updated_data})
-        {:reply, :ok, state}
+        {:reply, {:truncate, path, offset}, state}
 
       [{^upload_id, _upload_data}] ->
         {:reply, {:error, :not_claimant}, state}
@@ -347,9 +362,17 @@ defmodule Cache.MultipartUploads do
     {abandoned, state} =
       :ets.foldl(
         fn {upload_id, upload_data}, {acc_abandoned, acc_state} ->
-          age_ms = DateTime.diff(now, upload_data.last_activity_at, :millisecond)
+          inactive_ms = DateTime.diff(now, upload_data.last_activity_at, :millisecond)
+          total_age_ms = DateTime.diff(now, upload_data.created_at, :millisecond)
 
-          if age_ms > @upload_timeout_ms and upload_data.write_in_progress == nil do
+          inactive_and_unlocked = inactive_ms > @upload_timeout_ms and upload_data.write_in_progress == nil
+          exceeded_max_duration = total_age_ms > @max_upload_duration_ms
+
+          if inactive_and_unlocked or exceeded_max_duration do
+            if upload_data.write_in_progress != nil do
+              truncate_to_offset(upload_data)
+            end
+
             acc_state = demonitor_write(upload_data, acc_state)
             :ets.delete(@table_name, upload_id)
             {[{upload_id, upload_data} | acc_abandoned], acc_state}
@@ -380,7 +403,13 @@ defmodule Cache.MultipartUploads do
   end
 
   defp truncate_to_offset(%{write_in_progress: %{offset: offset}, assembly_path: path}) do
-    case :file.open(String.to_charlist(path), [:write, :read, :binary, :raw]) do
+    do_truncate(path, offset)
+  end
+
+  defp truncate_to_offset(_upload_data), do: :ok
+
+  defp do_truncate(path, offset) do
+    case :file.open(path, [:write, :read, :binary, :raw]) do
       {:ok, fd} ->
         :file.position(fd, offset)
         :file.truncate(fd)
@@ -390,8 +419,6 @@ defmodule Cache.MultipartUploads do
         :ok
     end
   end
-
-  defp truncate_to_offset(_upload_data), do: :ok
 
   defp demonitor_write(%{write_in_progress: %{ref: ref}}, state) do
     Process.demonitor(ref, [:flush])
