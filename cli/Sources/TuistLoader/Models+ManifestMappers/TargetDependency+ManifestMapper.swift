@@ -118,12 +118,12 @@ extension XcodeGraph.TargetDependency {
     }
 }
 
-extension XcodeGraph.ForeignBuildInput {
+extension XcodeGraph.ForeignBuild.Input {
     static func from(
         manifest: ProjectDescription.Input,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
-    ) async throws -> [XcodeGraph.ForeignBuildInput] {
+    ) async throws -> [XcodeGraph.ForeignBuild.Input] {
         switch manifest {
         case let .file(path):
             return [.file(try generatorPaths.resolve(path: path))]
@@ -219,7 +219,7 @@ extension XcodeGraph.BinaryLinking {
     }
 }
 
-extension XcodeGraph.ForeignBuildArtifact {
+extension XcodeGraph.ForeignBuild.Artifact {
     static func from(
         manifest: ProjectDescription.ForeignBuildOutput,
         generatorPaths: GeneratorPaths

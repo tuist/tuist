@@ -18,7 +18,7 @@ struct ForeignBuildGraphMapperTests {
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [],
                 output: .xcframework(path: outputPath, linking: .dynamic)
@@ -55,7 +55,7 @@ struct ForeignBuildGraphMapperTests {
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [],
                 output: .xcframework(path: outputPath, linking: .dynamic)
@@ -95,7 +95,7 @@ struct ForeignBuildGraphMapperTests {
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [],
                 output: .xcframework(path: outputPath, linking: .dynamic)
@@ -143,7 +143,7 @@ struct ForeignBuildGraphMapperTests {
         let ktFile = try AbsolutePath(validating: "/Project/SharedKMP/src/Main.kt")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [
                     .folder(srcFolder),
@@ -207,7 +207,7 @@ struct ForeignBuildGraphMapperTests {
         let outputPath = try AbsolutePath(validating: "/Project/build/Lib.framework")
         let foreignBuildTarget = Target.test(
             name: "Lib",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "make build",
                 inputs: [],
                 output: .framework(path: outputPath, linking: .dynamic)
@@ -240,7 +240,7 @@ struct ForeignBuildGraphMapperTests {
         let headersPath = try AbsolutePath(validating: "/Project/headers")
         let foreignBuildTarget = Target.test(
             name: "RustLib",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "cargo build",
                 inputs: [],
                 output: .library(path: outputPath, publicHeaders: headersPath, swiftModuleMap: nil, linking: .static)
@@ -272,7 +272,7 @@ struct ForeignBuildGraphMapperTests {
         let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [],
                 output: .xcframework(path: outputPath, linking: .dynamic)
@@ -311,7 +311,7 @@ struct ForeignBuildGraphMapperTests {
 
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [],
                 output: .xcframework(path: outputPath, linking: .dynamic)

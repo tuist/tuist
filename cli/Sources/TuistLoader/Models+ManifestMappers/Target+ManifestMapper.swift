@@ -188,21 +188,21 @@ extension XcodeGraph.Target {
         from manifest: ProjectDescription.Target.ForeignBuild?,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
-    ) async throws -> XcodeGraph.ForeignBuildInfo? {
+    ) async throws -> XcodeGraph.ForeignBuild? {
         guard let manifest else { return nil }
-        var mappedInputs: [XcodeGraph.ForeignBuildInput] = []
+        var mappedInputs: [XcodeGraph.ForeignBuild.Input] = []
         for input in manifest.inputs {
-            let resolved = try await XcodeGraph.ForeignBuildInput.from(
+            let resolved = try await XcodeGraph.ForeignBuild.Input.from(
                 manifest: input,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem
             )
             mappedInputs.append(contentsOf: resolved)
         }
-        return XcodeGraph.ForeignBuildInfo(
+        return XcodeGraph.ForeignBuild(
             script: manifest.script,
             inputs: mappedInputs,
-            output: try XcodeGraph.ForeignBuildArtifact.from(
+            output: try XcodeGraph.ForeignBuild.Artifact.from(
                 manifest: manifest.output,
                 generatorPaths: generatorPaths
             )

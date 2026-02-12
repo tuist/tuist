@@ -8,7 +8,7 @@ import XcodeGraph
 @Mockable
 public protocol ForeignBuildHashing {
     func hash(
-        inputs: [ForeignBuildInput],
+        inputs: [ForeignBuild.Input],
         hashedPaths: [AbsolutePath: String]
     ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String])
 }
@@ -26,7 +26,7 @@ public struct ForeignBuildHasher: ForeignBuildHashing {
     }
 
     public func hash(
-        inputs: [ForeignBuildInput],
+        inputs: [ForeignBuild.Input],
         hashedPaths: [AbsolutePath: String]
     ) async throws -> (hash: String, hashedPaths: [AbsolutePath: String]) {
         var hashedPaths = hashedPaths

@@ -26,7 +26,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         var graph = graph
         var sideEffects = [SideEffectDescriptor]()
 
-        var foreignBuildTargets = [GraphDependency: (name: String, info: ForeignBuildInfo)]()
+        var foreignBuildTargets = [GraphDependency: (name: String, info: ForeignBuild)]()
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
@@ -87,7 +87,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         return (graph, sideEffects, environment)
     }
 
-    private func inputPaths(from inputs: [ForeignBuildInput]) -> [String] {
+    private func inputPaths(from inputs: [ForeignBuild.Input]) -> [String] {
         inputs.compactMap { input in
             switch input {
             case let .file(path): return path.pathString

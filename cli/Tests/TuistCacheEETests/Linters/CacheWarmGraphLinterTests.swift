@@ -60,7 +60,7 @@ struct CacheWarmGraphLinterTests {
             scripts: [
                 .init(name: "Foreign Build", order: .pre, script: .embedded("gradle build")),
             ],
-            foreignBuild: ForeignBuildInfo(
+            foreignBuild: ForeignBuild(
                 script: "gradle build",
                 inputs: [],
                 output: .xcframework(path: try AbsolutePath(validating: "/output.xcframework"), linking: .dynamic)
