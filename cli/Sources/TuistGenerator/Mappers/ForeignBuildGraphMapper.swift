@@ -28,7 +28,6 @@ public struct ForeignBuildGraphMapper: GraphMapping {
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
-            var projectModified = false
 
             let foreignBuildTargetNames = Set(
                 project.targets.values
@@ -55,7 +54,6 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                     tags: target.metadata.tags.union(["tuist:foreign-build-aggregate"])
                 )
                 updatedProject.targets[targetName] = updatedTarget
-                projectModified = true
 
                 let foreignBuildGraphDep = GraphDependency.target(name: targetName, path: projectPath)
                 if graph.dependencies[foreignBuildGraphDep] == nil {
@@ -93,9 +91,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 }
             }
 
-            if projectModified {
-                graph.projects[projectPath] = updatedProject
-            }
+            graph.projects[projectPath] = updatedProject
         }
 
         return (graph, sideEffects, environment)
