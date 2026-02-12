@@ -27,7 +27,9 @@ struct InitCommandServiceTests {
     private let loginService = MockLoginCommandServicing()
     private let createProjectService = MockCreateProjectServicing()
     private let serverSessionController = MockServerSessionControlling()
-    private let initGeneratedProjectService = MockInitGeneratedProjectServicing()
+    #if os(macOS)
+        private let initGeneratedProjectService = MockInitGeneratedProjectServicing()
+    #endif
     private let keystrokeListener = MockKeyStrokeListening()
     private let createOrganizationService = MockCreateOrganizationServicing()
     private let listOrganizationsService = MockListOrganizationsServicing()
@@ -73,9 +75,11 @@ struct InitCommandServiceTests {
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
 
-        given(initGeneratedProjectService)
-            .run(name: .any, platform: .any, path: .any)
-            .willReturn()
+        #if os(macOS)
+            given(initGeneratedProjectService)
+                .run(name: .any, platform: .any, path: .any)
+                .willReturn()
+        #endif
     }
 
     #if os(macOS)
