@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.143.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.144.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix flaky tests caused by Matcher.register race and TOCTOU in CachedManifestLoader by [@fortmarek](https://github.com/fortmarek) in [#9424](https://github.com/tuist/tuist/pull/9424)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.0...4.144.1
+
+## What's Changed in 4.144.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -13,7 +21,7 @@ All notable changes to this project will be documented in this file.
 * use correct TUIST_URL key for env variable lookup in login command by [@fortmarek](https://github.com/fortmarek) in [#9398](https://github.com/tuist/tuist/pull/9398)
 * strip debug symbols (dSYM/DWARF) from cached XCFrameworks by [@pepicrft](https://github.com/pepicrft) in [#9287](https://github.com/tuist/tuist/pull/9287)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.143.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.144.0
 
 ## What's Changed in 4.142.1<!-- RELEASE NOTES START -->
 
@@ -379,6 +387,9 @@ All notable changes to this project will be documented in this file.
 
 * exclude __MACOSX folders for remote binary targets by [@mo5tone](https://github.com/mo5tone) in [#9075](https://github.com/tuist/tuist/pull/9075)
 * ensure consistent graph mapper order for cache hashing by [@fortmarek](https://github.com/fortmarek) in [#9077](https://github.com/tuist/tuist/pull/9077)
+
+## New Contributors
+* [@mo5tone](https://github.com/mo5tone) made their first contribution in [#9075](https://github.com/tuist/tuist/pull/9075)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.119.3...4.119.4
 
@@ -1154,6 +1165,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Add SE-0162 support for custom SPM target layouts by [@devyhan](https://github.com/devyhan) in [#8191](https://github.com/tuist/tuist/pull/8191)
+
+## New Contributors
+* [@devyhan](https://github.com/devyhan) made their first contribution in [#8191](https://github.com/tuist/tuist/pull/8191)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.75.0...4.76.0
 
