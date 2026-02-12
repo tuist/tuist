@@ -30,7 +30,7 @@ public struct ProjectCreateCommand: AsyncParsableCommand {
 
     @Option(
         name: .long,
-        help: "The build system used by the project (xcode or gradle). Defaults to xcode.",
+        help: "The build system used by the project.",
         envKey: .projectCreateBuildSystem
     )
     var buildSystem: ServerProject.BuildSystem?
@@ -44,4 +44,9 @@ public struct ProjectCreateCommand: AsyncParsableCommand {
     }
 }
 
-extension ServerProject.BuildSystem: @retroactive ExpressibleByArgument {}
+extension Components.Schemas.Project.build_systemPayload: @retroactive ExpressibleByArgument {}
+extension Components.Schemas.Project.build_systemPayload: @retroactive CustomStringConvertible {
+    public var description: String {
+        rawValue.capitalized
+    }
+}

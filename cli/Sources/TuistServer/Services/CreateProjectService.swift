@@ -37,20 +37,13 @@ public final class CreateProjectService: CreateProjectServicing {
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
 
-        let apiBuildSystem: Operations.createProject.Input.Body.jsonPayload.build_systemPayload? = switch buildSystem {
-        case .xcode:
-            .xcode
-        case .gradle:
-            .gradle
-        case nil:
-            nil
-        }
-
         let response = try await client.createProject(
             .init(
                 body: .json(
                     .init(
-                        build_system: apiBuildSystem,
+                        build_system: buildSystem.flatMap {
+                            .init(rawValue: $0.rawValue)
+                        },
                         full_handle: fullHandle
                     )
                 )
