@@ -168,6 +168,14 @@
                             "text": "المشروع المُنشأ"
                         }
                     }
+                },
+                "configuration": {
+                    "text": "التكوين",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
