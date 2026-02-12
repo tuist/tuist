@@ -127,6 +127,14 @@
                             "text": "Proyectos generados"
                         }
                     }
+                },
+                "configuration": {
+                    "text": "Configuración",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
+                        }
+                    }
                 }
             }
         },
