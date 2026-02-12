@@ -126,6 +126,17 @@ defmodule Tuist.TestsTest do
       # Then
       assert result == {:error, :not_found}
     end
+
+    test "returns error when id is not a valid UUID" do
+      # Given
+      invalid_id = "6989eac446aa801e3f38a6e7"
+
+      # When
+      result = Tests.get_test(invalid_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
   end
 
   describe "get_latest_test_by_build_run_id/1" do
