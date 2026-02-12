@@ -374,6 +374,33 @@ public final class PackageInfoMapper: PackageInfoMapping {
             .replacingOccurrences(of: "+", with: "_")
     }
 
+    private static func effectiveModuleName(
+        targetName: String,
+        products: Set<PackageInfo.Product>,
+        packageTargets: [PackageInfo.Target]
+    ) -> String {
+        guard products.count == 1,
+              let singleProduct = products.first,
+              singleProduct.targets.count == 1,
+              singleProduct.name != targetName,
+              targetName.hasPrefix(singleProduct.name)
+        else { return targetName }
+
+        let target = packageTargets.first { $0.name == targetName }
+        let dependsOnBinaryWithProductName = target?.dependencies.contains { dependency in
+            switch dependency {
+            case let .target(name, _), let .byName(name, _):
+                return name == singleProduct.name
+                    && packageTargets.contains(where: { $0.name == name && $0.type == .binary })
+            case .product:
+                return false
+            }
+        } ?? false
+        if dependsOnBinaryWithProductName { return targetName }
+
+        return singleProduct.name
+    }
+
     // swiftlint:disable:next function_body_length
     private func map(
         target: PackageInfo.Target,
@@ -440,9 +467,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular:
+            let effectiveName = PackageInfoMapper.effectiveModuleName(
+                targetName: target.name, products: products, packageTargets: packageInfo.targets
+            )
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
-                moduleName: target.name,
+                moduleName: effectiveName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path)
             )
         default:
@@ -573,7 +603,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
-        let productName = sanitizedTargetName.replacingOccurrences(of: "-", with: "_")
+        let effectiveName = PackageInfoMapper.effectiveModuleName(
+            targetName: target.name, products: products, packageTargets: packageInfo.targets
+        )
+        let aliasedEffectiveName = packageModuleAliases[packageInfo.name]?[effectiveName] ?? effectiveName
+        let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveName)
+            .replacingOccurrences(of: "-", with: "_")
 
         let settings = try await Settings.from(
             target: target,
@@ -758,6 +793,11 @@ extension ProjectDescription.Product {
 
         if let productType = productTypes[name] {
             return ProjectDescription.Product.from(product: productType)
+        }
+        for product in products {
+            if let productType = productTypes[product.name] {
+                return ProjectDescription.Product.from(product: productType)
+            }
         }
 
         var hasAutomaticProduct = false
