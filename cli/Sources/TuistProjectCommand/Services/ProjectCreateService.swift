@@ -10,7 +10,7 @@ protocol ProjectCreateServicing {
     func run(
         fullHandle: String,
         directory: String?,
-        buildSystem: ServerProject.BuildSystem?
+        buildSystem: Components.Schemas.Project.build_systemPayload?
     ) async throws
 }
 
@@ -32,14 +32,14 @@ final class ProjectCreateService: ProjectCreateServicing {
     func run(
         fullHandle: String,
         directory: String?,
-        buildSystem: ServerProject.BuildSystem?
+        buildSystem: Components.Schemas.Project.build_systemPayload?
     ) async throws {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
         let config = try await configLoader.loadConfig(path: directoryPath)
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let resolvedBuildSystem: ServerProject.BuildSystem = buildSystem ?? Noora.current.singleChoicePrompt(
+        let resolvedBuildSystem: Components.Schemas.Project.build_systemPayload = buildSystem ?? Noora.current.singleChoicePrompt(
             title: "Build system",
             question: "Which build system does your project use?",
             collapseOnSelection: true

@@ -6,7 +6,7 @@ import OpenAPIURLSession
 public protocol CreateProjectServicing {
     func createProject(
         fullHandle: String,
-        buildSystem: ServerProject.BuildSystem?,
+        buildSystem: Components.Schemas.Project.build_systemPayload?,
         serverURL: URL
     ) async throws -> ServerProject
 }
@@ -32,7 +32,7 @@ public final class CreateProjectService: CreateProjectServicing {
 
     public func createProject(
         fullHandle: String,
-        buildSystem: ServerProject.BuildSystem?,
+        buildSystem: Components.Schemas.Project.build_systemPayload?,
         serverURL: URL
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)

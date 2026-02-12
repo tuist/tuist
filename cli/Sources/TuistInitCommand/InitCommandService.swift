@@ -283,7 +283,7 @@ extension InitCommandService {
     private func connectToServer(
         named projectHandle: String,
         answers: InitPromptAnswers?,
-        buildSystem: ServerProject.BuildSystem,
+        buildSystem: Components.Schemas.Project.build_systemPayload,
         skipServerPrompt: Bool = false
     ) async throws -> String? {
         if !skipServerPrompt {

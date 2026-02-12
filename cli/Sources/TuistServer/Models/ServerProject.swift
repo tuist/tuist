@@ -6,15 +6,13 @@ public struct ServerProject: Codable, Identifiable {
         case `public`, `private`
     }
 
-    public typealias BuildSystem = Components.Schemas.Project.build_systemPayload
-
     public init(
         id: Int,
         fullName: String,
         defaultBranch: String,
         repositoryURL: String?,
         visibility: Visibility,
-        buildSystem: BuildSystem
+        buildSystem: Components.Schemas.Project.build_systemPayload
     ) {
         self.id = id
         self.fullName = fullName
@@ -29,7 +27,7 @@ public struct ServerProject: Codable, Identifiable {
     public let defaultBranch: String
     public let repositoryURL: String?
     public let visibility: Visibility
-    public let buildSystem: BuildSystem
+    public let buildSystem: Components.Schemas.Project.build_systemPayload
 }
 
 extension ServerProject {
@@ -62,7 +60,7 @@ extension ServerProject: CustomStringConvertible {
             defaultBranch: String = "main",
             repositoryURL: String? = nil,
             visibility: Visibility = .private,
-            buildSystem: BuildSystem = .xcode
+            buildSystem: Components.Schemas.Project.build_systemPayload = .xcode
         ) -> Self {
             .init(
                 id: id,
