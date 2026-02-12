@@ -77,10 +77,14 @@ defmodule Cache.MultipartUploads do
   @doc """
   Get upload metadata and parts.
 
+  Reads directly from ETS (the table is `:protected`, so any process can read).
   Returns `{:ok, upload_data}` or `{:error, :not_found}`.
   """
   def get_upload(upload_id) do
-    GenServer.call(__MODULE__, {:get_upload, upload_id})
+    case :ets.lookup(@table_name, upload_id) do
+      [{^upload_id, upload_data}] -> {:ok, upload_data}
+      [] -> {:error, :not_found}
+    end
   end
 
   @doc """
@@ -279,14 +283,6 @@ defmodule Cache.MultipartUploads do
 
       [{^upload_id, _upload_data}] ->
         {:reply, {:error, :not_claimant}, state}
-    end
-  end
-
-  @impl true
-  def handle_call({:get_upload, upload_id}, _from, state) do
-    case :ets.lookup(@table_name, upload_id) do
-      [] -> {:reply, {:error, :not_found}, state}
-      [{^upload_id, upload_data}] -> {:reply, {:ok, upload_data}, state}
     end
   end
 
