@@ -11,13 +11,15 @@ public struct ServerProject: Codable, Identifiable {
         fullName: String,
         defaultBranch: String,
         repositoryURL: String?,
-        visibility: Visibility
+        visibility: Visibility,
+        buildSystem: Components.Schemas.Project.build_systemPayload
     ) {
         self.id = id
         self.fullName = fullName
         self.defaultBranch = defaultBranch
         self.repositoryURL = repositoryURL
         self.visibility = visibility
+        self.buildSystem = buildSystem
     }
 
     public let id: Int
@@ -25,6 +27,7 @@ public struct ServerProject: Codable, Identifiable {
     public let defaultBranch: String
     public let repositoryURL: String?
     public let visibility: Visibility
+    public let buildSystem: Components.Schemas.Project.build_systemPayload
 }
 
 extension ServerProject {
@@ -39,6 +42,7 @@ extension ServerProject {
         case ._public:
             .public
         }
+        buildSystem = project.build_system ?? .xcode
     }
 }
 
@@ -55,14 +59,16 @@ extension ServerProject: CustomStringConvertible {
             fullName: String = "test/test",
             defaultBranch: String = "main",
             repositoryURL: String? = nil,
-            visibility: Visibility = .private
+            visibility: Visibility = .private,
+            buildSystem: Components.Schemas.Project.build_systemPayload = .xcode
         ) -> Self {
             .init(
                 id: id,
                 fullName: fullName,
                 defaultBranch: defaultBranch,
                 repositoryURL: repositoryURL,
-                visibility: visibility
+                visibility: visibility,
+                buildSystem: buildSystem
             )
         }
     }
