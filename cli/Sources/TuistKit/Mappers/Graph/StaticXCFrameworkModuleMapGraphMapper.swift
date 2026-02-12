@@ -29,24 +29,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        let derivedDirectory: AbsolutePath
-        if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
-            derivedDirectory = packageManifest.parentDirectory.appending(
-                components: [
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
-                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                ]
-            )
-        } else {
-            derivedDirectory = graph.path.appending(
-                components: [
-                    Constants.tuistDirectoryName,
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
-                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                ]
-            )
-        }
-
+        let derivedDirectory = try await derivedDirectory(for: graph)
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -143,6 +126,25 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             sideEffects,
             environment
         )
+    }
+
+    private func derivedDirectory(for graph: Graph) async throws -> AbsolutePath {
+        if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
+            return packageManifest.parentDirectory.appending(
+                components: [
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        } else {
+            return graph.path.appending(
+                components: [
+                    Constants.tuistDirectoryName,
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        }
     }
 
     private func moduleMapFlag(
