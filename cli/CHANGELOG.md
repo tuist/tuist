@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* add Gradle project integration to tuist init by [@fortmarek](https://github.com/fortmarek) in [#9422](https://github.com/tuist/tuist/pull/9422)
 * add test case show and run commands with fix-flaky-tests skill by [@fortmarek](https://github.com/fortmarek) in [#9379](https://github.com/tuist/tuist/pull/9379)
 ### 🐛 Bug Fixes
 

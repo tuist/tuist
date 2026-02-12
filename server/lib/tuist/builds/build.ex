@@ -1,10 +1,16 @@
 defmodule Tuist.Builds.Build do
   @moduledoc """
   A build represents a single build run of a project, such as when building an app from Xcode.
+  This is a ClickHouse entity that stores build run data.
   """
   use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
 
   import Ecto.Changeset
+
+  @status_values ["success", "failure"]
+  @category_values ["clean", "incremental"]
+  @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   @derive {
     Flop.Schema,
@@ -26,80 +32,144 @@ defmodule Tuist.Builds.Build do
     sortable: [:inserted_at, :duration]
   }
 
-  @primary_key {:id, UUIDv7, autogenerate: false}
+  @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "build_runs" do
-    field :duration, :integer
-    field :macos_version, :string
-    field :xcode_version, :string
+    field :duration, Ch, type: "Int32"
+    field :project_id, Ch, type: "Int64"
+    field :account_id, Ch, type: "Int64"
+    field :macos_version, :string, default: ""
+    field :xcode_version, :string, default: ""
     field :is_ci, :boolean
-    field :model_identifier, :string
-    field :scheme, :string
-    field :status, Ecto.Enum, values: [success: 0, failure: 1]
-    field :category, Ecto.Enum, values: [clean: 0, incremental: 1]
-    field :configuration, :string
-    field :git_branch, :string
-    field :git_commit_sha, :string
-    field :git_ref, :string
-    field :ci_run_id, :string
-    field :ci_project_handle, :string
-    field :ci_host, :string
-    field :ci_provider, Ecto.Enum, values: [github: 0, gitlab: 1, bitrise: 2, circleci: 3, buildkite: 4, codemagic: 5]
-    field :cacheable_task_remote_hits_count, :integer, default: 0
-    field :cacheable_task_local_hits_count, :integer, default: 0
-    field :cacheable_tasks_count, :integer, default: 0
-    belongs_to :project, Tuist.Projects.Project
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
+    field :model_identifier, :string, default: ""
+    field :scheme, :string, default: ""
+    field :status, Ch, type: "LowCardinality(String)"
+    field :category, Ch, type: "LowCardinality(String)"
+    field :configuration, :string, default: ""
+    field :git_branch, :string, default: ""
+    field :git_commit_sha, :string, default: ""
+    field :git_ref, :string, default: ""
+    field :ci_run_id, :string, default: ""
+    field :ci_project_handle, :string, default: ""
+    field :ci_host, :string, default: ""
+
+    field :ci_provider, Ch, type: "LowCardinality(String)"
+
+    field :cacheable_task_remote_hits_count, Ch, type: "Int32", default: 0
+    field :cacheable_task_local_hits_count, Ch, type: "Int32", default: 0
+    field :cacheable_tasks_count, Ch, type: "Int32", default: 0
+    field :custom_tags, {:array, :string}, default: []
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
+    field :inserted_at, Ch, type: "DateTime64(6)"
+
+    belongs_to :project, Tuist.Projects.Project, define_field: false
+    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     has_many :issues, Tuist.Builds.BuildIssue, foreign_key: :build_run_id
     has_many :files, Tuist.Builds.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Builds.BuildTarget, foreign_key: :build_run_id
-    field :custom_tags, {:array, :string}, default: []
-    field :custom_values, :map, default: %{}
-
-    timestamps(type: :utc_datetime, updated_at: false)
   end
 
-  def create_changeset(build, attrs) do
-    build
-    |> cast(attrs, [
-      :id,
-      :duration,
-      :macos_version,
-      :xcode_version,
-      :is_ci,
-      :model_identifier,
-      :scheme,
-      :project_id,
-      :account_id,
-      :inserted_at,
+  def create_changeset(build \\ %__MODULE__{}, attrs) do
+    attrs
+    |> normalize_datetime_attr(:inserted_at)
+    |> default_to_empty_string([
       :status,
       :category,
+      :ci_provider,
+      :macos_version,
+      :xcode_version,
+      :model_identifier,
+      :scheme,
       :configuration,
       :git_branch,
       :git_commit_sha,
       :git_ref,
       :ci_run_id,
       :ci_project_handle,
-      :ci_host,
-      :ci_provider,
-      :cacheable_task_remote_hits_count,
-      :cacheable_task_local_hits_count,
-      :cacheable_tasks_count,
-      :custom_tags,
-      :custom_values
+      :ci_host
     ])
-    |> validate_required([
-      :id,
-      :duration,
-      :is_ci,
-      :project_id,
-      :account_id,
-      :status
-    ])
-    |> validate_inclusion(:status, [:success, :failure])
-    |> validate_inclusion(:ci_provider, [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic])
-    |> unique_constraint(:id, match: :suffix, name: "build_runs_pkey")
-    |> validate_custom_tags()
-    |> validate_custom_values()
+    |> then(fn attrs ->
+      build
+      |> cast(attrs, [
+        :id,
+        :duration,
+        :macos_version,
+        :xcode_version,
+        :is_ci,
+        :model_identifier,
+        :scheme,
+        :project_id,
+        :account_id,
+        :inserted_at,
+        :status,
+        :category,
+        :configuration,
+        :git_branch,
+        :git_commit_sha,
+        :git_ref,
+        :ci_run_id,
+        :ci_project_handle,
+        :ci_host,
+        :ci_provider,
+        :cacheable_task_remote_hits_count,
+        :cacheable_task_local_hits_count,
+        :cacheable_tasks_count,
+        :custom_tags,
+        :custom_values
+      ])
+      |> validate_required([
+        :id,
+        :duration,
+        :is_ci,
+        :project_id,
+        :account_id,
+        :status
+      ])
+      |> validate_inclusion(:status, ["" | @status_values])
+      |> validate_inclusion(:category, ["" | @category_values])
+      |> validate_inclusion(:ci_provider, ["" | @ci_provider_values])
+      |> validate_custom_tags()
+      |> validate_custom_values()
+    end)
+  end
+
+  defp normalize_datetime_attr(attrs, field) do
+    case Map.fetch(attrs, field) do
+      :error ->
+        attrs
+
+      {:ok, %DateTime{} = dt} ->
+        Map.put(attrs, field, DateTime.to_naive(dt))
+
+      {:ok, _} ->
+        attrs
+    end
+  end
+
+  defp default_to_empty_string(attrs, fields) do
+    Enum.reduce(fields, attrs, fn field, acc ->
+      case Map.fetch(acc, field) do
+        {:ok, nil} -> Map.put(acc, field, "")
+        {:ok, value} when is_atom(value) -> Map.put(acc, field, Atom.to_string(value))
+        :error -> Map.put(acc, field, "")
+        _ -> acc
+      end
+    end)
+  end
+
+  def to_buffer_map(%__MODULE__{} = build) do
+    build
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+    |> Map.update(:id, UUIDv7.generate(), fn id -> id || UUIDv7.generate() end)
+    |> Map.update(:inserted_at, NaiveDateTime.utc_now(), fn
+      nil -> NaiveDateTime.utc_now()
+      %DateTime{} = dt -> DateTime.to_naive(dt)
+      other -> other
+    end)
+    |> Map.new(fn
+      {key, %NaiveDateTime{} = ndt} -> {key, %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}}
+      other -> other
+    end)
   end
 
   defp validate_custom_tags(changeset) do
@@ -126,36 +196,33 @@ defmodule Tuist.Builds.Build do
       if map_size(values) > 20 do
         [{:custom_values, "cannot have more than 20 key-value pairs"}]
       else
-        errors =
-          Enum.flat_map(values, fn {key, value} ->
-            key_errors =
-              cond do
-                not is_binary(key) ->
-                  [{:custom_values, "keys must be strings"}]
+        Enum.flat_map(values, fn {key, value} ->
+          key_errors =
+            cond do
+              not is_binary(key) ->
+                [{:custom_values, "keys must be strings"}]
 
-                String.length(key) > 50 ->
-                  [{:custom_values, "key '#{String.slice(key, 0, 20)}...' exceeds maximum length of 50 characters"}]
+              String.length(key) > 50 ->
+                [{:custom_values, "key '#{String.slice(key, 0, 20)}...' exceeds maximum length of 50 characters"}]
 
-                true ->
-                  []
-              end
+              true ->
+                []
+            end
 
-            value_errors =
-              cond do
-                not is_binary(value) ->
-                  [{:custom_values, "values must be strings"}]
+          value_errors =
+            cond do
+              not is_binary(value) ->
+                [{:custom_values, "values must be strings"}]
 
-                String.length(value) > 500 ->
-                  [{:custom_values, "value for key '#{key}' exceeds maximum length of 500 characters"}]
+              String.length(value) > 500 ->
+                [{:custom_values, "value for key '#{key}' exceeds maximum length of 500 characters"}]
 
-                true ->
-                  []
-              end
+              true ->
+                []
+            end
 
-            key_errors ++ value_errors
-          end)
-
-        errors
+          key_errors ++ value_errors
+        end)
       end
     end)
   end

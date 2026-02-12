@@ -51,19 +51,19 @@ defmodule TuistWeb.BuildsLiveTest do
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: yesterday
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :success,
+      status: "success",
       inserted_at: yesterday
     )
 
     RunsFixtures.build_fixture(
       project_id: project.id,
-      status: :failure,
+      status: "failure",
       inserted_at: yesterday
     )
 

@@ -3,14 +3,11 @@ defmodule Tuist.Builds.Analytics do
   Module for build-related analytics.
   """
   import Ecto.Query
-  import Timescale.Hyperfunctions
 
-  alias Postgrex.Interval
   alias Tuist.Builds.Build
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
-  alias Tuist.Repo
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
 
@@ -18,45 +15,30 @@ defmodule Tuist.Builds.Analytics do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
-    query =
-      where(
-        from(b in Build),
-        [b],
-        b.inserted_at > ^start_datetime and
-          b.inserted_at < ^end_datetime and b.project_id == ^project_id
-      )
-
-    query =
+    category_field =
       case category do
-        :xcode_version ->
-          query
-          |> group_by([b], b.xcode_version)
-          |> select([b], %{category: b.xcode_version, value: avg(b.duration)})
-
-        :model_identifier ->
-          query
-          |> group_by([b], b.model_identifier)
-          |> select([b], %{category: b.model_identifier, value: avg(b.duration)})
-
-        :macos_version ->
-          query
-          |> group_by([b], b.macos_version)
-          |> select([b], %{category: b.macos_version, value: avg(b.duration)})
+        :xcode_version -> dynamic([b], b.xcode_version)
+        :model_identifier -> dynamic([b], b.model_identifier)
+        :macos_version -> dynamic([b], b.macos_version)
       end
 
+    query =
+      select_merge(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          group_by: ^category_field,
+          select: %{value: fragment("avgOrNull(?)", b.duration)}
+        ),
+        ^%{category: category_field}
+      )
+
     query
-    |> Repo.all()
-    |> Enum.map(
-      &%{
-        category: &1.category,
-        value:
-          case &1.value do
-            nil -> 0
-            duration when is_float(duration) -> duration
-            duration -> Decimal.to_float(duration)
-          end
-      }
-    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
+      %{category: row.category, value: row.value || 0}
+    end)
   end
 
   def build_analytics(project_id, opts \\ []) do
@@ -65,7 +47,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
 
     current_build_data =
       build_count(
@@ -73,7 +55,7 @@ defmodule Tuist.Builds.Analytics do
         start_datetime,
         end_datetime,
         date_period,
-        time_bucket,
+        clickhouse_interval,
         opts
       )
 
@@ -94,22 +76,35 @@ defmodule Tuist.Builds.Analytics do
     }
   end
 
-  defp build_count(project_id, start_datetime, end_datetime, date_period, time_bucket, opts) do
-    builds_data =
-      from(b in Build,
-        group_by: selected_as(^date_period),
-        where:
-          b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime and
-            b.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-          count: count(b)
-        }
+  defp build_count(project_id, start_datetime, end_datetime, date_period, clickhouse_interval, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      count() as count
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
       )
-      |> add_filters(opts)
-      |> Repo.all()
-      |> Map.new(&{normalise_date(&1.date, date_period), &1.count})
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    builds_data = Map.new(rows, fn [date, count] -> {normalise_date(date, date_period), count} end)
 
     date_period
     |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
@@ -121,19 +116,18 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_total_count(project_id, start_datetime, end_datetime, opts) do
-    from(b in Build,
-      where:
-        b.inserted_at > ^start_datetime and
-          b.inserted_at < ^end_datetime and
-          b.project_id == ^project_id,
-      select: count(b)
-    )
-    |> add_filters(opts)
-    |> Repo.one()
-    |> case do
-      nil -> 0
-      count -> count
-    end
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          select: count()
+        ),
+        opts
+      )
+
+    ClickHouseRepo.one(query) || 0
   end
 
   def build_duration_analytics(project_id, opts \\ []) do
@@ -142,7 +136,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
 
     previous_period_data =
       build_aggregated_analytics(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, opts)
@@ -152,23 +146,35 @@ defmodule Tuist.Builds.Analytics do
     current_period_data = build_aggregated_analytics(project_id, start_datetime, end_datetime, opts)
     current_period_total_average_duration = current_period_data.average_duration
 
-    average_durations_query =
-      from(b in Build,
-        group_by: selected_as(^date_period),
-        where:
-          b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime and
-            b.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-          value: avg(b.duration)
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.all()
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
-    average_durations =
-      process_durations_data(average_durations_query, start_datetime, end_datetime, date_period)
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      avgOrNull(duration) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    average_durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
+    average_durations = process_durations_data(average_durations_data, start_datetime, end_datetime, date_period)
 
     %{
       trend:
@@ -184,32 +190,32 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_aggregated_analytics(project_id, start_datetime, end_datetime, opts) do
-    result =
-      from(b in Build,
-        where:
-          b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime and
-            b.project_id == ^project_id,
-        select: %{
-          total_duration: sum(b.duration),
-          count: count(b),
-          average_duration: avg(b.duration)
-        }
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          select: %{
+            total_duration: fragment("sumOrNull(?)", b.duration),
+            count: count(),
+            average_duration: fragment("avgOrNull(?)", b.duration)
+          }
+        ),
+        opts
       )
-      |> add_filters(opts)
-      |> Repo.one()
 
-    case result do
+    case ClickHouseRepo.one(query) do
       nil ->
         %{total_duration: 0, count: 0, average_duration: 0}
 
       %{total_duration: nil, count: count, average_duration: nil} ->
-        %{total_duration: 0, count: count, average_duration: 0}
+        %{total_duration: 0, count: count || 0, average_duration: 0}
 
       %{total_duration: total, count: count, average_duration: avg} ->
         %{
           total_duration: normalize_result(total),
-          count: count,
+          count: count || 0,
           average_duration: normalize_result(avg)
         }
     end
@@ -221,7 +227,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
 
     current_period_percentile =
       build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
@@ -235,21 +241,34 @@ defmodule Tuist.Builds.Analytics do
         opts
       )
 
-    durations_data =
-      from(b in Build,
-        group_by: selected_as(^date_period),
-        where:
-          b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime and
-            b.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-          value: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
-        }
-      )
-      |> add_filters(opts)
-      |> Repo.all()
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      quantileOrNull(#{percentile})(duration) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
     durations = process_durations_data(durations_data, start_datetime, end_datetime, date_period)
 
     %{
@@ -265,18 +284,30 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
-    result =
-      from(b in Build,
-        where:
-          b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime and
-            b.project_id == ^project_id,
-        select: fragment("percentile_cont(?) within group (order by ?)", ^percentile, b.duration)
-      )
-      |> add_filters(opts)
-      |> Repo.one()
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
-    normalize_result(result)
+    query = """
+    SELECT quantileOrNull(#{percentile})(duration) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[value]]}} = ClickHouseRepo.query(query, params)
+
+    normalize_result(value)
   end
 
   def build_success_rate_analytics(project_id, opts \\ []) do
@@ -336,22 +367,30 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     filter_opts = Keyword.get(opts, :opts, [])
 
-    result =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime,
-        select: %{
-          total_builds: count(b),
-          successful_builds: fragment("COUNT(CASE WHEN ? = 0 THEN 1 END)", b.status)
-        }
-      )
-      |> add_filters(filter_opts)
-      |> Repo.one()
+    {filter_clauses, filter_params} = build_filter_clauses(filter_opts)
 
-    total_builds = result.total_builds
-    successful_builds = result.successful_builds
+    query = """
+    SELECT
+      count() as total_builds,
+      countIf(status = 'success') as successful_builds
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[total_builds, successful_builds]]}} = ClickHouseRepo.query(query, params)
 
     if total_builds == 0 do
       0.0
@@ -366,30 +405,43 @@ defmodule Tuist.Builds.Analytics do
     date_period = Keyword.get(opts, :date_period)
     filter_opts = Keyword.get(opts, :opts, [])
 
-    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+    {filter_clauses, filter_params} = build_filter_clauses(filter_opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      count() as total_builds,
+      countIf(status = 'success') as successful_builds
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     success_rate_metadata_map =
-      from(b in Build,
-        group_by: selected_as(^date_period),
-        where:
-          b.inserted_at > ^start_datetime and
-            b.inserted_at < ^end_datetime and
-            b.project_id == ^project_id,
-        select: %{
-          date: selected_as(time_bucket(b.inserted_at, ^time_bucket), ^date_period),
-          total_builds: count(b),
-          successful_builds: fragment("COUNT(CASE WHEN ? = 0 THEN 1 END)", b.status)
-        }
-      )
-      |> add_filters(filter_opts)
-      |> Repo.all()
-      |> Map.new(
-        &{normalise_date(&1.date, date_period),
+      Map.new(rows, fn [date, total, successful] ->
+        {normalise_date(date, date_period),
          %{
-           total_builds: &1.total_builds,
-           successful_builds: &1.successful_builds
+           total_builds: total,
+           successful_builds: successful
          }}
-      )
+      end)
 
     date_period
     |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
@@ -490,8 +542,7 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime)
     date_period = Keyword.get(opts, :date_period)
 
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     cache_hit_rate_metadata_map =
       project_id
@@ -593,7 +644,7 @@ defmodule Tuist.Builds.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket_for_date_period(date_period))
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     base_analytics = selective_testing_analytics(opts)
 
@@ -714,8 +765,7 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime)
     date_period = Keyword.get(opts, :date_period)
 
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     selective_testing_hit_rate_metadata_map =
       project_id
@@ -820,7 +870,7 @@ defmodule Tuist.Builds.Analytics do
       fn -> build_percentile_durations(project_id, 0.9, opts) end,
       fn -> build_percentile_durations(project_id, 0.5, opts) end,
       fn -> build_analytics(project_id, opts) end,
-      fn -> build_analytics(project_id, Keyword.put(opts, :status, :failure)) end,
+      fn -> build_analytics(project_id, Keyword.put(opts, :status, "failure")) end,
       fn -> build_success_rate_analytics(project_id, opts) end
     ]
 
@@ -857,8 +907,7 @@ defmodule Tuist.Builds.Analytics do
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    interval_str = time_bucket_to_clickhouse_interval(time_bucket)
+    interval_str = clickhouse_interval_for_date_period(date_period)
 
     current_data =
       ClickHouseRepo.query!(
@@ -959,38 +1008,38 @@ defmodule Tuist.Builds.Analytics do
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^start_datetime and
-            b.inserted_at <= ^end_datetime and
-            b.cacheable_tasks_count > 0
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      CASE WHEN SUM(cacheable_tasks_count) = 0 THEN 0.0
+           ELSE (SUM(cacheable_task_local_hits_count) + SUM(cacheable_task_remote_hits_count)) / SUM(cacheable_tasks_count) * 100.0
+      END as hit_rate
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
       )
 
-    query = query_with_is_ci_filter(query, opts)
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
-    time_bucket = time_bucket_for_date_period(date_period)
-
-    current_data =
-      Repo.all(
-        from(b in query,
-          group_by: selected_as(:date_bucket),
-          select: %{
-            date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
-            hit_rate:
-              fragment(
-                "CASE WHEN SUM(?) = 0 THEN 0.0 ELSE (SUM(?) + SUM(?))::float / SUM(?) * 100.0 END",
-                b.cacheable_tasks_count,
-                b.cacheable_task_local_hits_count,
-                b.cacheable_task_remote_hits_count,
-                b.cacheable_tasks_count
-              )
-          },
-          order_by: [asc: selected_as(:date_bucket)]
-        )
-      )
+    current_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
 
     current_avg_hit_rate = avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
@@ -1040,6 +1089,8 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     current_period_percentile =
       cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
@@ -1053,37 +1104,37 @@ defmodule Tuist.Builds.Analytics do
         opts
       )
 
-    time_bucket = time_bucket_for_date_period(date_period)
+    # For cache hit rate, higher is better, so we invert the percentile:
+    # quantile(1 - p) on ascending data ≡ percentile_cont(p) on descending data.
+    inverted_percentile = 1 - percentile
 
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^start_datetime and
-            b.inserted_at <= ^end_datetime and
-            b.cacheable_tasks_count > 0
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
+      quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
       )
 
-    query = query_with_is_ci_filter(query, opts)
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
-    hit_rate_data =
-      Repo.all(
-        from(b in query,
-          group_by: selected_as(:date_bucket),
-          select: %{
-            date: selected_as(time_bucket(b.inserted_at, ^time_bucket), :date_bucket),
-            hit_rate:
-              fragment(
-                "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC)",
-                ^percentile,
-                b.cacheable_task_local_hits_count,
-                b.cacheable_task_remote_hits_count,
-                b.cacheable_tasks_count
-              )
-          },
-          order_by: [asc: selected_as(:date_bucket)]
-        )
-      )
+    hit_rate_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
 
     processed_data = process_hit_rate_data(hit_rate_data, start_datetime, end_datetime, date_period)
 
@@ -1100,60 +1151,78 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^start_datetime and
-            b.inserted_at <= ^end_datetime and
-            b.cacheable_tasks_count > 0,
-        select:
-          fragment(
-            "percentile_cont(?) within group (order by ((? + ?)::float / ? * 100.0) DESC)",
-            ^percentile,
-            b.cacheable_task_local_hits_count,
-            b.cacheable_task_remote_hits_count,
-            b.cacheable_tasks_count
-          )
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    # ClickHouse quantile uses "lower-is-better" convention, so we invert for hit rate where higher is better
+    inverted_percentile = 1 - percentile
+
+    query = """
+    SELECT quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
       )
 
-    query = query_with_is_ci_filter(query, opts)
+    {:ok, %{rows: [[value]]}} = ClickHouseRepo.query(query, params)
 
-    result = Repo.one(query)
-    normalize_result(result)
+    normalize_result(value)
   end
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^start_datetime and
-            b.inserted_at <= ^end_datetime and
-            b.cacheable_tasks_count > 0,
-        select: %{
-          total_cacheable: sum(b.cacheable_tasks_count),
-          total_local_hits: sum(b.cacheable_task_local_hits_count),
-          total_remote_hits: sum(b.cacheable_task_remote_hits_count)
-        }
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      sum(cacheable_tasks_count) as total_cacheable,
+      sum(cacheable_task_local_hits_count) as total_local_hits,
+      sum(cacheable_task_remote_hits_count) as total_remote_hits
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
       )
 
-    query = query_with_is_ci_filter(query, opts)
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
-    result = Repo.one(query)
-
-    case result do
-      nil ->
+    case rows do
+      [[nil, _, _]] ->
         0.0
 
-      %{total_cacheable: total} when is_nil(total) or total == 0 ->
+      [[total, _, _]] when total == 0 ->
         0.0
 
-      %{total_cacheable: total, total_local_hits: local, total_remote_hits: remote} ->
+      [[total, local, remote]] ->
         local = local || 0
         remote = remote || 0
         Float.round((local + remote) / total * 100.0, 1)
+
+      _ ->
+        0.0
     end
   end
 
@@ -1189,29 +1258,48 @@ defmodule Tuist.Builds.Analytics do
   - cacheable_task_remote_hits_count: Total number of remote cache hits
   """
   def build_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^start_datetime and
-            b.inserted_at <= ^end_datetime and
-            b.cacheable_tasks_count > 0,
-        select: %{
-          cacheable_tasks_count: sum(b.cacheable_tasks_count),
-          cacheable_task_local_hits_count: sum(b.cacheable_task_local_hits_count),
-          cacheable_task_remote_hits_count: sum(b.cacheable_task_remote_hits_count)
-        }
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      sum(cacheable_tasks_count) as total_cacheable_tasks,
+      sum(cacheable_task_local_hits_count) as total_local_hits,
+      sum(cacheable_task_remote_hits_count) as total_remote_hits
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
       )
 
-    query = query_with_is_ci_filter(query, opts)
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
-    result = Repo.one(query)
+    case rows do
+      [[cacheable, local, remote]] ->
+        %{
+          cacheable_tasks_count: cacheable || 0,
+          cacheable_task_local_hits_count: local || 0,
+          cacheable_task_remote_hits_count: remote || 0
+        }
 
-    %{
-      cacheable_tasks_count: result.cacheable_tasks_count || 0,
-      cacheable_task_local_hits_count: result.cacheable_task_local_hits_count || 0,
-      cacheable_task_remote_hits_count: result.cacheable_task_remote_hits_count || 0
-    }
+      _ ->
+        %{
+          cacheable_tasks_count: 0,
+          cacheable_task_local_hits_count: 0,
+          cacheable_task_remote_hits_count: 0
+        }
+    end
   end
 
   @doc """
@@ -1224,43 +1312,45 @@ defmodule Tuist.Builds.Analytics do
   - cacheable_task_remote_hits: Total number of remote cache hits in this period
   """
   def build_cache_hit_rates(project_id, start_datetime, end_datetime, time_bucket, opts) do
-    pg_time_bucket = clickhouse_interval_to_postgrex_interval(time_bucket)
-
-    query =
-      from(b in Build,
-        group_by: selected_as(:date_bucket),
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^start_datetime and
-            b.inserted_at <= ^end_datetime and
-            b.cacheable_tasks_count > 0,
-        select: %{
-          date: selected_as(time_bucket(b.inserted_at, ^pg_time_bucket), :date_bucket),
-          cacheable_tasks: sum(b.cacheable_tasks_count),
-          cacheable_task_local_hits: sum(b.cacheable_task_local_hits_count),
-          cacheable_task_remote_hits: sum(b.cacheable_task_remote_hits_count)
-        },
-        order_by: [asc: selected_as(:date_bucket)]
-      )
-
-    query = query_with_is_ci_filter(query, opts)
-
-    results = Repo.all(query)
-
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
     date_format = get_clickhouse_date_format(time_bucket)
 
-    Enum.map(results, fn result ->
-      date_str =
-        case result.date do
-          %DateTime{} = dt -> format_datetime_for_date_format(dt, date_format)
-          %NaiveDateTime{} = dt -> format_datetime_for_date_format(dt, date_format)
-        end
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{time_bucket}) as date,
+      sum(cacheable_tasks_count) as cacheable_tasks,
+      sum(cacheable_task_local_hits_count) as cacheable_task_local_hits,
+      sum(cacheable_task_remote_hits_count) as cacheable_task_remote_hits
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    Enum.map(rows, fn [date, cacheable_tasks, local_hits, remote_hits] ->
+      date_str = format_clickhouse_date(date, date_format)
 
       %{
         date: date_str,
-        cacheable_tasks: result.cacheable_tasks || 0,
-        cacheable_task_local_hits: result.cacheable_task_local_hits || 0,
-        cacheable_task_remote_hits: result.cacheable_task_remote_hits || 0
+        cacheable_tasks: cacheable_tasks || 0,
+        cacheable_task_local_hits: local_hits || 0,
+        cacheable_task_remote_hits: remote_hits || 0
       }
     end)
   end
@@ -1307,8 +1397,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     hit_rate_result = CommandEvents.cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
@@ -1381,8 +1470,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     hit_rate_time_series =
       CommandEvents.cache_hit_rates(
@@ -1457,8 +1545,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     hit_rate_time_series =
       CommandEvents.cache_hit_rates(
@@ -1544,8 +1631,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     current_period_percentile =
       module_cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
@@ -1613,16 +1699,23 @@ defmodule Tuist.Builds.Analytics do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
 
-    durations =
-      Repo.all(
-        from(b in Build,
-          where: b.project_id == ^project_id,
-          order_by: [desc: b.inserted_at],
-          limit: ^limit,
-          offset: ^offset,
-          select: b.duration
-        )
-      )
+    query = """
+    SELECT duration
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+    ORDER BY inserted_at DESC
+    LIMIT {limit:UInt32}
+    OFFSET {offset:UInt32}
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{
+        project_id: project_id,
+        limit: limit,
+        offset: offset
+      })
+
+    durations = Enum.map(rows, fn [duration] -> duration end)
 
     calculate_metric_from_values(durations, metric)
   end
@@ -1644,25 +1737,25 @@ defmodule Tuist.Builds.Analytics do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
 
-    hit_rates =
-      Repo.all(
-        from(b in Build,
-          where:
-            b.project_id == ^project_id and
-              not is_nil(b.cacheable_tasks_count) and
-              b.cacheable_tasks_count > 0,
-          order_by: [desc: b.inserted_at],
-          limit: ^limit,
-          offset: ^offset,
-          select:
-            fragment(
-              "(COALESCE(?, 0) + COALESCE(?, 0))::float / ?",
-              b.cacheable_task_local_hits_count,
-              b.cacheable_task_remote_hits_count,
-              b.cacheable_tasks_count
-            )
-        )
-      )
+    query = """
+    SELECT (ifNull(cacheable_task_local_hits_count, 0) + ifNull(cacheable_task_remote_hits_count, 0)) / cacheable_tasks_count as hit_rate
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND cacheable_tasks_count IS NOT NULL
+      AND cacheable_tasks_count > 0
+    ORDER BY inserted_at DESC
+    LIMIT {limit:UInt32}
+    OFFSET {offset:UInt32}
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{
+        project_id: project_id,
+        limit: limit,
+        offset: offset
+      })
+
+    hit_rates = Enum.map(rows, fn [hit_rate] -> hit_rate end)
 
     calculate_hit_rate_metric_from_values(hit_rates, metric)
   end
@@ -1761,71 +1854,116 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
-  defp time_bucket_for_date_period(date_period) do
-    case date_period do
-      :hour -> %Interval{secs: 3600}
-      :day -> %Interval{days: 1}
-      :month -> %Interval{months: 1}
+  defp clickhouse_interval_for_date_period(:hour), do: "1 hour"
+  defp clickhouse_interval_for_date_period(:day), do: "1 day"
+  defp clickhouse_interval_for_date_period(:month), do: "1 month"
+
+  @filters [
+    {:boolean, :is_ci, "is_ci"},
+    {:string, :scheme, "scheme"},
+    {:string, :configuration, "configuration"},
+    {:enum, :category, "category", ["clean", "incremental"]},
+    {:tag, :tag, "custom_tags"},
+    {:enum, :status, "status", ["success", "failure"]}
+  ]
+
+  defp apply_filters(query, opts) do
+    Enum.reduce(@filters, query, fn
+      {:boolean, key, _field}, q ->
+        case Keyword.get(opts, key) do
+          value when is_boolean(value) -> from(b in q, where: field(b, ^key) == ^value)
+          _ -> q
+        end
+
+      {:string, key, _field}, q ->
+        case normalize_string_filter(Keyword.get(opts, key)) do
+          nil -> q
+          value -> from(b in q, where: field(b, ^key) == ^value)
+        end
+
+      {:enum, key, _field, allowed_values}, q ->
+        value = normalize_string_filter(Keyword.get(opts, key))
+        if value in allowed_values, do: from(b in q, where: field(b, ^key) == ^value), else: q
+
+      {:tag, key, _field}, q ->
+        case normalize_string_filter(Keyword.get(opts, key)) do
+          nil -> q
+          value -> from(b in q, where: fragment("has(custom_tags, ?)", ^value))
+        end
+    end)
+  end
+
+  defp build_filter_clauses(opts) do
+    {clauses, params} =
+      Enum.reduce(@filters, {[], %{}}, fn filter, acc ->
+        build_filter_clause(filter, opts, acc)
+      end)
+
+    filter_sql =
+      case clauses do
+        [] -> ""
+        _ -> clauses |> Enum.reverse() |> Enum.join("\n")
+      end
+
+    {filter_sql, params}
+  end
+
+  defp build_filter_clause({:boolean, key, field}, opts, {clauses, params}) do
+    case Keyword.get(opts, key) do
+      value when is_boolean(value) ->
+        {
+          ["AND #{field} = {#{key}:Bool}" | clauses],
+          Map.put(params, key, value)
+        }
+
+      _ ->
+        {clauses, params}
     end
   end
 
-  defp time_bucket_to_clickhouse_interval(%Interval{secs: 3600}), do: "1 hour"
-  defp time_bucket_to_clickhouse_interval(%Interval{days: 1}), do: "1 day"
-  defp time_bucket_to_clickhouse_interval(%Interval{months: 1}), do: "1 month"
+  defp build_filter_clause({:string, key, field}, opts, {clauses, params}) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  defp add_filters(query, opts) do
-    query = query_with_is_ci_filter(query, opts)
-
-    scheme = Keyword.get(opts, :scheme)
-
-    query =
-      case scheme do
-        nil -> query
-        _ -> where(query, [e], e.scheme == ^scheme)
-      end
-
-    configuration = Keyword.get(opts, :configuration)
-
-    query =
-      case configuration do
-        nil -> query
-        _ -> where(query, [e], e.configuration == ^configuration)
-      end
-
-    category = Keyword.get(opts, :category)
-
-    query =
-      case category do
-        nil -> query
-        _ -> where(query, [e], e.category == ^category)
-      end
-
-    tag = Keyword.get(opts, :tag)
-
-    query =
-      case tag do
-        nil -> query
-        _ -> where(query, [e], ^tag in e.custom_tags)
-      end
-
-    status = Keyword.get(opts, :status)
-
-    case status do
-      nil -> query
-      _ -> where(query, [e], e.status == ^status)
+      value ->
+        {
+          ["AND #{field} = {#{key}:String}" | clauses],
+          Map.put(params, key, value)
+        }
     end
   end
 
-  defp query_with_is_ci_filter(query, opts) do
-    is_ci = Keyword.get(opts, :is_ci)
+  defp build_filter_clause({:enum, key, field, allowed_values}, opts, {clauses, params}) do
+    value = normalize_string_filter(Keyword.get(opts, key))
 
-    case is_ci do
-      nil -> query
-      true -> where(query, [e], e.is_ci == true)
-      false -> where(query, [e], e.is_ci == false)
+    if value in allowed_values do
+      {
+        ["AND #{field} = {#{key}:String}" | clauses],
+        Map.put(params, key, value)
+      }
+    else
+      {clauses, params}
     end
   end
+
+  defp build_filter_clause({:tag, key, field}, opts, {clauses, params}) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND has(#{field}, {#{key}:String})" | clauses],
+          Map.put(params, key, value)
+        }
+    end
+  end
+
+  defp normalize_string_filter(nil), do: nil
+  defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_string_filter(value) when is_binary(value), do: value
+  defp normalize_string_filter(_), do: nil
 
   defp date_range_for_date_period(:hour, opts) do
     start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)
@@ -1928,24 +2066,44 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
-  defp format_datetime_for_date_format(datetime, "%Y-%m-%d %H:00"),
-    do: "#{Date.to_string(DateTime.to_date(datetime))} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:00"
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d %H:00") do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    "#{Date.to_string(date)} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:00"
+  end
 
-  defp format_datetime_for_date_format(datetime, "%Y-%m-%d"), do: Date.to_string(DateTime.to_date(datetime))
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d") do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    Date.to_string(date)
+  end
 
   defp format_datetime_for_date_format(datetime, "%Y-%m"),
     do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
 
-  defp format_datetime_for_date_format(datetime, _), do: Date.to_string(DateTime.to_date(datetime))
+  defp format_datetime_for_date_format(datetime, _) do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    Date.to_string(date)
+  end
 
   defp get_clickhouse_date_format("1 hour"), do: "%Y-%m-%d %H:00"
   defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
 
-  defp clickhouse_interval_to_postgrex_interval("1 hour"), do: %Interval{secs: 3600}
-  defp clickhouse_interval_to_postgrex_interval("1 day"), do: %Interval{days: 1}
-  defp clickhouse_interval_to_postgrex_interval("1 month"), do: %Interval{months: 1}
+  defp format_clickhouse_date(%Date{} = date, date_format) do
+    Calendar.strftime(date, date_format)
+  end
+
+  defp format_clickhouse_date(%NaiveDateTime{} = dt, date_format) do
+    format_datetime_for_date_format(dt, date_format)
+  end
+
+  defp format_clickhouse_date(%DateTime{} = dt, date_format) do
+    format_datetime_for_date_format(dt, date_format)
+  end
+
+  defp format_clickhouse_date(date_string, _date_format) when is_binary(date_string) do
+    date_string
+  end
 
   defp generate_date_range(start_datetime, end_datetime, :hour) do
     end_dt = DateTime.truncate(DateTime.utc_now(), :second)

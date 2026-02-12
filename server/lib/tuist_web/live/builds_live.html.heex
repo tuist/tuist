@@ -888,18 +888,26 @@
       >
         <:col :let={build} label={dgettext("dashboard_builds", "Scheme")}>
           <.text_and_description_cell label={
-            build.scheme || dgettext("dashboard_builds", "Unknown")
+            if(build.scheme == "",
+              do: dgettext("dashboard_builds", "Unknown"),
+              else: build.scheme
+            )
           } />
         </:col>
         <:col :let={build} label="Status">
-          <%= if build.status == :success do %>
+          <%= if build.status == "success" do %>
             <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
           <% else %>
             <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
           <% end %>
         </:col>
         <:col :let={build} label={dgettext("dashboard_builds", "Xcode version")}>
-          <.text_cell label={build.xcode_version || dgettext("dashboard_builds", "Unknown")} />
+          <.text_cell label={
+            if(build.xcode_version == "",
+              do: dgettext("dashboard_builds", "Unknown"),
+              else: build.xcode_version
+            )
+          } />
         </:col>
         <:col :let={build} label={dgettext("dashboard_builds", "Ran by")}>
           <.build_ran_by_badge_cell build={build} />
@@ -915,7 +923,7 @@
         <:col :let={build_run} label={dgettext("dashboard_builds", "Category")}>
           <.badge_cell
             label={
-              (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+              (build_run.category != "" && build_run.category |> String.capitalize()) ||
                 dgettext("dashboard_builds", "Unknown")
             }
             style="light-fill"

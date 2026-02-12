@@ -1,0 +1,4 @@
+! Warning
+
+  The following items may need attention:
+   ▸ The project contains no hasheable targets for selective testing.

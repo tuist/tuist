@@ -3,9 +3,9 @@
 # with all dependencies included (PostgreSQL, ClickHouse, MinIO, Redis)
 
 services:
-  # PostgreSQL with TimescaleDB extension
+  # PostgreSQL
   postgres:
-    image: timescale/timescaledb-ha:pg16
+    image: postgres:16
     container_name: tuist-postgres
     restart: unless-stopped
     environment:

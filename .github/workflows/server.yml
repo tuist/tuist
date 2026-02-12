@@ -247,7 +247,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -478,7 +478,7 @@ jobs:
   #   timeout-minutes: 15
   #   services:
   #     postgres:
-  #       image: timescale/timescaledb-ha:pg16
+  #       image: postgres:16
   #       env:
   #         POSTGRES_USER: postgres
   #         POSTGRES_PASSWORD: postgres
@@ -534,7 +534,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -594,20 +594,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat $GITHUB_WORKSPACE/.xcode-version).app
-      - name: Set up PostgreSQL with TimescaleDB
+      - name: Set up PostgreSQL
         run: |
-          brew tap timescale/tap
-          brew install timescaledb
-          # Run timescaledb_move.sh to install extension files to PostgreSQL
-          /opt/homebrew/bin/timescaledb_move.sh || true
-          # Stop PostgreSQL before configuring
-          if brew services list | grep -q "^postgresql@17\\s\\+started"; then
-            brew services stop postgresql@17
-            sleep 2
-          fi
-          # Configure TimescaleDB - specify the correct PostgreSQL 17 config path
-          timescaledb-tune --quiet --yes --pg-config /opt/homebrew/opt/postgresql@17/bin/pg_config
-          # Start PostgreSQL with the new shared_preload_libraries config
+          brew install postgresql@17
           brew services start postgresql@17
           # Wait for PostgreSQL to start (check via TCP)
           for i in {1..30}; do
@@ -620,8 +609,6 @@ jobs:
           done
           # Create runner user for database access
           /opt/homebrew/opt/postgresql@17/bin/createuser -h localhost -s runner || true
-          # Verify TimescaleDB extension is available
-          /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -d postgres -c "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';"
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: .

@@ -380,6 +380,8 @@ export default withMermaid(
         )
         .join("\n");
       const redirects = `
+/ /en/ 301
+/index /en/index 301
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -499,7 +501,7 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
     `;
-      fs.writeFile(redirectsPath, redirects);
+      await fs.writeFile(redirectsPath, redirects);
     },
     themeConfig: {
       logo: "/logo.png",

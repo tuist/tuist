@@ -21,7 +21,7 @@ defmodule TuistWeb.API.GenerationsControllerTest do
           project_id: project.id,
           name: "generate",
           duration: 5000,
-          status: :success,
+          status: "success",
           git_branch: "main",
           cacheable_targets: ["TargetA", "TargetB"],
           local_cache_target_hits: ["TargetA"],
@@ -100,7 +100,7 @@ defmodule TuistWeb.API.GenerationsControllerTest do
           project_id: project.id,
           name: "generate",
           duration: 5000,
-          status: :success,
+          status: "success",
           git_branch: "main",
           command_arguments: ["--no-open"]
         )
