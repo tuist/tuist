@@ -29,16 +29,23 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        guard let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path)
-        else { return (graph, [], environment) }
-        let derivedDirectory = packageManifest
-            .parentDirectory
-            .appending(
+        let derivedDirectory: AbsolutePath
+        if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
+            derivedDirectory = packageManifest.parentDirectory.appending(
                 components: [
                     Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
                 ]
             )
+        } else {
+            derivedDirectory = graph.path.appending(
+                components: [
+                    Constants.tuistDirectoryName,
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        }
 
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
