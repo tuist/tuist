@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.144.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* run StaticXCFrameworkModuleMapGraphMapper after cache replacement by [@pepicrft](https://github.com/pepicrft) in [#9427](https://github.com/tuist/tuist/pull/9427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.1...4.144.2
+
 ## What's Changed in 4.144.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
@@ -387,9 +395,6 @@ All notable changes to this project will be documented in this file.
 
 * exclude __MACOSX folders for remote binary targets by [@mo5tone](https://github.com/mo5tone) in [#9075](https://github.com/tuist/tuist/pull/9075)
 * ensure consistent graph mapper order for cache hashing by [@fortmarek](https://github.com/fortmarek) in [#9077](https://github.com/tuist/tuist/pull/9077)
-
-## New Contributors
-* [@mo5tone](https://github.com/mo5tone) made their first contribution in [#9075](https://github.com/tuist/tuist/pull/9075)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.119.3...4.119.4
 
@@ -1165,9 +1170,6 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Add SE-0162 support for custom SPM target layouts by [@devyhan](https://github.com/devyhan) in [#8191](https://github.com/tuist/tuist/pull/8191)
-
-## New Contributors
-* [@devyhan](https://github.com/devyhan) made their first contribution in [#8191](https://github.com/tuist/tuist/pull/8191)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.75.0...4.76.0
 
