@@ -88,6 +88,7 @@ defmodule Tuist.Application do
         labels: %{
           app: {:static, "tuist-server"},
           service_name: {:static, "tuist-server"},
+          service_namespace: {:static, "tuist"},
           env: {:static, to_string(Environment.env())},
           level: :level
         },

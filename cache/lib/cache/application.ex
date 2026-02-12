@@ -75,6 +75,7 @@ defmodule Cache.Application do
         labels: %{
           app: {:static, "tuist-cache"},
           service_name: {:static, "tuist-cache"},
+          service_namespace: {:static, "tuist"},
           env: {:static, System.get_env("DEPLOY_ENV") || "production"},
           level: :level
         },
