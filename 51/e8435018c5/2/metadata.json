@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "51e8435018c5",
+  "session_id": "50cad358-0556-456f-9afe-c5b0baba540e",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-12T18:23:10.949091Z",
+  "branch": "fix/static-xcframework-module-map-without-package-manifest",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift",
+    "cli/Tests/TuistKitTests/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapperTests.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 65,
+    "cache_creation_tokens": 81743,
+    "cache_read_tokens": 4752774,
+    "output_tokens": 2400,
+    "api_call_count": 59
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-12T18:23:10.85725Z",
+    "agent_lines": 0,
+    "human_added": 140075,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 140075,
+    "agent_percentage": 0
+  }
+}

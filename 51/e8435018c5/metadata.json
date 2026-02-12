@@ -3,10 +3,12 @@
   "checkpoint_id": "51e8435018c5",
   "strategy": "manual-commit",
   "branch": "fix/static-xcframework-module-map-without-package-manifest",
-  "checkpoints_count": 2,
+  "checkpoints_count": 5,
   "files_touched": [
     "cli/Sources/TuistCore/Graph/GraphTraverser.swift",
+    "cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift",
     "cli/Tests/TuistCoreTests/Graph/GraphTraverserTests.swift",
+    "cli/Tests/TuistKitTests/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapperTests.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -32,13 +34,20 @@
       "context": "/51/e8435018c5/1/context.md",
       "content_hash": "/51/e8435018c5/1/content_hash.txt",
       "prompt": "/51/e8435018c5/1/prompt.txt"
+    },
+    {
+      "metadata": "/51/e8435018c5/2/metadata.json",
+      "transcript": "/51/e8435018c5/2/full.jsonl",
+      "context": "/51/e8435018c5/2/context.md",
+      "content_hash": "/51/e8435018c5/2/content_hash.txt",
+      "prompt": "/51/e8435018c5/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 215,
-    "cache_creation_tokens": 304652,
-    "cache_read_tokens": 17788068,
-    "output_tokens": 10119,
-    "api_call_count": 199
+    "input_tokens": 280,
+    "cache_creation_tokens": 386395,
+    "cache_read_tokens": 22540842,
+    "output_tokens": 12519,
+    "api_call_count": 258
   }
 }

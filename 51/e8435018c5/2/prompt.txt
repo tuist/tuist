@@ -1,0 +1,98 @@
+Implement the following plan:
+
+# Fix: Static ObjC xcframeworks missing from search paths after binary caching
+
+## Context
+
+A user reported a bug (https://github.com/Alex-Ozun/TuistTestCaching): after `tuist cache App` and then `tuist generate --cache-profile all-possible`, the build fails with `Unable to find module dependency: 'GoogleMaps'`.
+
+The project has: `App (target)` -> `FeatureA (dynamic framework)` -> `GoogleMaps.xcframework (static, ObjC)`.
+
+After caching, FeatureA becomes a cached dynamic xcframework. The graph becomes:
+`App (target)` -> `FeatureA.xcframework (dynamic)` -> `GoogleMaps.xcframework (static, ObjC)`
+
+The `StaticXCFrameworkModuleMapGraphMapper` is designed to handle exactly this scenario (static ObjC xcframeworks behind dynamic xcframeworks) by adding `FRAMEWORK_SEARCH_PATHS`, `HEADER_SEARCH_PATHS`, and module map flags. However, **it bails out early** at line 32-33 when no `Package.swift` is found, which is the case for Tuist-native projects using `Project.swift`.
+
+## Root Cause
+
+In `cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift` line 32-33:
+```swift
+guard let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path)
+else { return (graph, [], environment) }
+```
+
+The mapper needs a `derivedDirectory` to place generated module maps and umbrella headers. It computes this from `Package.swift`'s location. For non-SPM projects, `Package.swift` doesn't exist and the mapper does nothing, leaving the consuming target without the necessary search paths to find GoogleMaps's module.
+
+## Fix
+
+### 1. Modify `StaticXCFrameworkModuleMapGraphMapper.map()` to use a fallback derived directory
+
+**File:** `cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift`
+
+Change lines 32-41 from returning early to computing a fallback path. When `Package.swift` is absent, use `{graph.path}/Tuist/.build/tuist-derived/` which mirrors the SPM convention and sits within the existing `Tuist/` directory that Tuist-native projects always have.
+
+```swift
+// Before:
+guard let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path)
+else { return (graph, [], environment) }
+let derivedDirectory = packageManifest.parentDirectory.appending(components: [...])
+
+// After:
+let derivedDirectory: AbsolutePath
+if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
+    derivedDirectory = packageManifest.parentDirectory.appending(
+        components: [
+            Constants.SwiftPackageManager.packageBuildDirectoryName,
+            Constants.DerivedDirectory.dependenciesDerivedDirectory,
+        ]
+    )
+} else {
+    derivedDirectory = graph.path.appending(
+        components: [
+            Constants.tuistDirectoryName,
+            Constants.SwiftPackageManager.packageBuildDirectoryName,
+            Constants.DerivedDirectory.dependenciesDerivedDirectory,
+        ]
+    )
+}
+```
+
+This is a minimal, targeted change. Everything else in the mapper (module map generation, `FRAMEWORK_SEARCH_PATHS`, `HEADER_SEARCH_PATHS`, `$(SRCROOT)`-relative path calculation) works identically regardless of how `derivedDirectory` was computed.
+
+### 2. Add tests for non-SPM projects
+
+**File:** `cli/Tests/TuistKitTests/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapperTests.swift`
+
+Add two new test cases that mock `locatePackageManifest` to return `nil`, mirroring the existing tests at line 33 and 166:
+
+- `test_map_when_static_xcframework_library_linked_via_dynamic_xcframework_without_package_manifest` - library-based (`.a`) xcframework without `Package.swift`, verifies module map side effects and build settings use `{graph.path}/Tuist/.build/tuist-derived/`
+- `test_map_when_static_xcframework_framework_linked_via_dynamic_xcframework_without_package_manifest` - framework-based (`.framework`) xcframework without `Package.swift`, verifies `FRAMEWORK_SEARCH_PATHS` is set
+
+These mirror the existing tests at lines 33-164 and 166-256 but with `manifestFilesLocator` returning `nil`.
+
+## Verification
+
+1. Run the new tests:
+   ```
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+     -only-testing TuistKitTests/StaticXCFrameworkModuleMapGraphMapperTests
+   ```
+
+2. Run all existing mapper tests to verify no regressions:
+   ```
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+     -only-testing TuistKitTests/StaticXCFrameworkModuleMapGraphMapperTests
+   ```
+
+3. End-to-end: clone the reproduction repo, run `tuist cache App`, then `tuist generate --cache-profile all-possible`, then `xcodebuild build` and verify it succeeds.
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+Did you test if it works with the fixture shared?
+
+---
+
+Can you create a PR with the fix?
