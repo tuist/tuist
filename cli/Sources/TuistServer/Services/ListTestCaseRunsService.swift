@@ -8,7 +8,7 @@ public protocol ListTestCaseRunsServicing {
     func listTestCaseRuns(
         fullHandle: String,
         serverURL: URL,
-        testCaseId: String,
+        testCaseId: String?,
         flaky: Bool?,
         testRunId: String?,
         page: Int?,
@@ -19,12 +19,15 @@ public protocol ListTestCaseRunsServicing {
 enum ListTestCaseRunsServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
+    case badRequest(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not list the test case runs due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message):
+            return message
+        case let .badRequest(message):
             return message
         }
     }
@@ -48,7 +51,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
     public func listTestCaseRuns(
         fullHandle: String,
         serverURL: URL,
-        testCaseId: String,
+        testCaseId: String?,
         flaky: Bool?,
         testRunId: String?,
         page: Int?,
@@ -61,10 +64,10 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
-                    test_case_id: testCaseId
+                    project_handle: handles.projectHandle
                 ),
                 query: .init(
+                    test_case_id: testCaseId,
                     flaky: flaky,
                     test_run_id: testRunId,
                     page_size: pageSize,
@@ -78,6 +81,11 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             switch okResponse.body {
             case let .json(json):
                 return json
+            }
+        case let .badRequest(badRequest):
+            switch badRequest.body {
+            case let .json(error):
+                throw ListTestCaseRunsServiceError.badRequest(error.message)
             }
         case let .forbidden(forbidden):
             switch forbidden.body {
@@ -123,10 +131,13 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             isCi: Bool = true,
             isFlaky: Bool = false,
             isNew: Bool = false,
+            moduleName: String = "AppTests",
+            name: String = "testExample",
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
             status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload
-                .statusPayload = .success
+                .statusPayload = .success,
+            suiteName: String? = nil
         ) -> Self {
             .init(
                 duration: duration,
@@ -136,9 +147,12 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
                 is_ci: isCi,
                 is_flaky: isFlaky,
                 is_new: isNew,
+                module_name: moduleName,
+                name: name,
                 ran_at: ranAt,
                 scheme: scheme,
-                status: status
+                status: status,
+                suite_name: suiteName
             )
         }
     }

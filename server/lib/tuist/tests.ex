@@ -119,10 +119,6 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  def list_test_case_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
-  end
-
   def get_test_run_failures_count(test_run_id) do
     query =
       from f in TestCaseFailure,
@@ -462,31 +458,12 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Lists test case runs for a specific test run by its UUID.
+  Lists test case runs filtered by test case ID, test run ID, or both.
+  At least one of `test_case_id` or `test_run_id` must be provided in filters.
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
-  def list_test_case_runs_by_test_run_id(test_run_id, attrs) do
-    base_query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_run_id == ^test_run_id
-      )
-
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
-
-    results = Repo.preload(results, :ran_by_account)
-
-    {results, meta}
-  end
-
-  @doc """
-  Lists test case runs for a specific test case by its UUID.
-  Returns a tuple of {test_case_runs, meta} with pagination info.
-  """
-  def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
-    base_query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_case_id == ^test_case_id
-      )
+  def list_test_case_runs(attrs) do
+    base_query = from(tcr in TestCaseRun)
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 

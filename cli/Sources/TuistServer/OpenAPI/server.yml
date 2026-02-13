@@ -2,6 +2,14 @@
 components:
   responses: {}
   schemas:
+    TestCaseRunsByTestCasePage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestCaseRunsByTestCasePage
+      type: integer
+      x-struct:
+      x-validate:
     CacheRunsIndexPageSize:
       default: 20
       description: The maximum number of cache runs to return in a single page.
@@ -2466,6 +2474,15 @@ components:
       title: Bundle
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Bundle
+      x-validate:
+    TestCaseRunsByTestCasePageSize:
+      default: 20
+      description: The maximum number of test case runs to return in a single page.
+      maximum: 500
+      minimum: 1
+      title: TestCaseRunsByTestCasePageSize
+      type: integer
+      x-struct:
       x-validate:
     BundleArtifact:
       description: A bundle artifact schema
@@ -10124,7 +10141,8 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs:
     get:
       callbacks: {}
-      operationId: listTestCaseRuns
+      deprecated: true
+      operationId: listTestCaseRunsByTestCase
       parameters:
         - description: The handle of the account.
           in: path
@@ -10177,7 +10195,7 @@ paths:
             description: The maximum number of test case runs to return in a single page.
             maximum: 500
             minimum: 1
-            title: TestCaseRunsIndexPageSize
+            title: TestCaseRunsByTestCasePageSize
             type: integer
             x-struct:
             x-validate:
@@ -10189,7 +10207,7 @@ paths:
             default: 1
             description: The page number to return.
             minimum: 1
-            title: TestCaseRunsIndexPage
+            title: TestCaseRunsByTestCasePage
             type: integer
             x-struct:
             x-validate:
@@ -10242,6 +10260,16 @@ paths:
                           type: boolean
                           x-struct:
                           x-validate:
+                        module_name:
+                          description: Module name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: Name of the test case.
+                          type: string
+                          x-struct:
+                          x-validate:
                         ran_at:
                           description: ISO 8601 timestamp when the run executed.
                           format: date-time
@@ -10264,8 +10292,16 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        suite_name:
+                          description: Suite name.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                       required:
                         - id
+                        - name
+                        - module_name
                         - status
                         - duration
                         - is_ci
@@ -10290,7 +10326,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
-      summary: List runs for a test case.
+      summary: 'List runs for a test case. Deprecated: use listTestCaseRuns with test_case_id query param instead.'
       tags:
         - Test Case Runs
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}:
@@ -10773,6 +10809,202 @@ paths:
       summary: Returns a preview with a given id.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs:
+    get:
+      callbacks: {}
+      operationId: listTestCaseRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by test case ID.
+          in: query
+          name: test_case_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by flaky status. When true, only returns flaky runs.
+          in: query
+          name: flaky
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by test run ID.
+          in: query
+          name: test_run_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of test case runs to return in a single page.
+            maximum: 500
+            minimum: 1
+            title: TestCaseRunsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestCaseRunsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  test_case_runs:
+                    items:
+                      properties:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The test case run ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the run was on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the run was flaky.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        is_new:
+                          description: Whether this was a new test case.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        module_name:
+                          description: Module name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: Name of the test case.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: ISO 8601 timestamp when the run executed.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: Build scheme.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Run status.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        suite_name:
+                          description: Suite name.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - name
+                        - module_name
+                        - status
+                        - duration
+                        - is_ci
+                        - is_flaky
+                        - is_new
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_case_runs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test case runs
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: At least one of test_case_id or test_run_id is required
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List test case runs.
+      tags:
+        - Test Case Runs
   /api/cache/exists:
     get:
       callbacks: {}
@@ -13711,6 +13943,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs:
     get:
       callbacks: {}
+      deprecated: true
       operationId: listTestCaseRunsByTestRun
       parameters:
         - description: The handle of the account.
@@ -13779,6 +14012,18 @@ paths:
                           type: integer
                           x-struct:
                           x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         id:
                           description: The test case run ID.
                           format: uuid
@@ -13807,6 +14052,19 @@ paths:
                           x-validate:
                         name:
                           description: Name of the test case.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: ISO 8601 timestamp when the run executed.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: Build scheme.
+                          nullable: true
                           type: string
                           x-struct:
                           x-validate:
@@ -13853,7 +14111,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: You don't have permission to access this resource
-      summary: List test case runs for a test run.
+      summary: 'List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.'
       tags:
         - Test Case Runs
 security:

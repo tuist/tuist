@@ -7096,21 +7096,20 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// List runs for a test case.
+    /// List test case runs.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)`.
     public func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listTestCaseRuns.id,
             serializer: { input in
                 let path = try converter.renderedPath(
-                    template: "/api/projects/{}/{}/tests/test-cases/{}/runs",
+                    template: "/api/projects/{}/{}/tests/test-cases/runs",
                     parameters: [
                         input.path.account_handle,
-                        input.path.project_handle,
-                        input.path.test_case_id
+                        input.path.project_handle
                     ]
                 )
                 var request: HTTPTypes.HTTPRequest = .init(
@@ -7118,6 +7117,13 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "test_case_id",
+                    value: input.query.test_case_id
+                )
                 try converter.setQueryItemAsURI(
                     in: &request,
                     style: .form,
@@ -7176,6 +7182,28 @@ public struct Client: APIProtocol {
                         preconditionFailure("bestContentType chose an invalid content type.")
                     }
                     return .ok(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRuns.Output.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.listTestCaseRuns.Output.Forbidden.Body

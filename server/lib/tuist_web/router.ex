@@ -370,12 +370,14 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           scope "/test-cases" do
             get "/", TestCasesController, :index
-            get "/:test_case_id", TestCasesController, :show
-            get "/:test_case_id/runs", TestCaseRunsController, :index
 
             scope "/runs" do
+              get "/", TestCaseRunsController, :index
               get "/:test_case_run_id", TestCaseRunsController, :show
             end
+
+            get "/:test_case_id", TestCasesController, :show
+            get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
           get "/:test_run_id", TestsController, :show

@@ -13,7 +13,6 @@ import TuistServer
 struct TestCaseRunListCommandServiceTests {
     private let getTestCaseService = MockGetTestCaseServicing()
     private let listTestCaseRunsService = MockListTestCaseRunsServicing()
-    private let listTestCaseRunsByTestRunService = MockListTestCaseRunsByTestRunServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let subject: TestCaseRunListCommandService
@@ -22,7 +21,6 @@ struct TestCaseRunListCommandServiceTests {
         subject = TestCaseRunListCommandService(
             getTestCaseService: getTestCaseService,
             listTestCaseRunsService: listTestCaseRunsService,
-            listTestCaseRunsByTestRunService: listTestCaseRunsByTestRunService,
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
@@ -568,15 +566,17 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload.test(
+        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
             testCaseRuns: [
                 .test(moduleName: "AppTests", name: "testLogin", status: .success),
                 .test(id: "run-id-2", moduleName: "AppTests", name: "testLogout", status: .failure),
             ]
         )
-        given(listTestCaseRunsByTestRunService).listTestCaseRunsByTestRun(
+        given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
+            testCaseId: .value(nil),
+            flaky: .value(nil),
             testRunId: .value("test-run-uuid"),
             page: .value(1),
             pageSize: .value(10)
