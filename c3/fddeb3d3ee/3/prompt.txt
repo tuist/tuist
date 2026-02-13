@@ -1,0 +1,17 @@
+The logs and traces for cache nodes are now showing in Grafana, but I can't see the region of the nodes, How can we expose that information?
+
+---
+
+Doees that work with traces and logs?
+
+---
+
+Can you review and check if that's the most sensible way to approach this problem?
+
+---
+
+Why do you call it cloud_region?
+
+---
+
+Can you create a PR with this?

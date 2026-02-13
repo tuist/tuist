@@ -3,8 +3,11 @@
   "checkpoint_id": "c3fddeb3d3ee",
   "strategy": "manual-commit",
   "branch": "pepicrft/cache-region-observability",
-  "checkpoints_count": 4,
+  "checkpoints_count": 9,
   "files_touched": [
+    "cache/config/runtime.exs",
+    "cache/lib/cache/application.ex",
+    "cache/platform/alloy.nix",
     "cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift",
     "cli/Tests/TuistKitTests/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapperTests.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
@@ -39,13 +42,20 @@
       "context": "/c3/fddeb3d3ee/2/context.md",
       "content_hash": "/c3/fddeb3d3ee/2/content_hash.txt",
       "prompt": "/c3/fddeb3d3ee/2/prompt.txt"
+    },
+    {
+      "metadata": "/c3/fddeb3d3ee/3/metadata.json",
+      "transcript": "/c3/fddeb3d3ee/3/full.jsonl",
+      "context": "/c3/fddeb3d3ee/3/context.md",
+      "content_hash": "/c3/fddeb3d3ee/3/content_hash.txt",
+      "prompt": "/c3/fddeb3d3ee/3/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 780,
-    "cache_creation_tokens": 97057,
-    "cache_read_tokens": 7565084,
-    "output_tokens": 2818,
-    "api_call_count": 66
+    "input_tokens": 1151,
+    "cache_creation_tokens": 179230,
+    "cache_read_tokens": 10697030,
+    "output_tokens": 4482,
+    "api_call_count": 114
   }
 }
