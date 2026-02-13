@@ -103,7 +103,7 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:37
+#: lib/tuist_web/components/layouts/ops.html.heex:42
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -113,12 +113,12 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:51
+#: lib/tuist_web/components/layouts/ops.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:31
+#: lib/tuist_web/components/layouts/ops.html.heex:36
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -134,7 +134,7 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:61
+#: lib/tuist_web/components/layouts/ops.html.heex:66
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
@@ -155,7 +155,7 @@ msgstr ""
 msgid "Invalid installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:26
+#: lib/tuist_web/components/layouts/ops.html.heex:31
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -165,7 +165,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:21
+#: lib/tuist_web/components/layouts/ops.html.heex:26
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -284,7 +284,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:44
+#: lib/tuist_web/components/layouts/ops.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -476,4 +476,9 @@ msgstr ""
 #: lib/tuist_web/live/layout_live.ex:119
 #, elixir-autogen, elixir-format
 msgid "Create project"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "Cache"
 msgstr ""
