@@ -155,7 +155,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                         testCaseRunId: stackTrace.id,
                         fileName: stackTrace.fileName,
                         contentType: "application/x-ips",
-                        data: try Data(contentsOf: stackTrace.filePath.url)
+                        filePath: stackTrace.filePath
                     )
                 }
             } catch {

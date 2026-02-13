@@ -1,6 +1,8 @@
+import FileSystem
 import Foundation
 import Mockable
 import OpenAPIURLSession
+import Path
 import TuistHTTP
 
 @Mockable
@@ -12,7 +14,7 @@ public protocol CreateTestCaseRunAttachmentServicing {
         testCaseRunId: String,
         fileName: String,
         contentType: String,
-        data: Data
+        filePath: AbsolutePath
     ) async throws
 }
 
@@ -39,13 +41,16 @@ enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
 }
 
 public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
+    private let fileSystem: FileSystem
     private let fullHandleService: FullHandleServicing
     private let urlSession: URLSession
 
     public init(
+        fileSystem: FileSystem = FileSystem(),
         fullHandleService: FullHandleServicing = FullHandleService(),
         urlSession: URLSession = .tuistShared
     ) {
+        self.fileSystem = fileSystem
         self.fullHandleService = fullHandleService
         self.urlSession = urlSession
     }
@@ -57,10 +62,12 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
         testCaseRunId: String,
         fileName: String,
         contentType: String,
-        data: Data
+        filePath: AbsolutePath
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
+
+        let fileSize = Int(try await fileSystem.fileSizeInBytes(at: filePath) ?? 0)
 
         let response = try await client.createTestCaseRunAttachment(
             .init(
@@ -73,7 +80,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                     .init(
                         content_type: contentType,
                         file_name: fileName,
-                        size: data.count,
+                        size: fileSize,
                         test_case_run_id: testCaseRunId
                     )
                 )
@@ -90,8 +97,8 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 var request = URLRequest(url: url)
                 request.httpMethod = "PUT"
                 request.setValue(contentType, forHTTPHeaderField: "Content-Type")
-                request.setValue(String(data.count), forHTTPHeaderField: "Content-Length")
-                request.httpBody = data
+                request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
+                request.httpBody = try await fileSystem.readFile(at: filePath)
 
                 let (_, uploadResponse) = try await urlSession.data(for: request)
                 guard let httpResponse = uploadResponse as? HTTPURLResponse,
