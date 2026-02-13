@@ -39,11 +39,8 @@ defmodule TuistWeb.API.OrganizationsController do
            },
            required: [:organizations]
          }},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
@@ -106,9 +103,7 @@ defmodule TuistWeb.API.OrganizationsController do
        }},
     responses: %{
       ok: {"The organization was created", "application/json", Organization},
-      bad_request:
-        {"The organization could not be created due to a validation error", "application/json",
-         Error}
+      bad_request: {"The organization could not be created due to a validation error", "application/json", Error}
     }
   )
 
@@ -182,13 +177,9 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       no_content: "The organization was deleted",
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
@@ -231,13 +222,9 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       ok: {"The organization", "application/json", Organization},
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
@@ -316,8 +303,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   operation(:usage,
     summary: "Shows the usage of an organization",
-    description:
-      "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
+    description: "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
     operation_id: "showOrganizationUsage",
     parameters: [
       organization_name: [
@@ -329,13 +315,9 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       ok: {"The organization usage", "application/json", OrganizationUsage},
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
@@ -358,8 +340,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
       !is_nil(organization) ->
         json(conn, %{
-          current_month_remote_cache_hits:
-            organization.account.current_month_remote_cache_hits_count
+          current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
         })
     end
   end
@@ -395,16 +376,10 @@ defmodule TuistWeb.API.OrganizationsController do
        }},
     responses: %{
       ok: {"The organization", "application/json", Organization},
-      not_found:
-        {"The organization with the given name was not found", "application/json", Error},
-      bad_request:
-        {"The organization could not be updated due to a validation error", "application/json",
-         Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error}
+      not_found: {"The organization with the given name was not found", "application/json", Error},
+      bad_request: {"The organization could not be updated due to a validation error", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error}
     }
   )
 
@@ -456,8 +431,7 @@ defmodule TuistWeb.API.OrganizationsController do
         conn
         |> put_status(:bad_request)
         |> json(%{
-          message:
-            "Your SSO organization must be the same as the one you are trying to update your organization to."
+          message: "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
       !is_nil(organization) ->
@@ -524,24 +498,14 @@ defmodule TuistWeb.API.OrganizationsController do
     ],
     responses: %{
       no_content: "The member was removed",
-      not_found:
-        {"The organization or the user with the given name was not found", "application/json",
-         Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
-      bad_request:
-        {"The member could not be removed due to a validation error", "application/json", Error}
+      not_found: {"The organization or the user with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The member could not be removed due to a validation error", "application/json", Error}
     }
   )
 
-  def remove_member(
-        %{path_params: %{"organization_name" => organization_name, "user_name" => user_name}} =
-          conn,
-        _params
-      ) do
+  def remove_member(%{path_params: %{"organization_name" => organization_name, "user_name" => user_name}} = conn, _params) do
     organization = Accounts.get_organization_by_handle(organization_name)
     user = Authentication.current_user(conn)
     member_account = Accounts.get_account_by_handle(user_name)
@@ -614,24 +578,15 @@ defmodule TuistWeb.API.OrganizationsController do
        }},
     responses: %{
       ok: {"The member was updated", "application/json", OrganizationMember},
-      not_found:
-        {"The organization or the user with the given name was not found", "application/json",
-         Error},
-      unauthorized:
-        {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden:
-        {"The authenticated subject is not authorized to perform this action", "application/json",
-         Error},
-      bad_request:
-        {"The member could not be updated due to a validation error", "application/json", Error}
+      not_found: {"The organization or the user with the given name was not found", "application/json", Error},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      bad_request: {"The member could not be updated due to a validation error", "application/json", Error}
     }
   )
 
   def update_member(
-        %{
-          path_params: %{"organization_name" => organization_name, "user_name" => user_name},
-          body_params: %{role: role}
-        } =
+        %{path_params: %{"organization_name" => organization_name, "user_name" => user_name}, body_params: %{role: role}} =
           conn,
         _params
       ) do
