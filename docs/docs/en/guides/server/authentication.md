@@ -52,6 +52,27 @@ OIDC authentication is more secure than long-lived tokens because:
 <!-- -->
 :::
 
+## Gradle plugin authentication {#gradle-plugin-authentication}
+
+The Gradle plugin uses the Tuist CLI authentication state and does not define a separate login flow. Authenticate once with the CLI and the plugin will reuse those credentials.
+
+For project and server configuration, including `project` and `url`, use the canonical <LocalizedLink href="/references/tuist-toml">tuist.toml reference</LocalizedLink>.
+
+For local usage, run:
+
+```bash
+tuist auth login
+```
+
+For self-hosted Tuist servers, define the server URL in `tuist.toml` (for example `url = "https://tuist.your-company.com"`) and run the standard login flow. The URL is resolved from the same configuration file used by the plugin.
+
+For CI, use either:
+
+- <LocalizedLink href="/guides/server/authentication#setting-up-oidc-authentication">OIDC authentication</LocalizedLink> (recommended when available)
+- <LocalizedLink href="/guides/server/authentication#continuous-integration">Account token authentication</LocalizedLink> via `TUIST_TOKEN`
+
+After authentication is configured, run your Gradle caching commands and tasks normally.
+
 ## Account tokens {#account-tokens}
 
 For CI environments that don't support OIDC, or when you need fine-grained control over permissions, you can use account tokens. Account tokens allow you to specify exactly which scopes and projects the token can access.

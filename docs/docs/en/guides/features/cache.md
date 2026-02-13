@@ -13,19 +13,19 @@ Pick the caching solution that matches your build system:
 
 <HomeCards>
     <HomeCard
-        icon="📦"
+        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
         title="Module cache"
         details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
         linkText="Set up module cache"
         link="/guides/features/cache/module-cache"/>
     <HomeCard
-        icon="🔨"
+        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
         title="Xcode cache"
         details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
         linkText="Set up Xcode cache"
         link="/guides/features/cache/xcode-cache"/>
     <HomeCard
-        icon="🐘"
+        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
         title="Gradle cache"
         details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
         linkText="Set up Gradle cache"
