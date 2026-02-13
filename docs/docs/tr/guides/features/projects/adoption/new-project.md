@@ -16,7 +16,7 @@ Ardından, `tuist edit` komutunu çalıştırarak projeyi
 <LocalizedLink href="/guides/features/projects/editing">düzenleyebilirsiniz</LocalizedLink>
 ve Xcode, projeyi düzenleyebileceğiniz bir proje açacaktır. Oluşturulan
 dosyalardan biri, projenizin tanımını içeren `Project.swift` dosyasıdır. Swift
-paketi Yöneticisi'ne aşina iseniz, bunu `Package.swift` dosyası olarak düşünün,
+package Yöneticisi'ne aşina iseniz, bunu `Package.swift` dosyası olarak düşünün,
 ancak Xcode projelerinin dilini kullanarak.
 
 ::: code-group
