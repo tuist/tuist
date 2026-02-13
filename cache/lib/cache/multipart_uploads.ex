@@ -3,7 +3,8 @@ defmodule Cache.MultipartUploads do
   GenServer for managing in-progress multipart uploads.
 
   Uses ETS for state management to track upload metadata and parts.
-  Automatically cleans up abandoned uploads after 5 minutes.
+  Cleans up uploads that are inactive for 5 minutes (without an active write)
+  or exceed 30 minutes total duration.
   """
 
   use GenServer
@@ -130,10 +131,18 @@ defmodule Cache.MultipartUploads do
   @doc """
   Abort a multipart upload.
 
-  Cleans up temp files and removes the upload from ETS.
+  Removes the upload from ETS and cleans up temp files and the assembly file.
   """
   def abort_upload(upload_id) do
-    GenServer.call(__MODULE__, {:abort_upload, upload_id})
+    case GenServer.call(__MODULE__, {:abort_upload, upload_id}) do
+      {:cleanup, upload_data} ->
+        File.rm(upload_data.assembly_path)
+        cleanup_temp_files(upload_data.parts)
+        :ok
+
+      other ->
+        other
+    end
   end
 
   @impl true
@@ -314,10 +323,8 @@ defmodule Cache.MultipartUploads do
 
       [{^upload_id, upload_data}] ->
         state = demonitor_write(upload_data, state)
-        File.rm(upload_data.assembly_path)
-        cleanup_temp_files(upload_data.parts)
         :ets.delete(@table_name, upload_id)
-        {:reply, :ok, state}
+        {:reply, {:cleanup, upload_data}, state}
     end
   end
 
@@ -334,7 +341,7 @@ defmodule Cache.MultipartUploads do
           [{^upload_id, upload_data}] when upload_data.write_in_progress != nil ->
             Logger.warning("Writer process died during direct write for upload #{upload_id}, releasing lock")
 
-            truncate_to_offset(upload_data)
+            async_truncate_to_offset(upload_data)
 
             updated_data = %{
               upload_data
@@ -361,8 +368,9 @@ defmodule Cache.MultipartUploads do
           inactive_ms = DateTime.diff(now, upload_data.last_activity_at, :millisecond)
           total_age_ms = DateTime.diff(now, upload_data.created_at, :millisecond)
 
-          inactive_and_unlocked = inactive_ms > @upload_timeout_ms and upload_data.write_in_progress == nil
-          exceeded_max_duration = total_age_ms > @max_upload_duration_ms
+          locked = upload_data.write_in_progress != nil
+          inactive_and_unlocked = inactive_ms > @upload_timeout_ms and not locked
+          exceeded_max_duration = total_age_ms > @max_upload_duration_ms and not locked
 
           if inactive_and_unlocked or exceeded_max_duration do
             acc_state = demonitor_write(upload_data, acc_state)
@@ -394,6 +402,12 @@ defmodule Cache.MultipartUploads do
   defp schedule_cleanup do
     Process.send_after(self(), :cleanup_abandoned, @cleanup_interval_ms)
   end
+
+  defp async_truncate_to_offset(%{write_in_progress: %{offset: offset}, assembly_path: path}) do
+    Task.start(fn -> do_truncate(path, offset) end)
+  end
+
+  defp async_truncate_to_offset(_upload_data), do: :ok
 
   defp truncate_to_offset(%{write_in_progress: %{offset: offset}, assembly_path: path}) do
     do_truncate(path, offset)

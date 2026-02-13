@@ -4,7 +4,7 @@ defmodule CacheWeb.ModuleCacheController do
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
-  alias Cache.Module.Disk, as: ModuleDisk
+  alias Cache.Module.Disk
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
@@ -77,14 +77,14 @@ defmodule CacheWeb.ModuleCacheController do
         %{id: _id, account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
       ) do
     category = Map.get(params, :cache_category, "builds")
-    key = ModuleDisk.key(account_handle, project_handle, category, hash, name)
+    key = Disk.key(account_handle, project_handle, category, hash, name)
 
     :telemetry.execute([:cache, :xcode_module, :download, :hit], %{}, %{})
     :ok = CacheArtifacts.track_artifact_access(key)
 
-    case ModuleDisk.stat(account_handle, project_handle, category, hash, name) do
+    case Disk.stat(account_handle, project_handle, category, hash, name) do
       {:ok, %File.Stat{size: size}} ->
-        local_path = ModuleDisk.local_accel_path(account_handle, project_handle, category, hash, name)
+        local_path = Disk.local_accel_path(account_handle, project_handle, category, hash, name)
 
         :telemetry.execute([:cache, :xcode_module, :download, :disk_hit], %{size: size}, %{
           category: category,
@@ -172,9 +172,9 @@ defmodule CacheWeb.ModuleCacheController do
         %{id: _id, account_handle: account_handle, project_handle: project_handle, hash: hash, name: name} = params
       ) do
     category = Map.get(params, :cache_category, "builds")
-    key = ModuleDisk.key(account_handle, project_handle, category, hash, name)
+    key = Disk.key(account_handle, project_handle, category, hash, name)
 
-    if ModuleDisk.exists?(account_handle, project_handle, category, hash, name) or S3.exists?(key) do
+    if Disk.exists?(account_handle, project_handle, category, hash, name) or S3.exists?(key) do
       send_resp(conn, :no_content, "")
     else
       {:error, :not_found}
@@ -230,7 +230,7 @@ defmodule CacheWeb.ModuleCacheController do
       ) do
     category = Map.get(params, :cache_category, "builds")
 
-    if ModuleDisk.exists?(account_handle, project_handle, category, hash, name) do
+    if Disk.exists?(account_handle, project_handle, category, hash, name) do
       json(conn, %{upload_id: nil})
     else
       case MultipartUploads.start_upload(account_handle, project_handle, category, hash, name) do
@@ -302,10 +302,17 @@ defmodule CacheWeb.ModuleCacheController do
   defp handle_direct_part_upload(conn, path, offset, upload_id, part_number) do
     case :file.open(path, [:write, :read, :binary, :raw]) do
       {:ok, device} ->
-        :file.position(device, offset)
-        result = do_direct_write(conn, device, upload_id, part_number)
-        :file.close(device)
-        result
+        case :file.position(device, offset) do
+          {:ok, ^offset} ->
+            result = do_direct_write(conn, device, upload_id, part_number)
+            :file.close(device)
+            result
+
+          _error ->
+            :file.close(device)
+            MultipartUploads.abort_write(upload_id)
+            {:error, :persist_error}
+        end
 
       {:error, _reason} ->
         MultipartUploads.abort_write(upload_id)
@@ -397,7 +404,7 @@ defmodule CacheWeb.ModuleCacheController do
           with {:ok, validated_parts} <- validate_part_numbers(parts_from_client),
                :ok <- verify_parts(upload.parts, validated_parts),
                {:ok, buffered_part_paths} <- get_ordered_buffered_part_paths(upload.parts, validated_parts),
-               :ok <- ModuleDisk.complete_assembly(upload.assembly_path, upload, buffered_part_paths) do
+               :ok <- Disk.complete_assembly(upload.assembly_path, upload, buffered_part_paths) do
             Enum.each(buffered_part_paths, &File.rm/1)
             :ok
           end
@@ -405,7 +412,7 @@ defmodule CacheWeb.ModuleCacheController do
         case result do
           :ok ->
             key =
-              ModuleDisk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+              Disk.key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
 
             :ok = CacheArtifacts.track_artifact_access(key)
             S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
