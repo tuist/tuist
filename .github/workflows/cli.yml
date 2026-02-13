@@ -366,7 +366,7 @@ jobs:
           path: |
             .build/checkouts
             .build/registry
-          key: linux-cli-deps-${{ hashFiles('Package.resolved') }}
+          key: linux-cli-${{ hashFiles('Package.resolved') }}
       - name: Build tuist CLI
         run: swift build --target tuist --replace-scm-with-registry
       - name: Save cache
@@ -394,7 +394,7 @@ jobs:
           path: |
             .build/checkouts
             .build/registry
-          key: linux-cli-deps-${{ hashFiles('Package.resolved') }}
+          key: linux-cli-${{ hashFiles('Package.resolved') }}
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
       - name: Save cache
