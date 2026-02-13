@@ -70,7 +70,7 @@ PostHog가 활성화되면 Tuist는 자동으로 다음을 추적합니다:
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [오반](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-사용 가능한 지표와 사용 방법을 확인하려면 해당 페이지를 참조하시기 바랍니다.
+사용 가능한 지표와 사용 방법을 확인하려면 해당 페이지를 참고하시기 바랍니다.
 
 ## 실행 메트릭스 {#runs-metrics}
 
@@ -82,7 +82,7 @@ Tuist Runs와 관련된 일련의 지표들.
 
 #### Tags {#tuist-runs-total-tags}
 
-| Tag      | 설명                                            |
+| 태그       | 설명                                            |
 | -------- | --------------------------------------------- |
 | `name`   | 실행된 `tuist` 명령어의 이름, 예를 들어 `build`, `test` 등. |
 | `is_ci`  | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.             |
@@ -94,7 +94,7 @@ Tuist Runs와 관련된 일련의 지표들.
 
 #### Tags {#tuist-runs-duration-miliseconds-tags}
 
-| Tag      | 설명                                            |
+| 태그       | 설명                                            |
 | -------- | --------------------------------------------- |
 | `name`   | 실행된 `tuist` 명령어의 이름, 예를 들어 `build`, `test` 등. |
 | `is_ci`  | 실행자가 CI인지 개발자의 컴퓨터인지를 나타내는 부울입니다.             |
@@ -110,7 +110,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-cache-events-total-tags}
 
-| Tag          | 설명                                              |
+| 태그           | 설명                                              |
 | ------------ | ----------------------------------------------- |
 | `event_type` | `local_hit`, `remote_hit`, `miss` 중 하나일 수 있습니다. |
 
@@ -162,7 +162,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-get-object-size-size-bytes-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -173,7 +173,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -184,7 +184,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-get-object-size-count-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -194,7 +194,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| Tag            | 설명                           |
+| 태그             | 설명                           |
 | -------------- | ---------------------------- |
 | `project_slug` | 삭제 대상 객체가 속한 프로젝트의 프로젝트 슬러그. |
 
@@ -205,7 +205,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-delete-all-objects-count-tags}
 
-| Tag            | 설명                           |
+| 태그             | 설명                           |
 | -------------- | ---------------------------- |
 | `project_slug` | 삭제 대상 객체가 속한 프로젝트의 프로젝트 슬러그. |
 
@@ -216,7 +216,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -226,7 +226,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-multipart-start-upload-duration-count-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -237,7 +237,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -247,7 +247,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-get-object-as-string-count-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -258,7 +258,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -268,7 +268,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-check-object-existence-count-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -278,7 +278,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -289,7 +289,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-generate-download-presigned-url-count-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 
@@ -299,7 +299,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| Tag           | 설명                      |
+| 태그            | 설명                      |
 | ------------- | ----------------------- |
 | `object_key`  | 원격 저장소에 있는 개체의 조회 키입니다. |
 | `part_number` | 업로드 중인 객체의 부품 번호.       |
@@ -311,7 +311,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| Tag           | 설명                      |
+| 태그            | 설명                      |
 | ------------- | ----------------------- |
 | `object_key`  | 원격 저장소에 있는 개체의 조회 키입니다. |
 | `part_number` | 업로드 중인 객체의 부품 번호.       |
@@ -323,7 +323,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 | `upload_id`  | 멀티파트 업로드의 업로드 ID.       |
@@ -335,7 +335,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-storage-multipart-complete-upload-count-tags}
 
-| Tag          | 설명                      |
+| 태그           | 설명                      |
 | ------------ | ----------------------- |
 | `object_key` | 원격 저장소에 있는 개체의 조회 키입니다. |
 | `upload_id`  | 멀티파트 업로드의 업로드 ID.       |
@@ -352,7 +352,7 @@ Tuist 캐시와 관련된 일련의 측정 지표.
 
 #### Tags {#tuist-authentication-token-refresh-error-total-tags}
 
-| Tag           | 설명                                                    |
+| 태그            | 설명                                                    |
 | ------------- | ----------------------------------------------------- |
 | `cli_version` | 오류가 발생한 Tuist CLI 버전.                                 |
 | `이유`          | 토큰 새로고침 오류의 원인: `invalid_token_type` ` invalid_token` |
@@ -428,7 +428,7 @@ Tuist가 HTTP를 통해 다른 서비스와 상호작용하는 것과 관련된 
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-연결이 검색을 기다리며 비활성 상태로 있었던 시간.
+연결이 검색을 기다리며 유휴 상태로 있었던 시간.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
@@ -436,7 +436,7 @@ Tuist가 HTTP를 통해 다른 서비스와 상호작용하는 것과 관련된 
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-연결이 검색을 기다리며 비활성 상태로 있었던 시간.
+연결이 검색을 기다리며 유휴 상태로 있었던 시간.
 
 ### `tuist_http_connection_count` (카운터) {#tuist_http_connection_count-counter}
 
