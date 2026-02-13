@@ -26,6 +26,8 @@ public protocol TemplatesDirectoryLocating {
 }
 
 public struct TemplatesDirectoryLocator: TemplatesDirectoryLocating {
+    private final class BundleToken {}
+
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 
@@ -54,7 +56,7 @@ public struct TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                     .removingLastComponent()
             }
         #else
-            let maybeBundlePath = try? AbsolutePath(validating: Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
+            let maybeBundlePath = try? AbsolutePath(validating: Bundle(for: BundleToken.self).bundleURL.path)
         #endif
         guard let bundlePath = maybeBundlePath else { return nil }
         let paths = [
