@@ -1,4 +1,6 @@
+import FileSystem
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import TuistLogging
@@ -116,6 +118,28 @@ extension XcodeGraph.TargetDependency {
     }
 }
 
+extension XcodeGraph.ForeignBuild.Input {
+    static func from(
+        manifest: ProjectDescription.Target.ForeignBuild.Input,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [XcodeGraph.ForeignBuild.Input] {
+        switch manifest {
+        case let .file(path):
+            return [.file(try generatorPaths.resolve(path: path))]
+        case let .folder(path):
+            return [.folder(try generatorPaths.resolve(path: path))]
+        case let .glob(path):
+            let resolvedPath = try generatorPaths.resolve(path: path)
+            let pattern = String(resolvedPath.pathString.dropFirst())
+            let matchedPaths = try await fileSystem.glob(directory: AbsolutePath.root, include: [pattern]).collect().sorted()
+            return matchedPaths.map { .file($0) }
+        case let .script(script):
+            return [.script(script)]
+        }
+    }
+}
+
 extension ProjectDescription.PlatformFilters {
     var asGraphFilters: XcodeGraph.PlatformFilters {
         Set<XcodeGraph.PlatformFilter>(map(\.graphPlatformFilter))
@@ -182,6 +206,30 @@ extension XcodeGraph.XCFrameworkSignature {
             return .selfSigned(fingerprint: fingerprint)
         case let .signedWithAppleCertificate(teamIdentifier, teamName):
             return .signedWithAppleCertificate(teamIdentifier: teamIdentifier, teamName: teamName)
+        }
+    }
+}
+
+extension XcodeGraph.BinaryLinking {
+    static func from(manifest: ProjectDescription.Target.ForeignBuild.Output.Linking) -> Self {
+        switch manifest {
+        case .static: return .static
+        case .dynamic: return .dynamic
+        }
+    }
+}
+
+extension XcodeGraph.ForeignBuild.Artifact {
+    static func from(
+        manifest: ProjectDescription.Target.ForeignBuild.Output,
+        generatorPaths: GeneratorPaths
+    ) throws -> Self {
+        switch manifest {
+        case let .xcframework(path, linking):
+            return .xcframework(
+                path: try generatorPaths.resolve(path: path),
+                linking: .from(manifest: linking)
+            )
         }
     }
 }

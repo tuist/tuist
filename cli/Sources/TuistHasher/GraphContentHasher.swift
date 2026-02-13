@@ -70,17 +70,13 @@ public struct GraphContentHasher: GraphContentHashing {
         let additionalStrings = additionalStrings
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
-        let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
-            if isHashable(
+        let hashableTargets = sortedCacheableTargets.filter { target in
+            isHashable(
                 target,
                 graphTraverser: graphTraverser,
                 visited: &visitedIsHasheableNodes,
                 include: include
-            ) {
-                return target
-            } else {
-                return nil
-            }
+            )
         }
 
         let hashes = try await hashableTargets

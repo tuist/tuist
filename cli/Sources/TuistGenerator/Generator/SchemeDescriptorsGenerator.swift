@@ -1022,7 +1022,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Returns: Buildable reference.
     private func targetBuildableReference(
         target: Target,
-        pbxTarget: PBXNativeTarget,
+        pbxTarget: PBXTarget,
         projectPath: String
     ) -> XCScheme.BuildableReference {
         XCScheme.BuildableReference(

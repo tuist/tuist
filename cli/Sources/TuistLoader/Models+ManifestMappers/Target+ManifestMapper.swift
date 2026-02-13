@@ -143,6 +143,12 @@ extension XcodeGraph.Target {
             generatorPaths: generatorPaths
         ) }
 
+        let foreignBuild = try await foreignBuildInfo(
+            from: manifest.foreignBuild,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
         return XcodeGraph.Target(
             name: name,
             destinations: destinations,
@@ -171,11 +177,37 @@ extension XcodeGraph.Target {
             onDemandResourcesTags: onDemandResourcesTags,
             metadata: metadata,
             type: type,
-            buildableFolders: buildableFolders
+            buildableFolders: buildableFolders,
+            foreignBuild: foreignBuild
         )
     }
 
     // MARK: - Fileprivate
+
+    private static func foreignBuildInfo(
+        from manifest: ProjectDescription.Target.ForeignBuild?,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph.ForeignBuild? {
+        guard let manifest else { return nil }
+        var mappedInputs: [XcodeGraph.ForeignBuild.Input] = []
+        for input in manifest.inputs {
+            let resolved = try await XcodeGraph.ForeignBuild.Input.from(
+                manifest: input,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+            mappedInputs.append(contentsOf: resolved)
+        }
+        return XcodeGraph.ForeignBuild(
+            script: manifest.script,
+            inputs: mappedInputs,
+            output: try XcodeGraph.ForeignBuild.Artifact.from(
+                manifest: manifest.output,
+                generatorPaths: generatorPaths
+            )
+        )
+    }
 
     fileprivate static func resourcesAndOthers(
         manifest: ProjectDescription.Target,

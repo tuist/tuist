@@ -11,7 +11,7 @@ struct GeneratedProject {
     let path: AbsolutePath
 
     /// Dictionary whose keys are the target names and the value the Xcode targets.
-    let targets: [String: PBXNativeTarget]
+    let targets: [String: PBXTarget]
 
     /// Project name with the .xcodeproj extension.
     let name: String
