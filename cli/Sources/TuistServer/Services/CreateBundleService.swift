@@ -2,7 +2,7 @@ import TuistHTTP
 #if os(macOS)
     import Foundation
     import Mockable
-    import OpenAPIURLSession
+    import OpenAPIRuntime
     import Path
     import Rosalind
 

@@ -1,6 +1,6 @@
 import Foundation
 import Noora
-import OpenAPIURLSession
+import OpenAPIRuntime
 import Path
 import TuistConfigLoader
 import TuistEnvironment

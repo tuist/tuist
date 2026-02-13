@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import Noora
-import OpenAPIURLSession
+import OpenAPIRuntime
 import Path
 import TuistConfigLoader
 import TuistEnvironment
