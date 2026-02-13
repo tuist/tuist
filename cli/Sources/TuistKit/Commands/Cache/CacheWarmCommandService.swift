@@ -533,7 +533,8 @@ import XcodeGraph
                 guard let foreignBuild = graphTarget.target.foreignBuild else { continue }
                 let outputPath = foreignBuild.output.path
                 guard try await fileSystem.exists(outputPath) else {
-                    Logger.current.warning("Foreign build artifact not found at \(outputPath.pathString) for \(graphTarget.target.name)")
+                    Logger.current
+                        .warning("Foreign build artifact not found at \(outputPath.pathString) for \(graphTarget.target.name)")
                     continue
                 }
 
