@@ -5,9 +5,11 @@ import Mockable
 import NIOCore
 import Path
 
-#if os(Linux)
+#if canImport(Glibc)
     import Glibc
-#else
+#elseif canImport(Musl)
+    import Musl
+#elseif canImport(Darwin)
     import Darwin
 #endif
 
