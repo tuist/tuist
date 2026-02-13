@@ -29,6 +29,6 @@ defmodule Tuist.MCP.Tools.ListProjects do
         }
       end)
 
-    {:ok, %{content: [%{type: "text", text: Jason.encode!(data)}]}}
+    {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
   end
 end

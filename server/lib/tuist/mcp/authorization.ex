@@ -1,16 +1,19 @@
 defmodule Tuist.MCP.Authorization do
   @moduledoc false
 
+  alias Tuist.Authorization
   alias Tuist.Projects
 
   def authorize_project_id(project_id, subject) do
-    accessible = Projects.list_accessible_projects(subject, preload: [:account])
-    accessible_ids = MapSet.new(accessible, & &1.id)
+    project = Projects.get_project_by_id(project_id)
 
-    if MapSet.member?(accessible_ids, project_id) do
-      :ok
+    if is_nil(project) do
+      {:error, -32_602, "Project not found."}
     else
-      {:error, -32_602, "You do not have access to this resource."}
+      case Authorization.authorize(:test_read, subject, project) do
+        :ok -> :ok
+        {:error, :forbidden} -> {:error, -32_602, "You do not have access to this resource."}
+      end
     end
   end
 
@@ -20,13 +23,12 @@ defmodule Tuist.MCP.Authorization do
     if is_nil(project) do
       {:error, -32_602, "Project not found: #{account_handle}/#{project_handle}"}
     else
-      accessible = Projects.list_accessible_projects(subject, preload: [:account])
-      accessible_ids = MapSet.new(accessible, & &1.id)
+      case Authorization.authorize(:test_read, subject, project) do
+        :ok ->
+          {:ok, project}
 
-      if MapSet.member?(accessible_ids, project.id) do
-        {:ok, project}
-      else
-        {:error, -32_602, "You do not have access to project: #{account_handle}/#{project_handle}"}
+        {:error, :forbidden} ->
+          {:error, -32_602, "You do not have access to project: #{account_handle}/#{project_handle}"}
       end
     end
   end

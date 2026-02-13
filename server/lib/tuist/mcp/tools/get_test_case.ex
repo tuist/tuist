@@ -44,7 +44,7 @@ defmodule Tuist.MCP.Tools.GetTestCase do
         failed_runs: analytics.failed_count
       }
 
-      {:ok, %{content: [%{type: "text", text: Jason.encode!(data)}]}}
+      {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
     else
       {:error, :not_found} -> {:error, -32_602, "Test case not found: #{test_case_id}"}
       {:error, code, message} -> {:error, code, message}
