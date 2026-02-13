@@ -363,7 +363,9 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
+          path: |
+            .build/checkouts
+            .build/registry
           key: linux-cli-${{ hashFiles('Package.resolved') }}
       - name: Build tuist CLI
         run: swift build --target tuist --replace-scm-with-registry
@@ -371,7 +373,9 @@ jobs:
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: |
+            .build/checkouts
+            .build/registry
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-linux-unit-tests:
@@ -387,7 +391,9 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
+          path: |
+            .build/checkouts
+            .build/registry
           key: linux-cli-${{ hashFiles('Package.resolved') }}
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
@@ -395,5 +401,7 @@ jobs:
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: |
+            .build/checkouts
+            .build/registry
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
