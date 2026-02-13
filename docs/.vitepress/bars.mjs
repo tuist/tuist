@@ -640,6 +640,13 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
+                "sidebars.guides.items.agentic-coding.items.mcp.text",
+              ),
+              link: `/${locale}/guides/features/agentic-coding/mcp`,
+            },
+            {
+              text: localizedString(
+                locale,
                 "sidebars.guides.items.agentic-coding.items.skills.text",
               ),
               link: `/${locale}/guides/features/agentic-coding/skills`,
