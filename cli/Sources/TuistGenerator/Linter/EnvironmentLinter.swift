@@ -8,7 +8,7 @@ public protocol EnvironmentLinting {
     func lint(configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws -> [LintingIssue]
 }
 
-public class EnvironmentLinter: EnvironmentLinting {
+public struct EnvironmentLinter: EnvironmentLinting {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.

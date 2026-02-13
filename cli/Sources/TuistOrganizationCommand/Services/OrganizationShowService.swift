@@ -14,7 +14,7 @@ protocol OrganizationShowServicing {
     ) async throws
 }
 
-final class OrganizationShowService: OrganizationShowServicing {
+struct OrganizationShowService: OrganizationShowServicing {
     private let getOrganizationService: GetOrganizationServicing
     private let getOrganizationUsageService: GetOrganizationUsageServicing
     private let serverEnvironmentService: ServerEnvironmentServicing

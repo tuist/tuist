@@ -35,12 +35,12 @@
         }
     }
 
-    public final class UploadPreviewIconService: UploadPreviewIconServicing {
+    public struct UploadPreviewIconService: UploadPreviewIconServicing {
         private let fullHandleService: FullHandleServicing
         private let fileSystem: FileSysteming
         private let urlSession: URLSession
 
-        public convenience init() {
+        public init() {
             self.init(
                 fullHandleService: FullHandleService(),
                 fileSystem: FileSystem(),

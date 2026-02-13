@@ -8,7 +8,7 @@ public protocol ManifestLinting {
     func lint(workspace: ProjectDescription.Workspace) -> [LintingIssue]
 }
 
-public class AnyManifestLinter: ManifestLinting {
+public struct AnyManifestLinter: ManifestLinting {
     let lintProject: ((ProjectDescription.Project) -> [LintingIssue])?
     let lintWorkspace: ((ProjectDescription.Workspace) -> [LintingIssue])?
 
@@ -37,7 +37,7 @@ public class AnyManifestLinter: ManifestLinting {
     }
 }
 
-public class ManifestLinter: ManifestLinting {
+public struct ManifestLinter: ManifestLinting {
     public init() {}
 
     public func lint(project: ProjectDescription.Project) -> [LintingIssue] {

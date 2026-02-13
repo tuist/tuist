@@ -4,7 +4,7 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-public final class ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
+public struct ExternalDependencyPathWorkspaceMapper: WorkspaceMapping {
     public init() {}
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {

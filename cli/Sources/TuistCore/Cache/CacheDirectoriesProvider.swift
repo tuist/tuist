@@ -11,7 +11,7 @@ public protocol CacheDirectoriesProviding {
     func cacheDirectory() -> AbsolutePath
 }
 
-public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
+public struct CacheDirectoriesProvider: CacheDirectoriesProviding {
     public init() {}
 
     public func cacheDirectory(for category: CacheCategory) throws -> AbsolutePath {

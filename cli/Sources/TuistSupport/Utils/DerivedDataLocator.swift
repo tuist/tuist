@@ -11,7 +11,7 @@ public protocol DerivedDataLocating {
     ) async throws -> AbsolutePath
 }
 
-public final class DerivedDataLocator: DerivedDataLocating {
+public struct DerivedDataLocator: DerivedDataLocating {
     public init() {}
 
     public func locate(

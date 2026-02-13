@@ -24,7 +24,7 @@ public enum GetAuthTokenServiceError: LocalizedError, Equatable {
     }
 }
 
-public final class GetAuthTokenService: GetAuthTokenServicing {
+public struct GetAuthTokenService: GetAuthTokenServicing {
     public init() {}
 
     public func getAuthToken(

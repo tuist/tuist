@@ -30,7 +30,7 @@ enum ProjectEditorError: FatalError, Equatable {
 }
 
 @Mockable
-protocol ProjectEditing: AnyObject {
+protocol ProjectEditing {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
     ///   - editingPath: Directory whose project will be edited.
@@ -46,7 +46,7 @@ protocol ProjectEditing: AnyObject {
     ) async throws -> AbsolutePath
 }
 
-final class ProjectEditor: ProjectEditing {
+struct ProjectEditor: ProjectEditing {
     /// Project generator.
     let generator: DescriptorGenerating
 

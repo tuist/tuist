@@ -10,7 +10,7 @@ import XcodeGraph
 /// This mapper sets the right setting for downstream targets that depend on static xcframeworks linked by dynamic
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
-public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
+public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating

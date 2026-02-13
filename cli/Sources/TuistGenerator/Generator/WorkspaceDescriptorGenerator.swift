@@ -22,7 +22,7 @@ enum WorkspaceDescriptorGeneratorError: FatalError {
     }
 }
 
-protocol WorkspaceDescriptorGenerating: AnyObject {
+protocol WorkspaceDescriptorGenerating {
     /// Generates the given workspace.
     ///
     /// - Parameters:
@@ -32,7 +32,7 @@ protocol WorkspaceDescriptorGenerating: AnyObject {
     func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor
 }
 
-final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
+struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     struct Config {
         /// The execution context to use when generating
         /// descriptors for each project within the workspace / graph
@@ -52,7 +52,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     // MARK: - Init
 
-    convenience init(
+    init(
         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
         config: Config = .default
     ) {
@@ -100,7 +100,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             .concurrentCompactMap { project -> ProjectDescriptor? in
                 let threadId = Thread.current.description
                 Logger.current.debug("Task STARTED for project \(project.name) on thread \(threadId)")
-                let result = try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                let result = try await projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
                 Logger.current.debug("Task COMPLETED for project \(project.name) on thread \(threadId)")
                 return result
             }

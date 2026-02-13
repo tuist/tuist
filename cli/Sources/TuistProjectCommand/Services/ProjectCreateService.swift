@@ -14,7 +14,7 @@ protocol ProjectCreateServicing {
     ) async throws
 }
 
-final class ProjectCreateService: ProjectCreateServicing {
+struct ProjectCreateService: ProjectCreateServicing {
     private let createProjectService: CreateProjectServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

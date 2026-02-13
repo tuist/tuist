@@ -23,7 +23,7 @@ enum OpeningError: FatalError, Equatable {
 }
 
 @Mockable
-public protocol Opening: AnyObject {
+public protocol Opening {
     func open(path: AbsolutePath, wait: Bool) async throws
     func open(path: AbsolutePath) async throws
     func open(url: URL) throws
@@ -32,7 +32,7 @@ public protocol Opening: AnyObject {
     func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws
 }
 
-public class Opener: Opening {
+public struct Opener: Opening {
     private let fileSystem: FileSysteming
 
     public init(

@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol TargetGenerating: AnyObject {
+protocol TargetGenerating {
     func generateTarget(
         target: Target,
         project: Project,
@@ -26,7 +26,7 @@ protocol TargetGenerating: AnyObject {
     ) throws
 }
 
-final class TargetGenerator: TargetGenerating {
+struct TargetGenerator: TargetGenerating {
     // MARK: - Attributes
 
     let configGenerator: ConfigGenerating

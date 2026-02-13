@@ -29,7 +29,7 @@ enum ListProjectsServiceError: LocalizedError {
     }
 }
 
-public final class ListProjectsService: ListProjectsServicing {
+public struct ListProjectsService: ListProjectsServicing {
     public init() {}
 
     public func listProjects(

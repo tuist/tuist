@@ -68,7 +68,7 @@ import TuistHTTP
         case success, failure
     }
 
-    public final class CreateBuildService: CreateBuildServicing {
+    public struct CreateBuildService: CreateBuildServicing {
         private let fullHandleService: FullHandleServicing
 
         public init(

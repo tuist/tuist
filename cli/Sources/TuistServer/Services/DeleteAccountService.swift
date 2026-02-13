@@ -24,7 +24,7 @@ enum DeleteOrganizationServiceError: LocalizedError {
     }
 }
 
-public final class DeleteAccountService: DeleteAccountServicing {
+public struct DeleteAccountService: DeleteAccountServicing {
     public init() {}
 
     public func deleteAccount(

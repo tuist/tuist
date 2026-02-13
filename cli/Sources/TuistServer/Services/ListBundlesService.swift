@@ -31,10 +31,10 @@ enum ListBundlesServiceError: LocalizedError {
     }
 }
 
-public final class ListBundlesService: ListBundlesServicing {
+public struct ListBundlesService: ListBundlesServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

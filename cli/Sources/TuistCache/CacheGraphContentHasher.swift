@@ -20,7 +20,7 @@ public protocol CacheGraphContentHashing {
     ) async throws -> [GraphTarget: TargetContentHash]
 }
 
-public final class CacheGraphContentHasher: CacheGraphContentHashing {
+public struct CacheGraphContentHasher: CacheGraphContentHashing {
     private let graphContentHasher: GraphContentHashing
     private let contentHasher: ContentHashing
     private let versionFetcher: CacheVersionFetching
@@ -28,7 +28,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
     private let fileSystem: FileSysteming
 
-    public convenience init(
+    public init(
         contentHasher: ContentHashing = ContentHasher()
     ) {
         self.init(
@@ -79,7 +79,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let hashes = try await graphContentHasher.contentHashes(
             for: graph,
             include: {
-                self.isGraphTargetHashable(
+                isGraphTargetHashable(
                     $0,
                     graphTraverser: graphTraverser,
                     excludedTargets: excludedTargets

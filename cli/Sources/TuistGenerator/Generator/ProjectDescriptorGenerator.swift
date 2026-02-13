@@ -5,7 +5,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol ProjectDescriptorGenerating: AnyObject {
+protocol ProjectDescriptorGenerating {
     /// Generates the given project.
     /// - Parameters:
     ///   - project: Project to be generated.
@@ -14,7 +14,7 @@ protocol ProjectDescriptorGenerating: AnyObject {
     func generate(project: Project, graphTraverser: GraphTraversing) async throws -> ProjectDescriptor
 }
 
-final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
+struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     // MARK: - ProjectConstants
 
     struct ProjectConstants {

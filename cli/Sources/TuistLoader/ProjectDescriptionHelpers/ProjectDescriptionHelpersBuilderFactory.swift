@@ -8,7 +8,7 @@ public protocol ProjectDescriptionHelpersBuilderFactoring {
     func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> ProjectDescriptionHelpersBuilding
 }
 
-public final class ProjectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring {
+public struct ProjectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring {
     public init() {}
 
     private var helperBuildersCache: ThreadSafe<[AbsolutePath: ProjectDescriptionHelpersBuilding]> = ThreadSafe([:])

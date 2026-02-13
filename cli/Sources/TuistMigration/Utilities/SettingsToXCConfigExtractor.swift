@@ -42,7 +42,7 @@ public enum SettingsToXCConfigExtractorError: FatalError, Equatable {
     }
 }
 
-public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
+public struct SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
     private let fileSystem: FileSysteming
 
     public init(

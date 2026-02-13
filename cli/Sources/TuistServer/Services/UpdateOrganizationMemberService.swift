@@ -27,7 +27,7 @@ enum UpdateOrganizationMemberServiceError: LocalizedError {
     }
 }
 
-public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServicing {
+public struct UpdateOrganizationMemberService: UpdateOrganizationMemberServicing {
     public init() {}
 
     public func updateOrganizationMember(

@@ -30,10 +30,10 @@ public enum MultipartUploadGenerateURLPreviewsServiceError: LocalizedError, Equa
     }
 }
 
-public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing {
+public struct MultipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

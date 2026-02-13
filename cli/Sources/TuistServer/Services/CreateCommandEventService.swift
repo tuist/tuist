@@ -29,7 +29,7 @@
         }
     }
 
-    public final class CreateCommandEventService: CreateCommandEventServicing {
+    public struct CreateCommandEventService: CreateCommandEventServicing {
         public init() {}
 
         public func createCommandEvent(

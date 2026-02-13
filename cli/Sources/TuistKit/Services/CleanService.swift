@@ -60,7 +60,7 @@ enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
     }
 }
 
-final class CleanService {
+struct CleanService {
     private let fileHandler: FileHandling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
@@ -99,7 +99,7 @@ final class CleanService {
         self.fileSystem = fileSystem
     }
 
-    convenience init() {
+    init() {
         self.init(
             fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
@@ -175,12 +175,12 @@ final class CleanService {
                     for endpoint in endpoints {
                         guard let cacheURL = URL(string: endpoint) else { continue }
                         group.addTask {
-                            try await self.cleanProjectCacheService.cleanProjectCache(
+                            try await cleanProjectCacheService.cleanProjectCache(
                                 accountHandle: accountHandle,
                                 projectHandle: projectHandle,
                                 serverURL: cacheURL,
                                 authenticationURL: serverURL,
-                                serverAuthenticationController: self.serverAuthenticationController
+                                serverAuthenticationController: serverAuthenticationController
                             )
                         }
                     }

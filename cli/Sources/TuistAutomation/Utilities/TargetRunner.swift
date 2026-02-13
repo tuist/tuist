@@ -54,7 +54,7 @@ public enum TargetRunnerError: LocalizedError, Equatable {
     }
 }
 
-public final class TargetRunner: TargetRunning {
+public struct TargetRunner: TargetRunning {
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let simulatorController: SimulatorControlling

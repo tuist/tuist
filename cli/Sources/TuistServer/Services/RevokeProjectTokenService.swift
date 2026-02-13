@@ -29,10 +29,10 @@ enum RevokeProjectTokenServiceError: LocalizedError {
     }
 }
 
-public final class RevokeProjectTokenService: RevokeProjectTokenServicing {
+public struct RevokeProjectTokenService: RevokeProjectTokenServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

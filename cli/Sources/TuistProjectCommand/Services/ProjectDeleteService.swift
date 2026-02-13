@@ -12,7 +12,7 @@ protocol ProjectDeleteServicing {
     ) async throws
 }
 
-final class ProjectDeleteService: ProjectDeleteServicing {
+struct ProjectDeleteService: ProjectDeleteServicing {
     private let deleteProjectService: DeleteProjectServicing
     private let getProjectService: GetProjectServicing
     private let serverEnvironmentService: ServerEnvironmentServicing

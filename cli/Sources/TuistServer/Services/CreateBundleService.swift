@@ -41,7 +41,7 @@ import TuistHTTP
         }
     }
 
-    public final class CreateBundleService: CreateBundleServicing {
+    public struct CreateBundleService: CreateBundleServicing {
         private let fullHandleService: FullHandleServicing
 
         public init(

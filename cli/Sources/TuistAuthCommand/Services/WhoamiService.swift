@@ -7,14 +7,14 @@ import TuistEnvironment
 import TuistLogging
 import TuistServer
 
-public protocol WhoamiServicing: AnyObject {
+public protocol WhoamiServicing {
     func run(
         directory: String?,
         serverURL: String?
     ) async throws
 }
 
-public final class WhoamiService: WhoamiServicing {
+public struct WhoamiService: WhoamiServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

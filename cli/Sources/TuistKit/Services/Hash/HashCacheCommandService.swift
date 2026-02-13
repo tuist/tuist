@@ -25,7 +25,7 @@ enum HashCacheCommandServiceError: LocalizedError, Equatable {
     }
 }
 
-public final class HashCacheCommandService: HashCacheServicing {
+public struct HashCacheCommandService: HashCacheServicing {
     #if canImport(TuistCacheEE)
         private let generatorFactory: CacheGeneratorFactorying
     #else
@@ -35,7 +35,7 @@ public final class HashCacheCommandService: HashCacheServicing {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
 
-    public convenience init(
+    public init(
         contentHasher: ContentHashing = CachedContentHasher()
     ) {
         #if canImport(TuistCacheEE)

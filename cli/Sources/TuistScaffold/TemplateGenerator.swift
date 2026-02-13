@@ -22,7 +22,7 @@ public protocol TemplateGenerating {
     ) async throws
 }
 
-public final class TemplateGenerator: TemplateGenerating {
+public struct TemplateGenerator: TemplateGenerating {
     private let fileSystem: FileSystem
 
     // Public initializer

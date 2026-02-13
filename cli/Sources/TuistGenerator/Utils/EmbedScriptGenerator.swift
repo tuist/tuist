@@ -32,7 +32,7 @@ struct EmbedScript {
     let outputPaths: [String]
 }
 
-final class EmbedScriptGenerator: EmbedScriptGenerating {
+struct EmbedScriptGenerator: EmbedScriptGenerating {
     // swiftlint:disable:next large_tuple
     typealias FrameworkScript = (script: String, inputPaths: [RelativePath], outputPaths: [String])
 

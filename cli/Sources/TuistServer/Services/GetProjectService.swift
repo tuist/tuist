@@ -27,10 +27,10 @@ enum GetProjectServiceError: LocalizedError {
     }
 }
 
-public final class GetProjectService: GetProjectServicing {
+public struct GetProjectService: GetProjectServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

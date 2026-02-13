@@ -60,7 +60,7 @@ public enum TargetBuilderError: FatalError {
     }
 }
 
-public final class TargetBuilder: TargetBuilding {
+public struct TargetBuilder: TargetBuilding {
     private let buildGraphInspector: BuildGraphInspecting
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating

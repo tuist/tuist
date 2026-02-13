@@ -52,7 +52,7 @@ import TuistHTTP
         case success, failure, skipped
     }
 
-    public final class CreateTestService: CreateTestServicing {
+    public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
         public init(

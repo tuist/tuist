@@ -10,7 +10,7 @@ public protocol PlistContentHashing {
 
 /// `PlistContentHasher`
 /// is responsible for computing a hash that uniquely identifies a property-list file (e.g. `Info.plist` or `.entitlements`)
-public final class PlistContentHasher: PlistContentHashing {
+public struct PlistContentHasher: PlistContentHashing {
     private let contentHasher: ContentHashing
 
     // MARK: - Init

@@ -29,7 +29,7 @@ enum EditServiceError: FatalError {
     }
 }
 
-final class EditService {
+struct EditService {
     private let projectEditor: ProjectEditing
     private let opener: Opening
     private let configLoader: ConfigLoading

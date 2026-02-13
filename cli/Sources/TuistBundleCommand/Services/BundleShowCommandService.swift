@@ -29,7 +29,7 @@ enum BundleShowCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class BundleShowCommandService: BundleShowCommandServicing {
+struct BundleShowCommandService: BundleShowCommandServicing {
     private let getBundleService: GetBundleServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

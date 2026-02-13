@@ -26,7 +26,7 @@ enum AuthenticateServiceError: LocalizedError {
     }
 }
 
-public final class AuthenticateService: AuthenticateServicing {
+public struct AuthenticateService: AuthenticateServicing {
     public init() {}
 
     public func authenticate(

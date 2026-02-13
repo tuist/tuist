@@ -60,7 +60,7 @@ public protocol BuildGraphInspecting {
     func workspaceSchemes(graphTraverser: GraphTraversing) -> [Scheme]
 }
 
-public final class BuildGraphInspector: BuildGraphInspecting {
+public struct BuildGraphInspector: BuildGraphInspecting {
     private let fileSystem: FileSysteming
 
     public init(

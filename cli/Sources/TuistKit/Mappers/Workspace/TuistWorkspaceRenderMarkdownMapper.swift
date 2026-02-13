@@ -7,7 +7,7 @@ import TuistSupport
 ///
 /// A mapper that includes a .xcodesample.plist file within the generated xcworkspace directory.
 /// This is used to render markdown inside the workspace.
-final class TuistWorkspaceRenderMarkdownReadmeMapper: WorkspaceMapping {
+struct TuistWorkspaceRenderMarkdownReadmeMapper: WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         Logger.current.debug("Transforming workspace \(workspace.workspace.name): Including .xcodesample.plist")
 

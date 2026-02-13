@@ -8,7 +8,7 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-protocol ProjectEditorMapping: AnyObject {
+protocol ProjectEditorMapping {
     func map(
         name: String,
         tuistPath: AbsolutePath,
@@ -29,7 +29,7 @@ protocol ProjectEditorMapping: AnyObject {
 }
 
 // swiftlint:disable:next type_body_length
-final class ProjectEditorMapper: ProjectEditorMapping {
+struct ProjectEditorMapper: ProjectEditorMapping {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let fileSystem: FileSysteming
 
@@ -402,7 +402,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let pluginResources = try await fileSystem.glob(directory: pluginResourceTemplatesPath, include: ["*.stencil"])
                 .collect()
             let sourcePaths = [pluginManifest] + pluginHelpers + pluginTemplates + pluginResources
-            return self.editorHelperTarget(
+            return editorHelperTarget(
                 name: manifest.name,
                 filesGroup: pluginsFilesGroup,
                 targetSettings: targetSettings,

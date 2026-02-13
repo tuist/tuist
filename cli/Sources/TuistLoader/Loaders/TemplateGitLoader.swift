@@ -11,14 +11,14 @@ public protocol TemplateGitLoading {
     func loadTemplate(from templateURL: String, closure: @escaping (TuistCore.Template) async throws -> Void) async throws
 }
 
-public final class TemplateGitLoader: TemplateGitLoading {
+public struct TemplateGitLoader: TemplateGitLoading {
     private let templateLoader: TemplateLoading
     private let fileHandler: FileHandling
     private let gitController: GitControlling
     private let templateLocationParser: TemplateLocationParsing
 
     /// Default constructor.
-    public convenience init() {
+    public init() {
         self.init(
             templateLoader: TemplateLoader(),
             fileHandler: FileHandler.shared,
@@ -48,12 +48,12 @@ public final class TemplateGitLoader: TemplateGitLoading {
 
         try await fileHandler.inTemporaryDirectory { temporaryPath in
             let templatePath = temporaryPath.appending(component: "Template")
-            try self.fileHandler.createFolder(templatePath)
-            try self.gitController.clone(url: repoURL, to: templatePath)
+            try fileHandler.createFolder(templatePath)
+            try gitController.clone(url: repoURL, to: templatePath)
             if let repoBranch {
-                try self.gitController.checkout(id: repoBranch, in: templatePath)
+                try gitController.checkout(id: repoBranch, in: templatePath)
             }
-            let template = try await self.templateLoader.loadTemplate(at: templatePath, plugins: .none)
+            let template = try await templateLoader.loadTemplate(at: templatePath, plugins: .none)
             try await closure(template)
         }
     }

@@ -28,10 +28,10 @@ public enum GetCacheActionItemServiceError: LocalizedError, Equatable {
     }
 }
 
-public final class GetCacheActionItemService: GetCacheActionItemServicing {
+public struct GetCacheActionItemService: GetCacheActionItemServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(fullHandleService: FullHandleService())
     }
 

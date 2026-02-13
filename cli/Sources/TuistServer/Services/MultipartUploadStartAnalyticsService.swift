@@ -29,7 +29,7 @@ public enum MultipartUploadStartAnalyticsServiceError: LocalizedError, Equatable
     }
 }
 
-public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing {
+public struct MultipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing {
     public init() {}
 
     public func uploadAnalyticsArtifact(

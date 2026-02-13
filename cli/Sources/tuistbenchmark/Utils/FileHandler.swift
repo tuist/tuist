@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-final class FileHandler {
+struct FileHandler {
     private let fileManager: FileManager = .default
 
     var currentPath: AbsolutePath {

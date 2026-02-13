@@ -26,7 +26,7 @@ enum GetOrganizationUsageServiceError: LocalizedError {
     }
 }
 
-public final class GetOrganizationUsageService: GetOrganizationUsageServicing {
+public struct GetOrganizationUsageService: GetOrganizationUsageServicing {
     public init() {}
 
     public func getOrganizationUsage(

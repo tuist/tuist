@@ -16,12 +16,12 @@ public protocol TemplateLoading {
     func loadTemplate(at path: AbsolutePath, plugins: Plugins) async throws -> TuistCore.Template
 }
 
-public class TemplateLoader: TemplateLoading {
+public struct TemplateLoader: TemplateLoading {
     private let manifestLoader: ManifestLoading
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public convenience init() {
+    public init() {
         self.init(
             manifestLoader: ManifestLoader.current,
             rootDirectoryLocator: RootDirectoryLocator()
