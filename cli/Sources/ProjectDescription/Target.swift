@@ -130,16 +130,9 @@ public struct Target: Codable, Equatable, Sendable {
             ///   - linking: Whether the xcframework is statically or dynamically linked.
             case xcframework(path: Path, linking: Linking)
 
-            /// A framework output.
-            ///
-            /// - Parameters:
-            ///   - path: Relative path to the framework.
-            ///   - linking: Whether the framework is statically or dynamically linked.
-            case framework(path: Path, linking: Linking)
-
             var product: Product {
                 switch self {
-                case let .xcframework(_, linking), let .framework(_, linking):
+                case let .xcframework(_, linking):
                     return linking == .static ? .staticFramework : .framework
                 }
             }

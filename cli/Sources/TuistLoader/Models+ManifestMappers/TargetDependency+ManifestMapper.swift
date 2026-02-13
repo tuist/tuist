@@ -230,11 +230,6 @@ extension XcodeGraph.ForeignBuild.Artifact {
                 path: try generatorPaths.resolve(path: path),
                 linking: .from(manifest: linking)
             )
-        case let .framework(path, linking):
-            return .framework(
-                path: try generatorPaths.resolve(path: path),
-                linking: .from(manifest: linking)
-            )
         }
     }
 }

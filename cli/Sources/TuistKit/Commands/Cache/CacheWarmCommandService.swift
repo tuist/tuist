@@ -540,14 +540,8 @@ import XcodeGraph
                 let destinationPath = temporaryDirectory.appending(component: outputPath.basename)
                 try fileHandler.copy(from: outputPath, to: destinationPath)
 
-                let artifactType: CacheGraphTargetBuiltArtifact.ArtifactType
-                switch foreignBuild.output {
-                case .xcframework: artifactType = .xcframework
-                case .framework: artifactType = .xcframework
-                }
-
                 artifacts.append(CacheGraphTargetBuiltArtifact(
-                    type: artifactType,
+                    type: .xcframework,
                     graphTarget: graphTarget,
                     hash: hash,
                     path: destinationPath,

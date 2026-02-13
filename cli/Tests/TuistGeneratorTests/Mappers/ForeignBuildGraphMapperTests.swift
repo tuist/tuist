@@ -201,38 +201,6 @@ struct ForeignBuildGraphMapperTests {
     }
 
     @Test
-    func map_handlesFrameworkOutput() async throws {
-        // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let outputPath = try AbsolutePath(validating: "/Project/build/Lib.framework")
-        let foreignBuildTarget = Target.test(
-            name: "Lib",
-            foreignBuild: ForeignBuild(
-                script: "make build",
-                inputs: [],
-                output: .framework(path: outputPath, linking: .dynamic)
-            )
-        )
-        let consumingTarget = Target.test(
-            name: "App",
-            dependencies: [.target(name: "Lib")]
-        )
-        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
-        let graph = Graph.test(
-            path: projectPath,
-            projects: [projectPath: project]
-        )
-
-        // When
-        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
-
-        // Then
-        let mappedProject = try #require(mappedGraph.projects[projectPath])
-        let mappedForeignTarget = try #require(mappedProject.targets["Lib"])
-        #expect(mappedForeignTarget.scripts.first?.outputPaths == [outputPath.pathString])
-    }
-
-    @Test
     func map_returnsSideEffectWhenOutputDoesNotExist() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/Project")
