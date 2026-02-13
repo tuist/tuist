@@ -9,6 +9,7 @@ alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Builds.Build
 alias Tuist.Bundles
+alias Tuist.CacheEndpoints
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
 alias Tuist.Gradle
@@ -361,6 +362,15 @@ android_app_project =
         build_system: :gradle
       )
   end
+
+# Cache endpoints (dev)
+if Repo.aggregate(CacheEndpoints.CacheEndpoint, :count) == 0 do
+  CacheEndpoints.create_cache_endpoint(%{
+    url: "http://localhost:8087",
+    display_name: "Local Dev",
+    environment: "dev"
+  })
+end
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
