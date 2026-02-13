@@ -32,7 +32,7 @@ protocol GraphMapperFactorying {
     ) -> [GraphMapping]
 }
 
-public final class GraphMapperFactory: GraphMapperFactorying {
+public struct GraphMapperFactory: GraphMapperFactorying {
     public init() {}
 
     public func automation(
@@ -98,7 +98,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 }
 
 #if canImport(TuistCacheEE)
-    final class CacheGraphMapperFactory {
+    struct CacheGraphMapperFactory {
         fileprivate let contentHasher: ContentHashing
 
         init(contentHasher: ContentHashing) {
@@ -159,6 +159,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     excludedTargets: excludedTargets
                 )
             )
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
 
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(

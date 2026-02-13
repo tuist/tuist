@@ -18,7 +18,7 @@ public protocol GraphToGraphVizMapping {
     ) -> GraphViz.Graph
 }
 
-public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
+public struct GraphToGraphVizMapper: GraphToGraphVizMapping {
     public init() {}
 
     /// Maps the project graph into a dot graph representation.

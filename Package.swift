@@ -100,7 +100,6 @@ var tuistServerDependencies: [Target.Dependency] = [
     swiftToolsSupportDependency,
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-    .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
     .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
     .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
 ]
@@ -192,7 +191,7 @@ var tuistBundleCommandDependencies: [Target.Dependency] = [
     "TuistNooraExtension",
     "TuistConfigLoader",
     .product(name: "Noora", package: "tuist.Noora"),
-    .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
 ]
 var tuistRegistryCommandDependencies: [Target.Dependency] = [
     pathDependency,

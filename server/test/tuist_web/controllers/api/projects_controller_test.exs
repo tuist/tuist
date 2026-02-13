@@ -38,7 +38,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
-               "visibility" => "private"
+               "visibility" => "private",
+               "build_system" => "xcode"
              }
     end
 
@@ -64,7 +65,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
-               "visibility" => "private"
+               "visibility" => "private",
+               "build_system" => "xcode"
              }
     end
 
@@ -91,7 +93,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
-               "visibility" => "private"
+               "visibility" => "private",
+               "build_system" => "xcode"
              }
     end
 
@@ -118,7 +121,36 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "token" => response["token"],
                "default_branch" => "main",
                "repository_url" => nil,
-               "visibility" => "private"
+               "visibility" => "private",
+               "build_system" => "xcode"
+             }
+    end
+
+    test "returns newly created project with gradle build system",
+         %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects",
+          full_handle: "#{user.account.name}/my-gradle-project",
+          build_system: "gradle"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response == %{
+               "id" => response["id"],
+               "full_name" => "#{user.account.name}/my-gradle-project",
+               "token" => response["token"],
+               "default_branch" => "main",
+               "repository_url" => nil,
+               "visibility" => "private",
+               "build_system" => "gradle"
              }
     end
 
@@ -285,7 +317,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist-org/#{project_one.name}",
                  "token" => project_one.token,
                  "default_branch" => project_one.default_branch,
-                 "visibility" => Atom.to_string(project_one.visibility)
+                 "visibility" => Atom.to_string(project_one.visibility),
+                 "build_system" => Atom.to_string(project_one.build_system)
                }
              end)
 
@@ -295,7 +328,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist/#{project_two.name}",
                  "token" => project_two.token,
                  "default_branch" => project_two.default_branch,
-                 "visibility" => Atom.to_string(project_two.visibility)
+                 "visibility" => Atom.to_string(project_two.visibility),
+                 "build_system" => Atom.to_string(project_two.build_system)
                }
              end)
 
@@ -348,7 +382,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist-org/#{project_one.name}",
                  "token" => project_one.token,
                  "default_branch" => project_one.default_branch,
-                 "visibility" => Atom.to_string(project_one.visibility)
+                 "visibility" => Atom.to_string(project_one.visibility),
+                 "build_system" => Atom.to_string(project_one.build_system)
                }
              end)
 
@@ -358,7 +393,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "tuist/#{project_two.name}",
                  "token" => project_two.token,
                  "default_branch" => project_two.default_branch,
-                 "visibility" => Atom.to_string(project_two.visibility)
+                 "visibility" => Atom.to_string(project_two.visibility),
+                 "build_system" => Atom.to_string(project_two.build_system)
                }
              end)
 
@@ -402,7 +438,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                  "full_name" => "#{project.account.name}/#{project.name}",
                  "token" => project.token,
                  "default_branch" => project.default_branch,
-                 "visibility" => Atom.to_string(project.visibility)
+                 "visibility" => Atom.to_string(project.visibility),
+                 "build_system" => Atom.to_string(project.build_system)
                }
              ]
     end
@@ -434,7 +471,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "token" => project.token,
                "default_branch" => project.default_branch,
                "repository_url" => nil,
-               "visibility" => "private"
+               "visibility" => "private",
+               "build_system" => "xcode"
              }
     end
 
@@ -462,7 +500,8 @@ defmodule TuistWeb.API.ProjectsControllerTest do
                "token" => project.token,
                "default_branch" => project.default_branch,
                "repository_url" => nil,
-               "visibility" => "private"
+               "visibility" => "private",
+               "build_system" => "xcode"
              }
     end
 

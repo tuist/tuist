@@ -44,7 +44,7 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
     }
 }
 
-public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
+public struct EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
     private let fileSystem: FileSysteming
 
     // MARK: - Init

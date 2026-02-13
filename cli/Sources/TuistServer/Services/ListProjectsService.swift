@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol ListProjectsServicing: Sendable {
@@ -29,7 +29,7 @@ enum ListProjectsServiceError: LocalizedError {
     }
 }
 
-public final class ListProjectsService: ListProjectsServicing {
+public struct ListProjectsService: ListProjectsServicing {
     public init() {}
 
     public func listProjects(

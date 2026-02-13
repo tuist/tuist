@@ -33,11 +33,11 @@ public protocol DescriptorGenerating {
 // MARK: -
 
 /// Default implementation of `DescriptorGenerating`
-public final class DescriptorGenerator: DescriptorGenerating {
+public struct DescriptorGenerator: DescriptorGenerating {
     private let workspaceDescriptorGenerator: WorkspaceDescriptorGenerating
     private let projectDescriptorGenerator: ProjectDescriptorGenerating
 
-    public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+    public init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let schemeDescriptorsGenerator = SchemeDescriptorsGenerator()

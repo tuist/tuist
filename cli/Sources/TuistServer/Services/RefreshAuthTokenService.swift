@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol RefreshAuthTokenServicing: Sendable {
@@ -27,7 +27,7 @@ public enum RefreshAuthTokenServiceError: LocalizedError, Equatable {
     }
 }
 
-public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
+public struct RefreshAuthTokenService: RefreshAuthTokenServicing {
     public init() {}
 
     public func refreshTokens(

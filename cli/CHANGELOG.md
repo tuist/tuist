@@ -1,6 +1,25 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.145.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support build system selection in project create by [@fortmarek](https://github.com/fortmarek) in [#9432](https://github.com/tuist/tuist/pull/9432)
+### 🐛 Bug Fixes
+
+* remove unused CacheBuiltArtifactsFetcher from CacheWarmCommandService by [@fortmarek](https://github.com/fortmarek) in [#9434](https://github.com/tuist/tuist/pull/9434)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.4...4.145.0
+
+## What's Changed in 4.144.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fall back to BUILD_DIR for derived data resolution by [@fortmarek](https://github.com/fortmarek) in [#9429](https://github.com/tuist/tuist/pull/9429)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.3...4.144.4
+
 ## What's Changed in 4.144.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

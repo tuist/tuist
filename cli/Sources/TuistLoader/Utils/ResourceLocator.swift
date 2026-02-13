@@ -5,7 +5,7 @@ import TuistEnvironment
 import TuistLogging
 import TuistSupport
 
-public protocol ResourceLocating: AnyObject {
+public protocol ResourceLocating {
     func projectDescription() async throws -> AbsolutePath
     func cliPath() async throws -> AbsolutePath
 }
@@ -28,7 +28,7 @@ enum ResourceLocatingError: FatalError {
     }
 }
 
-public final class ResourceLocator: ResourceLocating {
+public struct ResourceLocator: ResourceLocating {
     private let fileSystem: FileSysteming
 
     public init(

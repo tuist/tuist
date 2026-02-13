@@ -173,6 +173,7 @@ public struct InitCommandService {
             let fullHandle = try await connectToServer(
                 named: projectDirectory.basename,
                 answers: answers,
+                buildSystem: .gradle,
                 skipServerPrompt: true
             )
             try await writeTuistToml(fullHandle: fullHandle, at: projectDirectory)
@@ -282,6 +283,7 @@ extension InitCommandService {
     private func connectToServer(
         named projectHandle: String,
         answers: InitPromptAnswers?,
+        buildSystem: Components.Schemas.Project.build_systemPayload,
         skipServerPrompt: Bool = false
     ) async throws -> String? {
         if !skipServerPrompt {
@@ -342,6 +344,7 @@ extension InitCommandService {
                 )) == nil {
                     _ = try await createProjectService.createProject(
                         fullHandle: fullHandle,
+                        buildSystem: buildSystem,
                         serverURL: serverURL
                     )
                 }
@@ -359,7 +362,7 @@ extension InitCommandService {
             nextSteps: inout [TerminalText]
         ) async throws -> String? {
             if let fullHandle = try await connectToServer(
-                named: projectHandle, answers: answers
+                named: projectHandle, answers: answers, buildSystem: .xcode
             ) {
                 nextSteps.append(contentsOf: [
                     "Accelerate your builds with the \(.link(title: "cache", href: "https://docs.tuist.dev/en/guides/features/cache"))",

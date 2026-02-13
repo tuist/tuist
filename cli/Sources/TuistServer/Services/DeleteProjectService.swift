@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol DeleteProjectServicing {
@@ -26,7 +26,7 @@ enum DeleteProjectServiceError: LocalizedError {
     }
 }
 
-public final class DeleteProjectService: DeleteProjectServicing {
+public struct DeleteProjectService: DeleteProjectServicing {
     public init() {}
 
     public func deleteProject(

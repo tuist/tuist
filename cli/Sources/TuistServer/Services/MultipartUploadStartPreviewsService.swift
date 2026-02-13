@@ -40,10 +40,10 @@
         }
     }
 
-    public final class MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing {
+    public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing {
         private let fullHandleService: FullHandleServicing
 
-        public convenience init() {
+        public init() {
             self.init(
                 fullHandleService: FullHandleService()
             )

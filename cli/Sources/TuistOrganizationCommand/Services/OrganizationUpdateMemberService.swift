@@ -14,7 +14,7 @@ protocol OrganizationUpdateMemberServicing {
     ) async throws
 }
 
-final class OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
+struct OrganizationUpdateMemberService: OrganizationUpdateMemberServicing {
     private let updateOrganizationMemberService: UpdateOrganizationMemberServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

@@ -1,7 +1,7 @@
 import Foundation
 import Mockable
 import Noora
-import OpenAPIURLSession
+import OpenAPIRuntime
 import Path
 import TuistConfigLoader
 import TuistEnvironment
@@ -29,7 +29,7 @@ enum BundleShowCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class BundleShowCommandService: BundleShowCommandServicing {
+struct BundleShowCommandService: BundleShowCommandServicing {
     private let getBundleService: GetBundleServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

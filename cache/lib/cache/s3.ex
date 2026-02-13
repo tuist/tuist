@@ -290,7 +290,11 @@ defmodule Cache.S3 do
     content_type_opt = Keyword.get(opts, :content_type)
 
     bucket = bucket_for_type(type)
-    upload_opts = if content_type_opt, do: [content_type: content_type_opt, timeout: 120_000], else: [timeout: 120_000]
+
+    upload_opts =
+      if content_type_opt,
+        do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
+        else: [timeout: 120_000, max_concurrency: 8]
 
     {duration, result} =
       :timer.tc(fn ->

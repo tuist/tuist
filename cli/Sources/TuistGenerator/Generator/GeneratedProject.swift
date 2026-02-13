@@ -3,7 +3,7 @@ import Path
 import PathKit
 import XcodeProj
 
-final class GeneratedProject {
+struct GeneratedProject {
     /// A reference to the .xcodeproj which was generated.
     let pbxproj: PBXProj
 
@@ -15,24 +15,6 @@ final class GeneratedProject {
 
     /// Project name with the .xcodeproj extension.
     let name: String
-
-    /// Initializes the GeneratedProject with its attributes.
-    ///
-    /// - Parameters:
-    ///   - path: Dictionary whose keys are the target names and the value the Xcode targets.
-    ///   - targets: Dictionary whose keys are the target names and the value the Xcode targets.
-    ///   - name: Project name with .xcodeproj extension
-    init(
-        pbxproj: PBXProj,
-        path: AbsolutePath,
-        targets: [String: PBXTarget],
-        name: String
-    ) {
-        self.pbxproj = pbxproj
-        self.path = path
-        self.targets = targets
-        self.name = name
-    }
 
     /// Returns a GeneratedProject with the given path.
     ///

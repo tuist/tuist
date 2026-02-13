@@ -37,10 +37,10 @@
         }
     }
 
-    public final class ListPreviewsService: ListPreviewsServicing {
+    public struct ListPreviewsService: ListPreviewsServicing {
         private let fullHandleService: FullHandleServicing
 
-        public convenience init() {
+        public init() {
             self.init(
                 fullHandleService: FullHandleService()
             )

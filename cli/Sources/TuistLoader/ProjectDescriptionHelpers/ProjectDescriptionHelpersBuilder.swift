@@ -10,7 +10,7 @@ import TuistThreadSafe
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
-public protocol ProjectDescriptionHelpersBuilding: AnyObject {
+public protocol ProjectDescriptionHelpersBuilding {
     /// Builds all the project description helpers incluing any `projectDescriptionHelperPlugins`.
     ///
     /// Note: Local project description helpers can import plugin helpers.

@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 public protocol DeletePreviewServicing: Sendable {
@@ -27,7 +27,7 @@ enum DeletePreviewServiceError: LocalizedError {
     }
 }
 
-public final class DeletePreviewService: DeletePreviewServicing {
+public struct DeletePreviewService: DeletePreviewServicing {
     private let fullHandleService: FullHandleServicing
 
     public init(

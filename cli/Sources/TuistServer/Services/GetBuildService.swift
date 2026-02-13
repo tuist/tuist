@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 public typealias Build = Operations.getBuild.Output.Ok.Body.jsonPayload
@@ -29,10 +29,10 @@ enum GetBuildServiceError: LocalizedError {
     }
 }
 
-public final class GetBuildService: GetBuildServicing {
+public struct GetBuildService: GetBuildServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

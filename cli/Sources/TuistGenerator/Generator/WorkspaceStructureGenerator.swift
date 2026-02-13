@@ -27,7 +27,7 @@ protocol WorkspaceStructureGenerating {
     ) -> WorkspaceStructure
 }
 
-final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
+struct WorkspaceStructureGenerator: WorkspaceStructureGenerating {
     func generateStructure(
         path: AbsolutePath,
         workspace: Workspace,

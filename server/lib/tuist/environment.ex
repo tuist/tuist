@@ -112,6 +112,7 @@ defmodule Tuist.Environment do
         prod?() ->
           [
             "https://cache-eu-central.tuist.dev",
+            "https://cache-eu-north.tuist.dev",
             "https://cache-us-east.tuist.dev",
             "https://cache-us-west.tuist.dev",
             "https://cache-ap-southeast.tuist.dev",

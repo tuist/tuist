@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol ListOrganizationsServicing {
@@ -24,7 +24,7 @@ enum ListOrganizationsServiceError: LocalizedError {
     }
 }
 
-public final class ListOrganizationsService: ListOrganizationsServicing {
+public struct ListOrganizationsService: ListOrganizationsServicing {
     public init() {}
 
     public func listOrganizations(
@@ -37,7 +37,8 @@ public final class ListOrganizationsService: ListOrganizationsServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(data):
-                return data.organizations.map(\.name)
+                // swiftformat:disable:next preferKeyPath
+                return data.organizations.map { $0.name }
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {

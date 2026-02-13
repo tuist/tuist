@@ -44,7 +44,7 @@ enum StencilPathLocatorError: FatalError, Equatable {
     }
 }
 
-public final class StencilPathLocator: StencilPathLocating {
+public struct StencilPathLocator: StencilPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 

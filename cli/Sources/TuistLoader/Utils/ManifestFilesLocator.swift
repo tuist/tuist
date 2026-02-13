@@ -8,7 +8,7 @@ import TuistRootDirectoryLocator
 import TuistSupport
 
 @Mockable
-public protocol ManifestFilesLocating: AnyObject {
+public protocol ManifestFilesLocating {
     /// It locates the manifest files in the locating directory.
     /// - Parameter locatingPath: Directory for which the manifest files will be obtained.
     func locateManifests(at locatingPath: AbsolutePath) async throws -> [(Manifest, AbsolutePath)]

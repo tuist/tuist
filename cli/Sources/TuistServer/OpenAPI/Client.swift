@@ -5029,6 +5029,223 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// List Gradle builds for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/get(listGradleBuilds)`.
+    public func listGradleBuilds(_ input: Operations.listGradleBuilds.Input) async throws -> Operations.listGradleBuilds.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.listGradleBuilds.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/gradle/builds",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "limit",
+                    value: input.query.limit
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "offset",
+                    value: input.query.offset
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listGradleBuilds.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listGradleBuilds.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Create a Gradle build with task data.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)`.
+    public func createGradleBuild(_ input: Operations.createGradleBuild.Input) async throws -> Operations.createGradleBuild.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.createGradleBuild.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/gradle/builds",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .post
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                let body: OpenAPIRuntime.HTTPBody?
+                switch input.body {
+                case .none:
+                    body = nil
+                case let .json(value):
+                    body = try converter.setOptionalRequestBodyAsJSON(
+                        value,
+                        headerFields: &request.headerFields,
+                        contentType: "application/json; charset=utf-8"
+                    )
+                }
+                return (request, body)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 201:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createGradleBuild.Output.Created.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.createGradleBuild.Output.Created.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .created(.init(body: body))
+                case 400:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createGradleBuild.Output.BadRequest.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .badRequest(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.createGradleBuild.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// List all account tokens.
     ///
     /// This endpoint returns all tokens for a given account with pagination support.
@@ -6445,6 +6662,113 @@ public struct Client: APIProtocol {
             }
         )
     }
+    /// List runs for a test case.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
+    public func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.listTestCaseRuns.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/tests/test-cases/{}/runs",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.test_case_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "flaky",
+                    value: input.query.flaky
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "page_size",
+                    value: input.query.page_size
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "page",
+                    value: input.query.page
+                )
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRuns.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.listTestCaseRuns.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -7255,113 +7579,6 @@ public struct Client: APIProtocol {
             }
         )
     }
-    /// List runs for a test case.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    public func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output {
-        try await client.send(
-            input: input,
-            forOperation: Operations.listTestCaseRuns.id,
-            serializer: { input in
-                let path = try converter.renderedPath(
-                    template: "/api/projects/{}/{}/tests/test-cases/{}/runs",
-                    parameters: [
-                        input.path.account_handle,
-                        input.path.project_handle,
-                        input.path.test_case_id
-                    ]
-                )
-                var request: HTTPTypes.HTTPRequest = .init(
-                    soar_path: path,
-                    method: .get
-                )
-                suppressMutabilityWarning(&request)
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "flaky",
-                    value: input.query.flaky
-                )
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "page_size",
-                    value: input.query.page_size
-                )
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "page",
-                    value: input.query.page
-                )
-                converter.setAcceptHeader(
-                    in: &request.headerFields,
-                    contentTypes: input.headers.accept
-                )
-                return (request, nil)
-            },
-            deserializer: { response, responseBody in
-                switch response.status.code {
-                case 200:
-                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.listTestCaseRuns.Output.Ok.Body
-                    let chosenContentType = try converter.bestContentType(
-                        received: contentType,
-                        options: [
-                            "application/json"
-                        ]
-                    )
-                    switch chosenContentType {
-                    case "application/json":
-                        body = try await converter.getResponseBodyAsJSON(
-                            Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.self,
-                            from: responseBody,
-                            transforming: { value in
-                                .json(value)
-                            }
-                        )
-                    default:
-                        preconditionFailure("bestContentType chose an invalid content type.")
-                    }
-                    return .ok(.init(body: body))
-                case 403:
-                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.listTestCaseRuns.Output.Forbidden.Body
-                    let chosenContentType = try converter.bestContentType(
-                        received: contentType,
-                        options: [
-                            "application/json"
-                        ]
-                    )
-                    switch chosenContentType {
-                    case "application/json":
-                        body = try await converter.getResponseBodyAsJSON(
-                            Components.Schemas._Error.self,
-                            from: responseBody,
-                            transforming: { value in
-                                .json(value)
-                            }
-                        )
-                    default:
-                        preconditionFailure("bestContentType chose an invalid content type.")
-                    }
-                    return .forbidden(.init(body: body))
-                default:
-                    return .undocumented(
-                        statusCode: response.status.code,
-                        .init(
-                            headerFields: response.headerFields,
-                            body: responseBody
-                        )
-                    )
-                }
-            }
-        )
-    }
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -7642,6 +7859,114 @@ public struct Client: APIProtocol {
                 case 404:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
                     let body: Operations.revokeProjectToken.Output.NotFound.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .notFound(.init(body: body))
+                default:
+                    return .undocumented(
+                        statusCode: response.status.code,
+                        .init(
+                            headerFields: response.headerFields,
+                            body: responseBody
+                        )
+                    )
+                }
+            }
+        )
+    }
+    /// Get a Gradle build by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)`.
+    public func getGradleBuild(_ input: Operations.getGradleBuild.Input) async throws -> Operations.getGradleBuild.Output {
+        try await client.send(
+            input: input,
+            forOperation: Operations.getGradleBuild.id,
+            serializer: { input in
+                let path = try converter.renderedPath(
+                    template: "/api/projects/{}/{}/gradle/builds/{}",
+                    parameters: [
+                        input.path.account_handle,
+                        input.path.project_handle,
+                        input.path.build_id
+                    ]
+                )
+                var request: HTTPTypes.HTTPRequest = .init(
+                    soar_path: path,
+                    method: .get
+                )
+                suppressMutabilityWarning(&request)
+                converter.setAcceptHeader(
+                    in: &request.headerFields,
+                    contentTypes: input.headers.accept
+                )
+                return (request, nil)
+            },
+            deserializer: { response, responseBody in
+                switch response.status.code {
+                case 200:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getGradleBuild.Output.Ok.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Operations.getGradleBuild.Output.Ok.Body.jsonPayload.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .ok(.init(body: body))
+                case 403:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getGradleBuild.Output.Forbidden.Body
+                    let chosenContentType = try converter.bestContentType(
+                        received: contentType,
+                        options: [
+                            "application/json"
+                        ]
+                    )
+                    switch chosenContentType {
+                    case "application/json":
+                        body = try await converter.getResponseBodyAsJSON(
+                            Components.Schemas._Error.self,
+                            from: responseBody,
+                            transforming: { value in
+                                .json(value)
+                            }
+                        )
+                    default:
+                        preconditionFailure("bestContentType chose an invalid content type.")
+                    }
+                    return .forbidden(.init(body: body))
+                case 404:
+                    let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
+                    let body: Operations.getGradleBuild.Output.NotFound.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [

@@ -17,7 +17,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-final class GraphService {
+struct GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
     private let fileSystem: FileSystem
@@ -25,7 +25,7 @@ final class GraphService {
     private let xcodeGraphMapper: XcodeGraphMapping
     private let configLoader: ConfigLoading
 
-    convenience init() {
+    init() {
         let manifestLoader = ManifestLoader.current
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,

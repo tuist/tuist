@@ -17,7 +17,7 @@ public protocol FullHandleServicing: Sendable {
     func parse(_ fullHandle: String) throws -> (accountHandle: String, projectHandle: String)
 }
 
-public final class FullHandleService: FullHandleServicing {
+public struct FullHandleService: FullHandleServicing {
     public init() {}
 
     public func parse(_ fullHandle: String) throws -> (accountHandle: String, projectHandle: String) {

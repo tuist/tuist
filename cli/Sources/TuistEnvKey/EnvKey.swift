@@ -285,6 +285,7 @@ public enum EnvKey: String, CaseIterable {
 
     case projectCreateFullHandle = "TUIST_PROJECT_CREATE_FULL_HANDLE"
     case projectCreatePath = "TUIST_PROJECT_CREATE_PATH"
+    case projectCreateBuildSystem = "TUIST_PROJECT_CREATE_BUILD_SYSTEM"
 
     // PROJECT SHOW
 

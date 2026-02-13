@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 @Mockable
@@ -27,10 +27,10 @@ enum CreateProjectTokenServiceError: LocalizedError {
     }
 }
 
-public final class CreateProjectTokenService: CreateProjectTokenServicing {
+public struct CreateProjectTokenService: CreateProjectTokenServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

@@ -210,7 +210,7 @@
 
     loki.source.api "default" {
       http {
-        listen_address = "127.0.0.1"
+        listen_address = "0.0.0.0"
         listen_port    = 3100
       }
       forward_to             = [loki.write.grafana_cloud.receiver]
@@ -219,7 +219,7 @@
 
     otelcol.receiver.otlp "default" {
       grpc {
-        endpoint = "127.0.0.1:4317"
+        endpoint = "0.0.0.0:4317"
       }
 
       output {

@@ -6,6 +6,7 @@ servers:
     proxy: false
     options:
       network-alias: cache-app
+      add-host: host.docker.internal:host-gateway
 
 ssh:
   user: github-actions
@@ -25,7 +26,8 @@ env:
     STORAGE_DIR: /storage
     PHX_SOCKET_PATH: /run/cache/cache.sock
     PHX_SOCKET_LINK: /run/cache/current.sock
-    LOKI_URL: http://127.0.0.1:3100
+    LOKI_URL: http://host.docker.internal:3100
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4317
 
   secret:
     - SECRET_KEY_BASE

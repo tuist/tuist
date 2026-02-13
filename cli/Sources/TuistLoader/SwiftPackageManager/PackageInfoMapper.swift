@@ -107,7 +107,7 @@ public protocol PackageInfoMapping {
 }
 
 // swiftlint:disable:next type_body_length
-public final class PackageInfoMapper: PackageInfoMapping {
+public struct PackageInfoMapper: PackageInfoMapping {
     /// Predefined source directories, in order of preference.
     /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
@@ -317,7 +317,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
-                return try await self.map(
+                return try await map(
                     target: target,
                     targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
@@ -367,7 +367,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         )
     }
 
-    fileprivate class func sanitize(targetName: String) -> String {
+    fileprivate static func sanitize(targetName: String) -> String {
         targetName
             .replacingOccurrences(of: ".", with: "_")
             .replacingOccurrences(of: "/", with: "_")
@@ -592,7 +592,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: "dev.tuist.\(sanitizedTargetName.replacingOccurrences(of: "_", with: "."))",
+            bundleId: sanitizedTargetName
+                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,

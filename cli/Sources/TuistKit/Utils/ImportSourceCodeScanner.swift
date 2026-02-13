@@ -10,7 +10,7 @@ private struct Match {
     let range: Range<String.Index>
 }
 
-final class ImportSourceCodeScanner {
+struct ImportSourceCodeScanner {
     func extractImports(from sourceCode: String, language: ProgrammingLanguage) throws -> Set<String> {
         switch language {
         case .swift:

@@ -29,7 +29,7 @@ enum BuildServiceError: LocalizedError {
     }
 }
 
-public final class BuildService {
+public struct BuildService {
     private let generatorFactory: GeneratorFactorying
     private let cacheStorageFactory: CacheStorageFactorying
     private let buildGraphInspector: BuildGraphInspecting

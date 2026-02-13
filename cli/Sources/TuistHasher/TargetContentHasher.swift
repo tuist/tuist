@@ -41,7 +41,7 @@ public struct TargetContentHash: Equatable {
 
 /// `TargetContentHasher`
 /// is responsible for computing a unique hash that identifies a target
-public final class TargetContentHasher: TargetContentHashing {
+public struct TargetContentHasher: TargetContentHashing {
     private let contentHasher: ContentHashing
     private let coreDataModelsContentHasher: CoreDataModelsContentHashing
     private let sourceFilesContentHasher: SourceFilesContentHashing
@@ -57,7 +57,7 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing) {
+    public init(contentHasher: ContentHashing) {
         let platformConditionContentHasher = PlatformConditionContentHasher(
             contentHasher: contentHasher
         )
@@ -229,8 +229,8 @@ public final class TargetContentHasher: TargetContentHashing {
                 let privateHeaders = buildableFolder.exceptions.flatMap(\.privateHeaders)
 
                 return try await buildableFiles.concurrentMap { buildableFile in
-                    let fileHash = try await self.contentHasher.hash(path: buildableFile.path)
-                    let compilerFlagsHash = try self.contentHasher.hash(
+                    let fileHash = try await contentHasher.hash(path: buildableFile.path)
+                    let compilerFlagsHash = try contentHasher.hash(
                         buildableFile.compilerFlags ?? ""
                     )
                     var stringsToHash = [fileHash, compilerFlagsHash]
@@ -242,7 +242,7 @@ public final class TargetContentHasher: TargetContentHashing {
                         stringsToHash.append("private-header")
                     }
 
-                    return try self.contentHasher.hash(stringsToHash)
+                    return try contentHasher.hash(stringsToHash)
                 }
             }
 

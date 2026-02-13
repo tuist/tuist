@@ -43,10 +43,10 @@ public enum SaveCacheCASServiceError: LocalizedError {
     }
 }
 
-public final class SaveCacheCASService: SaveCacheCASServicing {
+public struct SaveCacheCASService: SaveCacheCASServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

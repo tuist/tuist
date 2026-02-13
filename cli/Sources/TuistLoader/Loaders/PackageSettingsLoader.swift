@@ -21,7 +21,7 @@ public protocol PackageSettingsLoading {
     ) async throws -> TuistCore.PackageSettings
 }
 
-public final class PackageSettingsLoader: PackageSettingsLoading {
+public struct PackageSettingsLoader: PackageSettingsLoading {
     private let manifestLoader: ManifestLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestFilesLocator: ManifestFilesLocating

@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol AuthenticateServicing {
@@ -26,7 +26,7 @@ enum AuthenticateServiceError: LocalizedError {
     }
 }
 
-public final class AuthenticateService: AuthenticateServicing {
+public struct AuthenticateService: AuthenticateServicing {
     public init() {}
 
     public func authenticate(

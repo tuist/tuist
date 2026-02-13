@@ -245,6 +245,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/get(getBundle)`.
     func getBundle(_ input: Operations.getBundle.Input) async throws -> Operations.getBundle.Output
+    /// List Gradle builds for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/get(listGradleBuilds)`.
+    func listGradleBuilds(_ input: Operations.listGradleBuilds.Input) async throws -> Operations.listGradleBuilds.Output
+    /// Create a Gradle build with task data.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)`.
+    func createGradleBuild(_ input: Operations.createGradleBuild.Input) async throws -> Operations.createGradleBuild.Output
     /// List all account tokens.
     ///
     /// This endpoint returns all tokens for a given account with pagination support.
@@ -312,6 +322,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
+    /// List runs for a test case.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
+    func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -360,11 +375,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
     func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output
-    /// List runs for a test case.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -378,6 +388,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/tokens/{id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tokens/{id}/delete(revokeProjectToken)`.
     func revokeProjectToken(_ input: Operations.revokeProjectToken.Input) async throws -> Operations.revokeProjectToken.Output
+    /// Get a Gradle build by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)`.
+    func getGradleBuild(_ input: Operations.getGradleBuild.Input) async throws -> Operations.getGradleBuild.Output
     /// Returns a project based on the handle.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}`.
@@ -1031,6 +1046,36 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List Gradle builds for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/get(listGradleBuilds)`.
+    public func listGradleBuilds(
+        path: Operations.listGradleBuilds.Input.Path,
+        query: Operations.listGradleBuilds.Input.Query = .init(),
+        headers: Operations.listGradleBuilds.Input.Headers = .init()
+    ) async throws -> Operations.listGradleBuilds.Output {
+        try await listGradleBuilds(Operations.listGradleBuilds.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Create a Gradle build with task data.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)`.
+    public func createGradleBuild(
+        path: Operations.createGradleBuild.Input.Path,
+        headers: Operations.createGradleBuild.Input.Headers = .init(),
+        body: Operations.createGradleBuild.Input.Body? = nil
+    ) async throws -> Operations.createGradleBuild.Output {
+        try await createGradleBuild(Operations.createGradleBuild.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// List all account tokens.
     ///
     /// This endpoint returns all tokens for a given account with pagination support.
@@ -1192,6 +1237,21 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List runs for a test case.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
+    public func listTestCaseRuns(
+        path: Operations.listTestCaseRuns.Input.Path,
+        query: Operations.listTestCaseRuns.Input.Query = .init(),
+        headers: Operations.listTestCaseRuns.Input.Headers = .init()
+    ) async throws -> Operations.listTestCaseRuns.Output {
+        try await listTestCaseRuns(Operations.listTestCaseRuns.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -1292,21 +1352,6 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// List runs for a test case.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    public func listTestCaseRuns(
-        path: Operations.listTestCaseRuns.Input.Path,
-        query: Operations.listTestCaseRuns.Input.Query = .init(),
-        headers: Operations.listTestCaseRuns.Input.Headers = .init()
-    ) async throws -> Operations.listTestCaseRuns.Output {
-        try await listTestCaseRuns(Operations.listTestCaseRuns.Input(
-            path: path,
-            query: query,
-            headers: headers
-        ))
-    }
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -1332,6 +1377,19 @@ extension APIProtocol {
         headers: Operations.revokeProjectToken.Input.Headers = .init()
     ) async throws -> Operations.revokeProjectToken.Output {
         try await revokeProjectToken(Operations.revokeProjectToken.Input(
+            path: path,
+            headers: headers
+        ))
+    }
+    /// Get a Gradle build by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)`.
+    public func getGradleBuild(
+        path: Operations.getGradleBuild.Input.Path,
+        headers: Operations.getGradleBuild.Input.Headers = .init()
+    ) async throws -> Operations.getGradleBuild.Output {
+        try await getGradleBuild(Operations.getGradleBuild.Input(
             path: path,
             headers: headers
         ))
@@ -1590,7 +1648,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:4002",
+                validatingOpenAPIServerURL: "http://localhost:8080",
                 variables: []
             )
         }
@@ -1598,7 +1656,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:4002",
+            validatingOpenAPIServerURL: "http://localhost:8080",
             variables: []
         )
     }
@@ -2980,6 +3038,17 @@ public enum Components {
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
         public struct Project: Codable, Hashable, Sendable {
+            /// The build system used by the project.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/build_system`.
+            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case xcode = "xcode"
+                case gradle = "gradle"
+            }
+            /// The build system used by the project.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Project/build_system`.
+            public var build_system: Components.Schemas.Project.build_systemPayload?
             /// The default branch of the project.
             ///
             /// - Remark: Generated from `#/components/schemas/Project/default_branch`.
@@ -3015,6 +3084,7 @@ public enum Components {
             /// Creates a new `Project`.
             ///
             /// - Parameters:
+            ///   - build_system: The build system used by the project.
             ///   - default_branch: The default branch of the project.
             ///   - full_name: The full name of the project (e.g. tuist/tuist)
             ///   - id: ID of the project
@@ -3022,6 +3092,7 @@ public enum Components {
             ///   - token: The token that should be used to authenticate the project. For CI only.
             ///   - visibility: The visibility of the project
             public init(
+                build_system: Components.Schemas.Project.build_systemPayload? = nil,
                 default_branch: Swift.String,
                 full_name: Swift.String,
                 id: Swift.Double,
@@ -3029,6 +3100,7 @@ public enum Components {
                 token: Swift.String,
                 visibility: Components.Schemas.Project.visibilityPayload
             ) {
+                self.build_system = build_system
                 self.default_branch = default_branch
                 self.full_name = full_name
                 self.id = id
@@ -3037,6 +3109,7 @@ public enum Components {
                 self.visibility = visibility
             }
             public enum CodingKeys: String, CodingKey {
+                case build_system
                 case default_branch
                 case full_name
                 case id
@@ -13230,6 +13303,17 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build system used by the project. Defaults to xcode.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/build_system`.
+                    @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case xcode = "xcode"
+                        case gradle = "gradle"
+                    }
+                    /// The build system used by the project. Defaults to xcode.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/build_system`.
+                    public var build_system: Operations.createProject.Input.Body.jsonPayload.build_systemPayload?
                     /// The full handle of the project that should be created.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/full_handle`.
@@ -13247,19 +13331,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - build_system: The build system used by the project. Defaults to xcode.
                     ///   - full_handle: The full handle of the project that should be created.
                     ///   - name: The name of the project that should be created.
                     ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
                     public init(
+                        build_system: Operations.createProject.Input.Body.jsonPayload.build_systemPayload? = nil,
                         full_handle: Swift.String? = nil,
                         name: Swift.String? = nil,
                         organization: Swift.String? = nil
                     ) {
+                        self.build_system = build_system
                         self.full_handle = full_handle
                         self.name = name
                         self.organization = organization
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case build_system
                         case full_handle
                         case name
                         case organization
@@ -21798,6 +21886,800 @@ public enum Operations {
             }
         }
     }
+    /// List Gradle builds for a project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/get(listGradleBuilds)`.
+    public enum listGradleBuilds {
+        public static let id: Swift.String = "listGradleBuilds"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listGradleBuilds.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Maximum number of builds to return.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/limit`.
+                public var limit: Swift.Int?
+                /// Number of builds to skip.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/query/offset`.
+                public var offset: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - limit: Maximum number of builds to return.
+                ///   - offset: Number of builds to skip.
+                public init(
+                    limit: Swift.Int? = nil,
+                    offset: Swift.Int? = nil
+                ) {
+                    self.limit = limit
+                    self.offset = offset
+                }
+            }
+            public var query: Operations.listGradleBuilds.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGradleBuilds.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGradleBuilds.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listGradleBuilds.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listGradleBuilds.Input.Path,
+                query: Operations.listGradleBuilds.Input.Query = .init(),
+                headers: Operations.listGradleBuilds.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload`.
+                        public struct buildsPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/cache_hit_rate`.
+                            public var cache_hit_rate: Swift.Double?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/cacheable_tasks_count`.
+                            public var cacheable_tasks_count: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/duration_ms`.
+                            public var duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/git_branch`.
+                            public var git_branch: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/gradle_version`.
+                            public var gradle_version: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/id`.
+                            public var id: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/inserted_at`.
+                            public var inserted_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/is_ci`.
+                            public var is_ci: Swift.Bool?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/java_version`.
+                            public var java_version: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/root_project_name`.
+                            public var root_project_name: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                                case cancelled = "cancelled"
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/status`.
+                            public var status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_executed_count`.
+                            public var tasks_executed_count: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_local_hit_count`.
+                            public var tasks_local_hit_count: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_remote_hit_count`.
+                            public var tasks_remote_hit_count: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/buildsPayload/tasks_up_to_date_count`.
+                            public var tasks_up_to_date_count: Swift.Int?
+                            /// Creates a new `buildsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cache_hit_rate:
+                            ///   - cacheable_tasks_count:
+                            ///   - duration_ms:
+                            ///   - git_branch:
+                            ///   - gradle_version:
+                            ///   - id:
+                            ///   - inserted_at:
+                            ///   - is_ci:
+                            ///   - java_version:
+                            ///   - root_project_name:
+                            ///   - status:
+                            ///   - tasks_executed_count:
+                            ///   - tasks_local_hit_count:
+                            ///   - tasks_remote_hit_count:
+                            ///   - tasks_up_to_date_count:
+                            public init(
+                                cache_hit_rate: Swift.Double? = nil,
+                                cacheable_tasks_count: Swift.Int? = nil,
+                                duration_ms: Swift.Int? = nil,
+                                git_branch: Swift.String? = nil,
+                                gradle_version: Swift.String? = nil,
+                                id: Swift.String? = nil,
+                                inserted_at: Foundation.Date? = nil,
+                                is_ci: Swift.Bool? = nil,
+                                java_version: Swift.String? = nil,
+                                root_project_name: Swift.String? = nil,
+                                status: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload? = nil,
+                                tasks_executed_count: Swift.Int? = nil,
+                                tasks_local_hit_count: Swift.Int? = nil,
+                                tasks_remote_hit_count: Swift.Int? = nil,
+                                tasks_up_to_date_count: Swift.Int? = nil
+                            ) {
+                                self.cache_hit_rate = cache_hit_rate
+                                self.cacheable_tasks_count = cacheable_tasks_count
+                                self.duration_ms = duration_ms
+                                self.git_branch = git_branch
+                                self.gradle_version = gradle_version
+                                self.id = id
+                                self.inserted_at = inserted_at
+                                self.is_ci = is_ci
+                                self.java_version = java_version
+                                self.root_project_name = root_project_name
+                                self.status = status
+                                self.tasks_executed_count = tasks_executed_count
+                                self.tasks_local_hit_count = tasks_local_hit_count
+                                self.tasks_remote_hit_count = tasks_remote_hit_count
+                                self.tasks_up_to_date_count = tasks_up_to_date_count
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cache_hit_rate
+                                case cacheable_tasks_count
+                                case duration_ms
+                                case git_branch
+                                case gradle_version
+                                case id
+                                case inserted_at
+                                case is_ci
+                                case java_version
+                                case root_project_name
+                                case status
+                                case tasks_executed_count
+                                case tasks_local_hit_count
+                                case tasks_remote_hit_count
+                                case tasks_up_to_date_count
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/builds`.
+                        public typealias buildsPayload = [Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/json/builds`.
+                        public var builds: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - builds:
+                        public init(builds: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload.buildsPayload) {
+                            self.builds = builds
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case builds
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/200/content/application\/json`.
+                    case json(Operations.listGradleBuilds.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listGradleBuilds.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuilds.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuilds.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of Gradle builds
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/get(listGradleBuilds)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listGradleBuilds.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listGradleBuilds.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGradleBuilds.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGradleBuilds.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/get(listGradleBuilds)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listGradleBuilds.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listGradleBuilds.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create a Gradle build with task data.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/gradle/builds`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)`.
+    public enum createGradleBuild {
+        public static let id: Swift.String = "createGradleBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createGradleBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createGradleBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createGradleBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createGradleBuild.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// Build duration in milliseconds.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/duration_ms`.
+                    public var duration_ms: Swift.Int
+                    /// Git branch.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_branch`.
+                    public var git_branch: Swift.String?
+                    /// Git commit SHA.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_commit_sha`.
+                    public var git_commit_sha: Swift.String?
+                    /// Git ref.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_ref`.
+                    public var git_ref: Swift.String?
+                    /// Gradle version.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/gradle_version`.
+                    public var gradle_version: Swift.String?
+                    /// Whether the build ran on CI.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/is_ci`.
+                    public var is_ci: Swift.Bool?
+                    /// Java version.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/java_version`.
+                    public var java_version: Swift.String?
+                    /// Root project name.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/root_project_name`.
+                    public var root_project_name: Swift.String?
+                    /// Build status.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/status`.
+                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case success = "success"
+                        case failure = "failure"
+                        case cancelled = "cancelled"
+                    }
+                    /// Build status.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/status`.
+                    public var status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload`.
+                    public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                        /// Size of cache artifact in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/cache_artifact_size`.
+                        public var cache_artifact_size: Swift.Int?
+                        /// Cache key for cacheable tasks.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/cache_key`.
+                        public var cache_key: Swift.String?
+                        /// Whether the task is cacheable.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/cacheable`.
+                        public var cacheable: Swift.Bool?
+                        /// Task duration in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/duration_ms`.
+                        public var duration_ms: Swift.Int?
+                        /// Task outcome.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/outcome`.
+                        @frozen public enum outcomePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case local_hit = "local_hit"
+                            case remote_hit = "remote_hit"
+                            case up_to_date = "up_to_date"
+                            case executed = "executed"
+                            case failed = "failed"
+                            case skipped = "skipped"
+                            case no_source = "no_source"
+                        }
+                        /// Task outcome.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/outcome`.
+                        public var outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.outcomePayload
+                        /// When the task started executing.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/started_at`.
+                        public var started_at: Foundation.Date?
+                        /// Task path (e.g., :app:compileKotlin).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/task_path`.
+                        public var task_path: Swift.String
+                        /// Task type class name.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasksPayload/task_type`.
+                        public var task_type: Swift.String?
+                        /// Creates a new `tasksPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cache_artifact_size: Size of cache artifact in bytes.
+                        ///   - cache_key: Cache key for cacheable tasks.
+                        ///   - cacheable: Whether the task is cacheable.
+                        ///   - duration_ms: Task duration in milliseconds.
+                        ///   - outcome: Task outcome.
+                        ///   - started_at: When the task started executing.
+                        ///   - task_path: Task path (e.g., :app:compileKotlin).
+                        ///   - task_type: Task type class name.
+                        public init(
+                            cache_artifact_size: Swift.Int? = nil,
+                            cache_key: Swift.String? = nil,
+                            cacheable: Swift.Bool? = nil,
+                            duration_ms: Swift.Int? = nil,
+                            outcome: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload.outcomePayload,
+                            started_at: Foundation.Date? = nil,
+                            task_path: Swift.String,
+                            task_type: Swift.String? = nil
+                        ) {
+                            self.cache_artifact_size = cache_artifact_size
+                            self.cache_key = cache_key
+                            self.cacheable = cacheable
+                            self.duration_ms = duration_ms
+                            self.outcome = outcome
+                            self.started_at = started_at
+                            self.task_path = task_path
+                            self.task_type = task_type
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cache_artifact_size
+                            case cache_key
+                            case cacheable
+                            case duration_ms
+                            case outcome
+                            case started_at
+                            case task_path
+                            case task_type
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasks`.
+                    public typealias tasksPayload = [Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayloadPayload]
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/tasks`.
+                    public var tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - duration_ms: Build duration in milliseconds.
+                    ///   - git_branch: Git branch.
+                    ///   - git_commit_sha: Git commit SHA.
+                    ///   - git_ref: Git ref.
+                    ///   - gradle_version: Gradle version.
+                    ///   - is_ci: Whether the build ran on CI.
+                    ///   - java_version: Java version.
+                    ///   - root_project_name: Root project name.
+                    ///   - status: Build status.
+                    ///   - tasks:
+                    public init(
+                        duration_ms: Swift.Int,
+                        git_branch: Swift.String? = nil,
+                        git_commit_sha: Swift.String? = nil,
+                        git_ref: Swift.String? = nil,
+                        gradle_version: Swift.String? = nil,
+                        is_ci: Swift.Bool? = nil,
+                        java_version: Swift.String? = nil,
+                        root_project_name: Swift.String? = nil,
+                        status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload,
+                        tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
+                    ) {
+                        self.duration_ms = duration_ms
+                        self.git_branch = git_branch
+                        self.git_commit_sha = git_commit_sha
+                        self.git_ref = git_ref
+                        self.gradle_version = gradle_version
+                        self.is_ci = is_ci
+                        self.java_version = java_version
+                        self.root_project_name = root_project_name
+                        self.status = status
+                        self.tasks = tasks
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case duration_ms
+                        case git_branch
+                        case git_commit_sha
+                        case git_ref
+                        case gradle_version
+                        case is_ci
+                        case java_version
+                        case root_project_name
+                        case status
+                        case tasks
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/content/application\/json`.
+                case json(Operations.createGradleBuild.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createGradleBuild.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createGradleBuild.Input.Path,
+                headers: Operations.createGradleBuild.Input.Headers = .init(),
+                body: Operations.createGradleBuild.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The build ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/json/id`.
+                        public var id: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id: The build ID.
+                        public init(id: Swift.String) {
+                            self.id = id
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/201/content/application\/json`.
+                    case json(Operations.createGradleBuild.Output.Created.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createGradleBuild.Output.Created.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createGradleBuild.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createGradleBuild.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// Build created
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.createGradleBuild.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.createGradleBuild.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createGradleBuild.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createGradleBuild.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// Invalid request
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createGradleBuild.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createGradleBuild.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createGradleBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createGradleBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/post(createGradleBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createGradleBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createGradleBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List all account tokens.
     ///
     /// This endpoint returns all tokens for a given account with pagination support.
@@ -25172,6 +26054,361 @@ public enum Operations {
             }
         }
     }
+    /// List runs for a test case.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
+    public enum listTestCaseRuns {
+        public static let id: Swift.String = "listTestCaseRuns"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the test case.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/test_case_id`.
+                public var test_case_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - test_case_id: The ID of the test case.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    test_case_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.test_case_id = test_case_id
+                }
+            }
+            public var path: Operations.listTestCaseRuns.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Filter by flaky status. When true, only returns flaky runs.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/flaky`.
+                public var flaky: Swift.Bool?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - flaky: Filter by flaky status. When true, only returns flaky runs.
+                ///   - page_size:
+                ///   - page:
+                public init(
+                    flaky: Swift.Bool? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.flaky = flaky
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listTestCaseRuns.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listTestCaseRuns.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listTestCaseRuns.Input.Path,
+                query: Operations.listTestCaseRuns.Input.Query = .init(),
+                headers: Operations.listTestCaseRuns.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload`.
+                        public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Duration in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/duration`.
+                            public var duration: Swift.Int
+                            /// Git branch.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/git_branch`.
+                            public var git_branch: Swift.String?
+                            /// Git commit SHA.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String?
+                            /// The test case run ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/id`.
+                            public var id: Swift.String
+                            /// Whether the run was on CI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_ci`.
+                            public var is_ci: Swift.Bool
+                            /// Whether the run was flaky.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_flaky`.
+                            public var is_flaky: Swift.Bool
+                            /// Whether this was a new test case.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_new`.
+                            public var is_new: Swift.Bool
+                            /// ISO 8601 timestamp when the run executed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
+                            public var ran_at: Foundation.Date?
+                            /// Build scheme.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
+                            public var scheme: Swift.String?
+                            /// Run status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                                case skipped = "skipped"
+                            }
+                            /// Run status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
+                            public var status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
+                            /// Creates a new `test_case_runsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration: Duration in milliseconds.
+                            ///   - git_branch: Git branch.
+                            ///   - git_commit_sha: Git commit SHA.
+                            ///   - id: The test case run ID.
+                            ///   - is_ci: Whether the run was on CI.
+                            ///   - is_flaky: Whether the run was flaky.
+                            ///   - is_new: Whether this was a new test case.
+                            ///   - ran_at: ISO 8601 timestamp when the run executed.
+                            ///   - scheme: Build scheme.
+                            ///   - status: Run status.
+                            public init(
+                                duration: Swift.Int,
+                                git_branch: Swift.String? = nil,
+                                git_commit_sha: Swift.String? = nil,
+                                id: Swift.String,
+                                is_ci: Swift.Bool,
+                                is_flaky: Swift.Bool,
+                                is_new: Swift.Bool,
+                                ran_at: Foundation.Date? = nil,
+                                scheme: Swift.String? = nil,
+                                status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
+                            ) {
+                                self.duration = duration
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.id = id
+                                self.is_ci = is_ci
+                                self.is_flaky = is_flaky
+                                self.is_new = is_new
+                                self.ran_at = ran_at
+                                self.scheme = scheme
+                                self.status = status
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration
+                                case git_branch
+                                case git_commit_sha
+                                case id
+                                case is_ci
+                                case is_flaky
+                                case is_new
+                                case ran_at
+                                case scheme
+                                case status
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runs`.
+                        public typealias test_case_runsPayload = [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runs`.
+                        public var test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - test_case_runs:
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.test_case_runs = test_case_runs
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case test_case_runs
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/application\/json`.
+                    case json(Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestCaseRuns.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestCaseRuns.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of test case runs
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listTestCaseRuns.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listTestCaseRuns.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestCaseRuns.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestCaseRuns.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listTestCaseRuns.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listTestCaseRuns.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -27220,361 +28457,6 @@ public enum Operations {
             }
         }
     }
-    /// List runs for a test case.
-    ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    public enum listTestCaseRuns {
-        public static let id: Swift.String = "listTestCaseRuns"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path`.
-            public struct Path: Sendable, Hashable {
-                /// The handle of the account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/project_handle`.
-                public var project_handle: Swift.String
-                /// The ID of the test case.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/test_case_id`.
-                public var test_case_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
-                ///   - test_case_id: The ID of the test case.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    test_case_id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.test_case_id = test_case_id
-                }
-            }
-            public var path: Operations.listTestCaseRuns.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// Filter by flaky status. When true, only returns flaky runs.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/flaky`.
-                public var flaky: Swift.Bool?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/page_size`.
-                public var page_size: Swift.Int?
-                ///
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/page`.
-                public var page: Swift.Int?
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - flaky: Filter by flaky status. When true, only returns flaky runs.
-                ///   - page_size:
-                ///   - page:
-                public init(
-                    flaky: Swift.Bool? = nil,
-                    page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil
-                ) {
-                    self.flaky = flaky
-                    self.page_size = page_size
-                    self.page = page
-                }
-            }
-            public var query: Operations.listTestCaseRuns.Input.Query
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.listTestCaseRuns.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - query:
-            ///   - headers:
-            public init(
-                path: Operations.listTestCaseRuns.Input.Path,
-                query: Operations.listTestCaseRuns.Input.Query = .init(),
-                headers: Operations.listTestCaseRuns.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/pagination_metadata`.
-                        public var pagination_metadata: Components.Schemas.PaginationMetadata
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload`.
-                        public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
-                            /// Duration in milliseconds.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/duration`.
-                            public var duration: Swift.Int
-                            /// Git branch.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/git_branch`.
-                            public var git_branch: Swift.String?
-                            /// Git commit SHA.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/git_commit_sha`.
-                            public var git_commit_sha: Swift.String?
-                            /// The test case run ID.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/id`.
-                            public var id: Swift.String
-                            /// Whether the run was on CI.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_ci`.
-                            public var is_ci: Swift.Bool
-                            /// Whether the run was flaky.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_flaky`.
-                            public var is_flaky: Swift.Bool
-                            /// Whether this was a new test case.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_new`.
-                            public var is_new: Swift.Bool
-                            /// ISO 8601 timestamp when the run executed.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
-                            public var ran_at: Foundation.Date?
-                            /// Build scheme.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
-                            public var scheme: Swift.String?
-                            /// Run status.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
-                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
-                                case success = "success"
-                                case failure = "failure"
-                                case skipped = "skipped"
-                            }
-                            /// Run status.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
-                            public var status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
-                            /// Creates a new `test_case_runsPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - duration: Duration in milliseconds.
-                            ///   - git_branch: Git branch.
-                            ///   - git_commit_sha: Git commit SHA.
-                            ///   - id: The test case run ID.
-                            ///   - is_ci: Whether the run was on CI.
-                            ///   - is_flaky: Whether the run was flaky.
-                            ///   - is_new: Whether this was a new test case.
-                            ///   - ran_at: ISO 8601 timestamp when the run executed.
-                            ///   - scheme: Build scheme.
-                            ///   - status: Run status.
-                            public init(
-                                duration: Swift.Int,
-                                git_branch: Swift.String? = nil,
-                                git_commit_sha: Swift.String? = nil,
-                                id: Swift.String,
-                                is_ci: Swift.Bool,
-                                is_flaky: Swift.Bool,
-                                is_new: Swift.Bool,
-                                ran_at: Foundation.Date? = nil,
-                                scheme: Swift.String? = nil,
-                                status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
-                            ) {
-                                self.duration = duration
-                                self.git_branch = git_branch
-                                self.git_commit_sha = git_commit_sha
-                                self.id = id
-                                self.is_ci = is_ci
-                                self.is_flaky = is_flaky
-                                self.is_new = is_new
-                                self.ran_at = ran_at
-                                self.scheme = scheme
-                                self.status = status
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case duration
-                                case git_branch
-                                case git_commit_sha
-                                case id
-                                case is_ci
-                                case is_flaky
-                                case is_new
-                                case ran_at
-                                case scheme
-                                case status
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runs`.
-                        public typealias test_case_runsPayload = [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runs`.
-                        public var test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - pagination_metadata:
-                        ///   - test_case_runs:
-                        public init(
-                            pagination_metadata: Components.Schemas.PaginationMetadata,
-                            test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
-                        ) {
-                            self.pagination_metadata = pagination_metadata
-                            self.test_case_runs = test_case_runs
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case pagination_metadata
-                            case test_case_runs
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/application\/json`.
-                    case json(Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.listTestCaseRuns.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.listTestCaseRuns.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// List of test case runs
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.listTestCaseRuns.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.listTestCaseRuns.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.listTestCaseRuns.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.listTestCaseRuns.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// You don't have permission to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.listTestCaseRuns.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.listTestCaseRuns.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -28294,6 +29176,458 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.revokeProjectToken.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a Gradle build by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)`.
+    public enum getGradleBuild {
+        public static let id: Swift.String = "getGradleBuild"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The build ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/path/build_id`.
+                public var build_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - build_id: The build ID.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    build_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.build_id = build_id
+                }
+            }
+            public var path: Operations.getGradleBuild.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGradleBuild.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGradleBuild.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getGradleBuild.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getGradleBuild.Input.Path,
+                headers: Operations.getGradleBuild.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cache_hit_rate`.
+                        public var cache_hit_rate: Swift.Double?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/cacheable_tasks_count`.
+                        public var cacheable_tasks_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/duration_ms`.
+                        public var duration_ms: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/git_ref`.
+                        public var git_ref: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/gradle_version`.
+                        public var gradle_version: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/inserted_at`.
+                        public var inserted_at: Foundation.Date?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/is_ci`.
+                        public var is_ci: Swift.Bool?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/java_version`.
+                        public var java_version: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/root_project_name`.
+                        public var root_project_name: Swift.String?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                            case cancelled = "cancelled"
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload`.
+                        public struct tasksPayloadPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/cache_artifact_size`.
+                            public var cache_artifact_size: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/cache_key`.
+                            public var cache_key: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/cacheable`.
+                            public var cacheable: Swift.Bool?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/duration_ms`.
+                            public var duration_ms: Swift.Int?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/outcome`.
+                            public var outcome: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/started_at`.
+                            public var started_at: Foundation.Date?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/task_path`.
+                            public var task_path: Swift.String?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasksPayload/task_type`.
+                            public var task_type: Swift.String?
+                            /// Creates a new `tasksPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cache_artifact_size:
+                            ///   - cache_key:
+                            ///   - cacheable:
+                            ///   - duration_ms:
+                            ///   - outcome:
+                            ///   - started_at:
+                            ///   - task_path:
+                            ///   - task_type:
+                            public init(
+                                cache_artifact_size: Swift.Int? = nil,
+                                cache_key: Swift.String? = nil,
+                                cacheable: Swift.Bool? = nil,
+                                duration_ms: Swift.Int? = nil,
+                                outcome: Swift.String? = nil,
+                                started_at: Foundation.Date? = nil,
+                                task_path: Swift.String? = nil,
+                                task_type: Swift.String? = nil
+                            ) {
+                                self.cache_artifact_size = cache_artifact_size
+                                self.cache_key = cache_key
+                                self.cacheable = cacheable
+                                self.duration_ms = duration_ms
+                                self.outcome = outcome
+                                self.started_at = started_at
+                                self.task_path = task_path
+                                self.task_type = task_type
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cache_artifact_size
+                                case cache_key
+                                case cacheable
+                                case duration_ms
+                                case outcome
+                                case started_at
+                                case task_path
+                                case task_type
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks`.
+                        public typealias tasksPayload = [Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks`.
+                        public var tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_executed_count`.
+                        public var tasks_executed_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_failed_count`.
+                        public var tasks_failed_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_local_hit_count`.
+                        public var tasks_local_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_no_source_count`.
+                        public var tasks_no_source_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_remote_hit_count`.
+                        public var tasks_remote_hit_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_skipped_count`.
+                        public var tasks_skipped_count: Swift.Int?
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/json/tasks_up_to_date_count`.
+                        public var tasks_up_to_date_count: Swift.Int?
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cache_hit_rate:
+                        ///   - cacheable_tasks_count:
+                        ///   - duration_ms:
+                        ///   - git_branch:
+                        ///   - git_commit_sha:
+                        ///   - git_ref:
+                        ///   - gradle_version:
+                        ///   - id:
+                        ///   - inserted_at:
+                        ///   - is_ci:
+                        ///   - java_version:
+                        ///   - root_project_name:
+                        ///   - status:
+                        ///   - tasks:
+                        ///   - tasks_executed_count:
+                        ///   - tasks_failed_count:
+                        ///   - tasks_local_hit_count:
+                        ///   - tasks_no_source_count:
+                        ///   - tasks_remote_hit_count:
+                        ///   - tasks_skipped_count:
+                        ///   - tasks_up_to_date_count:
+                        public init(
+                            cache_hit_rate: Swift.Double? = nil,
+                            cacheable_tasks_count: Swift.Int? = nil,
+                            duration_ms: Swift.Int? = nil,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
+                            gradle_version: Swift.String? = nil,
+                            id: Swift.String? = nil,
+                            inserted_at: Foundation.Date? = nil,
+                            is_ci: Swift.Bool? = nil,
+                            java_version: Swift.String? = nil,
+                            root_project_name: Swift.String? = nil,
+                            status: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.statusPayload? = nil,
+                            tasks: Operations.getGradleBuild.Output.Ok.Body.jsonPayload.tasksPayload? = nil,
+                            tasks_executed_count: Swift.Int? = nil,
+                            tasks_failed_count: Swift.Int? = nil,
+                            tasks_local_hit_count: Swift.Int? = nil,
+                            tasks_no_source_count: Swift.Int? = nil,
+                            tasks_remote_hit_count: Swift.Int? = nil,
+                            tasks_skipped_count: Swift.Int? = nil,
+                            tasks_up_to_date_count: Swift.Int? = nil
+                        ) {
+                            self.cache_hit_rate = cache_hit_rate
+                            self.cacheable_tasks_count = cacheable_tasks_count
+                            self.duration_ms = duration_ms
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
+                            self.gradle_version = gradle_version
+                            self.id = id
+                            self.inserted_at = inserted_at
+                            self.is_ci = is_ci
+                            self.java_version = java_version
+                            self.root_project_name = root_project_name
+                            self.status = status
+                            self.tasks = tasks
+                            self.tasks_executed_count = tasks_executed_count
+                            self.tasks_failed_count = tasks_failed_count
+                            self.tasks_local_hit_count = tasks_local_hit_count
+                            self.tasks_no_source_count = tasks_no_source_count
+                            self.tasks_remote_hit_count = tasks_remote_hit_count
+                            self.tasks_skipped_count = tasks_skipped_count
+                            self.tasks_up_to_date_count = tasks_up_to_date_count
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cache_hit_rate
+                            case cacheable_tasks_count
+                            case duration_ms
+                            case git_branch
+                            case git_commit_sha
+                            case git_ref
+                            case gradle_version
+                            case id
+                            case inserted_at
+                            case is_ci
+                            case java_version
+                            case root_project_name
+                            case status
+                            case tasks
+                            case tasks_executed_count
+                            case tasks_failed_count
+                            case tasks_local_hit_count
+                            case tasks_no_source_count
+                            case tasks_remote_hit_count
+                            case tasks_skipped_count
+                            case tasks_up_to_date_count
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getGradleBuild.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getGradleBuild.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuild.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuild.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Gradle build details
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getGradleBuild.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getGradleBuild.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuild.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuild.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getGradleBuild.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getGradleBuild.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGradleBuild.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGradleBuild.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Build not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/get(getGradleBuild)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getGradleBuild.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getGradleBuild.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

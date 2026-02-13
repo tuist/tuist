@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 public protocol RemoveOrganizationMemberServicing {
     func removeOrganizationMember(
@@ -26,7 +26,7 @@ enum RemoveOrganizationMemberServiceError: LocalizedError {
     }
 }
 
-public final class RemoveOrganizationMemberService: RemoveOrganizationMemberServicing {
+public struct RemoveOrganizationMemberService: RemoveOrganizationMemberServicing {
     public init() {}
 
     public func removeOrganizationMember(

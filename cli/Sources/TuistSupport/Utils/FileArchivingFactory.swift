@@ -13,7 +13,7 @@ public protocol FileArchivingFactorying {
     func makeFileUnarchiver(for path: AbsolutePath) throws -> FileUnarchiving
 }
 
-public class FileArchivingFactory: FileArchivingFactorying {
+public struct FileArchivingFactory: FileArchivingFactorying {
     public init() {}
 
     public func makeFileArchiver(for paths: [AbsolutePath]) throws -> FileArchiving {

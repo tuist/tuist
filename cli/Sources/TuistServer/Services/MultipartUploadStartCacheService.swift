@@ -31,7 +31,7 @@
         }
     }
 
-    public final class MultipartUploadStartCacheService: MultipartUploadStartCacheServicing {
+    public struct MultipartUploadStartCacheService: MultipartUploadStartCacheServicing {
         public init() {}
 
         public func uploadCache(
