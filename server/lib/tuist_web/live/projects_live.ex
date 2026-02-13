@@ -151,7 +151,13 @@ defmodule TuistWeb.ProjectsLive do
           >
             <.project_background />
             <div data-part="title">
-              {project.name}
+              <span>{project.name}</span>
+              <.badge
+                :if={build_system_badge(project.build_system)}
+                label={build_system_badge(project.build_system).label}
+                color={build_system_badge(project.build_system).color}
+                size="large"
+              />
             </div>
             <div
               :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
@@ -194,7 +200,13 @@ defmodule TuistWeb.ProjectsLive do
             >
               <.project_background />
               <div data-part="title">
-                {project.name}
+                <span>{project.name}</span>
+                <.badge
+                  :if={build_system_badge(project.build_system)}
+                  label={build_system_badge(project.build_system).label}
+                  color={build_system_badge(project.build_system).color}
+                  size="large"
+                />
               </div>
               <div
                 :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
@@ -224,7 +236,7 @@ defmodule TuistWeb.ProjectsLive do
             </div>
           </div>
         </div>
-        
+
     <!-- All projects section -->
         <div data-part="all-section">
           <h3 data-part="section-title">{dgettext("dashboard_projects", "All projects")}</h3>
@@ -262,7 +274,13 @@ defmodule TuistWeb.ProjectsLive do
             >
               <.project_background />
               <div data-part="title">
-                {project.name}
+                <span>{project.name}</span>
+                <.badge
+                  :if={build_system_badge(project.build_system)}
+                  label={build_system_badge(project.build_system).label}
+                  color={build_system_badge(project.build_system).color}
+                  size="large"
+                />
               </div>
               <div
                 :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
@@ -434,6 +452,10 @@ defmodule TuistWeb.ProjectsLive do
 
     {:noreply, socket}
   end
+
+  defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
+  defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
+  defp build_system_badge(_), do: nil
 
   defp project_background(assigns) do
     ~H"""
