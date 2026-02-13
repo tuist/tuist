@@ -114,10 +114,10 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenExternalObjcTargetHasResourcesAndSupportsThem() async throws {
+    func mapWhenExternalObjcStaticFrameworkHasResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
         let project = Project.test(targets: [target], type: .external(hash: nil))
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
@@ -856,7 +856,7 @@ struct ResourcesProjectMapperTests {
 
     @Test(arguments: [
         ("/ViewController.swift", true),
-        ("/TargetResources.swift", false)
+        ("/TargetResources.swift", false),
     ])
     func mapWhenProjectIsNotExternalTargetHasTargetResourcesSwiftSourceAndResourceFiles(
         sourceFile: SourceFile,
@@ -984,7 +984,6 @@ struct ResourcesProjectMapperTests {
         if let additionalFileExpectations {
             additionalFileExpectations(file)
         }
-
     }
 
     private func verifyObjcBundleAccessor(

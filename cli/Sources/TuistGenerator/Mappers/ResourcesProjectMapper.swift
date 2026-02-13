@@ -55,7 +55,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !target.supportsResources {
+        if !target.supportsResources || target.product == .staticFramework {
             let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
@@ -112,7 +112,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         if case .external = project.type,
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
-           !target.supportsResources
+           !target.supportsResources || target.product == .staticFramework
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -224,7 +224,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        let bundleAccessor = if target.supportsResources {
+        let bundleAccessor = if target.supportsResources, target.product != .staticFramework {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
