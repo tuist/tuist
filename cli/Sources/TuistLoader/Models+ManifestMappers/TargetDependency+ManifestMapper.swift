@@ -120,7 +120,7 @@ extension XcodeGraph.TargetDependency {
 
 extension XcodeGraph.ForeignBuild.Input {
     static func from(
-        manifest: ProjectDescription.Input,
+        manifest: ProjectDescription.Target.ForeignBuild.Input,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming
     ) async throws -> [XcodeGraph.ForeignBuild.Input] {
