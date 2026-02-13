@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.146.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add foreign build system dependencies by [@fortmarek](https://github.com/fortmarek) in [#9400](https://github.com/tuist/tuist/pull/9400)
+### 🐛 Bug Fixes
+
+* increase inspect build activity log timeout and make it configurable by [@fortmarek](https://github.com/fortmarek) in [#9465](https://github.com/tuist/tuist/pull/9465)
+* fix CLI release (static linking, Musl imports, Bundle(for:)) by [@fortmarek](https://github.com/fortmarek) in [#9459](https://github.com/tuist/tuist/pull/9459)
+* use canImport(Musl) for Static Linux SDK compatibility by [@fortmarek](https://github.com/fortmarek) in [#9457](https://github.com/tuist/tuist/pull/9457)
+* remove OpenAPIURLSession from cross-platform targets for Linux static SDK by [@fortmarek](https://github.com/fortmarek) in [#9456](https://github.com/tuist/tuist/pull/9456)
+* restore cache run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9451](https://github.com/tuist/tuist/pull/9451)
+* only cache dependency checkouts in Linux CI jobs by [@fortmarek](https://github.com/fortmarek) in [#9447](https://github.com/tuist/tuist/pull/9447)
+* add missing tree-shake after focus targets in automation mapper chain by [@pepicrft](https://github.com/pepicrft) in [#9443](https://github.com/tuist/tuist/pull/9443)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.0
+
 ## What's Changed in 4.145.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
