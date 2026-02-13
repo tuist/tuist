@@ -76,6 +76,9 @@
                     "text": "更新日志"
                 }
             }
+        },
+        "tutorials": {
+            "text": "教程"
         }
     },
     "sidebars": {
@@ -92,6 +95,9 @@
                         },
                         "directories": {
                             "text": "目录"
+                        },
+                        "debugging": {
+                            "text": "调试"
                         }
                     }
                 },
@@ -111,6 +117,22 @@
                     "items": {
                         "from-v3-to-v4": {
                             "text": "从 v3 到 v4"
+                        }
+                    }
+                },
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "生成的项目"
+                        }
+                    }
+                },
+                "configuration": {
+                    "text": "配置",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
                         }
                     }
                 }
@@ -144,6 +166,26 @@
                 },
                 "releases": {
                     "text": "运行"
+                },
+                "debugging": {
+                    "text": "调试"
+                },
+                "code": {
+                    "text": "代码",
+                    "items": {
+                        "handbook": {
+                            "text": "手册"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "服务器"
+                        },
+                        "docs": {
+                            "text": "文档"
+                        }
+                    }
                 }
             }
         },
@@ -366,6 +408,14 @@
                         },
                         "qa": {
                             "text": "质量保证"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "不规则测试"
+                                }
+                            },
+                            "text": "测试洞察"
                         }
                     }
                 },
@@ -374,6 +424,9 @@
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "技能"
                         }
                     }
                 },
@@ -387,12 +440,15 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Git 锻造",
+                            "text": "Git 代码仓库",
                             "items": {
                                 "github": {
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -418,13 +474,29 @@
                             "text": "自主托管"
                         },
                         "accounts-and-projects": {
-                            "text": "Accounts and projects"
+                            "text": "账户和项目"
                         },
                         "authentication": {
-                            "text": "Authentication"
+                            "text": "验证"
                         }
                     },
-                    "text": "Server"
+                    "text": "服务器"
+                },
+                "install-tuist": {
+                    "text": "安装 Tuist"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "教程",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "创建一个生成的项目"
+                        }
+                    }
                 }
             }
         }

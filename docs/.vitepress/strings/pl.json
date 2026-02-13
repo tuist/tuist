@@ -76,6 +76,9 @@
                     "text": "Dziennik zmian"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Samouczki"
         }
     },
     "sidebars": {
@@ -92,6 +95,9 @@
                         },
                         "directories": {
                             "text": "Katalogi"
+                        },
+                        "debugging": {
+                            "text": "Debugowanie"
                         }
                     }
                 },
@@ -111,6 +117,22 @@
                     "items": {
                         "from-v3-to-v4": {
                             "text": "Z wersji v3 do v4"
+                        }
+                    }
+                },
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Wygenerowane projekty"
+                        }
+                    }
+                },
+                "configuration": {
+                    "text": "Konfiguracja",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
                         }
                     }
                 }
@@ -144,6 +166,26 @@
                             "text": "Logowanie"
                         }
                     }
+                },
+                "debugging": {
+                    "text": "Debugowanie"
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": "Dokumenty"
+                        },
+                        "handbook": {
+                            "text": "Podręcznik"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Serwer"
+                        }
+                    },
+                    "text": "Kod"
                 }
             }
         },
@@ -366,6 +408,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Nierzetelne testy"
+                                }
+                            },
+                            "text": "Wnioski z testów"
                         }
                     }
                 },
@@ -374,6 +424,9 @@
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "Umiejętności"
                         }
                     }
                 },
@@ -392,7 +445,10 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "Kuźnie Git"
+                            "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -415,7 +471,7 @@
                                     "text": "Instalacja"
                                 }
                             },
-                            "text": "Hosting własny"
+                            "text": "Samodzielne hostowanie"
                         },
                         "accounts-and-projects": {
                             "text": "Konta i projekty"
@@ -425,6 +481,22 @@
                         }
                     },
                     "text": "Serwer"
+                },
+                "install-tuist": {
+                    "text": "Instalacja Tuist"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Samouczki",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Utwórz wygenerowany projekt"
+                        }
+                    }
                 }
             }
         }
