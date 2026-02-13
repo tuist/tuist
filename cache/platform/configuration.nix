@@ -65,6 +65,12 @@
           to = 9155;
         }
       ];
+      interfaces."br-+" = {
+        allowedTCPPorts = [
+          3100
+          4317
+        ];
+      };
     };
   };
 
