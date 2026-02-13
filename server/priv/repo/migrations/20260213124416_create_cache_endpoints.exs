@@ -23,7 +23,7 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
     execute seed_sql("https://cache-us-east.tuist.dev", "US East", "prod")
     execute seed_sql("https://cache-us-west.tuist.dev", "US West", "prod")
     execute seed_sql("https://cache-ap-southeast.tuist.dev", "Asia Pacific Southeast", "prod")
-    execute seed_sql("https://cache-sa-west.tuist.dev", "Sa West", "prod")
+    execute seed_sql("https://cache-sa-west.tuist.dev", "South America West", "prod")
 
     # Staging (2 nodes)
     execute seed_sql("https://cache-eu-central-staging.tuist.dev", "EU Central Staging", "stag")

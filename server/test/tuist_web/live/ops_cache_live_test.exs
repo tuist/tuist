@@ -15,8 +15,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
 
     conn = log_in_user(conn, user)
 
-    # Mock Environment.env/0 to return "test"
-    Mimic.stub(Environment, :env, fn -> "test" end)
+    Mimic.stub(Environment, :env, fn -> :test end)
 
     %{conn: conn, user: user}
   end
@@ -38,9 +37,6 @@ defmodule TuistWeb.OpsCacheLiveTest do
     assert html =~ "Test Node"
     assert html =~ "https://cache-test.tuist.dev"
     assert html =~ "Active"
-
-    # Cleanup
-    CacheEndpoints.delete_cache_endpoint(endpoint)
   end
 
   test "toggles maintenance mode", %{conn: conn} do
@@ -60,9 +56,6 @@ defmodule TuistWeb.OpsCacheLiveTest do
     # Then
     updated_endpoint = CacheEndpoints.get_cache_endpoint!(endpoint.id)
     assert updated_endpoint.maintenance == true
-
-    # Cleanup
-    CacheEndpoints.delete_cache_endpoint(endpoint)
   end
 
   test "deletes an endpoint", %{conn: conn} do
@@ -100,10 +93,6 @@ defmodule TuistWeb.OpsCacheLiveTest do
     # Then
     endpoints = CacheEndpoints.list_cache_endpoints("test")
     assert Enum.any?(endpoints, fn e -> e.display_name == "New Node" end)
-
-    # Cleanup
-    new_endpoint = Enum.find(endpoints, fn e -> e.display_name == "New Node" end)
-    CacheEndpoints.delete_cache_endpoint(new_endpoint)
   end
 
   test "shows empty state when no endpoints exist", %{conn: conn} do
