@@ -300,6 +300,10 @@ export async function guidesSidebar(locale) {
           )}</span>`,
           link: `/${locale}/guides/install-tuist`,
         },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" style="display:block;" /> Install the Gradle plugin</span>`,
+          link: `/${locale}/guides/install-gradle-plugin`,
+        },
       ],
     },
     {
@@ -518,10 +522,10 @@ export async function guidesSidebar(locale) {
           collapsed: true,
           items: [
             {
-              text: localizedString(
+              text: `<span style="display: inline-flex; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" style="display:block;" /> ${localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.cache.items.xcode.text",
-              ),
+              )}</span>`,
               collapsed: true,
               items: [
                 {
@@ -541,10 +545,10 @@ export async function guidesSidebar(locale) {
               ],
             },
             {
-              text: localizedString(
+              text: `<span style="display: inline-flex; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" style="display:block;" /> ${localizedString(
                 locale,
                 "sidebars.guides.items.develop.items.cache.items.gradle-cache.text",
-              ),
+              )}</span>`,
               link: `/${locale}/guides/features/cache/gradle-cache`,
             },
           ],
@@ -607,6 +611,17 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
           link: `/${locale}/guides/features/insights`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
+              link: `/${locale}/guides/features/insights/xcode-cache`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
+              link: `/${locale}/guides/features/insights/gradle-cache`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testInsightsIcon()} ${localizedString(
