@@ -8,15 +8,21 @@ defmodule TuistWeb.Runs.CacheEndpointFormatter do
   Includes an empty string option for "tuist.dev" at the beginning.
   """
   def cache_endpoint_options do
-    ["" | Tuist.Environment.cache_endpoints()]
+    endpoints =
+      Tuist.Environment.env()
+      |> Tuist.CacheEndpoints.list_cache_endpoints()
+      |> Enum.map(& &1.url)
+
+    ["" | endpoints]
   end
 
   @doc """
   Returns a map of cache endpoint URLs to their display names.
   """
   def cache_endpoint_display_names(none_label) do
-    Tuist.Environment.cache_endpoints()
-    |> Map.new(fn endpoint -> {endpoint, format_cache_endpoint(endpoint)} end)
+    Tuist.Environment.env()
+    |> Tuist.CacheEndpoints.list_cache_endpoints()
+    |> Map.new(fn endpoint -> {endpoint.url, endpoint.display_name} end)
     |> Map.put("", none_label)
   end
 

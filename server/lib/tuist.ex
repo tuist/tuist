@@ -29,6 +29,7 @@ defmodule Tuist do
       Bundles.Bundle,
       Cache,
       Cache.Analytics,
+      CacheEndpoints,
       Gradle,
       Gradle.Analytics,
       Gradle.Build,

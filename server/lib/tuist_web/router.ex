@@ -572,6 +572,16 @@ defmodule TuistWeb.Router do
       live "/qa", TuistWeb.OpsQALive
       live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
     end
+
+    live_session :ops_cache,
+      layout: {TuistWeb.Layouts, :ops},
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.LayoutLive, :ops}
+      ] do
+      live "/cache", TuistWeb.OpsCacheLive
+    end
   end
 
   if Tuist.Environment.dev?() do
