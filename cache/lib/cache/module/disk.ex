@@ -68,6 +68,16 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
+  Returns the absolute assembly path used while a multipart upload is in progress.
+  """
+  def assembly_path(account_handle, project_handle, category, hash, name, upload_id) do
+    account_handle
+    |> key(project_handle, category, hash, name)
+    |> Disk.artifact_path()
+    |> Kernel.<>(".tmp.#{upload_id}")
+  end
+
+  @doc """
   Assembles multiple part files into a single module artifact.
 
   Creates the artifact from ordered part files using efficient file copying.
@@ -81,16 +91,10 @@ defmodule Cache.Module.Disk do
          false <- File.exists?(dest_path) do
       tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
 
-      with {:ok, :ok} <-
-             File.open(tmp_dest, [:write, :append, :binary], &copy_parts_to_file(part_paths, &1)),
+      with :ok <- append_buffered_parts(tmp_dest, part_paths),
            :ok <- File.rename(tmp_dest, dest_path) do
         :ok
       else
-        {:ok, {:error, reason}} ->
-          Logger.error("Failed to assemble artifact to #{dest_path}: #{inspect(reason)}")
-          File.rm(tmp_dest)
-          {:error, reason}
-
         {:error, :eexist} ->
           File.rm(tmp_dest)
           {:error, :exists}
@@ -102,6 +106,46 @@ defmodule Cache.Module.Disk do
       end
     else
       true -> {:error, :exists}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Finalizes a multipart assembly file by appending buffered parts (if any)
+  and atomically renaming to the final artifact destination.
+  """
+  def complete_assembly(assembly_path, upload, buffered_part_paths) do
+    dest_path =
+      upload.account_handle
+      |> key(upload.project_handle, upload.category, upload.hash, upload.name)
+      |> Disk.artifact_path()
+
+    with :ok <- Disk.ensure_directory(dest_path),
+         false <- File.exists?(dest_path),
+         :ok <- append_buffered_parts(assembly_path, buffered_part_paths),
+         :ok <- File.rename(assembly_path, dest_path) do
+      :ok
+    else
+      true ->
+        File.rm(assembly_path)
+        {:error, :exists}
+
+      {:error, :eexist} ->
+        File.rm(assembly_path)
+        {:error, :exists}
+
+      {:error, reason} = error ->
+        Logger.error("Failed to finalize assembled artifact to #{dest_path}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  defp append_buffered_parts(_path, []), do: :ok
+
+  defp append_buffered_parts(path, part_paths) do
+    case File.open(path, [:append, :binary, :raw], &copy_parts_to_file(part_paths, &1)) do
+      {:ok, :ok} -> :ok
+      {:ok, {:error, reason}} -> {:error, reason}
       {:error, reason} -> {:error, reason}
     end
   end
