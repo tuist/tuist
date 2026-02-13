@@ -157,6 +157,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                     excludedTargets: excludedTargets
                 )
             )
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
 
             if !ignoreBinaryCache {
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
