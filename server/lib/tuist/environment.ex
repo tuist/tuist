@@ -102,40 +102,13 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
-        default_cache_endpoints()
-    end
-  end
-
-  defp default_cache_endpoints do
-    if tuist_hosted?() do
-      cond do
-        prod?() ->
-          [
-            "https://cache-eu-central.tuist.dev",
-            "https://cache-eu-north.tuist.dev",
-            "https://cache-us-east.tuist.dev",
-            "https://cache-us-west.tuist.dev",
-            "https://cache-ap-southeast.tuist.dev",
-            "https://cache-sa-west.tuist.dev"
-          ]
-
-        stag?() ->
-          ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
-
-        can?() ->
-          ["https://cache-eu-central-canary.tuist.dev"]
-
-        dev?() ->
-          ["http://localhost:8087"]
-
-        test?() ->
-          ["https://cache-eu-central-test.tuist.dev", "https://cache-us-east-test.tuist.dev"]
-
-        true ->
+        if tuist_hosted?() do
+          env()
+          |> Tuist.CacheEndpoints.list_active_cache_endpoints()
+          |> Enum.map(& &1.url)
+        else
           []
-      end
-    else
-      []
+        end
     end
   end
 
