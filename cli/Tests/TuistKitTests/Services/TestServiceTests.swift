@@ -2638,8 +2638,8 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         let expectedSkipTestTargets = [
-            try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
-            try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
+            try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: nil),
+            try TestIdentifier(target: "CoreTests", class: nil, method: nil),
         ]
         verify(xcodebuildController)
             .test(

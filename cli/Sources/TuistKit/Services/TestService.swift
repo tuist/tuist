@@ -1086,12 +1086,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             pageSize: 500
         )
 
-        return try response.test_cases.map { testCase in
-            try TestIdentifier(
+        // xcodebuild's -skip-testing flag does not support method-level identifiers
+        // for Swift Testing suites. Passing `-skip-testing Target/Suite/method()` prevents
+        // the entire suite from being discovered. Since we cannot distinguish Swift Testing
+        // suites from XCTest classes here, we drop method-level granularity and skip at the
+        // suite (or module) level, deduplicating to avoid repeated flags.
+        var seen = Set<TestIdentifier>()
+        return try response.test_cases.compactMap { testCase in
+            let identifier = try TestIdentifier(
                 target: testCase.module.name,
                 class: testCase.suite?.name,
-                method: testCase.name
+                method: nil
             )
+            guard seen.insert(identifier).inserted else { return nil }
+            return identifier
         }
     }
 }
