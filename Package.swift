@@ -102,6 +102,8 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
     .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
     .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
+    "TuistSimulator",
+    xcodeGraphDependency,
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
     "TuistConstants",
@@ -305,8 +307,7 @@ tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
 tuistServerDependencies.append(contentsOf: [
     "TuistSupport", "TuistCore", "TuistProcess", "TuistCI",
     "TuistAutomation", "TuistGit", "TuistXCActivityLog",
-    "TuistXCResultService", "TuistSimulator",
-    xcodeGraphDependency,
+    "TuistXCResultService",
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
