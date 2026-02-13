@@ -379,6 +379,7 @@ defmodule TuistWeb.Router do
           end
 
           post "/", TestsController, :create
+          post "/:test_run_id/stack-traces", StackTracesController, :create
         end
 
         scope "/builds" do

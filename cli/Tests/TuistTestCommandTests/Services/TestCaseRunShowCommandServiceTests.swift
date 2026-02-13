@@ -245,6 +245,55 @@ struct TestCaseRunShowCommandServiceTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedNoora
+    ) func run_with_stack_trace() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCaseRun = ServerTestCaseRun.test(
+            stackTrace: .init(
+                app_name: "MyApp",
+                exception_subtype: "KERN_INVALID_ADDRESS",
+                exception_type: "EXC_CRASH",
+                file_name: "MyApp-2024-01-15-123456.ips",
+                id: "trace-id",
+                os_version: "17.2",
+                raw_content: "crash log content here",
+                signal: "SIGABRT"
+            ),
+            status: .failure
+        )
+        given(getTestCaseRunService).getTestCaseRun(
+            fullHandle: .value(fullHandle),
+            testCaseRunId: .value("run-crash"),
+            serverURL: .value(serverURL)
+        ).willReturn(testCaseRun)
+
+        // When
+        try await subject.run(
+            project: nil,
+            testCaseRunId: "run-crash",
+            path: nil,
+            json: false
+        )
+
+        // Then
+        #expect(ui().contains("Stack Trace"))
+        #expect(ui().contains("MyApp-2024-01-15-123456.ips"))
+        #expect(ui().contains("MyApp"))
+        #expect(ui().contains("17.2"))
+        #expect(ui().contains("EXC_CRASH"))
+        #expect(ui().contains("SIGABRT"))
+        #expect(ui().contains("KERN_INVALID_ADDRESS"))
+        #expect(ui().contains("crash log content here"))
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora
     ) func run_without_suite() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"

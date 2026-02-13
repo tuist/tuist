@@ -9,6 +9,7 @@ import TuistCore
 import TuistEnvironment
 import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
@@ -43,6 +44,7 @@ protocol InspectResultBundleServicing {
 struct InspectResultBundleService: InspectResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
+    private let uploadStackTraceService: UploadStackTraceServicing
     private let xcResultService: XCResultServicing
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -55,6 +57,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
+        uploadStackTraceService: UploadStackTraceServicing = UploadStackTraceService(),
         xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -66,6 +69,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
+        self.uploadStackTraceService = uploadStackTraceService
         self.xcResultService = xcResultService
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
@@ -124,6 +128,19 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider
         )
+
+        if !testSummary.stackTraces.isEmpty {
+            do {
+                try await uploadStackTraceService.uploadStackTraces(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testRunId: test.id,
+                    stackTraces: testSummary.stackTraces
+                )
+            } catch {
+                Logger.current.warning("Failed to upload stack traces: \(error.localizedDescription)")
+            }
+        }
 
         await RunMetadataStorage.current.update(testRunId: test.id)
 

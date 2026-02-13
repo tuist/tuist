@@ -200,6 +200,10 @@ defmodule TuistWeb.API.TestsController do
                            required: [:line_number]
                          }
                        },
+                       stack_trace_id: %Schema{
+                         type: :string,
+                         description: "The deterministic UUID of the crash stack trace associated with this test case."
+                       },
                        repetitions: %Schema{
                          type: :array,
                          description: "The repetition attempts for this test case (when run with retry-on-failure).",

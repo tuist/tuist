@@ -47,6 +47,7 @@ defmodule Tuist.Tests.TestCaseRun do
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
     field :suite_name, Ch, type: "String"
+    field :stack_trace_id, Ch, type: "Nullable(UUID)"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
 
@@ -76,7 +77,8 @@ defmodule Tuist.Tests.TestCaseRun do
       :duration,
       :inserted_at,
       :module_name,
-      :suite_name
+      :suite_name,
+      :stack_trace_id
     ])
     |> validate_required([
       :id,

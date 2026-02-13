@@ -227,6 +227,22 @@ defmodule TuistWeb.API.TestCaseRunsController do
                  },
                  required: [:repetition_number, :status, :duration]
                }
+             },
+             stack_trace: %Schema{
+               type: :object,
+               nullable: true,
+               description: "Crash stack trace associated with this test case run.",
+               properties: %{
+                 id: %Schema{type: :string, format: :uuid, description: "The stack trace ID."},
+                 file_name: %Schema{type: :string, description: "The crash log file name."},
+                 app_name: %Schema{type: :string, nullable: true, description: "The app name."},
+                 os_version: %Schema{type: :string, nullable: true, description: "The OS version."},
+                 exception_type: %Schema{type: :string, nullable: true, description: "The exception type (e.g., EXC_CRASH)."},
+                 signal: %Schema{type: :string, nullable: true, description: "The signal (e.g., SIGABRT)."},
+                 exception_subtype: %Schema{type: :string, nullable: true, description: "The exception subtype."},
+                 raw_content: %Schema{type: :string, description: "The full crash log content."}
+               },
+               required: [:id, :file_name, :raw_content]
              }
            },
            required: [
@@ -254,6 +270,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
     case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
+          stack_trace = fetch_stack_trace(run.stack_trace_id)
+
           json(conn, %{
             id: run.id,
             test_case_id: run.test_case_id,
@@ -286,7 +304,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
                   status: to_string(r.status),
                   duration: r.duration
                 }
-              end)
+              end),
+            stack_trace: stack_trace
           })
         else
           conn
@@ -300,6 +319,30 @@ defmodule TuistWeb.API.TestCaseRunsController do
         |> json(%{message: "Test case run not found."})
     end
   end
+
+  defp fetch_stack_trace(nil), do: nil
+
+  defp fetch_stack_trace(stack_trace_id) do
+    case Tests.get_stack_trace_by_id(stack_trace_id) do
+      {:ok, st} ->
+        %{
+          id: st.id,
+          file_name: st.file_name,
+          app_name: nullable_string(st.app_name),
+          os_version: nullable_string(st.os_version),
+          exception_type: nullable_string(st.exception_type),
+          signal: nullable_string(st.signal),
+          exception_subtype: nullable_string(st.exception_subtype),
+          raw_content: st.raw_content
+        }
+
+      {:error, :not_found} ->
+        nil
+    end
+  end
+
+  defp nullable_string(""), do: nil
+  defp nullable_string(value), do: value
 
   defp format_ran_at(nil), do: nil
 

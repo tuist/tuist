@@ -26,6 +26,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
+  alias Tuist.Tests.StackTrace
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -36,6 +37,29 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestSuiteRun
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
+  def upload_stack_trace(attrs) do
+    changeset = StackTrace.create_changeset(%StackTrace{}, attrs)
+
+    if changeset.valid? do
+      IngestRepo.insert(changeset)
+    else
+      {:error, changeset}
+    end
+  end
+
+  def get_stack_trace_by_id(id) do
+    query =
+      from(st in StackTrace,
+        where: st.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      stack_trace -> {:ok, stack_trace}
+    end
+  end
 
   def get_test(id, opts \\ []) do
     case Ecto.UUID.cast(id) do
@@ -752,7 +776,8 @@ defmodule Tuist.Tests do
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
-          suite_name: suite_name || ""
+          suite_name: suite_name || "",
+          stack_trace_id: Map.get(case_attrs, :stack_trace_id)
         }
 
         failures = Map.get(case_attrs, :failures, [])
