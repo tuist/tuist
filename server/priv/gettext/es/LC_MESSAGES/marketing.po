@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:48+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-06 13:02+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,7 +38,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>Nuestro compromiso con el código abierto y nuestros valores fundamentales conforman nuestro enfoque único de los precios. A diferencia de muchos modelos que intentan sacarle hasta el último dólar con llamadas de \"ventas de contacto\", demostraciones limitadas y otras tácticas de venta, nosotros creemos en la equidad y la transparencia. Tratamos a todos por igual y fijamos precios justos para todos. Al elegir nuestros servicios, no sólo obtiene un gran producto, sino que también apoya el desarrollo de más proyectos de código abierto. Entendemos la creación de un negocio próspero como un viaje a largo plazo, no como un sprint a corto plazo lleno de prácticas turbias. Puedes %{read_more} sobre nuestra filosofía.</p>\n<p>Al apoyar a Tuist, también estás apoyando el desarrollo de más software de código abierto para el ecosistema Swift.</p>\n"
+msgstr ""
+"<p>Nuestro compromiso con el código abierto y nuestros valores fundamentales conforman nuestro enfoque único de los precios. A diferencia de muchos modelos que intentan sacarle hasta el último dólar con llamadas de \"ventas de contacto\", demostraciones limitadas y otras tácticas de venta, nosotros creemos en la equidad y la transparencia. Tratamos a todos por igual y fijamos precios justos para todos. Al elegir nuestros servicios, no sólo obtiene un gran producto, sino que también apoya el desarrollo de más proyectos de código abierto. Entendemos la creación de un negocio próspero como un viaje a largo plazo, no como un sprint a corto plazo lleno de prácticas turbias. Puedes %{read_more} sobre nuestra filosofía.</p>\n"
+"<p>Al apoyar a Tuist, también estás apoyando el desarrollo de más software de código abierto para el ecosistema Swift.</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "Se ha enviado un correo electrónico de confirmación a su cuenta con más detalles."
@@ -883,9 +885,6 @@ msgstr "y más"
 msgid "per additional unit"
 msgstr "por unidad adicional"
 
-msgid "AI writes faster. So should your builds."
-msgstr "La IA escribe más rápido. Tus builds también deberían."
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "La ejecución de un comando Tuist que interactúa con el servidor extrae información sobre los resultados de las pruebas. Como estimación, esto es aproximadamente equivalente al número de ejecuciones de prueba en CI."
 
@@ -912,6 +911,169 @@ msgstr "en vivo en nuestro panel"
 
 msgid "Language"
 msgstr "Idioma"
+
+#, fuzzy
+msgid "Read story"
+msgstr "Leer historia"
+
+#, fuzzy
+msgid "%{company} case study"
+msgstr "%{company} caso práctico"
+
+#, fuzzy
+msgid "(opens in new tab)"
+msgstr "(se abre en una nueva pestaña)"
+
+#, fuzzy
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr "Descubre cómo equipos de todo el mundo utilizan Tuist para crear aplicaciones de alta calidad más rápidamente, optimizar los flujos de trabajo y ahorrar innumerables horas de ingeniería."
+
+#, fuzzy
+msgid "Founded"
+msgstr "Fundada"
+
+#, fuzzy
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr "Descubre cómo los equipos utilizan Tuist para ampliar su desarrollo de iOS."
+
+#, fuzzy
+msgid "Onboarded"
+msgstr "Incorporado"
+
+#, fuzzy
+msgid "Read next"
+msgstr "Leer a continuación"
+
+#, fuzzy
+msgid "Explore Tuist's features on the public dashboard"
+msgstr "Explora las funciones de Tuist en el panel de control público."
+
+#, fuzzy
+msgid "Public dashboard"
+msgstr "Panel de control público"
+
+#, fuzzy
+msgid "See how leading teams scale with Tuist"
+msgstr "Descubre cómo los equipos líderes crecen con Tuist."
+
+#, fuzzy
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr "Descubre cómo las empresas tecnológicas líderes están ampliando su desarrollo con Tuist."
+
+#, fuzzy
+msgid "AI moves fast. So should your builds."
+msgstr "La IA avanza rápidamente. Tus creaciones también deberían hacerlo."
+
+#, fuzzy
+msgid "Customers"
+msgstr "Clientes"
+
+#, fuzzy
+msgid "Tuist Customers"
+msgstr "Clientes de Tuist"
+
+#, fuzzy
+msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+msgstr "Prueba de control de calidad de la agencia del flujo de pago con 8 problemas identificados y 16 capturas de pantalla tomadas."
+
+#, fuzzy
+msgid "App preview interface showing share preview button and platform options"
+msgstr "Interfaz de vista previa de la aplicación que muestra el botón de vista previa compartida y las opciones de plataforma."
+
+#, fuzzy
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr "Detecta automáticamente las pruebas inestables que fallan sin cambios en el código y reduce el tiempo dedicado a investigar fallos falsos."
+
+#, fuzzy
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr "Cree un gráfico de información que muestre las métricas de duración de la compilación con los percentiles p90, p99 y promedio."
+
+#, fuzzy
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr "El panel de control de la tasa de aciertos de la caché muestra una tasa de aciertos del 90 % y un ahorro de 14,2 horas esta semana."
+
+#, fuzzy
+msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+msgstr "Comprima conceptualmente las complejidades de los proyectos modulares de Xcode y hágalos más accesibles para mantenerlos y escalarlos."
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "Pruebas poco fiables"
+
+#, fuzzy
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr "Panel de pruebas inestable que muestra el historial de pruebas y el modal de creación de automatizaciones."
+
+#, fuzzy
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr "Del código a los comentarios en cuestión de minutos. Las vistas previas instantáneas y las pruebas basadas en IA cierran el ciclo entre la creación y la validación."
+
+#, fuzzy
+msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+msgstr "Menciona @tuist-qa en tu PR y un agente de IA probará tu aplicación como un usuario real, explorando casos extremos e informando de problemas con capturas de pantalla y registros."
+
+#, fuzzy
+msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+msgstr "Supervise el rendimiento de la compilación en entornos locales y de CI para detectar ralentizaciones antes de que se conviertan en cuellos de botella."
+
+#, fuzzy
+msgid "Quality assurance"
+msgstr "Control de calidad"
+
+#, fuzzy
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr "Ejecute solo las pruebas que sean importantes detectando los cambios desde la última ejecución satisfactoria, lo que reducirá los tiempos de prueba tanto en el desarrollo local como en la integración continua."
+
+#, fuzzy
+msgid "Selective Testing"
+msgstr "Testing selectivo"
+
+#, fuzzy
+msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+msgstr "Panel de pruebas selectivas que muestra las pruebas omitidas, con 134/196 pruebas omitidas y 15,8 horas ahorradas esta semana."
+
+#, fuzzy
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr "Comparte tu aplicación al instante con una URL. Sin retrasos de TestFlight, solo tienes que hacer clic y ejecutarla en cualquier simulador o dispositivo."
+
+#, fuzzy
+msgid "Test Insights"
+msgstr "Información sobre la prueba"
+
+#, fuzzy
+msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+msgstr "Información sobre pruebas que muestra ejecuciones de pruebas, pruebas inestables, ejecuciones de pruebas fallidas y métricas de duración de ejecuciones de pruebas p90."
+
+#, fuzzy
+msgid "Tests"
+msgstr "Pruebas"
+
+#, fuzzy
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr "Realice un seguimiento del rendimiento de las pruebas, detecte rápidamente las pruebas lentas y depure los fallos de CI sin tener que revisar los registros."
+
+#, fuzzy
+msgid "Download only what you need — faster, lighter builds locally and on CI."
+msgstr "Descarga solo lo que necesitas: compilaciones más rápidas y ligeras a nivel local y en CI."
+
+#, fuzzy
+msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+msgstr "Funciones adicionales que simplifican los proyectos modulares de Xcode y aceleran las compilaciones locales y de CI."
+
+#, fuzzy
+msgid "Other features"
+msgstr "Otras características"
+
+#, fuzzy
+msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+msgstr "Ejecute solo las pruebas afectadas en función de sus cambios para obtener ciclos de retroalimentación más rápidos y reducir la espera, tanto a nivel local como en CI."
+
+#, fuzzy
+msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+msgstr "Omita los pasos manuales, genere proyectos automáticamente, acelere las compilaciones y explore información con análisis integrados."
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "La IA escribe más rápido. Tus builds también deberían."
 
 #~ msgid "$0"
 #~ msgstr "$0"
