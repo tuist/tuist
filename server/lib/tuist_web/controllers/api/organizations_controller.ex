@@ -45,23 +45,30 @@ defmodule TuistWeb.API.OrganizationsController do
   )
 
   def index(conn, _params) do
-    organizations =
-      conn
-      |> Authentication.current_user()
-      |> Accounts.get_user_organization_accounts()
-      |> Enum.map(
-        &%{
-          id: &1.organization.id,
-          name: &1.account.name,
-          plan: get_plan(&1.account),
-          # We don't display in the CLI members and invitations when showing a list of organizations.
-          # We keep these fields for backwards compatibility but should remove in the future.
-          members: [],
-          invitations: []
-        }
-      )
+    case Authentication.current_user(conn) do
+      nil ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message: "This endpoint requires user authentication. Project tokens are not supported."
+        })
 
-    json(conn, %{organizations: organizations})
+      user ->
+        organizations =
+          user
+          |> Accounts.get_user_organization_accounts()
+          |> Enum.map(
+            &%{
+              id: &1.organization.id,
+              name: &1.account.name,
+              plan: get_plan(&1.account),
+              members: [],
+              invitations: []
+            }
+          )
+
+        json(conn, %{organizations: organizations})
+    end
   end
 
   defp get_plan(account) do

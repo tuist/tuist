@@ -7,6 +7,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
   setup do
@@ -63,6 +64,23 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
       # Then
       %{"organizations" => []} = json_response(conn, :ok)
+    end
+
+    test "returns :forbidden when authenticated with a project token", %{conn: conn} do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(preload: [:account])
+
+      conn = Authentication.put_current_project(conn, project)
+
+      # When
+      conn = get(conn, ~p"/api/organizations")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "This endpoint requires user authentication. Project tokens are not supported."
     end
   end
 
