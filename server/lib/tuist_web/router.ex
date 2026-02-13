@@ -378,8 +378,15 @@ defmodule TuistWeb.Router do
             end
           end
 
+          get "/:test_run_id", TestsController, :show
+          get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
           post "/:test_run_id/stack-traces", StackTracesController, :create
+          post "/:test_run_id/attachments", TestCaseRunAttachmentsController, :create
+
+          get "/test-case-runs/:test_case_run_id/attachments/:file_name",
+              TestCaseRunAttachmentsController,
+              :download
         end
 
         scope "/builds" do
@@ -802,6 +809,10 @@ defmodule TuistWeb.Router do
       live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+
+      get "/tests/test-case-runs/:test_case_run_id/attachments/:file_name",
+          TestCaseRunAttachmentsController,
+          :download
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/notifications", ProjectNotificationsLive

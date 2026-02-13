@@ -4,19 +4,17 @@ import OpenAPIURLSession
 import TuistHTTP
 
 @Mockable
-public protocol ListTestCaseRunsServicing {
-    func listTestCaseRuns(
+public protocol ListTestCaseRunsByTestRunServicing {
+    func listTestCaseRunsByTestRun(
         fullHandle: String,
         serverURL: URL,
-        testCaseId: String,
-        flaky: Bool?,
-        testRunId: String?,
+        testRunId: String,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
+    ) async throws -> Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload
 }
 
-enum ListTestCaseRunsServiceError: LocalizedError {
+enum ListTestCaseRunsByTestRunServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
 
@@ -30,7 +28,7 @@ enum ListTestCaseRunsServiceError: LocalizedError {
     }
 }
 
-public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
+public struct ListTestCaseRunsByTestRunService: ListTestCaseRunsByTestRunServicing {
     private let fullHandleService: FullHandleServicing
 
     public init() {
@@ -45,28 +43,24 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func listTestCaseRuns(
+    public func listTestCaseRunsByTestRun(
         fullHandle: String,
         serverURL: URL,
-        testCaseId: String,
-        flaky: Bool?,
-        testRunId: String?,
+        testRunId: String,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+    ) async throws -> Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.listTestCaseRuns(
+        let response = try await client.listTestCaseRunsByTestRun(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle,
-                    test_case_id: testCaseId
+                    test_run_id: testRunId
                 ),
                 query: .init(
-                    flaky: flaky,
-                    test_run_id: testRunId,
                     page_size: pageSize,
                     page: page
                 )
@@ -82,23 +76,24 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw ListTestCaseRunsServiceError.forbidden(error.message)
+                throw ListTestCaseRunsByTestRunServiceError.forbidden(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw ListTestCaseRunsServiceError.unknownError(statusCode)
+            throw ListTestCaseRunsByTestRunServiceError.unknownError(statusCode)
         }
     }
 }
 
 #if DEBUG
-    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+    extension Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload {
         public static func test(
             currentPage: Int = 1,
             pageSize: Int = 10,
             totalPages: Int = 1,
             hasNextPage: Bool = false,
             hasPreviousPage: Bool = false,
-            testCaseRuns: [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+            testCaseRuns: [Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload
+                .test_case_runsPayloadPayload]
         ) -> Self {
             .init(
                 pagination_metadata: .init(
@@ -114,31 +109,31 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         }
     }
 
-    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload {
+    extension Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload
+        .test_case_runsPayloadPayload
+    {
         public static func test(
             duration: Int = 1500,
-            gitBranch: String? = "main",
-            gitCommitSha: String? = "abc1234def5678",
             id: String = "run-id",
             isCi: Bool = true,
             isFlaky: Bool = false,
             isNew: Bool = false,
-            ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
-            scheme: String? = "App",
-            status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload
-                .statusPayload = .success
+            moduleName: String = "AppTests",
+            name: String = "testExample",
+            status: Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload
+                .test_case_runsPayloadPayload.statusPayload = .success,
+            suiteName: String? = nil
         ) -> Self {
             .init(
                 duration: duration,
-                git_branch: gitBranch,
-                git_commit_sha: gitCommitSha,
                 id: id,
                 is_ci: isCi,
                 is_flaky: isFlaky,
                 is_new: isNew,
-                ran_at: ranAt,
-                scheme: scheme,
-                status: status
+                module_name: moduleName,
+                name: name,
+                status: status,
+                suite_name: suiteName
             )
         }
     }

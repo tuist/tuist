@@ -254,14 +254,15 @@ struct TestCaseRunShowCommandServiceTests {
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         let testCaseRun = ServerTestCaseRun.test(
+            id: "run-crash",
             stackTrace: .init(
                 app_name: "MyApp",
                 exception_subtype: "KERN_INVALID_ADDRESS",
                 exception_type: "EXC_CRASH",
                 file_name: "MyApp-2024-01-15-123456.ips",
+                formatted_frames: "0  libswiftCore.dylib  _assertionFailure + 156\n1  MyApp               MyApp.example() + 180",
                 id: "trace-id",
                 os_version: "17.2",
-                raw_content: "crash log content here",
                 signal: "SIGABRT"
             ),
             status: .failure
@@ -288,7 +289,9 @@ struct TestCaseRunShowCommandServiceTests {
         #expect(ui().contains("EXC_CRASH"))
         #expect(ui().contains("SIGABRT"))
         #expect(ui().contains("KERN_INVALID_ADDRESS"))
-        #expect(ui().contains("crash log content here"))
+        #expect(ui().contains("_assertionFailure + 156"))
+        #expect(ui().contains("Full stack trace"))
+        #expect(ui().contains("test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips"))
     }
 
     @Test(

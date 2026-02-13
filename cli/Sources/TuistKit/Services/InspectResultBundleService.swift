@@ -45,6 +45,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
     private let uploadStackTraceService: UploadStackTraceServicing
+    private let uploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing
     private let xcResultService: XCResultServicing
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -58,6 +59,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
         uploadStackTraceService: UploadStackTraceServicing = UploadStackTraceService(),
+        uploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing = UploadTestCaseRunAttachmentService(),
         xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -70,6 +72,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
         self.uploadStackTraceService = uploadStackTraceService
+        self.uploadTestCaseRunAttachmentService = uploadTestCaseRunAttachmentService
         self.xcResultService = xcResultService
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
@@ -139,6 +142,17 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                 )
             } catch {
                 Logger.current.warning("Failed to upload stack traces: \(error.localizedDescription)")
+            }
+
+            do {
+                try await uploadTestCaseRunAttachmentService.uploadAttachments(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testRunId: test.id,
+                    stackTraces: testSummary.stackTraces
+                )
+            } catch {
+                Logger.current.warning("Failed to upload stack trace attachments: \(error.localizedDescription)")
             }
         }
 

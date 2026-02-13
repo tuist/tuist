@@ -74,12 +74,12 @@ defmodule TuistWeb.API.StackTracesController do
              type: :string,
              description: "The exception subtype or additional details."
            },
-           raw_content: %Schema{
+           formatted_frames: %Schema{
              type: :string,
-             description: "The full raw content of the crash log."
+             description: "Human-readable formatted crash thread frames."
            }
          },
-         required: [:id, :file_name, :raw_content]
+         required: [:id, :file_name]
        }},
     responses: %{
       ok: {"The stack trace was uploaded", "application/json", nil},
@@ -99,7 +99,7 @@ defmodule TuistWeb.API.StackTracesController do
       exception_type: Map.get(body_params, :exception_type),
       signal: Map.get(body_params, :signal),
       exception_subtype: Map.get(body_params, :exception_subtype),
-      raw_content: body_params.raw_content,
+      formatted_frames: Map.get(body_params, :formatted_frames, ""),
       inserted_at: NaiveDateTime.utc_now()
     }
 

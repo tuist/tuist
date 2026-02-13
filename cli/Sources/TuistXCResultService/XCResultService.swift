@@ -174,7 +174,8 @@ public struct XCResultService: XCResultServicing {
         let crashResult = await extractCrashAttachments(from: xcresultPath)
 
         allTestCases = allTestCases.map { testCase in
-            let testIdentifier = testCase.testSuite.map { "\($0)/\(testCase.name)" } ?? testCase.name
+            let normalizedName = testCase.name.hasSuffix("()") ? String(testCase.name.dropLast(2)) : testCase.name
+            let testIdentifier = testCase.testSuite.map { "\($0)/\(normalizedName)" } ?? normalizedName
             guard let stackTraceId = crashResult.testIdentifierToStackTraceId[testIdentifier] else {
                 return testCase
             }
@@ -524,7 +525,7 @@ public struct XCResultService: XCResultServicing {
                 _ = try await commandRunner.run(
                     arguments: [
                         "/bin/sh", "-c",
-                        "/usr/bin/xcrun xcresulttool export attachments --only-failures --path '\(xcresultPath.pathString)' --output-directory '\(temporaryDirectory.pathString)' 2>/dev/null",
+                        "/usr/bin/xcrun xcresulttool export attachments --only-failures --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
                     ]
                 ).concatenatedString()
 
@@ -565,15 +566,20 @@ public struct XCResultService: XCResultServicing {
 
                             let metadata = parseIPSMetadata(content)
 
+                            let formattedFrames = IPSStackTraceFormatter.format(content)
+
+                            let sanitizedFileName = humanReadableName.replacingOccurrences(of: " ", with: "_")
+
                             stackTracesByKey[deduplicationKey] = CrashStackTrace(
                                 id: deterministicId,
-                                fileName: humanReadableName,
+                                fileName: sanitizedFileName,
                                 appName: metadata.appName,
                                 osVersion: metadata.osVersion,
                                 exceptionType: metadata.exceptionType,
                                 signal: metadata.signal,
                                 exceptionSubtype: metadata.exceptionSubtype,
-                                rawContent: content
+                                rawContent: content,
+                                formattedFrames: formattedFrames
                             )
                         }
 

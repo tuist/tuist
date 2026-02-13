@@ -44,6 +44,11 @@ defmodule TuistWeb.API.TestCaseRunsController do
         type: :boolean,
         description: "Filter by flaky status. When true, only returns flaky runs."
       ],
+      test_run_id: [
+        in: :query,
+        schema: %Schema{type: :string, format: :uuid},
+        description: "Filter by test run ID."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -150,6 +155,125 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
+  operation(:index_by_test_run,
+    summary: "List test case runs for a test run.",
+    operation_id: "listTestCaseRunsByTestRun",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      test_run_id: [
+        in: :path,
+        schema: %Schema{type: :string, format: :uuid},
+        required: true,
+        description: "The ID of the test run."
+      ],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "TestCaseRunsByTestRunPageSize",
+          description: "The maximum number of test case runs to return in a single page.",
+          type: :integer,
+          default: 20,
+          minimum: 1,
+          maximum: 500
+        }
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "TestCaseRunsByTestRunPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
+      ]
+    ],
+    responses: %{
+      ok:
+        {"List of test case runs for a test run", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             test_case_runs: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   id: %Schema{type: :string, format: :uuid, description: "The test case run ID."},
+                   name: %Schema{type: :string, description: "Name of the test case."},
+                   module_name: %Schema{type: :string, description: "Module name."},
+                   suite_name: %Schema{type: :string, nullable: true, description: "Suite name."},
+                   status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
+                   duration: %Schema{type: :integer, description: "Duration in milliseconds."},
+                   is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
+                   is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
+                   is_new: %Schema{type: :boolean, description: "Whether this was a new test case."}
+                 },
+                 required: [:id, :name, :module_name, :status, :duration, :is_ci, :is_flaky, :is_new]
+               }
+             },
+             pagination_metadata: PaginationMetadata
+           },
+           required: [:test_case_runs, :pagination_metadata]
+         }},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def index_by_test_run(
+        %{
+          assigns: %{selected_project: _selected_project},
+          params: %{test_run_id: test_run_id, page_size: page_size, page: page}
+        } = conn,
+        _params
+      ) do
+    options = %{
+      filters: [],
+      order_by: [:ran_at],
+      order_directions: [:desc],
+      page: page,
+      page_size: page_size
+    }
+
+    {runs, meta} = Tests.list_test_case_runs_by_test_run_id(test_run_id, options)
+
+    json(conn, %{
+      test_case_runs:
+        Enum.map(runs, fn run ->
+          %{
+            id: run.id,
+            name: run.name,
+            module_name: run.module_name,
+            suite_name: run.suite_name,
+            status: to_string(run.status),
+            duration: run.duration,
+            is_ci: run.is_ci,
+            is_flaky: run.is_flaky,
+            is_new: run.is_new
+          }
+        end),
+      pagination_metadata: %{
+        has_next_page: meta.has_next_page?,
+        has_previous_page: meta.has_previous_page?,
+        current_page: meta.current_page,
+        page_size: meta.page_size,
+        total_count: meta.total_count,
+        total_pages: meta.total_pages
+      }
+    })
+  end
+
   operation(:show,
     summary: "Get a test case run by ID.",
     operation_id: "getTestCaseRun",
@@ -240,9 +364,9 @@ defmodule TuistWeb.API.TestCaseRunsController do
                  exception_type: %Schema{type: :string, nullable: true, description: "The exception type (e.g., EXC_CRASH)."},
                  signal: %Schema{type: :string, nullable: true, description: "The signal (e.g., SIGABRT)."},
                  exception_subtype: %Schema{type: :string, nullable: true, description: "The exception subtype."},
-                 raw_content: %Schema{type: :string, description: "The full crash log content."}
+                 formatted_frames: %Schema{type: :string, nullable: true, description: "Human-readable formatted crash thread frames."}
                },
-               required: [:id, :file_name, :raw_content]
+               required: [:id, :file_name]
              }
            },
            required: [
@@ -333,7 +457,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
           exception_type: nullable_string(st.exception_type),
           signal: nullable_string(st.signal),
           exception_subtype: nullable_string(st.exception_subtype),
-          raw_content: st.raw_content
+          formatted_frames: nullable_string(st.formatted_frames)
         }
 
       {:error, :not_found} ->
@@ -353,10 +477,19 @@ defmodule TuistWeb.API.TestCaseRunsController do
   defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
 
   defp build_run_filters(params) do
-    if Map.get(params, :flaky) do
-      [%{field: :is_flaky, op: :==, value: true}]
-    else
-      []
-    end
+    filters = []
+
+    filters =
+      if Map.get(params, :flaky),
+        do: [%{field: :is_flaky, op: :==, value: true} | filters],
+        else: filters
+
+    filters =
+      case Map.get(params, :test_run_id) do
+        nil -> filters
+        test_run_id -> [%{field: :test_run_id, op: :==, value: test_run_id} | filters]
+      end
+
+    filters
   end
 end

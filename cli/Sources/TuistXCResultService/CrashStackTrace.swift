@@ -9,6 +9,7 @@ public struct CrashStackTrace {
     public let signal: String?
     public let exceptionSubtype: String?
     public let rawContent: String
+    public let formattedFrames: String?
 
     public init(
         id: String,
@@ -18,7 +19,8 @@ public struct CrashStackTrace {
         exceptionType: String?,
         signal: String?,
         exceptionSubtype: String?,
-        rawContent: String
+        rawContent: String,
+        formattedFrames: String? = nil
     ) {
         self.id = id
         self.fileName = fileName
@@ -28,5 +30,6 @@ public struct CrashStackTrace {
         self.signal = signal
         self.exceptionSubtype = exceptionSubtype
         self.rawContent = rawContent
+        self.formattedFrames = formattedFrames
     }
 }

@@ -14,10 +14,10 @@ public struct TestCaseRunListCommand: AsyncParsableCommand, NooraReadyCommand {
     }
 
     @Argument(
-        help: "The test case identifier. Either a UUID or the format Module/Suite/TestCase (or Module/TestCase).",
+        help: "The test case identifier. Either a UUID or the format Module/Suite/TestCase (or Module/TestCase). Required unless --test-run-id is provided.",
         envKey: .testCaseRunListIdentifier
     )
-    var testCaseIdentifier: String
+    var testCaseIdentifier: String?
 
     @Option(
         name: [.customLong("project"), .customShort("P")],
@@ -40,6 +40,13 @@ public struct TestCaseRunListCommand: AsyncParsableCommand, NooraReadyCommand {
         envKey: .testCaseRunListFlaky
     )
     var flaky: Bool = false
+
+    @Option(
+        name: .long,
+        help: "Filter by test run ID.",
+        envKey: .testCaseRunListTestRunId
+    )
+    var testRunId: String?
 
     @Option(
         name: .long,
@@ -69,6 +76,7 @@ public struct TestCaseRunListCommand: AsyncParsableCommand, NooraReadyCommand {
             path: path,
             testCaseIdentifier: testCaseIdentifier,
             flaky: flaky,
+            testRunId: testRunId,
             page: page,
             pageSize: pageSize,
             json: json

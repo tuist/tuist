@@ -29,6 +29,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.StackTrace
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
@@ -448,6 +449,23 @@ defmodule Tuist.Tests do
 
     events = Repo.preload(events, :actor)
     {events, meta}
+  end
+
+  @doc """
+  Lists test case runs for a specific test run by its UUID.
+  Returns a tuple of {test_case_runs, meta} with pagination info.
+  """
+  def list_test_case_runs_by_test_run_id(test_run_id, attrs) do
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id
+      )
+
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
+
+    results = Repo.preload(results, :ran_by_account)
+
+    {results, meta}
   end
 
   @doc """
@@ -1679,5 +1697,38 @@ defmodule Tuist.Tests do
     end
 
     {:ok, length(test_cases_to_update)}
+  end
+
+  def create_test_case_run_attachment(attrs) do
+    changeset = TestCaseRunAttachment.create_changeset(%TestCaseRunAttachment{}, attrs)
+
+    if changeset.valid? do
+      IngestRepo.insert(changeset)
+    else
+      {:error, changeset}
+    end
+  end
+
+  def get_attachment(test_case_run_id, file_name) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.test_case_run_id == ^test_case_run_id and a.file_name == ^file_name,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def attachment_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        test_run_id: test_run_id,
+        attachment_id: attachment_id,
+        file_name: file_name
+      }) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 end

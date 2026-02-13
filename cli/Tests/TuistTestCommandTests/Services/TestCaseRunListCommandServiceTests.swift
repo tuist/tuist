@@ -13,6 +13,7 @@ import TuistServer
 struct TestCaseRunListCommandServiceTests {
     private let getTestCaseService = MockGetTestCaseServicing()
     private let listTestCaseRunsService = MockListTestCaseRunsServicing()
+    private let listTestCaseRunsByTestRunService = MockListTestCaseRunsByTestRunServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let subject: TestCaseRunListCommandService
@@ -21,6 +22,7 @@ struct TestCaseRunListCommandServiceTests {
         subject = TestCaseRunListCommandService(
             getTestCaseService: getTestCaseService,
             listTestCaseRunsService: listTestCaseRunsService,
+            listTestCaseRunsByTestRunService: listTestCaseRunsByTestRunService,
             serverEnvironmentService: serverEnvironmentService,
             configLoader: configLoader
         )
@@ -41,6 +43,23 @@ struct TestCaseRunListCommandServiceTests {
                 path: nil,
                 testCaseIdentifier: "Module/TestCase",
                 flaky: false,
+                testRunId: nil,
+                page: nil,
+                pageSize: nil,
+                json: false
+            )
+        })
+    }
+
+    @Test(.withMockedEnvironment()) func run_when_no_identifier_and_no_test_run_id() async throws {
+        // When/Then
+        await #expect(throws: TestCaseRunListCommandServiceError.missingIdentifier, performing: {
+            try await subject.run(
+                project: nil,
+                path: nil,
+                testCaseIdentifier: nil,
+                flaky: false,
+                testRunId: nil,
                 page: nil,
                 pageSize: nil,
                 json: false
@@ -64,6 +83,7 @@ struct TestCaseRunListCommandServiceTests {
                 path: nil,
                 testCaseIdentifier: "a/b/c/d",
                 flaky: false,
+                testRunId: nil,
                 page: nil,
                 pageSize: nil,
                 json: false
@@ -100,6 +120,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -110,6 +131,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/ExampleSuite/testExample",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: true
@@ -144,6 +166,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -154,6 +177,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/testExample",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: false
@@ -188,6 +212,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(true),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -198,6 +223,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/testFlaky",
             flaky: true,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: false
@@ -234,6 +260,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -244,6 +271,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/AuthSuite/testLogin",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: true
@@ -286,6 +314,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -296,6 +325,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "CoreTests/testSomething",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: true
@@ -330,6 +360,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("some-uuid-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -340,6 +371,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "some-uuid-id",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: true
@@ -351,6 +383,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .any,
             testCaseId: .value("some-uuid-id"),
             flaky: .any,
+            testRunId: .any,
             page: .any,
             pageSize: .any
         ).called(1)
@@ -384,6 +417,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(5)
         ).willReturn(response)
@@ -394,6 +428,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/testExample",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: 5,
             json: true
@@ -405,6 +440,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .any,
             testCaseId: .any,
             flaky: .any,
+            testRunId: .any,
             page: .any,
             pageSize: .value(5)
         ).called(1)
@@ -440,6 +476,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(3),
             pageSize: .value(10)
         ).willReturn(response)
@@ -450,6 +487,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/testExample",
             flaky: false,
+            testRunId: nil,
             page: 3,
             pageSize: nil,
             json: true
@@ -461,6 +499,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .any,
             testCaseId: .any,
             flaky: .any,
+            testRunId: .any,
             page: .value(3),
             pageSize: .any
         ).called(1)
@@ -489,6 +528,7 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .value(serverURL),
             testCaseId: .value("resolved-tc-id"),
             flaky: .value(nil),
+            testRunId: .value(nil),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -499,6 +539,7 @@ struct TestCaseRunListCommandServiceTests {
             path: nil,
             testCaseIdentifier: "AppTests/testExample",
             flaky: false,
+            testRunId: nil,
             page: nil,
             pageSize: nil,
             json: false
@@ -510,8 +551,51 @@ struct TestCaseRunListCommandServiceTests {
             serverURL: .any,
             testCaseId: .any,
             flaky: .any,
+            testRunId: .any,
             page: .any,
             pageSize: .any
         ).called(1)
+    }
+
+    @Test(
+        .withMockedEnvironment(arguments: ["--json"]),
+        .withMockedNoora
+    ) func run_by_test_run_id() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let response = Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload.test(
+            testCaseRuns: [
+                .test(moduleName: "AppTests", name: "testLogin", status: .success),
+                .test(id: "run-id-2", moduleName: "AppTests", name: "testLogout", status: .failure),
+            ]
+        )
+        given(listTestCaseRunsByTestRunService).listTestCaseRunsByTestRun(
+            fullHandle: .value(fullHandle),
+            serverURL: .value(serverURL),
+            testRunId: .value("test-run-uuid"),
+            page: .value(1),
+            pageSize: .value(10)
+        ).willReturn(response)
+
+        // When
+        try await subject.run(
+            project: nil,
+            path: nil,
+            testCaseIdentifier: nil,
+            flaky: false,
+            testRunId: "test-run-uuid",
+            page: nil,
+            pageSize: nil,
+            json: true
+        )
+
+        // Then
+        #expect(ui().contains("testLogin"))
+        #expect(ui().contains("testLogout"))
     }
 }

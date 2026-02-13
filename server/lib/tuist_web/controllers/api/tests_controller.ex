@@ -283,6 +283,124 @@ defmodule TuistWeb.API.TestsController do
     end
   end
 
+  operation(:show,
+    summary: "Get a test run by ID.",
+    operation_id: "getTestRun",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      test_run_id: [
+        in: :path,
+        schema: %Schema{type: :string, format: :uuid},
+        required: true,
+        description: "The ID of the test run."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"Test run details", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             id: %Schema{type: :string, format: :uuid, description: "The test run ID."},
+             status: %Schema{type: :string, enum: ["success", "failure", "skipped"], description: "Run status."},
+             duration: %Schema{type: :integer, description: "Duration in milliseconds."},
+             is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
+             is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
+             scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
+             macos_version: %Schema{type: :string, nullable: true, description: "macOS version."},
+             xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
+             model_identifier: %Schema{type: :string, nullable: true, description: "Model identifier."},
+             device_name: %Schema{type: :string, nullable: true, description: "Human-readable device name."},
+             git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
+             git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
+             ran_at: %Schema{
+               type: :string,
+               format: :"date-time",
+               nullable: true,
+               description: "ISO 8601 timestamp when the run executed."
+             },
+             total_test_count: %Schema{type: :integer, description: "Total number of test cases."},
+             failed_test_count: %Schema{type: :integer, description: "Number of failed test cases."},
+             flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
+             avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."}
+           },
+           required: [:id, :status, :duration, :is_ci, :is_flaky, :total_test_count, :failed_test_count, :flaky_test_count, :avg_test_duration]
+         }},
+      not_found: {"Test run not found", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+    }
+  )
+
+  def show(
+        %{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id}} = conn,
+        _params
+      ) do
+    case Tests.get_test(test_run_id) do
+      {:ok, run} ->
+        if run.project_id == selected_project.id do
+          test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
+
+          json(conn, %{
+            id: run.id,
+            status: to_string(run.status),
+            duration: run.duration,
+            is_ci: run.is_ci,
+            is_flaky: run.is_flaky,
+            scheme: nullable_string(run.scheme),
+            macos_version: nullable_string(run.macos_version),
+            xcode_version: nullable_string(run.xcode_version),
+            model_identifier: nullable_string(run.model_identifier),
+            device_name: resolve_device_name(run.model_identifier),
+            git_branch: nullable_string(run.git_branch),
+            git_commit_sha: nullable_string(run.git_commit_sha),
+            ran_at: format_ran_at(run.ran_at),
+            total_test_count: test_metrics.total_count,
+            failed_test_count: test_metrics.failed_count,
+            flaky_test_count: test_metrics.flaky_count,
+            avg_test_duration: test_metrics.avg_duration
+          })
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{message: "Test run not found."})
+        end
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Test run not found."})
+    end
+  end
+
+  defp nullable_string(""), do: nil
+  defp nullable_string(value), do: value
+
+  defp resolve_device_name(nil), do: nil
+  defp resolve_device_name(""), do: nil
+
+  defp resolve_device_name(model_identifier) do
+    Tuist.Apple.devices()[model_identifier] || model_identifier
+  end
+
+  defp format_ran_at(nil), do: nil
+
+  defp format_ran_at(%NaiveDateTime{} = ran_at) do
+    ran_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
+  end
+
+  defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
+
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
