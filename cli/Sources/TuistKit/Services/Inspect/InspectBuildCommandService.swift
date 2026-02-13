@@ -146,8 +146,9 @@ struct InspectBuildCommandService {
         referenceDate: Date
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!
+        let timeoutSeconds = Int(Environment.current.variables["TUIST_INSPECT_BUILD_TIMEOUT"] ?? "") ?? 10
         try await withTimeout(
-            .seconds(5),
+            .seconds(timeoutSeconds),
             onTimeout: {
                 throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
             }
