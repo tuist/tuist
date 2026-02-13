@@ -11,7 +11,9 @@ alias Tuist.Builds.Build
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
-alias Tuist.Gradle
+alias Tuist.Gradle.Build, as: GradleBuild
+alias Tuist.Gradle.CacheEvent, as: GradleCacheEvent
+alias Tuist.Gradle.Task, as: GradleTask
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
@@ -2453,155 +2455,198 @@ gradle_versions = ["8.5", "8.7", "8.10", "9.0", "9.2.1"]
 java_versions = ["17.0.10", "17.0.12", "21.0.3", "21.0.10"]
 root_project_names = ["SimpleAndroidApp", "MyAndroidApp", "SampleProject"]
 
-gradle_build_counter = :counters.new(1, [:atomics])
+gradle_account_handle = organization.account.name
 
-Enum.each(1..gradle_build_count, fn _i ->
-  is_ci = Enum.random([true, false])
-  status = Enum.random(["success", "success", "success", "failure", "cancelled"])
-  day_offset = Enum.random(0..60)
-  base_time = DateTime.add(DateTime.utc_now(), -day_offset * 86_400, :second)
+gradle_seed_data =
+  Enum.map(1..gradle_build_count, fn _i ->
+    is_ci = Enum.random([true, false])
+    status = Enum.random(["success", "success", "success", "failure", "cancelled"])
+    day_offset = Enum.random(0..60)
 
-  # Build start time with second precision
-  build_start_naive =
-    NaiveDateTime.new!(
-      Date.add(Date.utc_today(), -day_offset),
-      Time.new!(Enum.random(6..22), Enum.random(0..59), Enum.random(0..59))
-    )
+    # Build start time with second precision
+    build_start_naive =
+      NaiveDateTime.new!(
+        Date.add(Date.utc_today(), -day_offset),
+        Time.new!(Enum.random(6..22), Enum.random(0..59), Enum.random(0..59))
+      )
 
-  # Select a random subset of tasks for this build
-  task_count = Enum.random(15..50)
-  selected_tasks = Enum.take_random(gradle_task_paths, task_count)
+    build_inserted_at = NaiveDateTime.truncate(build_start_naive, :second)
 
-  # Determine outcome distribution for cacheable tasks
-  cacheable_ratio = Enum.random(40..80) / 100
-  cacheable_count = trunc(task_count * cacheable_ratio)
-  {cacheable_tasks, non_cacheable_tasks} = Enum.split(selected_tasks, cacheable_count)
+    # Select a random subset of tasks for this build
+    task_count = Enum.random(15..50)
+    selected_tasks = Enum.take_random(gradle_task_paths, task_count)
 
-  # Distribute cacheable tasks across outcomes
-  local_hit_count = trunc(cacheable_count * Enum.random(10..40) / 100)
-  remote_hit_count = trunc(cacheable_count * Enum.random(10..30) / 100)
-  executed_count = cacheable_count - local_hit_count - remote_hit_count
+    # Determine outcome distribution for cacheable tasks
+    cacheable_ratio = Enum.random(40..80) / 100
+    cacheable_count = trunc(task_count * cacheable_ratio)
+    {_cacheable_tasks, non_cacheable_tasks} = Enum.split(selected_tasks, cacheable_count)
 
-  cacheable_outcomes =
-    List.duplicate("local_hit", local_hit_count) ++
-      List.duplicate("remote_hit", remote_hit_count) ++
-      List.duplicate("executed", executed_count)
+    # Distribute cacheable tasks across outcomes
+    local_hit_count = trunc(cacheable_count * Enum.random(10..40) / 100)
+    remote_hit_count = trunc(cacheable_count * Enum.random(10..30) / 100)
+    executed_count = cacheable_count - local_hit_count - remote_hit_count
 
-  # Non-cacheable outcomes
-  non_cacheable_outcomes =
-    Enum.map(non_cacheable_tasks, fn _task ->
-      Enum.random(["up_to_date", "up_to_date", "executed", "skipped", "no_source", "no_source"])
-    end)
+    cacheable_outcomes =
+      List.duplicate("local_hit", local_hit_count) ++
+        List.duplicate("remote_hit", remote_hit_count) ++
+        List.duplicate("executed", executed_count)
 
-  # Build tasks with started_at timestamps (accumulating from build start)
-  {tasks, _current_offset} =
-    selected_tasks
-    |> Enum.zip(Enum.shuffle(cacheable_outcomes) ++ non_cacheable_outcomes)
-    |> Enum.map_reduce(0, fn {task_path, outcome}, offset_ms ->
-      duration = Enum.random(50..8000)
-      started_at_naive = NaiveDateTime.add(build_start_naive, offset_ms, :millisecond)
-      # Ensure usec precision for DateTime64(6)
-      {usec, _} = started_at_naive.microsecond
-      started_at_usec = %{started_at_naive | microsecond: {usec, 6}}
-      is_cacheable = outcome in ["local_hit", "remote_hit", "executed"]
+    # Non-cacheable outcomes
+    non_cacheable_outcomes =
+      Enum.map(non_cacheable_tasks, fn _task ->
+        Enum.random(["up_to_date", "up_to_date", "executed", "skipped", "no_source", "no_source"])
+      end)
 
-      task = %{
-        task_path: task_path,
-        outcome: outcome,
-        cacheable: is_cacheable,
-        duration_ms: duration,
-        started_at: started_at_usec,
-        cache_key:
-          if(is_cacheable,
-            do: SeedHelpers.random_hex(64)
-          ),
-        cache_artifact_size:
-          if(is_cacheable,
-            do: Enum.random(10_000..5_000_000)
-          )
-      }
+    # Build tasks with started_at timestamps (accumulating from build start)
+    {tasks, _current_offset} =
+      selected_tasks
+      |> Enum.zip(Enum.shuffle(cacheable_outcomes) ++ non_cacheable_outcomes)
+      |> Enum.map_reduce(0, fn {task_path, outcome}, offset_ms ->
+        duration = Enum.random(50..8000)
+        started_at_naive = NaiveDateTime.add(build_start_naive, offset_ms, :millisecond)
+        # Ensure usec precision for DateTime64(6)
+        {usec, _} = started_at_naive.microsecond
+        started_at_usec = %{started_at_naive | microsecond: {usec, 6}}
+        is_cacheable = outcome in ["local_hit", "remote_hit", "executed"]
 
-      # Next task starts after this one (with some overlap for parallelism)
-      next_offset = offset_ms + max(div(duration, Enum.random(2..4)), 10)
-      {task, next_offset}
-    end)
+        task = %{
+          task_path: task_path,
+          outcome: outcome,
+          cacheable: is_cacheable,
+          duration_ms: duration,
+          started_at: started_at_usec,
+          cache_key:
+            if(is_cacheable,
+              do: SeedHelpers.random_hex(64)
+            ),
+          cache_artifact_size:
+            if(is_cacheable,
+              do: Enum.random(10_000..5_000_000)
+            )
+        }
 
-  build_duration = Enum.random(3000..30_000)
+        # Next task starts after this one (with some overlap for parallelism)
+        next_offset = offset_ms + max(div(duration, Enum.random(2..4)), 10)
+        {task, next_offset}
+      end)
 
-  attrs = %{
-    project_id: gradle_project_id,
-    account_id: gradle_account_id,
-    duration_ms: build_duration,
-    status: status,
-    gradle_version: Enum.random(gradle_versions),
-    java_version: Enum.random(java_versions),
-    is_ci: is_ci,
-    git_branch: Enum.random(gradle_branches),
-    git_commit_sha: SeedHelpers.random_hex(40),
-    git_ref: "4.138.1-#{Enum.random(1..200)}-g#{SeedHelpers.random_hex(10)}",
-    root_project_name: Enum.random(root_project_names),
-    inserted_at: NaiveDateTime.truncate(DateTime.to_naive(base_time), :second),
-    tasks: tasks
-  }
+    build_id = UUIDv7.generate()
+    build_duration = Enum.random(3000..30_000)
 
-  case Gradle.create_build(attrs) do
-    {:ok, build_id} ->
-      :counters.add(gradle_build_counter, 1, 1)
+    # Compute task counts for the build record
+    task_counts =
+      Enum.reduce(
+        tasks,
+        %{local_hit: 0, remote_hit: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0},
+        fn task, acc ->
+          acc
+          |> Map.update!(String.to_existing_atom(task.outcome), &(&1 + 1))
+          |> then(fn acc -> if task.cacheable, do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc end)
+        end
+      )
 
-      # Create cache events for cacheable tasks
-      cache_events =
-        tasks
-        |> Enum.filter(& &1.cacheable)
-        |> Enum.flat_map(fn task ->
-          case task.outcome do
-            "remote_hit" ->
-              [
-                %{
-                  action: "download",
-                  cache_key: task.cache_key,
-                  size: task.cache_artifact_size,
-                  duration_ms: Enum.random(100..2000),
-                  is_hit: true,
-                  is_ci: is_ci,
-                  gradle_build_id: build_id,
-                  project_id: gradle_project_id,
-                  account_handle: organization.account.name,
-                  project_handle: "android-app"
-                }
-              ]
+    build = %{
+      id: build_id,
+      project_id: gradle_project_id,
+      account_id: gradle_account_id,
+      duration_ms: build_duration,
+      gradle_version: Enum.random(gradle_versions),
+      java_version: Enum.random(java_versions),
+      is_ci: is_ci,
+      status: status,
+      git_branch: Enum.random(gradle_branches),
+      git_commit_sha: SeedHelpers.random_hex(40),
+      git_ref: "4.138.1-#{Enum.random(1..200)}-g#{SeedHelpers.random_hex(10)}",
+      root_project_name: Enum.random(root_project_names),
+      tasks_local_hit_count: task_counts.local_hit,
+      tasks_remote_hit_count: task_counts.remote_hit,
+      tasks_up_to_date_count: task_counts.up_to_date,
+      tasks_executed_count: task_counts.executed,
+      tasks_failed_count: task_counts.failed,
+      tasks_skipped_count: task_counts.skipped,
+      tasks_no_source_count: task_counts.no_source,
+      cacheable_tasks_count: task_counts.cacheable,
+      inserted_at: build_inserted_at
+    }
 
-            "executed" ->
-              [
-                %{
-                  action: "upload",
-                  cache_key: task.cache_key,
-                  size: task.cache_artifact_size,
-                  duration_ms: Enum.random(200..3000),
-                  is_hit: false,
-                  is_ci: is_ci,
-                  gradle_build_id: build_id,
-                  project_id: gradle_project_id,
-                  account_handle: organization.account.name,
-                  project_handle: "android-app"
-                }
-              ]
+    task_entries =
+      Enum.map(tasks, fn task ->
+        %{
+          id: UUIDv7.generate(),
+          gradle_build_id: build_id,
+          task_path: task.task_path,
+          task_type: "",
+          outcome: task.outcome,
+          cacheable: task.cacheable,
+          duration_ms: task.duration_ms,
+          cache_key: task.cache_key || "",
+          cache_artifact_size: task.cache_artifact_size,
+          started_at: task.started_at,
+          project_id: gradle_project_id,
+          inserted_at: build_inserted_at
+        }
+      end)
 
-            _ ->
-              []
-          end
-        end)
+    cache_events =
+      tasks
+      |> Enum.filter(& &1.cacheable)
+      |> Enum.flat_map(fn task ->
+        case task.outcome do
+          "remote_hit" ->
+            [
+              %{
+                id: UUIDv7.generate(),
+                action: "download",
+                cache_key: task.cache_key,
+                size: task.cache_artifact_size,
+                duration_ms: Enum.random(100..2000),
+                is_hit: true,
+                is_ci: is_ci,
+                gradle_build_id: build_id,
+                project_id: gradle_project_id,
+                account_handle: gradle_account_handle,
+                project_handle: "android-app",
+                inserted_at: build_inserted_at
+              }
+            ]
 
-      if length(cache_events) > 0 do
-        Gradle.create_cache_events(cache_events)
-      end
+          "executed" ->
+            [
+              %{
+                id: UUIDv7.generate(),
+                action: "upload",
+                cache_key: task.cache_key,
+                size: task.cache_artifact_size,
+                duration_ms: Enum.random(200..3000),
+                is_hit: false,
+                is_ci: is_ci,
+                gradle_build_id: build_id,
+                project_id: gradle_project_id,
+                account_handle: gradle_account_handle,
+                project_handle: "android-app",
+                inserted_at: build_inserted_at
+              }
+            ]
 
-    {:error, reason} ->
-      IO.puts("  Warning: Failed to create Gradle build: #{inspect(reason)}")
-  end
-end)
+          _ ->
+            []
+        end
+      end)
 
-gradle_builds_created = :counters.get(gradle_build_counter, 1)
-IO.puts("  - Created #{gradle_builds_created} Gradle builds with tasks and cache events")
+    %{build: build, tasks: task_entries, cache_events: cache_events}
+  end)
+
+gradle_builds = Enum.map(gradle_seed_data, & &1.build)
+gradle_tasks = Enum.flat_map(gradle_seed_data, & &1.tasks)
+gradle_cache_events = Enum.flat_map(gradle_seed_data, & &1.cache_events)
+
+SeedHelpers.insert_bulk_ch(gradle_builds, GradleBuild, IngestRepo, "Gradle builds")
+SeedHelpers.insert_bulk_ch(gradle_tasks, GradleTask, IngestRepo, "Gradle tasks")
+SeedHelpers.insert_bulk_ch(gradle_cache_events, GradleCacheEvent, IngestRepo, "Gradle cache events")
+
+IO.puts(
+  "  - Created #{length(gradle_builds)} Gradle builds with #{length(gradle_tasks)} tasks and #{length(gradle_cache_events)} cache events"
+)
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")
@@ -2611,7 +2656,7 @@ IO.puts("  - #{seed_config.test_runs} test runs")
 IO.puts("  - #{seed_config.command_events} command events")
 IO.puts("  - #{seed_config.previews} previews")
 IO.puts("  - #{seed_config.bundles} bundles")
-IO.puts("  - #{gradle_builds_created} gradle builds")
+IO.puts("  - #{length(gradle_builds)} gradle builds")
 IO.puts("")
 IO.puts("To generate production-like volumes, run:")
 IO.puts("  SEED_SCALE=medium mix run priv/repo/seeds.exs")

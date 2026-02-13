@@ -12,6 +12,7 @@ defmodule Tuist.Gradle.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
+  alias Tuist.Tasks
 
   @doc """
   Calculates the cache hit rate for a project over a time period.
@@ -366,6 +367,266 @@ defmodule Tuist.Gradle.Analytics do
     }
   end
 
+  def build_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
+    date_format = get_date_format(date_period)
+
+    current_count = build_total_count(project_id, start_datetime, end_datetime, opts)
+
+    previous_count =
+      build_total_count(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    count_data = build_counts_over_time(project_id, start_datetime, end_datetime, date_format, opts)
+    processed_data = process_count_data(count_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend: trend(previous_count, current_count),
+      count: current_count,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.count)
+    }
+  end
+
+  def build_success_rate_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
+    date_format = get_date_format(date_period)
+
+    current_rate = success_rate(project_id, start_datetime, end_datetime, opts)
+
+    previous_rate =
+      success_rate(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    rate_data = success_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts)
+    processed_data = process_success_rate_data(rate_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend: trend(previous_rate, current_rate),
+      success_rate: current_rate,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.success_rate)
+    }
+  end
+
+  def build_percentile_durations(project_id, percentile, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
+    date_format = get_date_format(date_period)
+
+    current_percentile =
+      build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
+
+    previous_percentile =
+      build_period_percentile(
+        project_id,
+        percentile,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    percentile_data =
+      build_percentiles_over_time(project_id, percentile, start_datetime, end_datetime, date_format, opts)
+
+    processed_data = process_duration_data(percentile_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend: trend(previous_percentile, current_percentile),
+      total_percentile_duration: current_percentile,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.duration)
+    }
+  end
+
+  def build_duration_analytics_by_category(project_id, category, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    category_field =
+      case category do
+        :gradle_version -> dynamic([b], b.gradle_version)
+        :java_version -> dynamic([b], b.java_version)
+      end
+
+    query =
+      select_merge(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and
+              b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          group_by: ^category_field,
+          select: %{value: avg(b.duration_ms)}
+        ),
+        ^%{category: category_field}
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
+      %{category: row.category, value: row.value || 0}
+    end)
+  end
+
+  def combined_gradle_builds_analytics(project_id, opts \\ []) do
+    queries = [
+      fn -> build_duration_analytics(project_id, opts) end,
+      fn -> build_percentile_durations(project_id, 0.99, opts) end,
+      fn -> build_percentile_durations(project_id, 0.9, opts) end,
+      fn -> build_percentile_durations(project_id, 0.5, opts) end,
+      fn -> build_analytics(project_id, opts) end,
+      fn -> build_analytics(project_id, Keyword.put(opts, :status, "failure")) end,
+      fn -> build_success_rate_analytics(project_id, opts) end
+    ]
+
+    Tasks.parallel_tasks(queries)
+  end
+
+  defp build_total_count(project_id, start_datetime, end_datetime, opts) do
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: count()
+        ),
+        opts
+      )
+
+    query = maybe_filter_status(query, opts)
+
+    ClickHouseRepo.one(query) || 0
+  end
+
+  defp build_counts_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+            count: count()
+          },
+          order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+        ),
+        opts
+      )
+
+    query = maybe_filter_status(query, opts)
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp success_rate(project_id, start_datetime, end_datetime, opts) do
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: %{
+            total: count(),
+            successful: fragment("countIf(? = 'success')", b.status)
+          }
+        ),
+        opts
+      )
+
+    case ClickHouseRepo.one(query) do
+      %{total: total, successful: successful} when total > 0 ->
+        successful / total
+
+      _ ->
+        0.0
+    end
+  end
+
+  defp success_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+          where:
+            b.project_id == ^project_id and b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+            total: count(),
+            successful: fragment("countIf(? = 'success')", b.status)
+          },
+          order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+        ),
+        opts
+      )
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and
+              b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: fragment("quantile(?)(?)", ^percentile, b.duration_ms)
+        ),
+        opts
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> 0.0
+      value when is_float(value) -> value
+      value -> value / 1.0
+    end
+  end
+
+  defp build_percentiles_over_time(project_id, percentile, start_datetime, end_datetime, date_format, opts) do
+    query =
+      maybe_filter_ci(
+        from(b in Build,
+          group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+          where:
+            b.project_id == ^project_id and
+              b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+              b.inserted_at <= ^DateTime.to_naive(end_datetime),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+            duration: fragment("quantile(?)(?)", ^percentile, b.duration_ms)
+          },
+          order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+        ),
+        opts
+      )
+
+    ClickHouseRepo.all(query)
+  end
+
   defp average_build_duration(project_id, start_datetime, end_datetime, opts) do
     query =
       maybe_filter_ci(
@@ -409,6 +670,32 @@ defmodule Tuist.Gradle.Analytics do
     |> Enum.map(fn date ->
       date_str = format_date(date, date_period)
       %{date: date, duration: Map.get(data_map, date_str, 0.0)}
+    end)
+  end
+
+  defp process_count_data(data, start_datetime, end_datetime, date_period) do
+    data_map = Map.new(data, &{&1.date, &1.count})
+
+    start_datetime
+    |> generate_date_range(end_datetime, date_period)
+    |> Enum.map(fn date ->
+      date_str = format_date(date, date_period)
+      %{date: date, count: Map.get(data_map, date_str, 0)}
+    end)
+  end
+
+  defp process_success_rate_data(data, start_datetime, end_datetime, date_period) do
+    data_map =
+      Map.new(data, fn row ->
+        rate = if row.total > 0, do: row.successful / row.total, else: 0.0
+        {row.date, rate}
+      end)
+
+    start_datetime
+    |> generate_date_range(end_datetime, date_period)
+    |> Enum.map(fn date ->
+      date_str = format_date(date, date_period)
+      %{date: date, success_rate: Map.get(data_map, date_str, 0.0)}
     end)
   end
 
@@ -498,6 +785,13 @@ defmodule Tuist.Gradle.Analytics do
     case Keyword.get(opts, :is_ci) do
       nil -> query
       is_ci -> from(b in query, where: b.is_ci == ^is_ci)
+    end
+  end
+
+  defp maybe_filter_status(query, opts) do
+    case Keyword.get(opts, :status) do
+      nil -> query
+      status -> from(b in query, where: b.status == ^status)
     end
   end
 end

@@ -9,6 +9,7 @@ defmodule TuistWeb.BuildsLive do
 
   alias Tuist.Builds
   alias Tuist.Builds.Analytics
+  alias Tuist.Projects.Project
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -21,9 +22,18 @@ defmodule TuistWeb.BuildsLive do
         "#{dgettext("dashboard_builds", "Builds")} · #{account.name}/#{project.name} · Tuist"
       )
       |> assign(OpenGraph.og_image_assigns("builds"))
-      |> assign_configuration_insights_options(params)
-      |> assign_initial_configuration_insights()
-      |> assign_recent_builds()
+
+    socket =
+      if Project.gradle_project?(project) do
+        socket
+        |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
+        |> TuistWeb.GradleBuildsLive.assign_initial_configuration_insights()
+      else
+        socket
+        |> assign_configuration_insights_options(params)
+        |> assign_initial_configuration_insights()
+        |> assign_recent_builds()
+      end
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -32,36 +42,44 @@ defmodule TuistWeb.BuildsLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, socket) do
-    uri =
-      URI.new!(
-        "?" <>
-          URI.encode_query(
-            Map.take(params, [
-              "analytics-selected-widget",
-              "analytics-environment",
-              "analytics-date-range",
-              "analytics-build-scheme",
-              "analytics-build-configuration",
-              "analytics-build-category",
-              "analytics-build-tag",
-              "build-duration-type"
-            ])
-          )
-      )
+  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+    if Project.gradle_project?(project) do
+      {:noreply,
+       socket
+       |> TuistWeb.GradleBuildsLive.assign_handle_params(params)
+       |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(params)
+       |> TuistWeb.GradleBuildsLive.assign_configuration_insights()}
+    else
+      uri =
+        URI.new!(
+          "?" <>
+            URI.encode_query(
+              Map.take(params, [
+                "analytics-selected-widget",
+                "analytics-environment",
+                "analytics-date-range",
+                "analytics-build-scheme",
+                "analytics-build-configuration",
+                "analytics-build-category",
+                "analytics-build-tag",
+                "build-duration-type"
+              ])
+            )
+        )
 
-    {
-      :noreply,
-      socket
-      |> assign(
-        :uri,
-        uri
-      )
-      |> assign(:current_params, params)
-      |> assign_analytics(params)
-      |> assign_configuration_insights_options(params)
-      |> assign_configuration_insights()
-    }
+      {
+        :noreply,
+        socket
+        |> assign(
+          :uri,
+          uri
+        )
+        |> assign(:current_params, params)
+        |> assign_analytics(params)
+        |> assign_configuration_insights_options(params)
+        |> assign_configuration_insights()
+      }
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -227,6 +245,18 @@ defmodule TuistWeb.BuildsLive do
       {:noreply, socket}
     else
       {:noreply, socket |> assign_analytics(socket.assigns.current_params) |> assign_recent_builds()}
+    end
+  end
+
+  def handle_info({:gradle_build_created, _build}, socket) do
+    if Query.has_pagination_params?(socket.assigns.uri.query) do
+      {:noreply, socket}
+    else
+      {:noreply,
+       socket
+       |> TuistWeb.GradleBuildsLive.assign_handle_params(socket.assigns.current_params)
+       |> TuistWeb.GradleBuildsLive.assign_configuration_insights_options(socket.assigns.current_params)
+       |> TuistWeb.GradleBuildsLive.assign_initial_configuration_insights()}
     end
   end
 

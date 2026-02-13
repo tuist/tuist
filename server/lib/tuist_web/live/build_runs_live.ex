@@ -11,20 +11,27 @@ defmodule TuistWeb.BuildRunsLive do
   alias Tuist.Accounts
   alias Tuist.Builds
   alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
-    configurations = Builds.project_build_configurations(project)
-    tags = Builds.project_build_tags(project)
 
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("build-runs"))
-      |> assign(:available_filters, define_filters(project, configurations, tags))
+
+    socket =
+      if Project.gradle_project?(project) do
+        TuistWeb.GradleBuildRunsLive.assign_mount(socket)
+      else
+        configurations = Builds.project_build_configurations(project)
+        tags = Builds.project_build_tags(project)
+        assign(socket, :available_filters, define_filters(project, configurations, tags))
+      end
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -33,31 +40,32 @@ defmodule TuistWeb.BuildRunsLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, socket) do
-    uri = URI.new!("?" <> URI.encode_query(params))
+  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+    if Project.gradle_project?(project) do
+      {:noreply, TuistWeb.GradleBuildRunsLive.assign_handle_params(socket, params)}
+    else
+      uri = URI.new!("?" <> URI.encode_query(params))
 
-    build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
-    build_runs_sort_order = params["build-runs-sort-order"] || "desc"
+      build_runs_sort_by = params["build-runs-sort-by"] || "ran-at"
+      build_runs_sort_order = params["build-runs-sort-order"] || "desc"
 
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
+      params =
+        if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
+          Query.clear_cursors(params)
+        else
+          params
+        end
 
-    socket =
-      socket
-      |> assign(:uri, uri)
-      |> assign(:current_params, params)
-      |> assign(:build_runs_sort_by, build_runs_sort_by)
-      |> assign(:build_runs_sort_order, build_runs_sort_order)
-      |> assign_build_runs(params)
+      socket =
+        socket
+        |> assign(:uri, uri)
+        |> assign(:current_params, params)
+        |> assign(:build_runs_sort_by, build_runs_sort_by)
+        |> assign(:build_runs_sort_order, build_runs_sort_order)
+        |> assign_build_runs(params)
 
-    {
-      :noreply,
-      socket
-    }
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:build_created, _build}, socket) do
@@ -66,6 +74,14 @@ defmodule TuistWeb.BuildRunsLive do
       {:noreply, socket}
     else
       {:noreply, assign_build_runs(socket, socket.assigns.current_params)}
+    end
+  end
+
+  def handle_info({:gradle_build_created, _build}, socket) do
+    if Query.has_pagination_params?(socket.assigns.uri.query) do
+      {:noreply, socket}
+    else
+      {:noreply, TuistWeb.GradleBuildRunsLive.assign_handle_params(socket, socket.assigns.current_params)}
     end
   end
 
@@ -165,37 +181,49 @@ defmodule TuistWeb.BuildRunsLive do
     "?#{URI.encode_query(query_params)}"
   end
 
-  def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params =
-      filter_id
-      |> Filter.Operations.add_filter_to_query(socket)
-      |> Query.clear_cursors()
+  def handle_event("add_filter", %{"value" => filter_id}, %{assigns: %{selected_project: project}} = socket) do
+    if Project.gradle_project?(project) do
+      {:noreply, TuistWeb.GradleBuildRunsLive.handle_event_add_filter(filter_id, socket)}
+    else
+      updated_params =
+        filter_id
+        |> Filter.Operations.add_filter_to_query(socket)
+        |> Query.clear_cursors()
 
-    {:noreply,
-     socket
-     |> push_patch(
-       to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs?#{updated_params}"
-     )
-     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
-     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+      {:noreply,
+       socket
+       |> push_patch(
+         to:
+           ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs?#{updated_params}"
+       )
+       |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+       |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+    end
   end
 
-  def handle_event("update_filter", params, socket) do
-    updated_query_params =
-      params
-      |> Filter.Operations.update_filters_in_query(socket)
-      |> Query.clear_cursors()
+  def handle_event("update_filter", params, %{assigns: %{selected_project: project}} = socket) do
+    if Project.gradle_project?(project) do
+      {:noreply, TuistWeb.GradleBuildRunsLive.handle_event_update_filter(params, socket)}
+    else
+      updated_query_params =
+        params
+        |> Filter.Operations.update_filters_in_query(socket)
+        |> Query.clear_cursors()
 
-    {:noreply,
-     socket
-     |> push_patch(
-       to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs?#{updated_query_params}"
-     )
-     # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
-     |> push_event("close-dropdown", %{id: "all", all: true})
-     |> push_event("close-popover", %{id: "all", all: true})}
+      {:noreply,
+       socket
+       |> push_patch(
+         to:
+           ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/builds/build-runs?#{updated_query_params}"
+       )
+       # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
+       |> push_event("close-dropdown", %{id: "all", all: true})
+       |> push_event("close-popover", %{id: "all", all: true})}
+    end
+  end
+
+  def handle_event("search-build-runs", %{"search" => search}, socket) do
+    {:noreply, TuistWeb.GradleBuildRunsLive.handle_event_search(search, socket)}
   end
 
   defp build_flop_filters(filters) do
