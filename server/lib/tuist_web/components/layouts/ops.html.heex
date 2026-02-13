@@ -18,6 +18,11 @@
             navigate={~p"/ops/qa"}
           />
           <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "Cache")}
+            selected={String.starts_with?(@current_path, "/ops/cache")}
+            navigate={~p"/ops/cache"}
+          />
+          <.tab_menu_horizontal_item
             label={dgettext("dashboard", "LiveDashboard")}
             selected={String.starts_with?(@current_path, "/ops/dashboard")}
             navigate={~p"/ops/dashboard"}
