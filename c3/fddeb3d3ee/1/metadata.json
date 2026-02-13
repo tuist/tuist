@@ -1,9 +1,11 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "c3fddeb3d3ee",
+  "session_id": "50cad358-0556-456f-9afe-c5b0baba540e",
   "strategy": "manual-commit",
+  "created_at": "2026-02-13T17:53:55.044903Z",
   "branch": "pepicrft/cache-region-observability",
-  "checkpoints_count": 3,
+  "checkpoints_count": 2,
   "files_touched": [
     "cli/Sources/TuistKit/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapper.swift",
     "cli/Tests/TuistKitTests/Mappers/Graph/StaticXCFrameworkModuleMapGraphMapperTests.swift",
@@ -18,27 +20,24 @@
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
-  "sessions": [
-    {
-      "metadata": "/c3/fddeb3d3ee/0/metadata.json",
-      "transcript": "/c3/fddeb3d3ee/0/full.jsonl",
-      "context": "/c3/fddeb3d3ee/0/context.md",
-      "content_hash": "/c3/fddeb3d3ee/0/content_hash.txt",
-      "prompt": "/c3/fddeb3d3ee/0/prompt.txt"
-    },
-    {
-      "metadata": "/c3/fddeb3d3ee/1/metadata.json",
-      "transcript": "/c3/fddeb3d3ee/1/full.jsonl",
-      "context": "/c3/fddeb3d3ee/1/context.md",
-      "content_hash": "/c3/fddeb3d3ee/1/content_hash.txt",
-      "prompt": "/c3/fddeb3d3ee/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "8297bc18-2921-4a7a-ad2e-aef603f0c696",
+  "checkpoint_transcript_start": 1562,
+  "transcript_lines_at_start": 1562,
   "token_usage": {
-    "input_tokens": 69,
-    "cache_creation_tokens": 66365,
-    "cache_read_tokens": 7475730,
-    "output_tokens": 2730,
-    "api_call_count": 63
+    "input_tokens": 57,
+    "cache_creation_tokens": 44849,
+    "cache_read_tokens": 7036069,
+    "output_tokens": 2002,
+    "api_call_count": 53
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-13T17:53:54.586725Z",
+    "agent_lines": 0,
+    "human_added": 139325,
+    "human_modified": 1038,
+    "human_removed": 0,
+    "total_committed": 139325,
+    "agent_percentage": 0
   }
 }
