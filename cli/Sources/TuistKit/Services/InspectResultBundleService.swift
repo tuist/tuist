@@ -44,7 +44,7 @@ protocol InspectResultBundleServicing {
 struct InspectResultBundleService: InspectResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
-    private let uploadStackTraceService: UploadStackTraceServicing
+    private let createStackTraceService: CreateStackTraceServicing
     private let uploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing
     private let xcResultService: XCResultServicing
     private let dateService: DateServicing
@@ -58,7 +58,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
-        uploadStackTraceService: UploadStackTraceServicing = UploadStackTraceService(),
+        createStackTraceService: CreateStackTraceServicing = CreateStackTraceService(),
         uploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing = UploadTestCaseRunAttachmentService(),
         xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
@@ -71,7 +71,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
-        self.uploadStackTraceService = uploadStackTraceService
+        self.createStackTraceService = createStackTraceService
         self.uploadTestCaseRunAttachmentService = uploadTestCaseRunAttachmentService
         self.xcResultService = xcResultService
         self.dateService = dateService
@@ -134,12 +134,14 @@ struct InspectResultBundleService: InspectResultBundleServicing {
 
         if !testSummary.stackTraces.isEmpty {
             do {
-                try await uploadStackTraceService.uploadStackTraces(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    testRunId: test.id,
-                    stackTraces: testSummary.stackTraces
-                )
+                try await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
+                    try await createStackTraceService.createStackTrace(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        testRunId: test.id,
+                        stackTrace: stackTrace
+                    )
+                }
             } catch {
                 Logger.current.warning("Failed to upload stack traces: \(error.localizedDescription)")
             }

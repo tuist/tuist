@@ -1635,11 +1635,11 @@ public struct Client: APIProtocol {
     /// Upload a crash stack trace for a test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)`.
-    public func uploadStackTrace(_ input: Operations.uploadStackTrace.Input) async throws -> Operations.uploadStackTrace.Output {
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
+    public func createStackTrace(_ input: Operations.createStackTrace.Input) async throws -> Operations.createStackTrace.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.uploadStackTrace.id,
+            forOperation: Operations.createStackTrace.id,
             serializer: { input in
                 let path = try converter.renderedPath(
                     template: "/api/projects/{}/{}/tests/{}/stack-traces",
@@ -1675,7 +1675,7 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadStackTrace.Output.Ok.Body
+                    let body: Operations.createStackTrace.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1697,7 +1697,7 @@ public struct Client: APIProtocol {
                     return .ok(.init(body: body))
                 case 400:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadStackTrace.Output.BadRequest.Body
+                    let body: Operations.createStackTrace.Output.BadRequest.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1719,7 +1719,7 @@ public struct Client: APIProtocol {
                     return .badRequest(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadStackTrace.Output.Unauthorized.Body
+                    let body: Operations.createStackTrace.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1741,7 +1741,7 @@ public struct Client: APIProtocol {
                     return .unauthorized(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadStackTrace.Output.Forbidden.Body
+                    let body: Operations.createStackTrace.Output.Forbidden.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -1763,7 +1763,7 @@ public struct Client: APIProtocol {
                     return .forbidden(.init(body: body))
                 case 404:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.uploadStackTrace.Output.NotFound.Body
+                    let body: Operations.createStackTrace.Output.NotFound.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [

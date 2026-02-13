@@ -89,8 +89,8 @@ public protocol APIProtocol: Sendable {
     /// Upload a crash stack trace for a test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)`.
-    func uploadStackTrace(_ input: Operations.uploadStackTrace.Input) async throws -> Operations.uploadStackTrace.Output
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
+    func createStackTrace(_ input: Operations.createStackTrace.Input) async throws -> Operations.createStackTrace.Output
     /// List projects the authenticated user has access to.
     ///
     /// - Remark: HTTP `GET /api/projects`.
@@ -709,13 +709,13 @@ extension APIProtocol {
     /// Upload a crash stack trace for a test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)`.
-    public func uploadStackTrace(
-        path: Operations.uploadStackTrace.Input.Path,
-        headers: Operations.uploadStackTrace.Input.Headers = .init(),
-        body: Operations.uploadStackTrace.Input.Body? = nil
-    ) async throws -> Operations.uploadStackTrace.Output {
-        try await uploadStackTrace(Operations.uploadStackTrace.Input(
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
+    public func createStackTrace(
+        path: Operations.createStackTrace.Input.Path,
+        headers: Operations.createStackTrace.Input.Headers = .init(),
+        body: Operations.createStackTrace.Input.Body? = nil
+    ) async throws -> Operations.createStackTrace.Output {
+        try await createStackTrace(Operations.createStackTrace.Input(
             path: path,
             headers: headers,
             body: body
@@ -13409,9 +13409,9 @@ public enum Operations {
     /// Upload a crash stack trace for a test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)`.
-    public enum uploadStackTrace {
-        public static let id: Swift.String = "uploadStackTrace"
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
+    public enum createStackTrace {
+        public static let id: Swift.String = "createStackTrace"
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/path`.
             public struct Path: Sendable, Hashable {
@@ -13443,19 +13443,19 @@ public enum Operations {
                     self.test_run_id = test_run_id
                 }
             }
-            public var path: Operations.uploadStackTrace.Input.Path
+            public var path: Operations.createStackTrace.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadStackTrace.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStackTrace.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.uploadStackTrace.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStackTrace.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.uploadStackTrace.Input.Headers
+            public var headers: Operations.createStackTrace.Input.Headers
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
                 /// Parameters to upload a single crash stack trace.
@@ -13536,9 +13536,9 @@ public enum Operations {
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/content/application\/json`.
-                case json(Operations.uploadStackTrace.Input.Body.jsonPayload)
+                case json(Operations.createStackTrace.Input.Body.jsonPayload)
             }
-            public var body: Operations.uploadStackTrace.Input.Body?
+            public var body: Operations.createStackTrace.Input.Body?
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -13546,9 +13546,9 @@ public enum Operations {
             ///   - headers:
             ///   - body:
             public init(
-                path: Operations.uploadStackTrace.Input.Path,
-                headers: Operations.uploadStackTrace.Input.Headers = .init(),
-                body: Operations.uploadStackTrace.Input.Body? = nil
+                path: Operations.createStackTrace.Input.Path,
+                headers: Operations.createStackTrace.Input.Headers = .init(),
+                body: Operations.createStackTrace.Input.Body? = nil
             ) {
                 self.path = path
                 self.headers = headers
@@ -13575,26 +13575,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadStackTrace.Output.Ok.Body
+                public var body: Operations.createStackTrace.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadStackTrace.Output.Ok.Body) {
+                public init(body: Operations.createStackTrace.Output.Ok.Body) {
                     self.body = body
                 }
             }
             /// The stack trace was uploaded
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.uploadStackTrace.Output.Ok)
+            case ok(Operations.createStackTrace.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.uploadStackTrace.Output.Ok {
+            public var ok: Operations.createStackTrace.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -13626,26 +13626,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadStackTrace.Output.BadRequest.Body
+                public var body: Operations.createStackTrace.Output.BadRequest.Body
                 /// Creates a new `BadRequest`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadStackTrace.Output.BadRequest.Body) {
+                public init(body: Operations.createStackTrace.Output.BadRequest.Body) {
                     self.body = body
                 }
             }
             /// The request parameters are invalid
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)/responses/400`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/400`.
             ///
             /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.uploadStackTrace.Output.BadRequest)
+            case badRequest(Operations.createStackTrace.Output.BadRequest)
             /// The associated value of the enum case if `self` is `.badRequest`.
             ///
             /// - Throws: An error if `self` is not `.badRequest`.
             /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.uploadStackTrace.Output.BadRequest {
+            public var badRequest: Operations.createStackTrace.Output.BadRequest {
                 get throws {
                     switch self {
                     case let .badRequest(response):
@@ -13677,26 +13677,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadStackTrace.Output.Unauthorized.Body
+                public var body: Operations.createStackTrace.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadStackTrace.Output.Unauthorized.Body) {
+                public init(body: Operations.createStackTrace.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.uploadStackTrace.Output.Unauthorized)
+            case unauthorized(Operations.createStackTrace.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.uploadStackTrace.Output.Unauthorized {
+            public var unauthorized: Operations.createStackTrace.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -13728,26 +13728,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadStackTrace.Output.Forbidden.Body
+                public var body: Operations.createStackTrace.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadStackTrace.Output.Forbidden.Body) {
+                public init(body: Operations.createStackTrace.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// Not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.uploadStackTrace.Output.Forbidden)
+            case forbidden(Operations.createStackTrace.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.uploadStackTrace.Output.Forbidden {
+            public var forbidden: Operations.createStackTrace.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -13779,26 +13779,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.uploadStackTrace.Output.NotFound.Body
+                public var body: Operations.createStackTrace.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.uploadStackTrace.Output.NotFound.Body) {
+                public init(body: Operations.createStackTrace.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// The project doesn't exist
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(uploadStackTrace)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.uploadStackTrace.Output.NotFound)
+            case notFound(Operations.createStackTrace.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.uploadStackTrace.Output.NotFound {
+            public var notFound: Operations.createStackTrace.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

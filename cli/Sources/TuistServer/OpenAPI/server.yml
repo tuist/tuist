@@ -6175,7 +6175,7 @@ paths:
   /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces:
     post:
       callbacks: {}
-      operationId: uploadStackTrace
+      operationId: createStackTrace
       parameters:
         - description: The handle of the project's account.
           in: path

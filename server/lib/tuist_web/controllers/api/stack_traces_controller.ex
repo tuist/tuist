@@ -38,7 +38,7 @@ defmodule TuistWeb.API.StackTracesController do
         description: "The UUID of the test run."
       ]
     ],
-    operation_id: "uploadStackTrace",
+    operation_id: "createStackTrace",
     request_body:
       {"Stack trace params", "application/json",
        %Schema{
