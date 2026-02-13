@@ -15,7 +15,6 @@ defmodule TuistWeb.AuthenticationPlug do
 
   def init(:load_authenticated_subject = opts), do: opts
   def init({:require_authentication, _} = opts), do: opts
-  def init({:require_user_authentication, _} = opts), do: opts
 
   def call(conn, :load_authenticated_subject) do
     token = TuistWeb.Authentication.get_authorization_token_from_conn(conn)
@@ -29,32 +28,32 @@ defmodule TuistWeb.AuthenticationPlug do
 
   def call(conn, {:require_authentication, opts}) do
     response_type = Keyword.get(opts, :response_type, :open_api)
+    subject = Keyword.get(opts, :subject)
 
-    if TuistWeb.Authentication.authenticated?(conn) do
+    authenticated? =
+      case subject do
+        :user -> TuistWeb.Authentication.current_user(conn) != nil
+        nil -> TuistWeb.Authentication.authenticated?(conn)
+      end
+
+    if authenticated? do
       conn
     else
       :open_api = response_type
 
-      conn
-      |> put_status(:unauthorized)
-      |> json(%{message: "You need to be authenticated to access this resource."})
-      |> halt()
-    end
-  end
+      {status, message} =
+        case subject do
+          :user ->
+            {:forbidden,
+             "This endpoint requires user authentication. Project tokens are not supported."}
 
-  def call(conn, {:require_user_authentication, opts}) do
-    response_type = Keyword.get(opts, :response_type, :open_api)
-
-    if TuistWeb.Authentication.current_user(conn) do
-      conn
-    else
-      :open_api = response_type
+          nil ->
+            {:unauthorized, "You need to be authenticated to access this resource."}
+        end
 
       conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message: "This endpoint requires user authentication. Project tokens are not supported."
-      })
+      |> put_status(status)
+      |> json(%{message: message})
       |> halt()
     end
   end

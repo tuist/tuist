@@ -17,7 +17,10 @@ defmodule TuistWeb.API.OrganizationsController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.AuthenticationPlug, {:require_user_authentication, response_type: :open_api})
+  plug(
+    TuistWeb.AuthenticationPlug,
+    {:require_authentication, response_type: :open_api, subject: :user}
+  )
 
   tags(["Organizations"])
 
