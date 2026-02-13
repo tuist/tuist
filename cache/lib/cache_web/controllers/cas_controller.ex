@@ -171,7 +171,8 @@ defmodule CacheWeb.CASController do
             send_error(conn_after, :internal_server_error, "Failed to persist artifact")
         end
 
-      _error ->
+      {:error, reason} ->
+        Logger.error("Failed to ensure CAS artifact directory: #{inspect(reason)}")
         :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :persist_error})
         send_error(conn, :internal_server_error, "Failed to persist artifact")
     end

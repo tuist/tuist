@@ -52,13 +52,13 @@ defmodule Cache.BodyReader do
 
     conn
     |> Plug.Conn.read_body(merged_opts)
-    |> handle_device_result(conn, merged_opts, device, writer, max_bytes)
+    |> handle_device_result(conn, merged_opts, writer, max_bytes)
   rescue
     Bandit.TransportError ->
       {:error, :cancelled, conn}
   end
 
-  defp handle_device_result({:ok, body, conn_after}, _conn, _opts, _device, writer, max_bytes) do
+  defp handle_device_result({:ok, body, conn_after}, _conn, _opts, writer, max_bytes) do
     bytes = byte_size(body)
 
     cond do
@@ -68,14 +68,14 @@ defmodule Cache.BodyReader do
     end
   end
 
-  defp handle_device_result({:more, chunk, conn_after}, _conn, opts, device, writer, max_bytes) do
+  defp handle_device_result({:more, chunk, conn_after}, _conn, opts, writer, max_bytes) do
     bytes_read = byte_size(chunk)
 
     if bytes_read > max_bytes do
       {:error, :too_large, conn_after}
     else
       with :ok <- writer.(chunk),
-           {:ok, conn_final, total_bytes} <- read_loop(conn_after, opts, device, bytes_read, writer, max_bytes) do
+           {:ok, conn_final, total_bytes} <- read_loop(conn_after, opts, bytes_read, writer, max_bytes) do
         {:ok, total_bytes, conn_final}
       else
         {:error, reason} -> {:error, reason, conn_after}
@@ -84,7 +84,7 @@ defmodule Cache.BodyReader do
     end
   end
 
-  defp handle_device_result({:error, reason}, conn, _opts, _device, _writer, _max_bytes) do
+  defp handle_device_result({:error, reason}, conn, _opts, _writer, _max_bytes) do
     normalize_error(reason, conn)
   end
 
@@ -133,7 +133,7 @@ defmodule Cache.BodyReader do
   defp normalize_error(reason, conn), do: {:error, reason, conn}
 
   defp read_chunks(conn, opts, _first_chunk, bytes_read, :discard, max_bytes) do
-    read_loop(conn, opts, nil, bytes_read, fn _chunk -> :ok end, max_bytes)
+    read_loop(conn, opts, bytes_read, fn _chunk -> :ok end, max_bytes)
   end
 
   defp read_chunks(conn, opts, first_chunk, bytes_read, :store, max_bytes) do
@@ -145,7 +145,7 @@ defmodule Cache.BodyReader do
 
         case writer.(first_chunk) do
           :ok ->
-            case read_loop(conn, opts, device, bytes_read, writer, max_bytes) do
+            case read_loop(conn, opts, bytes_read, writer, max_bytes) do
               {:ok, conn_after, _bytes} ->
                 File.close(device)
                 {:ok, {:file, tmp_path}, conn_after}
@@ -167,36 +167,34 @@ defmodule Cache.BodyReader do
     end
   end
 
-  defp read_loop(conn, opts, device, bytes_read, writer, max_bytes) do
-    # Use progressive timeout for each chunk read (similar to Apache mod_reqtimeout MinRate)
-    # This resets the timeout on each successful read, allowing slow-but-steady connections
+  defp read_loop(conn, opts, bytes_read, writer, max_bytes) do
     chunk_opts = Keyword.put(opts, :read_timeout, chunk_timeout(opts))
 
     conn
     |> Plug.Conn.read_body(chunk_opts)
-    |> handle_loop_result(conn, opts, device, bytes_read, writer, max_bytes)
+    |> handle_loop_result(conn, opts, bytes_read, writer, max_bytes)
   rescue
     Bandit.TransportError ->
       {:error, :cancelled, conn}
   end
 
-  defp handle_loop_result(result, conn, opts, device, bytes_read, writer, max_bytes) do
+  defp handle_loop_result(result, conn, opts, bytes_read, writer, max_bytes) do
     case result do
       {:ok, "", conn_after} ->
         {:ok, conn_after, bytes_read}
 
       {:ok, chunk, conn_after} ->
-        write_chunk(conn_after, opts, device, bytes_read, chunk, writer, max_bytes, false)
+        write_chunk(conn_after, opts, bytes_read, chunk, writer, max_bytes, false)
 
       {:more, chunk, conn_after} ->
-        write_chunk(conn_after, opts, device, bytes_read, chunk, writer, max_bytes, true)
+        write_chunk(conn_after, opts, bytes_read, chunk, writer, max_bytes, true)
 
       {:error, reason} ->
         {:error, reason, conn}
     end
   end
 
-  defp write_chunk(conn, opts, device, bytes_read, chunk, writer, max_bytes, recurse?) do
+  defp write_chunk(conn, opts, bytes_read, chunk, writer, max_bytes, recurse?) do
     bytes = bytes_read + byte_size(chunk)
 
     if bytes > max_bytes do
@@ -205,7 +203,7 @@ defmodule Cache.BodyReader do
       case writer.(chunk) do
         :ok ->
           if recurse? do
-            read_loop(conn, opts, device, bytes, writer, max_bytes)
+            read_loop(conn, opts, bytes, writer, max_bytes)
           else
             {:ok, conn, bytes}
           end

@@ -329,7 +329,6 @@ defmodule CacheWeb.ModuleCacheController do
             send_resp(conn_after, :no_content, "")
 
           {:error, :total_size_exceeded} ->
-            MultipartUploads.abort_upload(upload_id)
             {:error, :total_size_exceeded}
 
           {:error, _reason} ->
@@ -518,9 +517,8 @@ defmodule CacheWeb.ModuleCacheController do
 
   defp verify_parts(server_parts, client_parts) do
     server_part_numbers = server_parts |> Map.keys() |> Enum.sort()
-    client_part_numbers = Enum.sort(client_parts)
 
-    if server_part_numbers == client_part_numbers do
+    if server_part_numbers == client_parts do
       :ok
     else
       {:error, :parts_mismatch}

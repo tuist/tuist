@@ -9,7 +9,6 @@ defmodule Cache.MultipartUploads do
   use GenServer
 
   alias Cache.Disk
-  alias Cache.Module.Disk, as: ModuleDisk
 
   require Logger
 
@@ -30,7 +29,17 @@ defmodule Cache.MultipartUploads do
   Returns `{:ok, upload_id}` where upload_id is a UUID string.
   """
   def start_upload(account_handle, project_handle, category, hash, name) do
-    GenServer.call(__MODULE__, {:start_upload, account_handle, project_handle, category, hash, name})
+    upload_id = UUIDv7.generate()
+
+    assembly_path =
+      Cache.Module.Disk.assembly_path(account_handle, project_handle, category, hash, name, upload_id)
+
+    with :ok <- Disk.ensure_directory(assembly_path) do
+      GenServer.call(
+        __MODULE__,
+        {:register_upload, upload_id, account_handle, project_handle, category, hash, name, assembly_path}
+      )
+    end
   end
 
   @doc """
@@ -67,8 +76,9 @@ defmodule Cache.MultipartUploads do
   """
   def confirm_write(upload_id, part_number, size_bytes) do
     case GenServer.call(__MODULE__, {:confirm_write, upload_id, part_number, size_bytes}) do
-      {:truncate, path, offset} ->
-        do_truncate(path, offset)
+      {:cleanup, upload_data} ->
+        File.rm(upload_data.assembly_path)
+        cleanup_temp_files(upload_data.parts)
         {:error, :total_size_exceeded}
 
       other ->
@@ -134,37 +144,31 @@ defmodule Cache.MultipartUploads do
   end
 
   @impl true
-  def handle_call({:start_upload, account_handle, project_handle, category, hash, name}, _from, state) do
-    upload_id = UUIDv7.generate()
-    assembly_path = ModuleDisk.assembly_path(account_handle, project_handle, category, hash, name, upload_id)
+  def handle_call(
+        {:register_upload, upload_id, account_handle, project_handle, category, hash, name, assembly_path},
+        _from,
+        state
+      ) do
+    now = DateTime.utc_now()
 
-    case Disk.ensure_directory(assembly_path) do
-      :ok ->
-        now = DateTime.utc_now()
+    upload_data = %{
+      account_handle: account_handle,
+      project_handle: project_handle,
+      category: category,
+      hash: hash,
+      name: name,
+      parts: %{},
+      total_bytes: 0,
+      created_at: now,
+      last_activity_at: now,
+      assembly_path: assembly_path,
+      assembly_offset: 0,
+      next_sequential: 1,
+      write_in_progress: nil
+    }
 
-        upload_data = %{
-          account_handle: account_handle,
-          project_handle: project_handle,
-          category: category,
-          hash: hash,
-          name: name,
-          parts: %{},
-          total_bytes: 0,
-          created_at: now,
-          last_activity_at: now,
-          assembly_path: assembly_path,
-          assembly_offset: 0,
-          next_sequential: 1,
-          write_in_progress: nil
-        }
-
-        :ets.insert(@table_name, {upload_id, upload_data})
-        {:reply, {:ok, upload_id}, state}
-
-      {:error, reason} ->
-        Logger.error("Failed to start multipart upload #{upload_id}: #{inspect(reason)}")
-        {:reply, {:error, reason}, state}
-    end
+    :ets.insert(@table_name, {upload_id, upload_data})
+    {:reply, {:ok, upload_id}, state}
   end
 
   @impl true
@@ -238,16 +242,8 @@ defmodule Cache.MultipartUploads do
         new_total = projected_total(upload_data, part_number, size_bytes)
 
         if new_total > @max_total_size do
-          %{write_in_progress: %{offset: offset}, assembly_path: path} = upload_data
-
-          updated_data = %{
-            upload_data
-            | write_in_progress: nil,
-              last_activity_at: DateTime.utc_now()
-          }
-
-          :ets.insert(@table_name, {upload_id, updated_data})
-          {:reply, {:truncate, path, offset}, state}
+          :ets.delete(@table_name, upload_id)
+          {:reply, {:cleanup, upload_data}, state}
         else
           part_data = %{size: size_bytes, written: true}
 
@@ -369,10 +365,6 @@ defmodule Cache.MultipartUploads do
           exceeded_max_duration = total_age_ms > @max_upload_duration_ms
 
           if inactive_and_unlocked or exceeded_max_duration do
-            if upload_data.write_in_progress != nil do
-              truncate_to_offset(upload_data)
-            end
-
             acc_state = demonitor_write(upload_data, acc_state)
             :ets.delete(@table_name, upload_id)
             {[{upload_id, upload_data} | acc_abandoned], acc_state}
@@ -388,6 +380,7 @@ defmodule Cache.MultipartUploads do
       Task.start(fn ->
         Enum.each(abandoned, fn {upload_id, upload_data} ->
           Logger.info("Cleaning up abandoned multipart upload #{upload_id}")
+          truncate_to_offset(upload_data)
           File.rm(upload_data.assembly_path)
           cleanup_temp_files(upload_data.parts)
         end)
@@ -411,12 +404,22 @@ defmodule Cache.MultipartUploads do
   defp do_truncate(path, offset) do
     case :file.open(path, [:write, :read, :binary, :raw]) do
       {:ok, fd} ->
-        :file.position(fd, offset)
-        :file.truncate(fd)
-        :file.close(fd)
+        result =
+          with {:ok, ^offset} <- :file.position(fd, offset),
+               :ok <- :file.truncate(fd) do
+            :ok
+          else
+            error ->
+              Logger.warning("Failed to truncate #{path} at offset #{offset}: #{inspect(error)}")
+              error
+          end
 
-      _ ->
-        :ok
+        :file.close(fd)
+        result
+
+      {:error, reason} ->
+        Logger.warning("Failed to open #{path} for truncation: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
