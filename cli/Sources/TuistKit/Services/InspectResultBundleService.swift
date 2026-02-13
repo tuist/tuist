@@ -152,7 +152,10 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         testRunId: test.id,
-                        stackTrace: stackTrace
+                        testCaseRunId: stackTrace.id,
+                        fileName: stackTrace.fileName,
+                        contentType: "application/x-ips",
+                        data: Data(stackTrace.rawContent.utf8)
                     )
                 }
             } catch {
