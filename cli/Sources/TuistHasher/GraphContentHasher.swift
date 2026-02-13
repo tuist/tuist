@@ -70,42 +70,13 @@ public struct GraphContentHasher: GraphContentHashing {
         let additionalStrings = additionalStrings
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
-        let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
-            guard target.target.foreignBuild == nil else { return nil }
-            if isHashable(
+        let hashableTargets = sortedCacheableTargets.filter { target in
+            isHashable(
                 target,
                 graphTraverser: graphTraverser,
                 visited: &visitedIsHasheableNodes,
                 include: include
-            ) {
-                return target
-            } else {
-                return nil
-            }
-        }
-
-        let foreignBuildTargets = sortedCacheableTargets.filter { $0.target.foreignBuild != nil }
-        var includedForeignBuildHashes: [GraphTarget: TargetContentHash] = [:]
-        for target in foreignBuildTargets {
-            let hash = try await targetContentHasher.contentHash(
-                for: target,
-                hashedTargets: hashedTargets.value,
-                hashedPaths: hashedPaths.value,
-                destination: destination,
-                additionalStrings: additionalStrings
             )
-            hashedPaths.mutate { $0 = hash.hashedPaths }
-            hashedTargets.mutate {
-                $0[
-                    GraphHashedTarget(
-                        projectPath: target.path,
-                        targetName: target.target.name
-                    )
-                ] = hash.hash
-            }
-            if include(target) {
-                includedForeignBuildHashes[target] = hash
-            }
         }
 
         let hashes = try await hashableTargets
@@ -128,9 +99,7 @@ public struct GraphContentHasher: GraphContentHashing {
                 }
                 return hash
             }
-        var result = Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
-        result.merge(includedForeignBuildHashes) { _, new in new }
-        return result
+        return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
     // MARK: - Private
@@ -151,10 +120,7 @@ public struct GraphContentHasher: GraphContentHashing {
             name: target.target.name
         )
         .allSatisfy {
-            if $0.graphTarget.target.foreignBuild != nil {
-                return true
-            }
-            return isHashable(
+            isHashable(
                 $0.graphTarget,
                 graphTraverser: graphTraverser,
                 visited: &visited,
