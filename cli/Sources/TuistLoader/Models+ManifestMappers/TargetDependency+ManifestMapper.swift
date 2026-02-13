@@ -211,7 +211,7 @@ extension XcodeGraph.XCFrameworkSignature {
 }
 
 extension XcodeGraph.BinaryLinking {
-    static func from(manifest: ProjectDescription.ForeignBuildOutput.Linking) -> Self {
+    static func from(manifest: ProjectDescription.Target.ForeignBuild.Output.Linking) -> Self {
         switch manifest {
         case .static: return .static
         case .dynamic: return .dynamic
@@ -221,7 +221,7 @@ extension XcodeGraph.BinaryLinking {
 
 extension XcodeGraph.ForeignBuild.Artifact {
     static func from(
-        manifest: ProjectDescription.ForeignBuildOutput,
+        manifest: ProjectDescription.Target.ForeignBuild.Output,
         generatorPaths: GeneratorPaths
     ) throws -> Self {
         switch manifest {
