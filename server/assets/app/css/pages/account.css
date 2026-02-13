@@ -96,6 +96,9 @@
       }
 
       & > [data-part="title"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-4);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-body-large);
       }
