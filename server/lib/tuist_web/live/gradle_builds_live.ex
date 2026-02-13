@@ -10,6 +10,7 @@ defmodule TuistWeb.GradleBuildsLive do
   alias Tuist.Gradle
   alias Tuist.Gradle.Analytics
   alias Tuist.Repo
+  alias Tuist.Tasks
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -51,7 +52,16 @@ defmodule TuistWeb.GradleBuildsLive do
       total_builds_analytics,
       failed_builds_analytics,
       build_success_rate_analytics
-    ] = Analytics.combined_gradle_builds_analytics(project.id, opts)
+    ] =
+      Tasks.parallel_tasks([
+        fn -> Analytics.build_duration_analytics(project.id, opts) end,
+        fn -> Analytics.build_percentile_durations(project.id, 0.99, opts) end,
+        fn -> Analytics.build_percentile_durations(project.id, 0.9, opts) end,
+        fn -> Analytics.build_percentile_durations(project.id, 0.5, opts) end,
+        fn -> Analytics.build_analytics(project.id, opts) end,
+        fn -> Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure")) end,
+        fn -> Analytics.build_success_rate_analytics(project.id, opts) end
+      ])
 
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
 

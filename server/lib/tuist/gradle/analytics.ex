@@ -12,7 +12,6 @@ defmodule Tuist.Gradle.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
-  alias Tuist.Tasks
 
   @doc """
   Calculates the cache hit rate for a project over a time period.
@@ -486,20 +485,6 @@ defmodule Tuist.Gradle.Analytics do
     |> Enum.map(fn row ->
       %{category: row.category, value: row.value || 0}
     end)
-  end
-
-  def combined_gradle_builds_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> build_duration_analytics(project_id, opts) end,
-      fn -> build_percentile_durations(project_id, 0.99, opts) end,
-      fn -> build_percentile_durations(project_id, 0.9, opts) end,
-      fn -> build_percentile_durations(project_id, 0.5, opts) end,
-      fn -> build_analytics(project_id, opts) end,
-      fn -> build_analytics(project_id, Keyword.put(opts, :status, "failure")) end,
-      fn -> build_success_rate_analytics(project_id, opts) end
-    ]
-
-    Tasks.parallel_tasks(queries)
   end
 
   defp build_total_count(project_id, start_datetime, end_datetime, opts) do
