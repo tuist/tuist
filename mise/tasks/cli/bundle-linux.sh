@@ -50,9 +50,9 @@ else
 fi
 
 echo "==> Building tuist executable (static musl, $SDK_TARGET)"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET" -Xlinker -static
 
-BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" --show-bin-path)
+BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" -Xlinker -static --show-bin-path)
 echo "==> Copying binary from $BIN_PATH"
 cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
 
