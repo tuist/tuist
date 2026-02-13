@@ -38,20 +38,13 @@ import TuistHTTP
         }
     }
 
-    public final class CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
+    public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
         private let fullHandleService: FullHandleServicing
         private let urlSession: URLSession
 
-        public convenience init() {
-            self.init(
-                fullHandleService: FullHandleService(),
-                urlSession: .tuistShared
-            )
-        }
-
-        init(
-            fullHandleService: FullHandleServicing,
-            urlSession: URLSession
+        public init(
+            fullHandleService: FullHandleServicing = FullHandleService(),
+            urlSession: URLSession = .tuistShared
         ) {
             self.fullHandleService = fullHandleService
             self.urlSession = urlSession

@@ -35,7 +35,7 @@ import TuistHTTP
         }
     }
 
-    public final class CreateStackTraceService: CreateStackTraceServicing {
+    public struct CreateStackTraceService: CreateStackTraceServicing {
         private let fullHandleService: FullHandleServicing
 
         public init(
