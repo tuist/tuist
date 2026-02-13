@@ -129,13 +129,29 @@ if config_env() == :prod do
 
   config :tuist_common, finch_name: Cache.Finch
 
+  instance_id =
+    case File.read("/etc/host_hostname") do
+      {:ok, content} -> String.trim(content)
+      _ -> "unknown"
+    end
+
+  region =
+    instance_id
+    |> String.replace_prefix("cache-", "")
+    |> String.replace_suffix("-staging", "")
+    |> String.replace_suffix("-canary", "")
+
+  config :cache,
+    instance_id: instance_id,
+    region: region
+
   if otel_endpoint do
     config :opentelemetry,
       traces_exporter: :otlp,
       span_processor: :batch,
       resource: [
-        service: [name: "tuist-cache", namespace: "tuist"],
-        deployment: [environment: System.get_env("DEPLOY_ENV") || "production"]
+        service: [name: "tuist-cache", namespace: "tuist", instance_id: instance_id],
+        deployment: [environment: System.get_env("DEPLOY_ENV") || "production", region: region]
       ]
 
     config :opentelemetry_exporter,

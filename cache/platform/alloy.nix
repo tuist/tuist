@@ -15,6 +15,12 @@
   grafanaCloudLokiUsername = config.services.onepassword-secrets.secrets.grafanaCloudLokiUsername.path;
   grafanaCloudLokiPassword = config.services.onepassword-secrets.secrets.grafanaCloudLokiPassword.path;
 
+  hostname = config.networking.hostName;
+  region = builtins.replaceStrings
+    ["cache-" "-staging" "-canary"]
+    ["" "" ""]
+    hostname;
+
   alloyConfig = ''
     local.file "grafana_cloud_url" {
       filename = "${grafanaCloudUrl}"
@@ -145,7 +151,8 @@
       targets    = discovery.docker.linux.targets
       labels     = {
         app = "cache-docker",
-        instance = "${config.networking.hostName}",
+        instance = "${hostname}",
+        region = "${region}",
       }
       forward_to = [loki.write.grafana_cloud.receiver]
     }
@@ -156,7 +163,8 @@
           __path__  = "/var/log/nginx/error.log",
           job       = "cache-nginx",
           stream    = "error",
-          instance  = "${config.networking.hostName}",
+          instance  = "${hostname}",
+          region    = "${region}",
         },
       ]
       forward_to = [loki.write.grafana_cloud.receiver]
@@ -168,7 +176,8 @@
           __path__  = "/var/log/nginx/access.log",
           job       = "cache-nginx",
           stream    = "access",
-          instance  = "${config.networking.hostName}",
+          instance  = "${hostname}",
+          region    = "${region}",
         },
       ]
       forward_to = [loki.process.nginx_access.receiver]

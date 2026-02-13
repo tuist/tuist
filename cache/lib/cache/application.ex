@@ -77,6 +77,7 @@ defmodule Cache.Application do
           service_name: {:static, "tuist-cache"},
           service_namespace: {:static, "tuist"},
           env: {:static, System.get_env("DEPLOY_ENV") || "production"},
+          region: {:static, Application.get_env(:cache, :region, "unknown")},
           level: :level
         },
         structured_metadata: [:trace_id, :span_id, :request_id]
