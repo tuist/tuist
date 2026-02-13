@@ -566,7 +566,7 @@ public struct XCResultService: XCResultServicing {
 
                             let metadata = parseIPSMetadata(content)
 
-                            let formattedFrames = IPSStackTraceFormatter.format(content)
+                            let triggeredThreadFrames = IPSStackTraceParser().triggeredThreadFrames(content)
 
                             let sanitizedFileName = humanReadableName.replacingOccurrences(of: " ", with: "_")
 
@@ -579,7 +579,7 @@ public struct XCResultService: XCResultServicing {
                                 signal: metadata.signal,
                                 exceptionSubtype: metadata.exceptionSubtype,
                                 filePath: filePath,
-                                formattedFrames: formattedFrames
+                                triggeredThreadFrames: triggeredThreadFrames
                             )
                         }
 

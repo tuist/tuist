@@ -10,7 +10,7 @@ public struct CrashStackTrace {
     public let signal: String?
     public let exceptionSubtype: String?
     public let filePath: AbsolutePath
-    public let formattedFrames: String?
+    public let triggeredThreadFrames: String?
 
     public init(
         id: String,
@@ -21,7 +21,7 @@ public struct CrashStackTrace {
         signal: String?,
         exceptionSubtype: String?,
         filePath: AbsolutePath,
-        formattedFrames: String? = nil
+        triggeredThreadFrames: String? = nil
     ) {
         self.id = id
         self.fileName = fileName
@@ -31,6 +31,6 @@ public struct CrashStackTrace {
         self.signal = signal
         self.exceptionSubtype = exceptionSubtype
         self.filePath = filePath
-        self.formattedFrames = formattedFrames
+        self.triggeredThreadFrames = triggeredThreadFrames
     }
 }

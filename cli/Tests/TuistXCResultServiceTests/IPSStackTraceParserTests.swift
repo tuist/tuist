@@ -2,9 +2,11 @@ import Foundation
 import Testing
 @testable import TuistXCResultService
 
-struct IPSStackTraceFormatterTests {
+struct IPSStackTraceParserTests {
+    let parser = IPSStackTraceParser()
+
     @Test
-    func format_withValidIPS_returnsFormattedFrames() {
+    func triggeredThreadFrames_withValidIPS_returnsFormattedFrames() {
         // Given
         let header = """
         {"app_name":"MyApp","timestamp":"2024-01-15 12:00:00"}
@@ -44,7 +46,7 @@ struct IPSStackTraceFormatterTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = IPSStackTraceFormatter.format(content)
+        let result = parser.triggeredThreadFrames(content)
 
         // Then
         #expect(result != nil)
@@ -60,17 +62,17 @@ struct IPSStackTraceFormatterTests {
     }
 
     @Test
-    func format_withInvalidContent_returnsNil() {
-        #expect(IPSStackTraceFormatter.format("not valid") == nil)
+    func triggeredThreadFrames_withInvalidContent_returnsNil() {
+        #expect(parser.triggeredThreadFrames("not valid") == nil)
     }
 
     @Test
-    func format_withEmptyContent_returnsNil() {
-        #expect(IPSStackTraceFormatter.format("") == nil)
+    func triggeredThreadFrames_withEmptyContent_returnsNil() {
+        #expect(parser.triggeredThreadFrames("") == nil)
     }
 
     @Test
-    func format_withNoTriggeredThread_usesFirstThread() {
+    func triggeredThreadFrames_withNoTriggeredThread_usesFirstThread() {
         // Given
         let header = "{}"
         let payload: [String: Any] = [
@@ -94,7 +96,7 @@ struct IPSStackTraceFormatterTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = IPSStackTraceFormatter.format(content)
+        let result = parser.triggeredThreadFrames(content)
 
         // Then
         #expect(result != nil)
@@ -102,7 +104,7 @@ struct IPSStackTraceFormatterTests {
     }
 
     @Test
-    func format_withImagePath_extractsLastComponent() {
+    func triggeredThreadFrames_withImagePath_extractsLastComponent() {
         // Given
         let header = "{}"
         let payload: [String: Any] = [
@@ -127,7 +129,7 @@ struct IPSStackTraceFormatterTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = IPSStackTraceFormatter.format(content)
+        let result = parser.triggeredThreadFrames(content)
 
         // Then
         #expect(result != nil)

@@ -1,7 +1,9 @@
 import Foundation
 
-public enum IPSStackTraceFormatter {
-    public static func format(_ content: String) -> String? {
+public struct IPSStackTraceParser {
+    public init() {}
+
+    public func triggeredThreadFrames(_ content: String) -> String? {
         let lines = content.components(separatedBy: .newlines)
         guard lines.count >= 2 else { return nil }
 
@@ -22,7 +24,7 @@ public enum IPSStackTraceFormatter {
 
         guard let frames = triggeredThread["frames"] as? [[String: Any]] else { return nil }
 
-        var formattedFrames: [(index: Int, imageName: String, symbol: String)] = []
+        var parsedFrames: [(index: Int, imageName: String, symbol: String)] = []
 
         for (index, frame) in frames.enumerated() {
             let imageIndex = frame["imageIndex"] as? Int ?? 0
@@ -44,15 +46,15 @@ public enum IPSStackTraceFormatter {
                 symbolPart = "0x\(String(offset, radix: 16))"
             }
 
-            formattedFrames.append((index: index, imageName: imageName, symbol: symbolPart))
+            parsedFrames.append((index: index, imageName: imageName, symbol: symbolPart))
         }
 
-        guard !formattedFrames.isEmpty else { return nil }
+        guard !parsedFrames.isEmpty else { return nil }
 
-        let maxIndexWidth = String(formattedFrames.last?.index ?? 0).count
-        let maxImageWidth = formattedFrames.map(\.imageName.count).max() ?? 0
+        let maxIndexWidth = String(parsedFrames.last?.index ?? 0).count
+        let maxImageWidth = parsedFrames.map(\.imageName.count).max() ?? 0
 
-        let outputLines = formattedFrames.map { frame in
+        let outputLines = parsedFrames.map { frame in
             let indexStr = String(frame.index).padding(toLength: maxIndexWidth, withPad: " ", startingAt: 0)
             let imageStr = frame.imageName.padding(toLength: maxImageWidth, withPad: " ", startingAt: 0)
             return "\(indexStr)  \(imageStr)  \(frame.symbol)"
