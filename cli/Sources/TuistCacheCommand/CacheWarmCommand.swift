@@ -12,6 +12,7 @@
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "warm",
+                _superCommandName: "cache",
                 abstract: "Warms the local and remote cache."
             )
         }
