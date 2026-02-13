@@ -1,8 +1,12 @@
-#if os(Linux)
+#if canImport(Glibc)
     import Glibc
 
     let systemGlob = Glibc.glob
-#else
+#elseif canImport(Musl)
+    import Musl
+
+    let systemGlob = Musl.glob
+#elseif canImport(Darwin)
     import Darwin
 
     let systemGlob = Darwin.glob
