@@ -187,7 +187,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 - **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
 - **Modules Aliases:** Always declare module aliases at the module level in files, not within individual functions. This improves readability and avoids repetition.
 - **Mocking:** Copy the modules for mocking in @server/test/test_helper.exs not in the individual functions.
-- **Types:** Utilize typespecs (`@spec`) for public functions.
+- **Types:** Do not add typespecs (`@spec`, `@type`, etc.) to functions or modules.
 - **Naming Conventions:**
     - Modules: PascalCase (e.g., `MyModule`)
     - Functions: snake_case (e.g., `my_function`)
