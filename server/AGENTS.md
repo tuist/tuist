@@ -36,6 +36,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 **Setup Commands**
 ```bash
 mise install
+brew install postgresql@16
 brew services start postgresql@16
 mise run clickhouse:start
 mise run db:create

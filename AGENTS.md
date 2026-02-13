@@ -111,6 +111,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 **Setup Commands:**
 ```bash
 mise install                    # Install system dependencies
+brew install postgresql@16      # Make sure `postgresql@16` is installed locally via Homebrew
 brew services start postgresql@16
 mise run clickhouse:start      # Start ClickHouse
 mise run db:create             # Create database
