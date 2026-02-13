@@ -21,8 +21,8 @@ korumanızı öneririz).
 Tuist, kullanıcı davranış analizi ve olay izleme için
 [PostHog](https://posthog.com/) ile entegre çalışır. Bu sayede, kullanıcıların
 Tuist sunucunuzla nasıl etkileşimde bulunduğunu anlayabilir, özellik kullanımını
-izleyebilir ve pazarlama sitesi, kontrol paneli ve API belgeleri genelinde
-kullanıcı davranışları hakkında bilgi edinebilirsiniz.
+izleyebilir ve pazarlama sitesi, kontrol paneli ve API belgelerinde kullanıcı
+davranışları hakkında bilgi edinebilirsiniz.
 
 ### Yapılandırma {#posthog-configuration}
 
@@ -191,7 +191,7 @@ Uzak depolamadan alınan bir nesnenin boyutu (bayt cinsinden).
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-Uzak depolamadan bir nesne boyutunu alma süresi (milisaniye cinsinden).
+Uzak depolama alanından bir nesne boyutunu alma süresi (milisaniye cinsinden).
 
 #### Etiketler {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
