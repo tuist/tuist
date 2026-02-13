@@ -45,7 +45,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
     private let createStackTraceService: CreateStackTraceServicing
-    private let uploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing
+    private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
     private let xcResultService: XCResultServicing
     private let dateService: DateServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
@@ -59,7 +59,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
         createStackTraceService: CreateStackTraceServicing = CreateStackTraceService(),
-        uploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing = UploadTestCaseRunAttachmentService(),
+        createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
         xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -72,7 +72,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
         self.createStackTraceService = createStackTraceService
-        self.uploadTestCaseRunAttachmentService = uploadTestCaseRunAttachmentService
+        self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
         self.xcResultService = xcResultService
         self.dateService = dateService
         self.serverEnvironmentService = serverEnvironmentService
@@ -147,12 +147,14 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             }
 
             do {
-                try await uploadTestCaseRunAttachmentService.uploadAttachments(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    testRunId: test.id,
-                    stackTraces: testSummary.stackTraces
-                )
+                try await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
+                    try await createTestCaseRunAttachmentService.createAttachment(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        testRunId: test.id,
+                        stackTrace: stackTrace
+                    )
+                }
             } catch {
                 Logger.current.warning("Failed to upload stack trace attachments: \(error.localizedDescription)")
             }

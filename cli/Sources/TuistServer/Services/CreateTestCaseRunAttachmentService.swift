@@ -7,16 +7,16 @@ import TuistHTTP
     import TuistXCResultService
 
     @Mockable
-    public protocol UploadTestCaseRunAttachmentServicing {
-        func uploadAttachments(
+    public protocol CreateTestCaseRunAttachmentServicing {
+        func createAttachment(
             fullHandle: String,
             serverURL: URL,
             testRunId: String,
-            stackTraces: [CrashStackTrace]
+            stackTrace: CrashStackTrace
         ) async throws
     }
 
-    enum UploadTestCaseRunAttachmentServiceError: LocalizedError {
+    enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
         case unknownError(Int)
         case forbidden(String)
         case notFound(String)
@@ -38,7 +38,7 @@ import TuistHTTP
         }
     }
 
-    public final class UploadTestCaseRunAttachmentService: UploadTestCaseRunAttachmentServicing {
+    public final class CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
         private let fullHandleService: FullHandleServicing
         private let urlSession: URLSession
 
@@ -57,45 +57,21 @@ import TuistHTTP
             self.urlSession = urlSession
         }
 
-        public func uploadAttachments(
+        public func createAttachment(
             fullHandle: String,
             serverURL: URL,
             testRunId: String,
-            stackTraces: [CrashStackTrace]
+            stackTrace: CrashStackTrace
         ) async throws {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
-
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                for stackTrace in stackTraces {
-                    group.addTask {
-                        try await self.uploadSingleAttachment(
-                            client: client,
-                            accountHandle: handles.accountHandle,
-                            projectHandle: handles.projectHandle,
-                            testRunId: testRunId,
-                            stackTrace: stackTrace
-                        )
-                    }
-                }
-                try await group.waitForAll()
-            }
-        }
-
-        private func uploadSingleAttachment(
-            client: Client,
-            accountHandle: String,
-            projectHandle: String,
-            testRunId: String,
-            stackTrace: CrashStackTrace
-        ) async throws {
             let fileData = Data(stackTrace.rawContent.utf8)
 
             let response = try await client.createTestCaseRunAttachment(
                 .init(
                     path: .init(
-                        account_handle: accountHandle,
-                        project_handle: projectHandle,
+                        account_handle: handles.accountHandle,
+                        project_handle: handles.projectHandle,
                         test_run_id: testRunId
                     ),
                     body: .json(
@@ -114,7 +90,7 @@ import TuistHTTP
                 switch createdResponse.body {
                 case let .json(json):
                     guard let url = URL(string: json.upload_url) else {
-                        throw UploadTestCaseRunAttachmentServiceError.uploadFailed
+                        throw CreateTestCaseRunAttachmentServiceError.uploadFailed
                     }
                     var request = URLRequest(url: url)
                     request.httpMethod = "PUT"
@@ -126,30 +102,30 @@ import TuistHTTP
                     guard let httpResponse = uploadResponse as? HTTPURLResponse,
                           (200 ..< 300).contains(httpResponse.statusCode)
                     else {
-                        throw UploadTestCaseRunAttachmentServiceError.uploadFailed
+                        throw CreateTestCaseRunAttachmentServiceError.uploadFailed
                     }
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
-                    throw UploadTestCaseRunAttachmentServiceError.forbidden(error.message)
+                    throw CreateTestCaseRunAttachmentServiceError.forbidden(error.message)
                 }
             case let .undocumented(statusCode, _):
-                throw UploadTestCaseRunAttachmentServiceError.unknownError(statusCode)
+                throw CreateTestCaseRunAttachmentServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):
                 switch unauthorized.body {
                 case let .json(error):
-                    throw UploadTestCaseRunAttachmentServiceError.unauthorized(error.message)
+                    throw CreateTestCaseRunAttachmentServiceError.unauthorized(error.message)
                 }
             case let .notFound(notFoundResponse):
                 switch notFoundResponse.body {
                 case let .json(error):
-                    throw UploadTestCaseRunAttachmentServiceError.notFound(error.message)
+                    throw CreateTestCaseRunAttachmentServiceError.notFound(error.message)
                 }
             case let .badRequest(badRequestResponse):
                 switch badRequestResponse.body {
                 case let .json(error):
-                    throw UploadTestCaseRunAttachmentServiceError.badRequest(error.message)
+                    throw CreateTestCaseRunAttachmentServiceError.badRequest(error.message)
                 }
             }
         }
