@@ -12,7 +12,7 @@ let argumentParserDependency: Target.Dependency = .product(
 )
 let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
 let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
-let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "XcodeGraph")
+let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "tuist.XcodeGraph")
 let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
 let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
 let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation", package: "tuist.ZIPFoundation")
@@ -904,7 +904,7 @@ targets.append(contentsOf: [
             mockableDependency,
             fileSystemDependency,
             "TuistSimulator",
-            .product(name: "XcodeMetadata", package: "XcodeGraph"),
+            .product(name: "XcodeMetadata", package: "tuist.XcodeGraph"),
             anyCodableDependency,
         ],
         path: "cli/Sources/TuistCore",
@@ -960,7 +960,7 @@ targets.append(contentsOf: [
             graphVizDependency,
             xcodeGraphDependency,
             commandDependency,
-            .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
+            .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
             anyCodableDependency,
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
             .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
@@ -1454,7 +1454,7 @@ let package = Package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph.git", from: "1.32.0"),
+        .package(id: "tuist.XcodeGraph", from: "1.32.0"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.14.11")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
