@@ -128,11 +128,26 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["pagination_metadata"]["has_previous_page"] == true
     end
 
-    test "returns 400 when no test_case_id or test_run_id is provided", %{
+    test "lists all runs when no filters are provided", %{
       conn: conn,
       user: user,
       project: project
     } do
+      # Given
+      stub(Tests, :list_test_case_runs, fn options ->
+        assert options.filters == []
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
       # When
       conn =
         get(
@@ -141,7 +156,8 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
         )
 
       # Then
-      assert json_response(conn, :bad_request)
+      response = json_response(conn, :ok)
+      assert response["test_case_runs"] == []
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

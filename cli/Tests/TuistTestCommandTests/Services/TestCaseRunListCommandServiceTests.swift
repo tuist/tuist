@@ -49,22 +49,6 @@ struct TestCaseRunListCommandServiceTests {
         })
     }
 
-    @Test(.withMockedEnvironment()) func run_when_no_identifier_and_no_test_run_id() async throws {
-        // When/Then
-        await #expect(throws: TestCaseRunListCommandServiceError.missingIdentifier, performing: {
-            try await subject.run(
-                project: nil,
-                path: nil,
-                testCaseIdentifier: nil,
-                flaky: false,
-                testRunId: nil,
-                page: nil,
-                pageSize: nil,
-                json: false
-            )
-        })
-    }
-
     @Test(.withMockedEnvironment()) func run_with_invalid_identifier() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"

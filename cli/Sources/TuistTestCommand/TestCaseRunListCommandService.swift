@@ -21,14 +21,11 @@ protocol TestCaseRunListCommandServicing {
 
 enum TestCaseRunListCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
-    case missingIdentifier
 
     var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return "We couldn't list test case runs because the project is missing. You can pass either its value or a path to a Tuist project."
-        case .missingIdentifier:
-            return "You must provide either a test case identifier or a --test-run-id."
         }
     }
 }
@@ -61,10 +58,6 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         pageSize: Int?,
         json: Bool
     ) async throws {
-        guard testCaseIdentifier != nil || testRunId != nil else {
-            throw TestCaseRunListCommandServiceError.missingIdentifier
-        }
-
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)

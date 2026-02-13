@@ -14,7 +14,7 @@ public struct TestCaseRunListCommand: AsyncParsableCommand, NooraReadyCommand {
     }
 
     @Argument(
-        help: "The test case identifier. Either a UUID or the format Module/Suite/TestCase (or Module/TestCase). Required unless --test-run-id is provided.",
+        help: "The test case identifier. Either a UUID or the format Module/Suite/TestCase (or Module/TestCase).",
         envKey: .testCaseRunListIdentifier
     )
     var testCaseIdentifier: String?

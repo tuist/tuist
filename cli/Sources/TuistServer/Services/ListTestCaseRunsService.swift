@@ -19,15 +19,12 @@ public protocol ListTestCaseRunsServicing {
 enum ListTestCaseRunsServiceError: LocalizedError {
     case unknownError(Int)
     case forbidden(String)
-    case badRequest(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
             return "We could not list the test case runs due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message):
-            return message
-        case let .badRequest(message):
             return message
         }
     }
@@ -81,11 +78,6 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             switch okResponse.body {
             case let .json(json):
                 return json
-            }
-        case let .badRequest(badRequest):
-            switch badRequest.body {
-            case let .json(error):
-                throw ListTestCaseRunsServiceError.badRequest(error.message)
             }
         case let .forbidden(forbidden):
             switch forbidden.body {

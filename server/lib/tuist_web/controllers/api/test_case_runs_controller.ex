@@ -112,8 +112,6 @@ defmodule TuistWeb.API.TestCaseRunsController do
     ],
     responses: %{
       ok: {"List of test case runs", "application/json", @test_case_runs_list_response},
-      bad_request:
-        {"At least one of test_case_id or test_run_id is required", "application/json", Error},
       forbidden:
         {"You don't have permission to access this resource", "application/json", Error}
     }
@@ -127,14 +125,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
         _params
       ) do
     filters = build_run_filters(params)
-
-    if Enum.empty?(filters) do
-      conn
-      |> put_status(:bad_request)
-      |> json(%{message: "At least one of test_case_id or test_run_id is required."})
-    else
-      render_test_case_runs(conn, filters, page, page_size)
-    end
+    render_test_case_runs(conn, filters, page, page_size)
   end
 
   # --- Deprecated legacy endpoints ---

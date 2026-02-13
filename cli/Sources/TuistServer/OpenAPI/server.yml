@@ -10990,12 +10990,6 @@ paths:
                 x-struct:
                 x-validate:
           description: List of test case runs
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: At least one of test_case_id or test_run_id is required
         '403':
           content:
             application/json:
