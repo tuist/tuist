@@ -578,7 +578,7 @@ public struct XCResultService: XCResultServicing {
                                 exceptionType: metadata.exceptionType,
                                 signal: metadata.signal,
                                 exceptionSubtype: metadata.exceptionSubtype,
-                                rawContent: content,
+                                filePath: filePath,
                                 formattedFrames: formattedFrames
                             )
                         }

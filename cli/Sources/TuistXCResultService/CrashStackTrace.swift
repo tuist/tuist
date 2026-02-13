@@ -1,4 +1,5 @@
 import Foundation
+import Path
 
 public struct CrashStackTrace {
     public let id: String
@@ -8,7 +9,7 @@ public struct CrashStackTrace {
     public let exceptionType: String?
     public let signal: String?
     public let exceptionSubtype: String?
-    public let rawContent: String
+    public let filePath: AbsolutePath
     public let formattedFrames: String?
 
     public init(
@@ -19,7 +20,7 @@ public struct CrashStackTrace {
         exceptionType: String?,
         signal: String?,
         exceptionSubtype: String?,
-        rawContent: String,
+        filePath: AbsolutePath,
         formattedFrames: String? = nil
     ) {
         self.id = id
@@ -29,7 +30,7 @@ public struct CrashStackTrace {
         self.exceptionType = exceptionType
         self.signal = signal
         self.exceptionSubtype = exceptionSubtype
-        self.rawContent = rawContent
+        self.filePath = filePath
         self.formattedFrames = formattedFrames
     }
 }

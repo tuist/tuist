@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import Testing
 @testable import TuistXCResultService
 
@@ -13,7 +14,7 @@ struct CrashStackTraceTests {
             exceptionType: "EXC_CRASH",
             signal: "SIGABRT",
             exceptionSubtype: "KERN_INVALID_ADDRESS",
-            rawContent: "crash log content"
+            filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
         )
 
         #expect(trace.id == "550e8400-e29b-41d4-a716-446655440000")
@@ -23,7 +24,8 @@ struct CrashStackTraceTests {
         #expect(trace.exceptionType == "EXC_CRASH")
         #expect(trace.signal == "SIGABRT")
         #expect(trace.exceptionSubtype == "KERN_INVALID_ADDRESS")
-        #expect(trace.rawContent == "crash log content")
+        let expectedPath = try! AbsolutePath(validating: "/tmp/crash.ips")
+        #expect(trace.filePath == expectedPath)
     }
 
     @Test
@@ -36,7 +38,7 @@ struct CrashStackTraceTests {
             exceptionType: nil,
             signal: nil,
             exceptionSubtype: nil,
-            rawContent: "content"
+            filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
         )
 
         #expect(trace.appName == nil)
@@ -101,7 +103,7 @@ struct TestSummaryStackTraceTests {
             exceptionType: nil,
             signal: nil,
             exceptionSubtype: nil,
-            rawContent: "content"
+            filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
         )
 
         let summary = TestSummary(
