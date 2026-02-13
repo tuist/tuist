@@ -37,6 +37,7 @@ public struct ListOrganizationsService: ListOrganizationsServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(data):
+                // swiftformat:disable:next preferKeyPath
                 return data.organizations.map { $0.name }
             }
         case let .forbidden(forbiddenResponse):
