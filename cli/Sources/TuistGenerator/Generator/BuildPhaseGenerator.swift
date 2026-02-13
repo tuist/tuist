@@ -24,7 +24,7 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
     }
 }
 
-protocol BuildPhaseGenerating: AnyObject {
+protocol BuildPhaseGenerating {
     func generateBuildPhases(
         path: AbsolutePath,
         target: Target,
@@ -51,7 +51,7 @@ protocol BuildPhaseGenerating: AnyObject {
 }
 
 // swiftlint:disable:next type_body_length
-final class BuildPhaseGenerator: BuildPhaseGenerating {
+struct BuildPhaseGenerator: BuildPhaseGenerating {
     private let buildableFolderChecker: BuildableFolderChecking
 
     init(buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
@@ -559,7 +559,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     ) -> [PBXBuildFile] {
         let coreDataModels = coreDataModels.sorted { $0.path < $1.path }
         return coreDataModels.map {
-            self.generateCoreDataModel(
+            generateCoreDataModel(
                 coreDataModel: $0,
                 fileElements: fileElements,
                 pbxproj: pbxproj

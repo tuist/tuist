@@ -3,7 +3,7 @@ import TuistCore
 import XcodeGraph
 import XcodeProj
 
-final class SettingsHelper {
+struct SettingsHelper {
     /// - Parameters:
     ///     - inherit: Forces the new settings to inherit the old settings
     func extend(

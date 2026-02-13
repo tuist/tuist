@@ -31,7 +31,7 @@ enum LinkGeneratorError: FatalError, Equatable {
     }
 }
 
-protocol LinkGenerating: AnyObject {
+protocol LinkGenerating {
     func generateLinks(
         target: Target,
         pbxTarget: PBXTarget,
@@ -60,7 +60,7 @@ enum LinkGeneratorPath: Hashable {
     }
 }
 
-final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_length
+struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_length
     /// Utility that generates the script to embed dynamic frameworks.
     let embedScriptGenerator: EmbedScriptGenerating
 

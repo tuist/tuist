@@ -6,7 +6,7 @@ public protocol PrivacyManifestContentHashing {
     func hash(identifier: String, privacyManifest: PrivacyManifest) throws -> MerkleNode
 }
 
-public final class PrivacyManifestContentHasher: PrivacyManifestContentHashing {
+public struct PrivacyManifestContentHasher: PrivacyManifestContentHashing {
     private let contentHasher: ContentHashing
 
     public init(contentHasher: ContentHashing) {

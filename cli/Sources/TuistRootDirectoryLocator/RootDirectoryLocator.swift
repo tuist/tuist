@@ -44,7 +44,7 @@ extension RootDirectoryLocating {
     }
 }
 
-public final class RootDirectoryLocator: RootDirectoryLocating {
+public struct RootDirectoryLocator: RootDirectoryLocating {
     private let fileSystem: FileSysteming
     /// This cache avoids having to traverse the directories hierarchy every time the locate method is called.
     private let cache: ThreadSafe<[AbsolutePath: AbsolutePath]> = ThreadSafe([:])

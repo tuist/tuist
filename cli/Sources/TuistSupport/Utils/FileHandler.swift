@@ -43,7 +43,7 @@ public enum FileHandlerError: FatalError, Equatable {
 
 /// Protocol that defines the interface of an object that provides convenient
 /// methods to interact with the system files and folders.
-public protocol FileHandling: AnyObject {
+public protocol FileHandling {
     /// Returns the current path.
     var currentPath: Path.AbsolutePath { get }
 

@@ -2,7 +2,7 @@ import Foundation
 import TuistLogging
 import TuistSupport
 
-public final class MockFatalError: FatalError {
+public struct MockFatalError: FatalError {
     public let type: ErrorType
     public let description: String
 

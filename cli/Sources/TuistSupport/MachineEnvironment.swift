@@ -13,7 +13,7 @@
     }
 
     /// `MachineEnvironment` is a data structure that contains information about the machine executing Tuist
-    public final class MachineEnvironment: MachineEnvironmentRetrieving {
+    public struct MachineEnvironment: MachineEnvironmentRetrieving {
         public static let shared = MachineEnvironment()
         private init() {}
 

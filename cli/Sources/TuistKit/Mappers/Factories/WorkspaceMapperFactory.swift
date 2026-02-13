@@ -24,7 +24,7 @@ protocol WorkspaceMapperFactorying {
     ) -> [WorkspaceMapping]
 }
 
-public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
+public struct WorkspaceMapperFactory: WorkspaceMapperFactorying {
     private let projectMapper: ProjectMapping
 
     public init(projectMapper: ProjectMapping) {
@@ -94,7 +94,7 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         func automation(tuist: Tuist) -> [WorkspaceMapping]
     }
 
-    public final class CacheWorkspaceMapperFactory: CacheWorkspaceMapperFactorying {
+    public struct CacheWorkspaceMapperFactory: CacheWorkspaceMapperFactorying {
         private let projectMapper: ProjectMapping
 
         public init(projectMapper: ProjectMapping) {

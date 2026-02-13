@@ -28,7 +28,7 @@ enum UpdateAccountServiceError: LocalizedError {
     }
 }
 
-public final class UpdateAccountService: UpdateAccountServicing {
+public struct UpdateAccountService: UpdateAccountServicing {
     public init() {}
 
     public func updateAccount(

@@ -26,7 +26,7 @@ enum DeleteProjectServiceError: LocalizedError {
     }
 }
 
-public final class DeleteProjectService: DeleteProjectServicing {
+public struct DeleteProjectService: DeleteProjectServicing {
     public init() {}
 
     public func deleteProject(

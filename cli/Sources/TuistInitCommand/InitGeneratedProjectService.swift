@@ -41,7 +41,7 @@
         ) async throws
     }
 
-    class InitGeneratedProjectService: InitGeneratedProjectServicing {
+    struct InitGeneratedProjectService: InitGeneratedProjectServicing {
         private let templateLoader: TemplateLoading
         private let templatesDirectoryLocator: TemplatesDirectoryLocating
         private let templateGenerator: TemplateGenerating

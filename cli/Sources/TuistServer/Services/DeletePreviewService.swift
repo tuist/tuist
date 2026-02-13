@@ -27,7 +27,7 @@ enum DeletePreviewServiceError: LocalizedError {
     }
 }
 
-public final class DeletePreviewService: DeletePreviewServicing {
+public struct DeletePreviewService: DeletePreviewServicing {
     private let fullHandleService: FullHandleServicing
 
     public init(

@@ -27,7 +27,7 @@ enum CreateProjectServiceError: LocalizedError {
     }
 }
 
-public final class CreateProjectService: CreateProjectServicing {
+public struct CreateProjectService: CreateProjectServicing {
     public init() {}
 
     public func createProject(

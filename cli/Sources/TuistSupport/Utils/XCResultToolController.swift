@@ -9,7 +9,7 @@ public protocol XCResultToolControlling {
     func resultBundleObject(_ path: AbsolutePath, id: String) async throws -> String
 }
 
-public final class XCResultToolController: XCResultToolControlling {
+public struct XCResultToolController: XCResultToolControlling {
     private let system: Systeming
 
     public init(

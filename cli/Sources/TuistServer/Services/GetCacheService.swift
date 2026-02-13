@@ -33,7 +33,7 @@
         }
     }
 
-    public final class GetCacheService: GetCacheServicing {
+    public struct GetCacheService: GetCacheServicing {
         public init() {}
 
         public func getCache(

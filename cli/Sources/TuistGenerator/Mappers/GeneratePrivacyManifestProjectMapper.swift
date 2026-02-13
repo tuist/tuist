@@ -7,7 +7,7 @@ import XcodeGraph
 import XcodeProj
 
 /// A project mapper that generates derived privacyManifest files for targets that define it as a dictonary.
-public final class GeneratePrivacyManifestProjectMapper: ProjectMapping {
+public struct GeneratePrivacyManifestProjectMapper: ProjectMapping {
     public init() {}
 
     // MARK: - ProjectMapping

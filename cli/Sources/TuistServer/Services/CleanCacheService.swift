@@ -26,10 +26,10 @@ enum CleanCacheServiceError: LocalizedError {
     }
 }
 
-public final class CleanCacheService: CleanCacheServicing {
+public struct CleanCacheService: CleanCacheServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

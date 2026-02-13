@@ -7,7 +7,7 @@ import TuistSupport
 import XcodeGraph
 
 /// A project mapper that adds support for defining resources in targets that don't support it
-public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
+public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
     private let contentHasher: ContentHashing
     private let buildableFolderChecker: BuildableFolderChecking
 

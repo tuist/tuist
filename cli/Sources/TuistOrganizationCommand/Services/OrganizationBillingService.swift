@@ -12,7 +12,7 @@ protocol OrganizationBillingServicing {
     ) async throws
 }
 
-final class OrganizationBillingService: OrganizationBillingServicing {
+struct OrganizationBillingService: OrganizationBillingServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let opener: Opening
     private let configLoader: ConfigLoading

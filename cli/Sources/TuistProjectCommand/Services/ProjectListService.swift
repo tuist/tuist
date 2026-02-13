@@ -13,7 +13,7 @@ protocol ProjectListServicing {
     ) async throws
 }
 
-final class ProjectListService: ProjectListServicing {
+struct ProjectListService: ProjectListServicing {
     private let listProjectsService: ListProjectsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

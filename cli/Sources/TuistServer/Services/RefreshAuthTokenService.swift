@@ -27,7 +27,7 @@ public enum RefreshAuthTokenServiceError: LocalizedError, Equatable {
     }
 }
 
-public final class RefreshAuthTokenService: RefreshAuthTokenServicing {
+public struct RefreshAuthTokenService: RefreshAuthTokenServicing {
     public init() {}
 
     public func refreshTokens(

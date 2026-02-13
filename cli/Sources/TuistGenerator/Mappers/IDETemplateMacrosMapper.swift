@@ -4,7 +4,7 @@ import Path
 import TuistCore
 import XcodeGraph
 
-public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
+public struct IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {

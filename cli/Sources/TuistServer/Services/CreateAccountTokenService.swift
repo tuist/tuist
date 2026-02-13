@@ -31,7 +31,7 @@ enum CreateAccountTokenServiceError: LocalizedError {
     }
 }
 
-public final class CreateAccountTokenService: CreateAccountTokenServicing {
+public struct CreateAccountTokenService: CreateAccountTokenServicing {
     public init() {}
 
     public func createAccountToken(

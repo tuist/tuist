@@ -43,7 +43,7 @@ extension XCScheme {
 }
 
 // swiftlint:disable:next type_body_length
-final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
+struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private enum Constants {
         /// Default last upgrade version for generated schemes.
         static let defaultLastUpgradeVersion = "1010"

@@ -4,7 +4,7 @@ import Path
 import TuistCore
 import XcodeGraph
 
-public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
+public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (

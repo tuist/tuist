@@ -29,10 +29,10 @@ enum GetBuildServiceError: LocalizedError {
     }
 }
 
-public final class GetBuildService: GetBuildServicing {
+public struct GetBuildService: GetBuildServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

@@ -11,7 +11,7 @@ public protocol RegistryConfigurationGenerating {
     ) async throws
 }
 
-public final class RegistryConfigurationGenerator: RegistryConfigurationGenerating {
+public struct RegistryConfigurationGenerator: RegistryConfigurationGenerating {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {

@@ -36,10 +36,10 @@ public enum LoadCacheCASServiceError: LocalizedError {
     }
 }
 
-public final class LoadCacheCASService: LoadCacheCASServicing {
+public struct LoadCacheCASService: LoadCacheCASServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

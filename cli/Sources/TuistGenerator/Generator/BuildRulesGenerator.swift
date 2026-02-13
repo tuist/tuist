@@ -2,11 +2,11 @@ import Foundation
 import XcodeGraph
 import XcodeProj
 
-protocol BuildRulesGenerating: AnyObject {
+protocol BuildRulesGenerating {
     func generateBuildRules(target: Target, pbxTarget: PBXTarget, pbxproj: PBXProj) throws
 }
 
-final class BuildRulesGenerator: BuildRulesGenerating {
+struct BuildRulesGenerator: BuildRulesGenerating {
     func generateBuildRules(target: Target, pbxTarget: PBXTarget, pbxproj: PBXProj) throws {
         for buildRule in target.buildRules {
             let rule = PBXBuildRule(

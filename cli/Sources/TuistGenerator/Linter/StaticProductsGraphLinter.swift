@@ -11,7 +11,7 @@ protocol StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue]
 }
 
-class StaticProductsGraphLinter: StaticProductsGraphLinting {
+struct StaticProductsGraphLinter: StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
         warnings(
             in: Array(graphTraverser.dependencies.keys),

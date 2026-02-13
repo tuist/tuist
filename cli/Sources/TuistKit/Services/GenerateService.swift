@@ -13,7 +13,7 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 
-public final class GenerateService {
+public struct GenerateService {
     private let opener: Opening
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting

@@ -12,7 +12,7 @@ public protocol XcodeProjWriting {
 
 // MARK: -
 
-public final class XcodeProjWriter: XcodeProjWriting {
+public struct XcodeProjWriter: XcodeProjWriting {
     public struct Config {
         /// The execution context to use when writing
         /// the project descriptors within a workspace descriptor
@@ -48,7 +48,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         let allSchemes = workspace.schemeDescriptors + workspace.projectDescriptors.flatMap(\.schemeDescriptors)
         let schemesOrderHint = schemesOrderHint(schemes: allSchemes)
         try await workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext) { projectDescriptor in
-            try await self.write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
+            try await write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
         }
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
 

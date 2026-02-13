@@ -5,7 +5,7 @@ public protocol TimeTakenLoggerFormatting {
     func timeTakenMessage(for timer: ClockTimer) -> Logger.Message
 }
 
-public class TimeTakenLoggerFormatter: TimeTakenLoggerFormatting {
+public struct TimeTakenLoggerFormatter: TimeTakenLoggerFormatting {
     public init() {}
 
     public func timeTakenMessage(for timer: ClockTimer) -> Logger.Message {

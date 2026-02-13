@@ -25,7 +25,7 @@ enum CancelOrganizationInviteServiceError: LocalizedError {
     }
 }
 
-public final class CancelOrganizationInviteService: CancelOrganizationInviteServicing {
+public struct CancelOrganizationInviteService: CancelOrganizationInviteServicing {
     public init() {}
 
     public func cancelOrganizationInvite(

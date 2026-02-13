@@ -25,7 +25,7 @@ public protocol TemplatesDirectoryLocating {
     func templatePluginDirectories(at path: AbsolutePath) throws -> [AbsolutePath]
 }
 
-public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
+public struct TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 

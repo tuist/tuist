@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol ConfigGenerating: AnyObject {
+protocol ConfigGenerating {
     func generateProjectConfig(
         project: Project,
         pbxproj: PBXProj,
@@ -26,7 +26,7 @@ protocol ConfigGenerating: AnyObject {
 }
 
 // swiftlint:disable:next type_body_length
-final class ConfigGenerator: ConfigGenerating {
+struct ConfigGenerator: ConfigGenerating {
     // MARK: - Attributes
 
     private let defaultSettingsProvider: DefaultSettingsProviding

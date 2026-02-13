@@ -3,7 +3,7 @@ import Path
 import TuistMigration
 import TuistSupport
 
-class MigrationSettingsToXCConfigService {
+struct MigrationSettingsToXCConfigService {
     // MARK: - Attributes
 
     private let settingsToXCConfigExtractor: SettingsToXCConfigExtracting

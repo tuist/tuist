@@ -14,7 +14,7 @@ protocol ProjectTokensRevokeServicing {
     ) async throws
 }
 
-final class ProjectTokensRevokeService: ProjectTokensRevokeServicing {
+struct ProjectTokensRevokeService: ProjectTokensRevokeServicing {
     private let revokeProjectTokenService: RevokeProjectTokenServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

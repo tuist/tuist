@@ -8,7 +8,7 @@ import TuistLoader
 import TuistLogging
 import TuistSupport
 
-final class PluginArchiveService {
+struct PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let packageInfoLoader: PackageInfoLoading
     private let manifestLoader: ManifestLoading
@@ -54,7 +54,7 @@ final class PluginArchiveService {
         let plugin = try await manifestLoader.loadPlugin(at: path)
 
         try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
-            try await self.archiveProducts(
+            try await archiveProducts(
                 taskProducts: taskProducts,
                 path: path,
                 plugin: plugin,

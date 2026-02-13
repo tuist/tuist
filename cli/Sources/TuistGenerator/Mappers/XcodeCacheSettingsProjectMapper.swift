@@ -10,7 +10,7 @@ import XcodeGraph
 /// This mapper adds Xcode cache compilation settings when enableCaching is enabled in the Tuist configuration.
 /// When enableCaching is true, local CAS (Compilation Caching Service) settings are added.
 /// When a fullHandle is also provided, remote caching settings are additionally configured.
-public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
+public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
     private let tuist: Tuist
 
     public init(tuist: Tuist) {

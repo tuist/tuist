@@ -27,7 +27,7 @@ public protocol WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor])
 }
 
-public final class SequentialWorkspaceMapper: WorkspaceMapping {
+public struct SequentialWorkspaceMapper: WorkspaceMapping {
     let mappers: [WorkspaceMapping]
 
     public init(mappers: [WorkspaceMapping]) {
@@ -50,7 +50,7 @@ public final class SequentialWorkspaceMapper: WorkspaceMapping {
     }
 }
 
-public final class ProjectWorkspaceMapper: WorkspaceMapping {
+public struct ProjectWorkspaceMapper: WorkspaceMapping {
     private let mapper: ProjectMapping
     public init(mapper: ProjectMapping) {
         self.mapper = mapper

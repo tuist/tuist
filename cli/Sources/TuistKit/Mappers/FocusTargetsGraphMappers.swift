@@ -28,7 +28,7 @@ public enum FocusTargetsGraphMappersError: FatalError, Equatable {
 }
 
 /// `FocusTargetsGraphMappers` is used to filter out some targets and their dependencies and tests targets.
-public final class FocusTargetsGraphMappers: GraphMapping {
+public struct FocusTargetsGraphMappers: GraphMapping {
     /// When specified, if includedTargets is empty it will automatically include all targets in the test plan.
     public let testPlan: String?
     /// The targets to be kept as non prunable with their respective dependencies and tests targets.

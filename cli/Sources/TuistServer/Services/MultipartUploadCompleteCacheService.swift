@@ -34,7 +34,7 @@
         }
     }
 
-    public final class MultipartUploadCompleteCacheService: MultipartUploadCompleteCacheServicing {
+    public struct MultipartUploadCompleteCacheService: MultipartUploadCompleteCacheServicing {
         public init() {}
 
         public func uploadCache(

@@ -12,7 +12,7 @@ public protocol TemplateLocationParsing {
 }
 
 /// An implementation of `TemplateLocationParsing`
-public final class TemplateLocationParser: TemplateLocationParsing {
+public struct TemplateLocationParser: TemplateLocationParsing {
     private let system: Systeming
 
     public init(

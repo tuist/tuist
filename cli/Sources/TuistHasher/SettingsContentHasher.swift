@@ -10,7 +10,7 @@ public protocol SettingsContentHashing {
 
 /// `SettingsContentHasher`
 /// is responsible for computing a hash that uniquely identifies some `Settings`
-public final class SettingsContentHasher: SettingsContentHashing {
+public struct SettingsContentHasher: SettingsContentHashing {
     private let contentHasher: ContentHashing
     private let xcconfigHasher: XCConfigContentHashing
 

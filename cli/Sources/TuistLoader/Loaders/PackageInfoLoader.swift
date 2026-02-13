@@ -15,7 +15,7 @@ public protocol PackageInfoLoading {
     func loadPackageInfo(at path: AbsolutePath, disableSandbox: Bool) async throws -> PackageInfo
 }
 
-public final class PackageInfoLoader: PackageInfoLoading {
+public struct PackageInfoLoader: PackageInfoLoading {
     private let system: Systeming
     private let fileSystem: FileSysteming
 

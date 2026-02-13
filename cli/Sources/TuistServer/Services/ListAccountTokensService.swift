@@ -26,7 +26,7 @@ enum ListAccountTokensServiceError: LocalizedError {
     }
 }
 
-public final class ListAccountTokensService: ListAccountTokensServicing {
+public struct ListAccountTokensService: ListAccountTokensServicing {
     public init() {}
 
     public func listAccountTokens(

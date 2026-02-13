@@ -1,6 +1,6 @@
 import Foundation
 
-final class ConsoleRenderer: Renderer {
+struct ConsoleRenderer: Renderer {
     private let deltaThreshold: TimeInterval
 
     init(deltaThreshold: TimeInterval) {

@@ -23,7 +23,7 @@ public protocol CacheConfigCommandServicing {
     ) async throws
 }
 
-public final class CacheConfigCommandService: CacheConfigCommandServicing {
+public struct CacheConfigCommandService: CacheConfigCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating

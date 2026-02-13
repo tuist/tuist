@@ -22,14 +22,14 @@ public protocol ManifestModelConverting {
         .DependenciesGraph
 }
 
-public final class ManifestModelConverter: ManifestModelConverting {
+public struct ManifestModelConverter: ManifestModelConverting {
     private let manifestLoader: ManifestLoading
     private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
     private let contentHasher: ContentHashing
 
-    public convenience init() {
+    public init() {
         self.init(
             manifestLoader: ManifestLoader.current,
             rootDirectoryLocator: RootDirectoryLocator(),
@@ -37,7 +37,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         )
     }
 
-    public convenience init(
+    public init(
         manifestLoader: ManifestLoading
     ) {
         self.init(
@@ -128,7 +128,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
                     let projectPath = try AbsolutePath(validating: path.pathString)
-                    var project = try await self.convert(
+                    var project = try await convert(
                         manifest: project.manifest,
                         path: projectPath,
                         plugins: .none,

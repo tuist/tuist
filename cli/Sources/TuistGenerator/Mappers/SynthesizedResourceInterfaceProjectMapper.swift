@@ -28,11 +28,11 @@ enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
 }
 
 /// A project mapper that synthesizes resource interfaces
-public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
+public struct SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     private let contentHasher: ContentHashing
 
-    public convenience init(
+    public init(
         contentHasher: ContentHashing
     ) {
         self.init(
