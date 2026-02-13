@@ -150,7 +150,7 @@ if config_env() == :prod do
       traces_exporter: :otlp,
       span_processor: :batch,
       resource: [
-        service: [name: "tuist-cache", namespace: "tuist", instance_id: instance_id],
+        service: [name: "tuist-cache", namespace: "tuist", instance: [id: instance_id]],
         deployment: [environment: System.get_env("DEPLOY_ENV") || "production", region: region]
       ]
 
