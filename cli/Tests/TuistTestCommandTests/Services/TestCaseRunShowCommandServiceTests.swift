@@ -256,6 +256,7 @@ struct TestCaseRunShowCommandServiceTests {
         let testCaseRun = ServerTestCaseRun.test(
             id: "run-crash",
             stackTrace: .init(
+                attachment_url: "https://cloud.tuist.dev/api/projects/tuist/tuist/tests/test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips",
                 app_name: "MyApp",
                 exception_subtype: "KERN_INVALID_ADDRESS",
                 exception_type: "EXC_CRASH",

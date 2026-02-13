@@ -426,9 +426,13 @@ defmodule TuistWeb.API.TestCaseRunsController do
                    type: :string,
                    nullable: true,
                    description: "Human-readable formatted crash thread frames."
+                 },
+                 attachment_url: %Schema{
+                   type: :string,
+                   description: "URL to download the full crash log attachment."
                  }
                },
-               required: [:id, :file_name]
+               required: [:id, :file_name, :attachment_url]
              }
            },
            required: [
@@ -460,7 +464,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
     case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
-          stack_trace = fetch_stack_trace(run.stack_trace_id)
+          stack_trace = fetch_stack_trace(conn, run.id, run.stack_trace_id)
 
           json(conn, %{
             id: run.id,
@@ -553,11 +557,17 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
-  defp fetch_stack_trace(nil), do: nil
+  defp fetch_stack_trace(_conn, _test_case_run_id, nil), do: nil
 
-  defp fetch_stack_trace(stack_trace_id) do
+  defp fetch_stack_trace(conn, test_case_run_id, stack_trace_id) do
     case Tests.get_stack_trace_by_id(stack_trace_id) do
       {:ok, st} ->
+        %{account_handle: account_handle, project_handle: project_handle} = conn.params
+
+        attachment_url =
+          TuistWeb.Endpoint.url() <>
+            "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{st.file_name}"
+
         %{
           id: st.id,
           file_name: st.file_name,
@@ -566,7 +576,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
           exception_type: nullable_string(st.exception_type),
           signal: nullable_string(st.signal),
           exception_subtype: nullable_string(st.exception_subtype),
-          formatted_frames: nullable_string(st.formatted_frames)
+          formatted_frames: nullable_string(st.formatted_frames),
+          attachment_url: attachment_url
         }
 
       {:error, :not_found} ->

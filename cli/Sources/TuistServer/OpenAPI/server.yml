@@ -5756,6 +5756,11 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
+                      attachment_url:
+                        description: URL to download the full crash log attachment.
+                        type: string
+                        x-struct:
+                        x-validate:
                       exception_subtype:
                         description: The exception subtype.
                         nullable: true
@@ -5800,6 +5805,7 @@ paths:
                     required:
                       - id
                       - file_name
+                      - attachment_url
                     type: object
                     x-struct:
                     x-validate:

@@ -62,14 +62,8 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
             serverURL: serverURL
         )
 
-        let stackTraceURL = Self.stackTraceURL(
-            run: run,
-            serverURL: serverURL,
-            fullHandle: resolvedFullHandle
-        )
-
         if json {
-            let jsonObject = TestCaseRunJSON(run: run, stackTraceURL: stackTraceURL)
+            let jsonObject = TestCaseRunJSON(run: run)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(jsonObject)
@@ -100,9 +94,7 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
                 summary.append("  Subtype:   \(subtype)")
             }
             Noora.current.passthrough("\(summary.joined(separator: "\n"))\n")
-            if let stackTraceURL {
-                Noora.current.passthrough("  \(.link(title: "Full stack trace", href: stackTraceURL))\n")
-            }
+            Noora.current.passthrough("  \(.link(title: "Full stack trace", href: stackTrace.attachment_url))\n")
             if let formattedFrames = stackTrace.formatted_frames, !formattedFrames.isEmpty {
                 Noora.current.passthrough("\n\(formattedFrames)\n")
             }
@@ -197,21 +189,10 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         return info.joined(separator: "\n") + "\n"
     }
 
-    static func stackTraceURL(
-        run: ServerTestCaseRun,
-        serverURL: URL,
-        fullHandle: String
-    ) -> String? {
-        guard let stackTrace = run.stack_trace else { return nil }
-        let handles = fullHandle.split(separator: "/")
-        guard handles.count == 2 else { return nil }
-        return "\(serverURL.absoluteString)/\(handles[0])/\(handles[1])/tests/test-case-runs/\(run.id)/attachments/\(stackTrace.file_name)"
-    }
 }
 
 private struct TestCaseRunJSON: Encodable {
     let run: ServerTestCaseRun
-    let stackTraceURL: String?
 
     enum CodingKeys: String, CodingKey {
         case duration
@@ -228,7 +209,6 @@ private struct TestCaseRunJSON: Encodable {
         case repetitions
         case scheme
         case stackTrace = "stack_trace"
-        case stackTraceURL = "stack_trace_url"
         case status
         case suiteName = "suite_name"
         case testCaseId = "test_case_id"
@@ -251,7 +231,6 @@ private struct TestCaseRunJSON: Encodable {
         try container.encode(run.repetitions, forKey: .repetitions)
         try container.encodeIfPresent(run.scheme, forKey: .scheme)
         try container.encodeIfPresent(run.stack_trace, forKey: .stackTrace)
-        try container.encodeIfPresent(stackTraceURL, forKey: .stackTraceURL)
         try container.encode(run.status, forKey: .status)
         try container.encodeIfPresent(run.suite_name, forKey: .suiteName)
         try container.encodeIfPresent(run.test_case_id, forKey: .testCaseId)

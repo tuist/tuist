@@ -11754,6 +11754,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
                         public struct stack_tracePayload: Codable, Hashable, Sendable {
+                            /// URL to download the full crash log attachment.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/attachment_url`.
+                            public var attachment_url: Swift.String
                             /// The app name.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/app_name`.
@@ -11789,6 +11793,7 @@ public enum Operations {
                             /// Creates a new `stack_tracePayload`.
                             ///
                             /// - Parameters:
+                            ///   - attachment_url: URL to download the full crash log attachment.
                             ///   - app_name: The app name.
                             ///   - exception_subtype: The exception subtype.
                             ///   - exception_type: The exception type (e.g., EXC_CRASH).
@@ -11798,6 +11803,7 @@ public enum Operations {
                             ///   - os_version: The OS version.
                             ///   - signal: The signal (e.g., SIGABRT).
                             public init(
+                                attachment_url: Swift.String,
                                 app_name: Swift.String? = nil,
                                 exception_subtype: Swift.String? = nil,
                                 exception_type: Swift.String? = nil,
@@ -11807,6 +11813,7 @@ public enum Operations {
                                 os_version: Swift.String? = nil,
                                 signal: Swift.String? = nil
                             ) {
+                                self.attachment_url = attachment_url
                                 self.app_name = app_name
                                 self.exception_subtype = exception_subtype
                                 self.exception_type = exception_type
@@ -11817,6 +11824,7 @@ public enum Operations {
                                 self.signal = signal
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case attachment_url
                                 case app_name
                                 case exception_subtype
                                 case exception_type
