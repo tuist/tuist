@@ -63,11 +63,7 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         )
 
         if json {
-            let jsonObject = TestCaseRunJSON(run: run)
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(jsonObject)
-            Noora.current.passthrough(TerminalText(stringLiteral: String(data: data, encoding: .utf8) ?? "{}"))
+            try Noora.current.json(run)
             return
         }
 
@@ -189,51 +185,4 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         return info.joined(separator: "\n") + "\n"
     }
 
-}
-
-private struct TestCaseRunJSON: Encodable {
-    let run: ServerTestCaseRun
-
-    enum CodingKeys: String, CodingKey {
-        case duration
-        case failures
-        case gitBranch = "git_branch"
-        case gitCommitSha = "git_commit_sha"
-        case id
-        case isCi = "is_ci"
-        case isFlaky = "is_flaky"
-        case isNew = "is_new"
-        case moduleName = "module_name"
-        case name
-        case ranAt = "ran_at"
-        case repetitions
-        case scheme
-        case stackTrace = "stack_trace"
-        case status
-        case suiteName = "suite_name"
-        case testCaseId = "test_case_id"
-        case testRunId = "test_run_id"
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(run.duration, forKey: .duration)
-        try container.encode(run.failures, forKey: .failures)
-        try container.encodeIfPresent(run.git_branch, forKey: .gitBranch)
-        try container.encodeIfPresent(run.git_commit_sha, forKey: .gitCommitSha)
-        try container.encode(run.id, forKey: .id)
-        try container.encode(run.is_ci, forKey: .isCi)
-        try container.encode(run.is_flaky, forKey: .isFlaky)
-        try container.encode(run.is_new, forKey: .isNew)
-        try container.encode(run.module_name, forKey: .moduleName)
-        try container.encode(run.name, forKey: .name)
-        try container.encodeIfPresent(run.ran_at, forKey: .ranAt)
-        try container.encode(run.repetitions, forKey: .repetitions)
-        try container.encodeIfPresent(run.scheme, forKey: .scheme)
-        try container.encodeIfPresent(run.stack_trace, forKey: .stackTrace)
-        try container.encode(run.status, forKey: .status)
-        try container.encodeIfPresent(run.suite_name, forKey: .suiteName)
-        try container.encodeIfPresent(run.test_case_id, forKey: .testCaseId)
-        try container.encodeIfPresent(run.test_run_id, forKey: .testRunId)
-    }
 }
