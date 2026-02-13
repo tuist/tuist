@@ -108,7 +108,7 @@ public struct Target: Codable, Equatable, Sendable {
 
     /// Properties for a foreign build target. Set when this target was created with
     /// ``foreignBuild(name:destinations:script:inputs:output:metadata:)``.
-    public var foreignBuild: ForeignBuild?
+    public private(set) var foreignBuild: ForeignBuild?
 
     /// Describes the properties of a foreign (non-Xcode) build target.
     public struct ForeignBuild: Codable, Equatable, Sendable {
