@@ -140,6 +140,8 @@ defmodule Cache.Module.Disk do
     end
   end
 
+  defp append_buffered_parts(_path, []), do: :ok
+
   defp append_buffered_parts(path, part_paths) do
     case File.open(path, [:append, :binary, :raw], &copy_parts_to_file(part_paths, &1)) do
       {:ok, :ok} -> :ok

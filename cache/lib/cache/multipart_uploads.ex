@@ -200,7 +200,7 @@ defmodule Cache.MultipartUploads do
             }
 
             :ets.insert(@table_name, {upload_id, updated_data})
-            maybe_cleanup_old_part_async(existing_part)
+            maybe_cleanup_old_part(existing_part)
             {:reply, :ok, state}
 
           {:error, _reason} = error ->
@@ -459,8 +459,8 @@ defmodule Cache.MultipartUploads do
     end
   end
 
-  defp maybe_cleanup_old_part_async(%{path: old_path}), do: Task.start(fn -> File.rm(old_path) end)
-  defp maybe_cleanup_old_part_async(_), do: :ok
+  defp maybe_cleanup_old_part(%{path: old_path}), do: File.rm(old_path)
+  defp maybe_cleanup_old_part(_), do: :ok
 
   defp cleanup_temp_files(parts) do
     Enum.each(parts, fn

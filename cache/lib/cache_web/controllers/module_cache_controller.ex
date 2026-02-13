@@ -487,16 +487,24 @@ defmodule CacheWeb.ModuleCacheController do
     case BodyReader.read(conn, opts) do
       {:ok, {:file, tmp_path}, conn_after} ->
         case File.stat(tmp_path) do
-          {:ok, %File.Stat{size: size}} -> {:ok, tmp_path, size, conn_after}
-          _ -> {:error, :read_error, conn_after}
+          {:ok, %File.Stat{size: size}} ->
+            {:ok, tmp_path, size, conn_after}
+
+          _ ->
+            File.rm(tmp_path)
+            {:error, :read_error, conn_after}
         end
 
       {:ok, data, conn_after} when is_binary(data) ->
         tmp_path = tmp_path()
 
         case File.write(tmp_path, data) do
-          :ok -> {:ok, tmp_path, byte_size(data), conn_after}
-          {:error, _} -> {:error, :read_error, conn_after}
+          :ok ->
+            {:ok, tmp_path, byte_size(data), conn_after}
+
+          {:error, _} ->
+            File.rm(tmp_path)
+            {:error, :read_error, conn_after}
         end
 
       {:error, reason, conn_after} ->
