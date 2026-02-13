@@ -32,14 +32,29 @@ echo "==> Building Linux release into $BUILD_DIRECTORY"
 rm -rf $BUILD_DIRECTORY
 mkdir -p $BUILD_DIRECTORY
 
-echo "==> Building tuist executable"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --static-swift-stdlib
-
-BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --show-bin-path)
-echo "==> Copying binary from $BIN_PATH"
-cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
+# Install Swift Static Linux SDK for fully static musl-based binaries.
+# This eliminates all shared library dependencies and cross-distro compatibility issues
+# (e.g. Ubuntu's CURL_OPENSSL_4 vs Fedora's libcurl-minimal).
+echo "==> Installing Swift Static Linux SDK"
+swift sdk install https://download.swift.org/swift-6.1.2-release/static-sdk/swift-6.1.2-RELEASE/swift-6.1.2-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
+    --checksum df0b40b9b582598e7e3d70c82ab503fd6fbfdff71fd17e7f1ab37115a0665b3b
 
 ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    SDK_TARGET="x86_64-swift-linux-musl"
+elif [ "$ARCH" = "aarch64" ]; then
+    SDK_TARGET="aarch64-swift-linux-musl"
+else
+    echo "ERROR: Unsupported architecture: $ARCH" >&2
+    exit 1
+fi
+
+echo "==> Building tuist executable (static musl, $SDK_TARGET)"
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"
+
+BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" --show-bin-path)
+echo "==> Copying binary from $BIN_PATH"
+cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
 
 echo "==> Bundling for $ARCH"
 

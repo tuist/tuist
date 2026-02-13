@@ -511,6 +511,12 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
+      - name: Cache Static Linux SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.swiftpm/swift-sdks
+          key: static-linux-sdk-swift-6.1.2-${{ matrix.arch }}
+
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
