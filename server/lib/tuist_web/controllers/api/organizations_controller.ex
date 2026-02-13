@@ -17,11 +17,6 @@ defmodule TuistWeb.API.OrganizationsController do
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(
-    TuistWeb.AuthenticationPlug,
-    {:require_authentication, response_type: :open_api, subject: :user}
-  )
-
   tags(["Organizations"])
 
   operation(:index,
@@ -53,11 +48,23 @@ defmodule TuistWeb.API.OrganizationsController do
   )
 
   def index(conn, _params) do
+    organization_accounts =
+      case Authentication.current_user(conn) do
+        %Tuist.Accounts.User{} = user ->
+          Accounts.get_user_organization_accounts(user)
+
+        nil ->
+          account =
+            conn
+            |> Authentication.authenticated_subject_account()
+            |> Tuist.Repo.preload(:organization)
+
+          [%{organization: account.organization, account: account}]
+      end
+
     organizations =
-      conn
-      |> Authentication.current_user()
-      |> Accounts.get_user_organization_accounts()
-      |> Enum.map(
+      Enum.map(
+        organization_accounts,
         &%{
           id: &1.organization.id,
           name: &1.account.name,

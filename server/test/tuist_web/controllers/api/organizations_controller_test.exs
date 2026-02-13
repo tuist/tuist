@@ -66,10 +66,17 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       %{"organizations" => []} = json_response(conn, :ok)
     end
 
-    test "returns :forbidden when authenticated with a project token", %{conn: conn} do
+    test "returns the project's organization when authenticated with a project token", %{
+      conn: conn
+    } do
       # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org")
+
       project =
-        ProjectsFixtures.project_fixture(preload: [:account])
+        ProjectsFixtures.project_fixture(
+          account: organization.account,
+          preload: [:account]
+        )
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -77,10 +84,17 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       conn = get(conn, ~p"/api/organizations")
 
       # Then
-      response = json_response(conn, :forbidden)
+      response = json_response(conn, :ok)
 
-      assert response["message"] ==
-               "This endpoint requires user authentication. Project tokens are not supported."
+      assert [
+               %{
+                 "id" => organization.id,
+                 "name" => "tuist-org",
+                 "plan" => "none",
+                 "members" => [],
+                 "invitations" => []
+               }
+             ] == response["organizations"]
     end
   end
 
