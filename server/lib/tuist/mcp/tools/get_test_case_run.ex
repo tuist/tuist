@@ -58,7 +58,7 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
           end)
       }
 
-      {:ok, %{content: [%{type: "text", text: Jason.encode!(data)}]}}
+      {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
     else
       {:error, :not_found} -> {:error, -32_602, "Test case run not found: #{test_case_run_id}"}
       {:error, code, message} -> {:error, code, message}

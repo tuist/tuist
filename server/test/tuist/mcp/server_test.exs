@@ -63,7 +63,7 @@ defmodule Tuist.MCP.ServerTest do
       assert response.id == 4
       content = response.result.content
       assert hd(content).type == "text"
-      assert Jason.decode!(hd(content).text) == []
+      assert JSON.decode!(hd(content).text) == []
     end
 
     test "returns error for unknown tool" do

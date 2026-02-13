@@ -55,7 +55,7 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
           }
         }
 
-        {:ok, %{content: [%{type: "text", text: Jason.encode!(data)}]}}
+        {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
 
       {:error, code, message} ->
         {:error, code, message}
