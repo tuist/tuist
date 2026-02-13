@@ -383,6 +383,40 @@
                 <span :for={failure <- failures} data-part="failure">
                   {format_failure_message(failure, @run)}
                 </span>
+                <% stack_trace = @stack_traces[List.first(failures).stack_trace_id] %>
+                <div :if={stack_trace} data-part="stack-trace-details">
+                  <div data-part="stack-trace-header">
+                    <span data-part="stack-trace-title">
+                      {dgettext("dashboard_tests", "Stack Trace")}
+                    </span>
+                    <.button
+                      href={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.file_name}"
+                      }
+                      label={dgettext("dashboard_tests", "Download")}
+                      variant="secondary"
+                      size="small"
+                      target="_blank"
+                    >
+                      <:icon_left><.download /></:icon_left>
+                    </.button>
+                  </div>
+                  <div data-part="stack-trace-metadata">
+                    <span :if={stack_trace.exception_type && stack_trace.exception_type != ""} data-part="stack-trace-meta-item">
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
+                      <span data-part="meta-value">{stack_trace.exception_type}</span>
+                    </span>
+                    <span :if={stack_trace.signal && stack_trace.signal != ""} data-part="stack-trace-meta-item">
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
+                      <span data-part="meta-value">{stack_trace.signal}</span>
+                    </span>
+                    <span :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""} data-part="stack-trace-meta-item">
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
+                      <span data-part="meta-value">{stack_trace.exception_subtype}</span>
+                    </span>
+                  </div>
+                  <pre :if={stack_trace.formatted_frames && stack_trace.formatted_frames != ""} data-part="stack-trace-frames">{stack_trace.formatted_frames}</pre>
+                </div>
               </div>
             </div>
           </div>
@@ -1426,6 +1460,48 @@
               <span :for={failure <- failures} data-part="failure">
                 {format_failure_message(failure, @run)}
               </span>
+              <% stack_trace = @stack_traces[List.first(failures).stack_trace_id] %>
+              <div :if={stack_trace} data-part="stack-trace-details">
+                <div data-part="stack-trace-header">
+                  <span data-part="stack-trace-title">
+                    {dgettext("dashboard_tests", "Stack Trace")}
+                  </span>
+                  <.button
+                    href={
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.file_name}"
+                    }
+                    label={dgettext("dashboard_tests", "Download")}
+                    variant="secondary"
+                    size="small"
+                    target="_blank"
+                  >
+                    <:icon_left><.download /></:icon_left>
+                  </.button>
+                </div>
+                <div data-part="stack-trace-metadata">
+                  <span :if={stack_trace.exception_type && stack_trace.exception_type != ""} data-part="stack-trace-meta-item">
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
+                    <span data-part="meta-value">{stack_trace.exception_type}</span>
+                  </span>
+                  <span :if={stack_trace.signal && stack_trace.signal != ""} data-part="stack-trace-meta-item">
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
+                    <span data-part="meta-value">{stack_trace.signal}</span>
+                  </span>
+                  <span :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""} data-part="stack-trace-meta-item">
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
+                    <span data-part="meta-value">{stack_trace.exception_subtype}</span>
+                  </span>
+                  <span :if={stack_trace.app_name && stack_trace.app_name != ""} data-part="stack-trace-meta-item">
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "App")}</span>
+                    <span data-part="meta-value">{stack_trace.app_name}</span>
+                  </span>
+                  <span :if={stack_trace.os_version && stack_trace.os_version != ""} data-part="stack-trace-meta-item">
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "OS")}</span>
+                    <span data-part="meta-value">{stack_trace.os_version}</span>
+                  </span>
+                </div>
+                <pre :if={stack_trace.formatted_frames && stack_trace.formatted_frames != ""} data-part="stack-trace-frames">{stack_trace.formatted_frames}</pre>
+              </div>
             </div>
           </div>
         </div>

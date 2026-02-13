@@ -62,6 +62,15 @@ defmodule Tuist.Tests do
     end
   end
 
+  def get_stack_traces_by_ids([]), do: %{}
+
+  def get_stack_traces_by_ids(ids) do
+    query = from(st in StackTrace, where: st.id in ^ids)
+
+    ClickHouseRepo.all(query)
+    |> Map.new(fn st -> {st.id, st} end)
+  end
+
   def get_test(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
@@ -141,7 +150,8 @@ defmodule Tuist.Tests do
           inserted_at: f.inserted_at,
           test_case_name: tcr.name,
           test_module_name: tcr.module_name,
-          test_suite_name: tcr.suite_name
+          test_suite_name: tcr.suite_name,
+          stack_trace_id: tcr.stack_trace_id
         }
 
     Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)

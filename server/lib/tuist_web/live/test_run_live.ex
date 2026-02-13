@@ -282,6 +282,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failures, [])
     |> assign(:failures_meta, %{})
     |> assign(:failures_page, 1)
+    |> assign(:stack_traces, %{})
   end
 
   defp assign_initial_flaky_runs_state(socket) do
@@ -337,7 +338,7 @@ defmodule TuistWeb.TestRunLive do
     selected_test_tab = params["test-tab"] || "test-cases"
 
     # Load failures data for the overview preview card
-    {failures_grouped, failures_meta} = load_failures_data(socket.assigns.run, params)
+    {failures_grouped, stack_traces, failures_meta} = load_failures_data(socket.assigns.run, params)
 
     # Load flaky runs data
     flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
@@ -346,6 +347,7 @@ defmodule TuistWeb.TestRunLive do
       socket
       |> assign(:selected_test_tab, selected_test_tab)
       |> assign(:failures_grouped_by_test_case, failures_grouped)
+      |> assign(:stack_traces, stack_traces)
       |> assign(:failures_meta, failures_meta)
       |> assign(:flaky_runs_grouped, flaky_runs_grouped)
       |> assign_selective_testing_defaults()
@@ -372,8 +374,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "failures", params) do
-    {failures, meta} = load_failures_data(socket.assigns.run, params)
-    assign_failures_data(socket, failures, meta, params)
+    {failures, stack_traces, meta} = load_failures_data(socket.assigns.run, params)
+    assign_failures_data(socket, failures, stack_traces, meta, params)
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do
@@ -602,18 +604,27 @@ defmodule TuistWeb.TestRunLive do
 
     {failures, meta} = Tests.list_test_run_failures(run.id, attrs)
 
+    stack_trace_ids =
+      failures
+      |> Enum.map(& &1.stack_trace_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    stack_traces = Tests.get_stack_traces_by_ids(stack_trace_ids)
+
     # Group failures by test case
     failures_grouped =
       Enum.group_by(failures, fn failure ->
         failure.test_case_run_id
       end)
 
-    {failures_grouped, meta}
+    {failures_grouped, stack_traces, meta}
   end
 
-  defp assign_failures_data(socket, failures_grouped, meta, params) do
+  defp assign_failures_data(socket, failures_grouped, stack_traces, meta, params) do
     socket
     |> assign(:failures_grouped_by_test_case, failures_grouped)
+    |> assign(:stack_traces, stack_traces)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
   end

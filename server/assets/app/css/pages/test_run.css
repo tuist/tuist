@@ -701,6 +701,64 @@
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
+
+      & > [data-part="stack-trace-details"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+        margin-top: var(--noora-spacing-5);
+        margin-left: 44px;
+        border-top: 1px solid var(--noora-surface-border-secondary);
+        padding-top: var(--noora-spacing-5);
+
+        & > [data-part="stack-trace-header"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="stack-trace-title"] {
+            flex-grow: 1;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+          }
+        }
+
+        & > [data-part="stack-trace-metadata"] {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: var(--noora-spacing-3) var(--noora-spacing-6);
+
+          & > [data-part="stack-trace-meta-item"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+
+            & > [data-part="meta-label"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+            }
+
+            & > [data-part="meta-value"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+            }
+          }
+        }
+
+        & > [data-part="stack-trace-frames"] {
+          margin: 0;
+          box-shadow: var(--noora-border-section);
+          border-radius: var(--noora-radius-medium);
+          background: var(--noora-surface-background-tertiary);
+          padding: var(--noora-spacing-5);
+          overflow-x: auto;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+        }
+      }
     }
   }
 }
