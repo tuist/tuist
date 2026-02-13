@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import Path
 import Testing
@@ -39,27 +38,6 @@ struct GeneratorAcceptanceTests {
 
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-    }
-
-    @Test(.withFixture("generated_local_spm_dependency_with_assets"), .withMockedLogger())
-    func local_spm_dependency_with_assets() async throws {
-        // Given
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let workspacePath = fixtureDirectory.appending(component: "TuistSampleProject.xcworkspace")
-
-        // When
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try await System.shared.run([
-            "/usr/bin/xcodebuild",
-            "-scheme",
-            "TuistSampleProject",
-            "-workspace",
-            workspacePath.pathString,
-            "-destination",
-            "generic/platform=iOS Simulator",
-            "build",
-        ])
     }
 
     @Test(
@@ -198,8 +176,8 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             )
         }
         for resource in [
-            "StaticFramework3.framework",
-            "StaticFramework4.framework",
+            "StaticFramework3_StaticFramework3.bundle",
+            "StaticFramework4_StaticFramework4.bundle",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -223,12 +201,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3.framework",
+            "StaticFramework3_StaticFramework3.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4.framework",
+            "StaticFramework4_StaticFramework4.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -811,7 +789,7 @@ final class GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib: Tuis
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "StaticMetallibFramework")
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticMetallibFramework.framework",
+            "StaticMetallibFramework_StaticMetallibFramework.bundle",
             destination: "Debug",
             resource: "default.metallib"
         )
@@ -1340,22 +1318,17 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
-        )
-        try await XCTAssertProductWithDestinationContainsResource(
-            "App.app",
-            destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
@@ -1383,17 +1356,12 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
-        )
-        try await XCTAssertProductWithDestinationContainsResource(
-            "App_macOS.app",
-            destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
@@ -1404,88 +1372,6 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
             "App_macOS.app",
             destination: "Debug",
             resource: "Resources/MacPlugin.bundle"
-        )
-    }
-
-    /// Tests that external local Swift packages configured as dynamic frameworks
-    /// compile and run without crashing when accessing Bundle.module.
-    /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
-    func test_app_with_external_dynamic_framework_with_resources() async throws {
-        try await setUpFixture("generated_app_with_mac_bundle")
-
-        // Modify the Tuist/Package.swift to use dynamic framework for ResourcesFramework
-        let packageSwiftPath = fixturePath.appending(components: "Tuist", "Package.swift")
-        let dynamicFrameworkPackageSwift = """
-        // swift-tools-version: 6.0
-        @preconcurrency import PackageDescription
-
-        #if TUIST
-            import struct ProjectDescription.PackageSettings
-
-            let packageSettings = PackageSettings(
-                productTypes: ["ResourcesFramework": .framework]
-            )
-        #endif
-
-        let package = Package(
-            name: "App",
-            dependencies: [
-                .package(path: "../ResourcesFramework"),
-            ]
-        )
-        """
-        try await fileSystem.writeText(
-            dynamicFrameworkPackageSwift,
-            at: packageSwiftPath,
-            encoding: .utf8,
-            options: .init([.overwrite])
-        )
-
-        try await run(InstallCommand.self)
-        try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
-
-        // Launch app on simulator to verify it doesn't crash when accessing Bundle.module
-        let commandRunner = CommandRunner()
-        let simulatorId = UUID().uuidString
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
-        ).pipedStream().awaitCompletion()
-
-        defer {
-            Task {
-                try? await commandRunner.run(
-                    arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
-                ).pipedStream().awaitCompletion()
-            }
-        }
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
-        ).pipedStream().awaitCompletion()
-
-        let appPath = derivedDataPath
-            .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
-        ).pipedStream().awaitCompletion()
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
-        ).pipedStream().awaitCompletion()
-
-        // Wait for app to initialize and potentially crash
-        try await Task.sleep(for: .seconds(2))
-
-        // Verify the app is still running (didn't crash due to bundle accessor issue)
-        let listOutput = try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
-        ).concatenatedString()
-
-        XCTAssertTrue(
-            listOutput.contains("UIKitApplication:dev.tuist.App"),
-            "App should still be running. If it crashed, the bundle accessor for external dynamic frameworks with resources may be broken."
         )
     }
 }

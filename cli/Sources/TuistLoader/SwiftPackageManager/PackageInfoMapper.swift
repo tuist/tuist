@@ -592,7 +592,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: "dev.tuist.\(sanitizedTargetName.replacingOccurrences(of: "_", with: "."))",
+            bundleId: sanitizedTargetName
+                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,

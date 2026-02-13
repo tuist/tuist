@@ -369,10 +369,12 @@ public struct SimulatorController: SimulatorControlling {
         case .x8664:
             arch = "x86_64"
         }
+        let destination = "platform=macOS,arch=\(arch)"
         if catalyst {
-            return "generic/platform=macOS,variant=Mac Catalyst"
+            return destination + ",variant=Mac Catalyst"
+        } else {
+            return destination
         }
-        return "platform=macOS,arch=\(arch)"
     }
 }
 
