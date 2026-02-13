@@ -54,8 +54,7 @@ struct CacheWarmGraphLinterTests {
         #expect(!output.contains("non-cacheable side-effects"))
     }
 
-    @Test(.disabled("Requires EE binary update to support foreignBuild"), .withMockedLogger())
-    func lint_does_not_warn_for_aggregate_targets() async throws {
+    @Test(.withMockedLogger()) func lint_does_not_warn_for_aggregate_targets() async throws {
         // Given
         let target = Target.test(
             scripts: [
