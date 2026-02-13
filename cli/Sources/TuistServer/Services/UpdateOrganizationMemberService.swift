@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 public protocol UpdateOrganizationMemberServicing {
     func updateOrganizationMember(
