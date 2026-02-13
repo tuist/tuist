@@ -100,7 +100,7 @@ public final class TargetContentHasher: TargetContentHashing {
         plistContentHasher: PlistContentHashing,
         settingsContentHasher: SettingsContentHashing,
         dependenciesContentHasher: DependenciesContentHashing,
-        foreignBuildHasher: ForeignBuildHashing? = nil
+        foreignBuildHasher: ForeignBuildHashing
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
@@ -113,7 +113,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.plistContentHasher = plistContentHasher
         self.settingsContentHasher = settingsContentHasher
         self.dependenciesContentHasher = dependenciesContentHasher
-        self.foreignBuildHasher = foreignBuildHasher ?? ForeignBuildHasher(contentHasher: contentHasher)
+        self.foreignBuildHasher = foreignBuildHasher
     }
 
     // MARK: - TargetContentHashing
