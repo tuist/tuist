@@ -49,10 +49,18 @@ else
     exit 1
 fi
 
-echo "==> Building tuist executable (static musl, $SDK_TARGET)"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET" -Xswiftc -static-executable
+# Remove system glibc/curl static archives that conflict with the musl SDK.
+# The musl SDK provides its own minimal static libraries, but the linker also finds
+# the system's glibc-based .a files (libcurl with libidn2/libldap/libssh deps,
+# libc with _DYNAMIC symbol, libm with internal glibc symbols). Removing these
+# forces the linker to use only the musl SDK's versions.
+echo "==> Removing conflicting system static libraries"
+rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a
 
-BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" -Xswiftc -static-executable --show-bin-path)
+echo "==> Building tuist executable (static musl, $SDK_TARGET)"
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"
+
+BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" --show-bin-path)
 echo "==> Copying binary from $BIN_PATH"
 cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
 
