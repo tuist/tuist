@@ -4267,6 +4267,7 @@ components:
         - duration
         - project_id
         - url
+        - test_case_runs
       title: RunsTest
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test

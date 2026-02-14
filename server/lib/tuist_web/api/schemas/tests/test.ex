@@ -31,6 +31,6 @@ defmodule TuistWeb.API.Schemas.Tests.Test do
         }
       }
     },
-    required: [:type, :id, :duration, :project_id, :url]
+    required: [:type, :id, :duration, :project_id, :url, :test_case_runs]
   })
 end

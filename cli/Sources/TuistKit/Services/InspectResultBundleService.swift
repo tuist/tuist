@@ -132,7 +132,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             ciProvider: ciInfo?.provider
         )
 
-        let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs ?? [])
+        let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
             await uploadStackTrace(

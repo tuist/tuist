@@ -8105,7 +8105,7 @@ public enum Components {
             /// The test case runs created by this test run, with their identifiers.
             ///
             /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runs`.
-            public var test_case_runs: Components.Schemas.RunsTest.test_case_runsPayload?
+            public var test_case_runs: Components.Schemas.RunsTest.test_case_runsPayload
             /// The type of the run, which is 'test' in this case
             ///
             /// - Remark: Generated from `#/components/schemas/RunsTest/type`.
@@ -8133,7 +8133,7 @@ public enum Components {
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
-                test_case_runs: Components.Schemas.RunsTest.test_case_runsPayload? = nil,
+                test_case_runs: Components.Schemas.RunsTest.test_case_runsPayload,
                 _type: Components.Schemas.RunsTest._typePayload,
                 url: Swift.String
             ) {
