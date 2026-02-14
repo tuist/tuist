@@ -609,7 +609,21 @@ defmodule TuistWeb.TestRunLive do
       |> Enum.map(& &1.test_case_run_id)
       |> Enum.uniq()
 
-    stack_traces = Tests.get_stack_traces_by_test_case_run_ids(test_case_run_ids)
+    raw_stack_traces = Tests.get_stack_traces_by_test_case_run_ids(test_case_run_ids)
+
+    attachment_ids =
+      raw_stack_traces
+      |> Map.values()
+      |> Enum.map(& &1.test_case_run_attachment_id)
+      |> Enum.reject(&is_nil/1)
+
+    attachments = Tests.get_attachments_by_ids(attachment_ids)
+
+    stack_traces =
+      Map.new(raw_stack_traces, fn {tcr_id, st} ->
+        attachment = attachments[st.test_case_run_attachment_id]
+        {tcr_id, Map.put(st, :attachment_file_name, attachment && attachment.file_name)}
+      end)
 
     # Group failures by test case
     failures_grouped =

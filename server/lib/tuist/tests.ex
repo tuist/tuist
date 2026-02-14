@@ -1708,6 +1708,29 @@ defmodule Tuist.Tests do
     end
   end
 
+  def get_attachments_by_ids([]), do: %{}
+
+  def get_attachments_by_ids(ids) do
+    query = from(a in TestCaseRunAttachment, where: a.id in ^ids)
+
+    query
+    |> ClickHouseRepo.all()
+    |> Map.new(fn a -> {a.id, a} end)
+  end
+
+  def get_attachment_by_id(id) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
   def get_attachment(test_case_run_id, file_name) do
     query =
       from(a in TestCaseRunAttachment,

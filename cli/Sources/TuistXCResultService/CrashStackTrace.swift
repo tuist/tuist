@@ -2,10 +2,6 @@ import Foundation
 import Path
 
 public struct CrashStackTrace {
-    public let id: String
-    public let fileName: String
-    public let appName: String?
-    public let osVersion: String?
     public let exceptionType: String?
     public let signal: String?
     public let exceptionSubtype: String?
@@ -13,20 +9,12 @@ public struct CrashStackTrace {
     public let triggeredThreadFrames: String?
 
     public init(
-        id: String,
-        fileName: String,
-        appName: String?,
-        osVersion: String?,
         exceptionType: String?,
         signal: String?,
         exceptionSubtype: String?,
         filePath: AbsolutePath,
         triggeredThreadFrames: String? = nil
     ) {
-        self.id = id
-        self.fileName = fileName
-        self.appName = appName
-        self.osVersion = osVersion
         self.exceptionType = exceptionType
         self.signal = signal
         self.exceptionSubtype = exceptionSubtype

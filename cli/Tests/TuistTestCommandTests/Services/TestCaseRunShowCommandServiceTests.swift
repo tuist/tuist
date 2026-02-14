@@ -256,13 +256,9 @@ struct TestCaseRunShowCommandServiceTests {
         let testCaseRun = ServerTestCaseRun.test(
             id: "run-crash",
             stackTrace: .init(
-                app_name: "MyApp",
                 attachment_url: "https://cloud.tuist.dev/api/projects/tuist/tuist/tests/test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips",
                 exception_subtype: "KERN_INVALID_ADDRESS",
                 exception_type: "EXC_CRASH",
-                file_name: "MyApp-2024-01-15-123456.ips",
-                id: "trace-id",
-                os_version: "17.2",
                 signal: "SIGABRT",
                 triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156\n1  MyApp               MyApp.example() + 180"
             ),
@@ -284,9 +280,6 @@ struct TestCaseRunShowCommandServiceTests {
 
         // Then
         #expect(ui().contains("Stack Trace"))
-        #expect(ui().contains("MyApp-2024-01-15-123456.ips"))
-        #expect(ui().contains("MyApp"))
-        #expect(ui().contains("17.2"))
         #expect(ui().contains("EXC_CRASH"))
         #expect(ui().contains("SIGABRT"))
         #expect(ui().contains("KERN_INVALID_ADDRESS"))

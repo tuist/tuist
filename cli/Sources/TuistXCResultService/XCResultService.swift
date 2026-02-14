@@ -544,15 +544,8 @@ public struct XCResultService: XCResultServicing {
                         let content = try await fileSystem.readTextFile(at: filePath)
                         let metadata = parseIPSMetadata(content)
                         let triggeredThreadFrames = IPSStackTraceParser().triggeredThreadFrames(content)
-                        let humanReadableName =
-                            attachment.suggestedHumanReadableName ?? attachment.exportedFileName
-                        let sanitizedFileName = humanReadableName.replacingOccurrences(of: " ", with: "_")
 
                         let stackTrace = CrashStackTrace(
-                            id: UUID().uuidString.lowercased(),
-                            fileName: sanitizedFileName,
-                            appName: metadata.appName,
-                            osVersion: metadata.osVersion,
                             exceptionType: metadata.exceptionType,
                             signal: metadata.signal,
                             exceptionSubtype: metadata.exceptionSubtype,
@@ -586,8 +579,6 @@ public struct XCResultService: XCResultServicing {
     }
 
     private struct IPSMetadata {
-        var appName: String?
-        var osVersion: String?
         var exceptionType: String?
         var signal: String?
         var exceptionSubtype: String?
@@ -598,14 +589,6 @@ public struct XCResultService: XCResultServicing {
 
         let lines = content.components(separatedBy: .newlines)
         guard lines.count >= 2 else { return metadata }
-
-        if let headerData = lines[0].data(using: .utf8),
-           let header = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any]
-        {
-            metadata.appName = header["app_name"] as? String
-                ?? header["name"] as? String
-            metadata.osVersion = header["os_version"] as? String
-        }
 
         if let payloadData = lines[1].data(using: .utf8),
            let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any]

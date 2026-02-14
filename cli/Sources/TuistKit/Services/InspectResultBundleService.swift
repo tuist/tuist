@@ -165,12 +165,14 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         )
         guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
 
+        let fileName = stackTrace.filePath.basename
+
         do {
             let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 testCaseRunId: testCaseRunId,
-                fileName: stackTrace.fileName,
+                fileName: fileName,
                 contentType: "application/x-ips",
                 filePath: stackTrace.filePath
             )
@@ -184,7 +186,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             )
         } catch {
             Logger.current
-                .warning("Failed to upload stack trace for \(stackTrace.fileName): \(error.localizedDescription)")
+                .warning("Failed to upload stack trace for \(fileName): \(error.localizedDescription)")
         }
     }
 

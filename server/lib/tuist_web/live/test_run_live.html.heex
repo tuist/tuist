@@ -390,8 +390,9 @@
                       {dgettext("dashboard_tests", "Stack Trace")}
                     </span>
                     <.button
+                      :if={stack_trace.attachment_file_name}
                       href={
-                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.file_name}"
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.attachment_file_name}"
                       }
                       label={dgettext("dashboard_tests", "Download")}
                       variant="secondary"
@@ -1484,8 +1485,9 @@
                     {dgettext("dashboard_tests", "Stack Trace")}
                   </span>
                   <.button
+                    :if={stack_trace.attachment_file_name}
                     href={
-                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.file_name}"
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.attachment_file_name}"
                     }
                     label={dgettext("dashboard_tests", "Download")}
                     variant="secondary"
@@ -1516,20 +1518,6 @@
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
                     <span data-part="meta-value">{stack_trace.exception_subtype}</span>
-                  </span>
-                  <span
-                    :if={stack_trace.app_name && stack_trace.app_name != ""}
-                    data-part="stack-trace-meta-item"
-                  >
-                    <span data-part="meta-label">{dgettext("dashboard_tests", "App")}</span>
-                    <span data-part="meta-value">{stack_trace.app_name}</span>
-                  </span>
-                  <span
-                    :if={stack_trace.os_version && stack_trace.os_version != ""}
-                    data-part="stack-trace-meta-item"
-                  >
-                    <span data-part="meta-label">{dgettext("dashboard_tests", "OS")}</span>
-                    <span data-part="meta-value">{stack_trace.os_version}</span>
                   </span>
                 </div>
                 <pre

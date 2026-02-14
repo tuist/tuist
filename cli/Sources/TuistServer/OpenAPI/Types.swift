@@ -6314,10 +6314,6 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/StackTraceParams`.
         public struct StackTraceParams: Codable, Hashable, Sendable {
-            /// The name of the crashed application.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/app_name`.
-            public var app_name: Swift.String?
             /// The exception subtype or additional details.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/exception_subtype`.
@@ -6326,18 +6322,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/exception_type`.
             public var exception_type: Swift.String?
-            /// The human-readable name of the crash log file.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/file_name`.
-            public var file_name: Swift.String
-            /// Deterministic UUID generated from content hash and file name.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/id`.
-            public var id: Swift.String
-            /// The OS version when the crash occurred.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/os_version`.
-            public var os_version: Swift.String?
             /// The signal that caused the crash (e.g., SIGABRT).
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/signal`.
@@ -6357,46 +6341,30 @@ public enum Components {
             /// Creates a new `StackTraceParams`.
             ///
             /// - Parameters:
-            ///   - app_name: The name of the crashed application.
             ///   - exception_subtype: The exception subtype or additional details.
             ///   - exception_type: The exception type (e.g., EXC_CRASH).
-            ///   - file_name: The human-readable name of the crash log file.
-            ///   - id: Deterministic UUID generated from content hash and file name.
-            ///   - os_version: The OS version when the crash occurred.
             ///   - signal: The signal that caused the crash (e.g., SIGABRT).
             ///   - test_case_run_attachment_id: The UUID of the test case run attachment this stack trace was parsed from.
             ///   - test_case_run_id: The UUID of the test case run this stack trace belongs to.
             ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
             public init(
-                app_name: Swift.String? = nil,
                 exception_subtype: Swift.String? = nil,
                 exception_type: Swift.String? = nil,
-                file_name: Swift.String,
-                id: Swift.String,
-                os_version: Swift.String? = nil,
                 signal: Swift.String? = nil,
                 test_case_run_attachment_id: Swift.String,
                 test_case_run_id: Swift.String,
                 triggered_thread_frames: Swift.String? = nil
             ) {
-                self.app_name = app_name
                 self.exception_subtype = exception_subtype
                 self.exception_type = exception_type
-                self.file_name = file_name
-                self.id = id
-                self.os_version = os_version
                 self.signal = signal
                 self.test_case_run_attachment_id = test_case_run_attachment_id
                 self.test_case_run_id = test_case_run_id
                 self.triggered_thread_frames = triggered_thread_frames
             }
             public enum CodingKeys: String, CodingKey {
-                case app_name
                 case exception_subtype
                 case exception_type
-                case file_name
-                case id
-                case os_version
                 case signal
                 case test_case_run_attachment_id
                 case test_case_run_id
@@ -11841,14 +11809,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
                         public struct stack_tracePayload: Codable, Hashable, Sendable {
-                            /// The app name.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/app_name`.
-                            public var app_name: Swift.String?
                             /// URL to download the full crash log attachment.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/attachment_url`.
-                            public var attachment_url: Swift.String
+                            public var attachment_url: Swift.String?
                             /// The exception subtype.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_subtype`.
@@ -11857,18 +11821,6 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_type`.
                             public var exception_type: Swift.String?
-                            /// The crash log file name.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/file_name`.
-                            public var file_name: Swift.String
-                            /// The stack trace ID.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/id`.
-                            public var id: Swift.String
-                            /// The OS version.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/os_version`.
-                            public var os_version: Swift.String?
                             /// The signal (e.g., SIGABRT).
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/signal`.
@@ -11880,44 +11832,28 @@ public enum Operations {
                             /// Creates a new `stack_tracePayload`.
                             ///
                             /// - Parameters:
-                            ///   - app_name: The app name.
                             ///   - attachment_url: URL to download the full crash log attachment.
                             ///   - exception_subtype: The exception subtype.
                             ///   - exception_type: The exception type (e.g., EXC_CRASH).
-                            ///   - file_name: The crash log file name.
-                            ///   - id: The stack trace ID.
-                            ///   - os_version: The OS version.
                             ///   - signal: The signal (e.g., SIGABRT).
                             ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                             public init(
-                                app_name: Swift.String? = nil,
-                                attachment_url: Swift.String,
+                                attachment_url: Swift.String? = nil,
                                 exception_subtype: Swift.String? = nil,
                                 exception_type: Swift.String? = nil,
-                                file_name: Swift.String,
-                                id: Swift.String,
-                                os_version: Swift.String? = nil,
                                 signal: Swift.String? = nil,
                                 triggered_thread_frames: Swift.String? = nil
                             ) {
-                                self.app_name = app_name
                                 self.attachment_url = attachment_url
                                 self.exception_subtype = exception_subtype
                                 self.exception_type = exception_type
-                                self.file_name = file_name
-                                self.id = id
-                                self.os_version = os_version
                                 self.signal = signal
                                 self.triggered_thread_frames = triggered_thread_frames
                             }
                             public enum CodingKeys: String, CodingKey {
-                                case app_name
                                 case attachment_url
                                 case exception_subtype
                                 case exception_type
-                                case file_name
-                                case id
-                                case os_version
                                 case signal
                                 case triggered_thread_frames
                             }
@@ -13557,10 +13493,6 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The name of the crashed application.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/app_name`.
-                    public var app_name: Swift.String?
                     /// The exception subtype or additional details.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/exception_subtype`.
@@ -13569,18 +13501,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/exception_type`.
                     public var exception_type: Swift.String?
-                    /// The human-readable name of the crash log file.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/file_name`.
-                    public var file_name: Swift.String
-                    /// Deterministic UUID generated from content hash and file name.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/id`.
-                    public var id: Swift.String
-                    /// The OS version when the crash occurred.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/os_version`.
-                    public var os_version: Swift.String?
                     /// The signal that caused the crash (e.g., SIGABRT).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/signal`.
@@ -13600,46 +13520,30 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - app_name: The name of the crashed application.
                     ///   - exception_subtype: The exception subtype or additional details.
                     ///   - exception_type: The exception type (e.g., EXC_CRASH).
-                    ///   - file_name: The human-readable name of the crash log file.
-                    ///   - id: Deterministic UUID generated from content hash and file name.
-                    ///   - os_version: The OS version when the crash occurred.
                     ///   - signal: The signal that caused the crash (e.g., SIGABRT).
                     ///   - test_case_run_attachment_id: The UUID of the test case run attachment this stack trace was parsed from.
                     ///   - test_case_run_id: The UUID of the test case run this stack trace belongs to.
                     ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                     public init(
-                        app_name: Swift.String? = nil,
                         exception_subtype: Swift.String? = nil,
                         exception_type: Swift.String? = nil,
-                        file_name: Swift.String,
-                        id: Swift.String,
-                        os_version: Swift.String? = nil,
                         signal: Swift.String? = nil,
                         test_case_run_attachment_id: Swift.String,
                         test_case_run_id: Swift.String,
                         triggered_thread_frames: Swift.String? = nil
                     ) {
-                        self.app_name = app_name
                         self.exception_subtype = exception_subtype
                         self.exception_type = exception_type
-                        self.file_name = file_name
-                        self.id = id
-                        self.os_version = os_version
                         self.signal = signal
                         self.test_case_run_attachment_id = test_case_run_attachment_id
                         self.test_case_run_id = test_case_run_id
                         self.triggered_thread_frames = triggered_thread_frames
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case app_name
                         case exception_subtype
                         case exception_type
-                        case file_name
-                        case id
-                        case os_version
                         case signal
                         case test_case_run_attachment_id
                         case test_case_run_id

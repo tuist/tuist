@@ -66,12 +66,8 @@ import TuistHTTP
                     ),
                     body: .json(
                         .init(
-                            app_name: stackTrace.appName,
                             exception_subtype: stackTrace.exceptionSubtype,
                             exception_type: stackTrace.exceptionType,
-                            file_name: stackTrace.fileName,
-                            id: stackTrace.id,
-                            os_version: stackTrace.osVersion,
                             signal: stackTrace.signal,
                             test_case_run_attachment_id: testCaseRunAttachmentId,
                             test_case_run_id: testCaseRunId,

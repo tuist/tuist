@@ -5,47 +5,36 @@ import Testing
 
 struct CrashStackTraceTests {
     @Test
-    func initializesWithAllFields() {
+    func initializesWithAllFields() throws {
+        let filePath = try AbsolutePath(validating: "/tmp/crash.ips")
         let trace = CrashStackTrace(
-            id: "550e8400-e29b-41d4-a716-446655440000",
-            fileName: "MyApp-2024-01-15-123456.ips",
-            appName: "MyApp",
-            osVersion: "17.2",
             exceptionType: "EXC_CRASH",
             signal: "SIGABRT",
             exceptionSubtype: "KERN_INVALID_ADDRESS",
-            filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
+            filePath: filePath,
+            triggeredThreadFrames: "0  libswiftCore.dylib  _assertionFailure + 156"
         )
 
-        #expect(trace.id == "550e8400-e29b-41d4-a716-446655440000")
-        #expect(trace.fileName == "MyApp-2024-01-15-123456.ips")
-        #expect(trace.appName == "MyApp")
-        #expect(trace.osVersion == "17.2")
         #expect(trace.exceptionType == "EXC_CRASH")
         #expect(trace.signal == "SIGABRT")
         #expect(trace.exceptionSubtype == "KERN_INVALID_ADDRESS")
-        let expectedPath = try! AbsolutePath(validating: "/tmp/crash.ips")
-        #expect(trace.filePath == expectedPath)
+        #expect(trace.filePath == filePath)
+        #expect(trace.triggeredThreadFrames == "0  libswiftCore.dylib  _assertionFailure + 156")
     }
 
     @Test
-    func initializesWithNilOptionalFields() {
+    func initializesWithNilOptionalFields() throws {
         let trace = CrashStackTrace(
-            id: "test-id",
-            fileName: "crash.ips",
-            appName: nil,
-            osVersion: nil,
             exceptionType: nil,
             signal: nil,
             exceptionSubtype: nil,
-            filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
+            filePath: try AbsolutePath(validating: "/tmp/crash.ips")
         )
 
-        #expect(trace.appName == nil)
-        #expect(trace.osVersion == nil)
         #expect(trace.exceptionType == nil)
         #expect(trace.signal == nil)
         #expect(trace.exceptionSubtype == nil)
+        #expect(trace.triggeredThreadFrames == nil)
     }
 }
 
@@ -65,16 +54,12 @@ struct TestCaseStackTraceTests {
     }
 
     @Test
-    func testCaseCanHaveStackTrace() {
+    func testCaseCanHaveStackTrace() throws {
         let trace = CrashStackTrace(
-            id: "some-uuid",
-            fileName: "crash.ips",
-            appName: nil,
-            osVersion: nil,
-            exceptionType: nil,
+            exceptionType: "EXC_CRASH",
             signal: nil,
             exceptionSubtype: nil,
-            filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
+            filePath: try AbsolutePath(validating: "/tmp/crash.ips")
         )
 
         let testCase = TestCase(
@@ -87,6 +72,6 @@ struct TestCaseStackTraceTests {
             stackTrace: trace
         )
 
-        #expect(testCase.stackTrace?.id == "some-uuid")
+        #expect(testCase.stackTrace?.exceptionType == "EXC_CRASH")
     }
 }

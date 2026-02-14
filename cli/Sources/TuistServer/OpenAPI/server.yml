@@ -3012,11 +3012,6 @@ components:
     StackTraceParams:
       description: Parameters to upload a single crash stack trace.
       properties:
-        app_name:
-          description: The name of the crashed application.
-          type: string
-          x-struct:
-          x-validate:
         exception_subtype:
           description: The exception subtype or additional details.
           type: string
@@ -3024,21 +3019,6 @@ components:
           x-validate:
         exception_type:
           description: The exception type (e.g., EXC_CRASH).
-          type: string
-          x-struct:
-          x-validate:
-        file_name:
-          description: The human-readable name of the crash log file.
-          type: string
-          x-struct:
-          x-validate:
-        id:
-          description: Deterministic UUID generated from content hash and file name.
-          type: string
-          x-struct:
-          x-validate:
-        os_version:
-          description: The OS version when the crash occurred.
           type: string
           x-struct:
           x-validate:
@@ -3063,8 +3043,6 @@ components:
           x-struct:
           x-validate:
       required:
-        - id
-        - file_name
         - test_case_run_id
         - test_case_run_attachment_id
       title: StackTraceParams
@@ -5787,14 +5765,9 @@ paths:
                     description: Crash stack trace associated with this test case run.
                     nullable: true
                     properties:
-                      app_name:
-                        description: The app name.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
                       attachment_url:
                         description: URL to download the full crash log attachment.
+                        nullable: true
                         type: string
                         x-struct:
                         x-validate:
@@ -5806,23 +5779,6 @@ paths:
                         x-validate:
                       exception_type:
                         description: The exception type (e.g., EXC_CRASH).
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
-                      file_name:
-                        description: The crash log file name.
-                        type: string
-                        x-struct:
-                        x-validate:
-                      id:
-                        description: The stack trace ID.
-                        format: uuid
-                        type: string
-                        x-struct:
-                        x-validate:
-                      os_version:
-                        description: The OS version.
                         nullable: true
                         type: string
                         x-struct:
@@ -5839,10 +5795,6 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
-                    required:
-                      - id
-                      - file_name
-                      - attachment_url
                     type: object
                     x-struct:
                     x-validate:
@@ -6267,11 +6219,6 @@ paths:
             schema:
               description: Parameters to upload a single crash stack trace.
               properties:
-                app_name:
-                  description: The name of the crashed application.
-                  type: string
-                  x-struct:
-                  x-validate:
                 exception_subtype:
                   description: The exception subtype or additional details.
                   type: string
@@ -6279,21 +6226,6 @@ paths:
                   x-validate:
                 exception_type:
                   description: The exception type (e.g., EXC_CRASH).
-                  type: string
-                  x-struct:
-                  x-validate:
-                file_name:
-                  description: The human-readable name of the crash log file.
-                  type: string
-                  x-struct:
-                  x-validate:
-                id:
-                  description: Deterministic UUID generated from content hash and file name.
-                  type: string
-                  x-struct:
-                  x-validate:
-                os_version:
-                  description: The OS version when the crash occurred.
                   type: string
                   x-struct:
                   x-validate:
@@ -6318,8 +6250,6 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - id
-                - file_name
                 - test_case_run_id
                 - test_case_run_attachment_id
               title: StackTraceParams

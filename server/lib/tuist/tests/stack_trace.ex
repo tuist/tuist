@@ -9,13 +9,9 @@ defmodule Tuist.Tests.StackTrace do
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_run_stack_traces" do
-    field :file_name, Ch, type: "String"
-    field :app_name, Ch, type: "String"
-    field :os_version, Ch, type: "String"
     field :exception_type, Ch, type: "String"
     field :signal, Ch, type: "String"
     field :exception_subtype, Ch, type: "String"
-    field :raw_content, Ch, type: "String"
     field :triggered_thread_frames, Ch, type: "String"
     field :test_case_run_id, Ecto.UUID
     field :test_case_run_attachment_id, Ch, type: "Nullable(UUID)"
@@ -26,18 +22,14 @@ defmodule Tuist.Tests.StackTrace do
     stack_trace
     |> cast(attrs, [
       :id,
-      :file_name,
-      :app_name,
-      :os_version,
       :exception_type,
       :signal,
       :exception_subtype,
-      :raw_content,
       :triggered_thread_frames,
       :test_case_run_id,
       :test_case_run_attachment_id,
       :inserted_at
     ])
-    |> validate_required([:id, :file_name, :test_case_run_id])
+    |> validate_required([:id, :test_case_run_id])
   end
 end

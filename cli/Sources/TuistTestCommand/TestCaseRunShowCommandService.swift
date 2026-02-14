@@ -73,13 +73,6 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         if let stackTrace = run.stack_trace {
             var summary: [String] = []
             summary.append("Stack Trace".bold())
-            summary.append("  File:      \(stackTrace.file_name)")
-            if let appName = stackTrace.app_name, !appName.isEmpty {
-                summary.append("  App:       \(appName)")
-            }
-            if let osVersion = stackTrace.os_version, !osVersion.isEmpty {
-                summary.append("  OS:        \(osVersion)")
-            }
             if let exceptionType = stackTrace.exception_type, !exceptionType.isEmpty {
                 summary.append("  Exception: \(exceptionType)")
             }
@@ -90,7 +83,9 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
                 summary.append("  Subtype:   \(subtype)")
             }
             Noora.current.passthrough("\(summary.joined(separator: "\n"))\n")
-            Noora.current.passthrough("  \(.link(title: "Full stack trace", href: stackTrace.attachment_url))\n")
+            if let attachmentURL = stackTrace.attachment_url {
+                Noora.current.passthrough("  \(.link(title: "Full stack trace", href: attachmentURL))\n")
+            }
             if let triggeredThreadFrames = stackTrace.triggered_thread_frames, !triggeredThreadFrames.isEmpty {
                 Noora.current.passthrough("\n\(triggeredThreadFrames)\n")
             }

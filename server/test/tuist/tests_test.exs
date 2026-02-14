@@ -955,9 +955,6 @@ defmodule Tuist.TestsTest do
 
       attrs = %{
         id: stack_trace_id,
-        file_name: "MyApp-2024-01-15-123456.ips",
-        app_name: "MyApp",
-        os_version: "17.2",
         exception_type: "EXC_CRASH",
         signal: "SIGABRT",
         exception_subtype: "KERN_INVALID_ADDRESS",

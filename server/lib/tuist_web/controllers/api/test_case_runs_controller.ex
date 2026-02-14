@@ -380,25 +380,6 @@ defmodule TuistWeb.API.TestCaseRunsController do
                nullable: true,
                description: "Crash stack trace associated with this test case run.",
                properties: %{
-                 id: %Schema{
-                   type: :string,
-                   format: :uuid,
-                   description: "The stack trace ID."
-                 },
-                 file_name: %Schema{
-                   type: :string,
-                   description: "The crash log file name."
-                 },
-                 app_name: %Schema{
-                   type: :string,
-                   nullable: true,
-                   description: "The app name."
-                 },
-                 os_version: %Schema{
-                   type: :string,
-                   nullable: true,
-                   description: "The OS version."
-                 },
                  exception_type: %Schema{
                    type: :string,
                    nullable: true,
@@ -421,10 +402,10 @@ defmodule TuistWeb.API.TestCaseRunsController do
                  },
                  attachment_url: %Schema{
                    type: :string,
+                   nullable: true,
                    description: "URL to download the full crash log attachment."
                  }
-               },
-               required: [:id, :file_name, :attachment_url]
+               }
              }
            },
            required: [
@@ -551,14 +532,16 @@ defmodule TuistWeb.API.TestCaseRunsController do
         %{account_handle: account_handle, project_handle: project_handle} = conn.params
 
         attachment_url =
-          TuistWeb.Endpoint.url() <>
-            "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{st.file_name}"
+          case Tests.get_attachment_by_id(st.test_case_run_attachment_id) do
+            {:ok, attachment} ->
+              TuistWeb.Endpoint.url() <>
+                "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{attachment.file_name}"
+
+            _ ->
+              nil
+          end
 
         %{
-          id: st.id,
-          file_name: st.file_name,
-          app_name: nullable_string(st.app_name),
-          os_version: nullable_string(st.os_version),
           exception_type: nullable_string(st.exception_type),
           signal: nullable_string(st.signal),
           exception_subtype: nullable_string(st.exception_subtype),

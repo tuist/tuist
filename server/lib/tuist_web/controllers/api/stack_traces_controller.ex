@@ -46,22 +46,6 @@ defmodule TuistWeb.API.StackTracesController do
          description: "Parameters to upload a single crash stack trace.",
          type: :object,
          properties: %{
-           id: %Schema{
-             type: :string,
-             description: "Deterministic UUID generated from content hash and file name."
-           },
-           file_name: %Schema{
-             type: :string,
-             description: "The human-readable name of the crash log file."
-           },
-           app_name: %Schema{
-             type: :string,
-             description: "The name of the crashed application."
-           },
-           os_version: %Schema{
-             type: :string,
-             description: "The OS version when the crash occurred."
-           },
            exception_type: %Schema{
              type: :string,
              description: "The exception type (e.g., EXC_CRASH)."
@@ -84,10 +68,11 @@ defmodule TuistWeb.API.StackTracesController do
            },
            test_case_run_attachment_id: %Schema{
              type: :string,
-             description: "The UUID of the test case run attachment this stack trace was parsed from."
+             description:
+               "The UUID of the test case run attachment this stack trace was parsed from."
            }
          },
-         required: [:id, :file_name, :test_case_run_id, :test_case_run_attachment_id]
+         required: [:test_case_run_id, :test_case_run_attachment_id]
        }},
     responses: %{
       ok: {"The stack trace was uploaded", "application/json", nil},
@@ -100,10 +85,7 @@ defmodule TuistWeb.API.StackTracesController do
 
   def create(%{body_params: body_params} = conn, %{test_run_id: _test_run_id}) do
     stack_trace_params = %{
-      id: body_params.id,
-      file_name: body_params.file_name,
-      app_name: Map.get(body_params, :app_name),
-      os_version: Map.get(body_params, :os_version),
+      id: UUIDv7.generate(),
       exception_type: Map.get(body_params, :exception_type),
       signal: Map.get(body_params, :signal),
       exception_subtype: Map.get(body_params, :exception_subtype),
