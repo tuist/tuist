@@ -1,7 +1,7 @@
 import Foundation
 
 public struct IPSCrashReportParser {
-    public struct Result {
+    public struct IPSCrashReport {
         public let exceptionType: String?
         public let signal: String?
         public let exceptionSubtype: String?
@@ -10,14 +10,14 @@ public struct IPSCrashReportParser {
 
     public init() {}
 
-    public func parse(_ content: String) -> Result? {
+    public func parse(_ content: String) -> IPSCrashReport? {
         let lines = content.components(separatedBy: .newlines)
         guard lines.count >= 2,
               let payloadData = lines[1].data(using: .utf8),
               let payload = try? JSONDecoder().decode(IPSPayload.self, from: payloadData)
         else { return nil }
 
-        return Result(
+        return IPSCrashReport(
             exceptionType: payload.exception?.type,
             signal: payload.exception?.signal,
             exceptionSubtype: payload.exception?.subtype,
