@@ -282,7 +282,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failures, [])
     |> assign(:failures_meta, %{})
     |> assign(:failures_page, 1)
-    |> assign(:stack_traces, %{})
+    |> assign(:crash_reports, %{})
   end
 
   defp assign_initial_flaky_runs_state(socket) do
@@ -338,7 +338,7 @@ defmodule TuistWeb.TestRunLive do
     selected_test_tab = params["test-tab"] || "test-cases"
 
     # Load failures data for the overview preview card
-    {failures_grouped, stack_traces, failures_meta} = load_failures_data(socket.assigns.run, params)
+    {failures_grouped, crash_reports, failures_meta} = load_failures_data(socket.assigns.run, params)
 
     # Load flaky runs data
     flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
@@ -347,7 +347,7 @@ defmodule TuistWeb.TestRunLive do
       socket
       |> assign(:selected_test_tab, selected_test_tab)
       |> assign(:failures_grouped_by_test_case, failures_grouped)
-      |> assign(:stack_traces, stack_traces)
+      |> assign(:crash_reports, crash_reports)
       |> assign(:failures_meta, failures_meta)
       |> assign(:flaky_runs_grouped, flaky_runs_grouped)
       |> assign_selective_testing_defaults()
@@ -374,8 +374,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "failures", params) do
-    {failures, stack_traces, meta} = load_failures_data(socket.assigns.run, params)
-    assign_failures_data(socket, failures, stack_traces, meta, params)
+    {failures, crash_reports, meta} = load_failures_data(socket.assigns.run, params)
+    assign_failures_data(socket, failures, crash_reports, meta, params)
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do
@@ -609,18 +609,18 @@ defmodule TuistWeb.TestRunLive do
       |> Enum.map(& &1.test_case_run_id)
       |> Enum.uniq()
 
-    raw_stack_traces = Tests.get_stack_traces_by_test_case_run_ids(test_case_run_ids)
+    raw_crash_reports = Tests.get_crash_reports_by_test_case_run_ids(test_case_run_ids)
 
     attachment_ids =
-      raw_stack_traces
+      raw_crash_reports
       |> Map.values()
       |> Enum.map(& &1.test_case_run_attachment_id)
       |> Enum.reject(&is_nil/1)
 
     attachments = Tests.get_attachments_by_ids(attachment_ids)
 
-    stack_traces =
-      Map.new(raw_stack_traces, fn {tcr_id, st} ->
+    crash_reports =
+      Map.new(raw_crash_reports, fn {tcr_id, st} ->
         attachment = attachments[st.test_case_run_attachment_id]
         {tcr_id, Map.put(st, :attachment_file_name, attachment && attachment.file_name)}
       end)
@@ -631,13 +631,13 @@ defmodule TuistWeb.TestRunLive do
         failure.test_case_run_id
       end)
 
-    {failures_grouped, stack_traces, meta}
+    {failures_grouped, crash_reports, meta}
   end
 
-  defp assign_failures_data(socket, failures_grouped, stack_traces, meta, params) do
+  defp assign_failures_data(socket, failures_grouped, crash_reports, meta, params) do
     socket
     |> assign(:failures_grouped_by_test_case, failures_grouped)
-    |> assign(:stack_traces, stack_traces)
+    |> assign(:crash_reports, crash_reports)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
   end

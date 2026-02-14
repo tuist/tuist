@@ -1,14 +1,14 @@
-defmodule Tuist.Tests.StackTrace do
+defmodule Tuist.Tests.CrashReport do
   @moduledoc """
-  A stack trace represents a crash log (.ips file) extracted from an xcresult bundle.
-  This is a ClickHouse entity that stores crash stack trace data.
+  A crash report represents a crash log (.ips file) extracted from an xcresult bundle.
+  This is a ClickHouse entity that stores crash report data.
   """
   use Ecto.Schema
 
   import Ecto.Changeset
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "test_case_run_stack_traces" do
+  schema "test_case_run_crash_reports" do
     field :exception_type, Ch, type: "String"
     field :signal, Ch, type: "String"
     field :exception_subtype, Ch, type: "String"
@@ -18,8 +18,8 @@ defmodule Tuist.Tests.StackTrace do
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
-  def create_changeset(stack_trace, attrs) do
-    stack_trace
+  def create_changeset(crash_report, attrs) do
+    crash_report
     |> cast(attrs, [
       :id,
       :exception_type,

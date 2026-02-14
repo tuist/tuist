@@ -383,16 +383,16 @@
                 <span :for={failure <- failures} data-part="failure">
                   {format_failure_message(failure, @run)}
                 </span>
-                <% stack_trace = @stack_traces[test_case_run_id] %>
-                <div :if={stack_trace} data-part="stack-trace-details">
-                  <div data-part="stack-trace-header">
-                    <span data-part="stack-trace-title">
-                      {dgettext("dashboard_tests", "Stack Trace")}
+                <% crash_report =@crash_reports[test_case_run_id] %>
+                <div :if={crash_report} data-part="crash-report-details">
+                  <div data-part="crash-report-header">
+                    <span data-part="crash-report-title">
+                      {dgettext("dashboard_tests", "Crash Report")}
                     </span>
                     <.button
-                      :if={stack_trace.attachment_file_name}
+                      :if={crash_report.attachment_file_name}
                       href={
-                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.attachment_file_name}"
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{crash_report.attachment_file_name}"
                       }
                       label={dgettext("dashboard_tests", "Download")}
                       variant="secondary"
@@ -402,38 +402,38 @@
                       <:icon_left><.download /></:icon_left>
                     </.button>
                   </div>
-                  <div data-part="stack-trace-metadata">
+                  <div data-part="crash-report-metadata">
                     <span
-                      :if={stack_trace.exception_type && stack_trace.exception_type != ""}
-                      data-part="stack-trace-meta-item"
+                      :if={crash_report.exception_type && crash_report.exception_type != ""}
+                      data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">
                         {dgettext("dashboard_tests", "Exception")}
                       </span>
-                      <span data-part="meta-value">{stack_trace.exception_type}</span>
+                      <span data-part="meta-value">{crash_report.exception_type}</span>
                     </span>
                     <span
-                      :if={stack_trace.signal && stack_trace.signal != ""}
-                      data-part="stack-trace-meta-item"
+                      :if={crash_report.signal && crash_report.signal != ""}
+                      data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
-                      <span data-part="meta-value">{stack_trace.signal}</span>
+                      <span data-part="meta-value">{crash_report.signal}</span>
                     </span>
                     <span
-                      :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""}
-                      data-part="stack-trace-meta-item"
+                      :if={crash_report.exception_subtype && crash_report.exception_subtype != ""}
+                      data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
-                      <span data-part="meta-value">{stack_trace.exception_subtype}</span>
+                      <span data-part="meta-value">{crash_report.exception_subtype}</span>
                     </span>
                   </div>
                   <pre
                     :if={
-                      stack_trace.triggered_thread_frames &&
-                        stack_trace.triggered_thread_frames != ""
+                      crash_report.triggered_thread_frames &&
+                        crash_report.triggered_thread_frames != ""
                     }
-                    data-part="stack-trace-frames"
-                  >{stack_trace.triggered_thread_frames}</pre>
+                    data-part="crash-report-frames"
+                  >{crash_report.triggered_thread_frames}</pre>
                 </div>
               </div>
             </div>
@@ -1478,16 +1478,16 @@
               <span :for={failure <- failures} data-part="failure">
                 {format_failure_message(failure, @run)}
               </span>
-              <% stack_trace = @stack_traces[test_case_run_id] %>
-              <div :if={stack_trace} data-part="stack-trace-details">
-                <div data-part="stack-trace-header">
-                  <span data-part="stack-trace-title">
-                    {dgettext("dashboard_tests", "Stack Trace")}
+              <% crash_report =@crash_reports[test_case_run_id] %>
+              <div :if={crash_report} data-part="crash-report-details">
+                <div data-part="crash-report-header">
+                  <span data-part="crash-report-title">
+                    {dgettext("dashboard_tests", "Crash Report")}
                   </span>
                   <.button
-                    :if={stack_trace.attachment_file_name}
+                    :if={crash_report.attachment_file_name}
                     href={
-                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{stack_trace.attachment_file_name}"
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{crash_report.attachment_file_name}"
                     }
                     label={dgettext("dashboard_tests", "Download")}
                     variant="secondary"
@@ -1497,36 +1497,36 @@
                     <:icon_left><.download /></:icon_left>
                   </.button>
                 </div>
-                <div data-part="stack-trace-metadata">
+                <div data-part="crash-report-metadata">
                   <span
-                    :if={stack_trace.exception_type && stack_trace.exception_type != ""}
-                    data-part="stack-trace-meta-item"
+                    :if={crash_report.exception_type && crash_report.exception_type != ""}
+                    data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
-                    <span data-part="meta-value">{stack_trace.exception_type}</span>
+                    <span data-part="meta-value">{crash_report.exception_type}</span>
                   </span>
                   <span
-                    :if={stack_trace.signal && stack_trace.signal != ""}
-                    data-part="stack-trace-meta-item"
+                    :if={crash_report.signal && crash_report.signal != ""}
+                    data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
-                    <span data-part="meta-value">{stack_trace.signal}</span>
+                    <span data-part="meta-value">{crash_report.signal}</span>
                   </span>
                   <span
-                    :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""}
-                    data-part="stack-trace-meta-item"
+                    :if={crash_report.exception_subtype && crash_report.exception_subtype != ""}
+                    data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
-                    <span data-part="meta-value">{stack_trace.exception_subtype}</span>
+                    <span data-part="meta-value">{crash_report.exception_subtype}</span>
                   </span>
                 </div>
                 <pre
                   :if={
-                    stack_trace.triggered_thread_frames &&
-                      stack_trace.triggered_thread_frames != ""
+                    crash_report.triggered_thread_frames &&
+                      crash_report.triggered_thread_frames != ""
                   }
-                  data-part="stack-trace-frames"
-                >{stack_trace.triggered_thread_frames}</pre>
+                  data-part="crash-report-frames"
+                >{crash_report.triggered_thread_frames}</pre>
               </div>
             </div>
           </div>

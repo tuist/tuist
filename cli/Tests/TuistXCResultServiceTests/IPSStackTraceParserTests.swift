@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import TuistXCResultService
 
-struct IPSStackTraceParserTests {
-    let parser = IPSStackTraceParser()
+struct IPSCrashReportParserTests {
+    let parser = IPSCrashReportParser()
 
     @Test
     func triggeredThreadFrames_withValidIPS_returnsFormattedFrames() {

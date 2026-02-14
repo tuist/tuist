@@ -245,7 +245,7 @@ struct TestCaseRunShowCommandServiceTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedNoora
-    ) func run_with_stack_trace() async throws {
+    ) func run_with_crash_report() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
         let tuist = Tuist.test(fullHandle: fullHandle)
@@ -255,7 +255,7 @@ struct TestCaseRunShowCommandServiceTests {
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         let testCaseRun = ServerTestCaseRun.test(
             id: "run-crash",
-            stackTrace: .init(
+            crashReport: .init(
                 attachment_url: "https://cloud.tuist.dev/api/projects/tuist/tuist/tests/test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips",
                 exception_subtype: "KERN_INVALID_ADDRESS",
                 exception_type: "EXC_CRASH",
@@ -279,12 +279,12 @@ struct TestCaseRunShowCommandServiceTests {
         )
 
         // Then
-        #expect(ui().contains("Stack Trace"))
+        #expect(ui().contains("Crash Report"))
         #expect(ui().contains("EXC_CRASH"))
         #expect(ui().contains("SIGABRT"))
         #expect(ui().contains("KERN_INVALID_ADDRESS"))
         #expect(ui().contains("_assertionFailure + 156"))
-        #expect(ui().contains("Full stack trace"))
+        #expect(ui().contains("Full crash report"))
         #expect(ui().contains("test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips"))
     }
 

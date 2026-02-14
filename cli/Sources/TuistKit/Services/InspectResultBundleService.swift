@@ -44,7 +44,7 @@ protocol InspectResultBundleServicing {
 struct InspectResultBundleService: InspectResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
-    private let createStackTraceService: CreateStackTraceServicing
+    private let createCrashReportService: CreateCrashReportServicing
     private let createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing
     private let xcResultService: XCResultServicing
     private let dateService: DateServicing
@@ -58,7 +58,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
-        createStackTraceService: CreateStackTraceServicing = CreateStackTraceService(),
+        createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
         createTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing = CreateTestCaseRunAttachmentService(),
         xcResultService: XCResultServicing = XCResultService(),
         dateService: DateServicing = DateService(),
@@ -71,7 +71,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
-        self.createStackTraceService = createStackTraceService
+        self.createCrashReportService = createCrashReportService
         self.createTestCaseRunAttachmentService = createTestCaseRunAttachmentService
         self.xcResultService = xcResultService
         self.dateService = dateService
@@ -135,7 +135,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
-            await uploadStackTrace(
+            await uploadCrashReport(
                 for: testCase,
                 testRunId: test.id,
                 fullHandle: fullHandle,
@@ -149,14 +149,14 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         return test
     }
 
-    private func uploadStackTrace(
+    private func uploadCrashReport(
         for testCase: TestCase,
         testRunId: String,
         fullHandle: String,
         serverURL: URL,
         testCaseRunIdsByIdentity: [String: String]
     ) async {
-        guard let stackTrace = testCase.stackTrace else { return }
+        guard let crashReport = testCase.crashReport else { return }
 
         let identityKey = testCaseRunIdentityKey(
             moduleName: testCase.module ?? "",
@@ -165,7 +165,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         )
         guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
 
-        let fileName = stackTrace.filePath.basename
+        let fileName = crashReport.filePath.basename
 
         do {
             let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
@@ -174,19 +174,18 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                 testCaseRunId: testCaseRunId,
                 fileName: fileName,
                 contentType: "application/x-ips",
-                filePath: stackTrace.filePath
+                filePath: crashReport.filePath
             )
-            try await createStackTraceService.createStackTrace(
+            try await createCrashReportService.createCrashReport(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                testRunId: testRunId,
-                stackTrace: stackTrace,
+                crashReport: crashReport,
                 testCaseRunId: testCaseRunId,
                 testCaseRunAttachmentId: testCaseRunAttachmentId
             )
         } catch {
             Logger.current
-                .warning("Failed to upload stack trace for \(fileName): \(error.localizedDescription)")
+                .warning("Failed to upload crash report for \(fileName): \(error.localizedDescription)")
         }
     }
 

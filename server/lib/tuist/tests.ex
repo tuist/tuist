@@ -26,7 +26,7 @@ defmodule Tuist.Tests do
   alias Tuist.Repo
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
-  alias Tuist.Tests.StackTrace
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -39,8 +39,8 @@ defmodule Tuist.Tests do
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
-  def upload_stack_trace(attrs) do
-    changeset = StackTrace.create_changeset(%StackTrace{}, attrs)
+  def upload_crash_report(attrs) do
+    changeset = CrashReport.create_changeset(%CrashReport{}, attrs)
 
     if changeset.valid? do
       IngestRepo.insert(changeset)
@@ -49,27 +49,27 @@ defmodule Tuist.Tests do
     end
   end
 
-  def get_stack_trace_by_test_case_run_id(test_case_run_id) do
+  def get_crash_report_by_test_case_run_id(test_case_run_id) do
     query =
-      from(st in StackTrace,
-        where: st.test_case_run_id == ^test_case_run_id,
+      from(cr in CrashReport,
+        where: cr.test_case_run_id == ^test_case_run_id,
         limit: 1
       )
 
     case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
-      stack_trace -> {:ok, stack_trace}
+      crash_report -> {:ok, crash_report}
     end
   end
 
-  def get_stack_traces_by_test_case_run_ids([]), do: %{}
+  def get_crash_reports_by_test_case_run_ids([]), do: %{}
 
-  def get_stack_traces_by_test_case_run_ids(test_case_run_ids) do
-    query = from(st in StackTrace, where: st.test_case_run_id in ^test_case_run_ids)
+  def get_crash_reports_by_test_case_run_ids(test_case_run_ids) do
+    query = from(cr in CrashReport, where: cr.test_case_run_id in ^test_case_run_ids)
 
     query
     |> ClickHouseRepo.all()
-    |> Map.new(fn st -> {st.test_case_run_id, st} end)
+    |> Map.new(fn cr -> {cr.test_case_run_id, cr} end)
   end
 
   def get_test(id, opts \\ []) do

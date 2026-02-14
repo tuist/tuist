@@ -86,11 +86,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/start/post(startAnalyticsArtifactMultipartUpload)`.
     @available(*, deprecated)
     func startAnalyticsArtifactMultipartUpload(_ input: Operations.startAnalyticsArtifactMultipartUpload.Input) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output
-    /// Upload a crash stack trace for a test run.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
-    func createStackTrace(_ input: Operations.createStackTrace.Input) async throws -> Operations.createStackTrace.Output
     /// List projects the authenticated user has access to.
     ///
     /// - Remark: HTTP `GET /api/projects`.
@@ -500,6 +495,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/accounts/{account_handle}`.
     /// - Remark: Generated from `#/paths//api/accounts/{account_handle}/delete(deleteAccount)`.
     func deleteAccount(_ input: Operations.deleteAccount.Input) async throws -> Operations.deleteAccount.Output
+    /// Upload a crash report for a test case run.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
+    func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
     /// Create a new test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
@@ -708,21 +708,6 @@ extension APIProtocol {
         body: Operations.startAnalyticsArtifactMultipartUpload.Input.Body? = nil
     ) async throws -> Operations.startAnalyticsArtifactMultipartUpload.Output {
         try await startAnalyticsArtifactMultipartUpload(Operations.startAnalyticsArtifactMultipartUpload.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Upload a crash stack trace for a test run.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
-    public func createStackTrace(
-        path: Operations.createStackTrace.Input.Path,
-        headers: Operations.createStackTrace.Input.Headers = .init(),
-        body: Operations.createStackTrace.Input.Body? = nil
-    ) async throws -> Operations.createStackTrace.Output {
-        try await createStackTrace(Operations.createStackTrace.Input(
             path: path,
             headers: headers,
             body: body
@@ -1695,6 +1680,21 @@ extension APIProtocol {
         try await deleteAccount(Operations.deleteAccount.Input(
             path: path,
             headers: headers
+        ))
+    }
+    /// Upload a crash report for a test case run.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
+    public func createCrashReport(
+        path: Operations.createCrashReport.Input.Path,
+        headers: Operations.createCrashReport.Input.Headers = .init(),
+        body: Operations.createCrashReport.Input.Body? = nil
+    ) async throws -> Operations.createCrashReport.Output {
+        try await createCrashReport(Operations.createCrashReport.Input(
+            path: path,
+            headers: headers,
+            body: body
         ))
     }
     /// Create a new test run.
@@ -6310,67 +6310,6 @@ public enum Components {
                 case message
             }
         }
-        /// Parameters to upload a single crash stack trace.
-        ///
-        /// - Remark: Generated from `#/components/schemas/StackTraceParams`.
-        public struct StackTraceParams: Codable, Hashable, Sendable {
-            /// The exception subtype or additional details.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/exception_subtype`.
-            public var exception_subtype: Swift.String?
-            /// The exception type (e.g., EXC_CRASH).
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/exception_type`.
-            public var exception_type: Swift.String?
-            /// The signal that caused the crash (e.g., SIGABRT).
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/signal`.
-            public var signal: Swift.String?
-            /// The UUID of the test case run attachment this stack trace was parsed from.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/test_case_run_attachment_id`.
-            public var test_case_run_attachment_id: Swift.String
-            /// The UUID of the test case run this stack trace belongs to.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/test_case_run_id`.
-            public var test_case_run_id: Swift.String
-            /// Human-readable formatted crash thread frames.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/triggered_thread_frames`.
-            public var triggered_thread_frames: Swift.String?
-            /// Creates a new `StackTraceParams`.
-            ///
-            /// - Parameters:
-            ///   - exception_subtype: The exception subtype or additional details.
-            ///   - exception_type: The exception type (e.g., EXC_CRASH).
-            ///   - signal: The signal that caused the crash (e.g., SIGABRT).
-            ///   - test_case_run_attachment_id: The UUID of the test case run attachment this stack trace was parsed from.
-            ///   - test_case_run_id: The UUID of the test case run this stack trace belongs to.
-            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
-            public init(
-                exception_subtype: Swift.String? = nil,
-                exception_type: Swift.String? = nil,
-                signal: Swift.String? = nil,
-                test_case_run_attachment_id: Swift.String,
-                test_case_run_id: Swift.String,
-                triggered_thread_frames: Swift.String? = nil
-            ) {
-                self.exception_subtype = exception_subtype
-                self.exception_type = exception_type
-                self.signal = signal
-                self.test_case_run_attachment_id = test_case_run_attachment_id
-                self.test_case_run_id = test_case_run_id
-                self.triggered_thread_frames = triggered_thread_frames
-            }
-            public enum CodingKeys: String, CodingKey {
-                case exception_subtype
-                case exception_type
-                case signal
-                case test_case_run_attachment_id
-                case test_case_run_id
-                case triggered_thread_frames
-            }
-        }
         /// The page number to return.
         ///
         /// - Remark: Generated from `#/components/schemas/RunsIndexPage`.
@@ -6857,6 +6796,67 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case access_token
                 case expires_in
+            }
+        }
+        /// Parameters to upload a single crash report.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CrashReportParams`.
+        public struct CrashReportParams: Codable, Hashable, Sendable {
+            /// The exception subtype or additional details.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CrashReportParams/exception_subtype`.
+            public var exception_subtype: Swift.String?
+            /// The exception type (e.g., EXC_CRASH).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CrashReportParams/exception_type`.
+            public var exception_type: Swift.String?
+            /// The signal that caused the crash (e.g., SIGABRT).
+            ///
+            /// - Remark: Generated from `#/components/schemas/CrashReportParams/signal`.
+            public var signal: Swift.String?
+            /// The UUID of the test case run attachment this crash report was parsed from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CrashReportParams/test_case_run_attachment_id`.
+            public var test_case_run_attachment_id: Swift.String
+            /// The UUID of the test case run this crash report belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CrashReportParams/test_case_run_id`.
+            public var test_case_run_id: Swift.String
+            /// Human-readable formatted crash thread frames.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CrashReportParams/triggered_thread_frames`.
+            public var triggered_thread_frames: Swift.String?
+            /// Creates a new `CrashReportParams`.
+            ///
+            /// - Parameters:
+            ///   - exception_subtype: The exception subtype or additional details.
+            ///   - exception_type: The exception type (e.g., EXC_CRASH).
+            ///   - signal: The signal that caused the crash (e.g., SIGABRT).
+            ///   - test_case_run_attachment_id: The UUID of the test case run attachment this crash report was parsed from.
+            ///   - test_case_run_id: The UUID of the test case run this crash report belongs to.
+            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
+            public init(
+                exception_subtype: Swift.String? = nil,
+                exception_type: Swift.String? = nil,
+                signal: Swift.String? = nil,
+                test_case_run_attachment_id: Swift.String,
+                test_case_run_id: Swift.String,
+                triggered_thread_frames: Swift.String? = nil
+            ) {
+                self.exception_subtype = exception_subtype
+                self.exception_type = exception_type
+                self.signal = signal
+                self.test_case_run_attachment_id = test_case_run_attachment_id
+                self.test_case_run_id = test_case_run_id
+                self.triggered_thread_frames = triggered_thread_frames
+            }
+            public enum CodingKeys: String, CodingKey {
+                case exception_subtype
+                case exception_type
+                case signal
+                case test_case_run_attachment_id
+                case test_case_run_id
+                case triggered_thread_frames
             }
         }
         /// List of available cache endpoints
@@ -11667,6 +11667,63 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Crash report associated with this test case run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report`.
+                        public struct crash_reportPayload: Codable, Hashable, Sendable {
+                            /// URL to download the full crash log attachment.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report/attachment_url`.
+                            public var attachment_url: Swift.String?
+                            /// The exception subtype.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report/exception_subtype`.
+                            public var exception_subtype: Swift.String?
+                            /// The exception type (e.g., EXC_CRASH).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report/exception_type`.
+                            public var exception_type: Swift.String?
+                            /// The signal (e.g., SIGABRT).
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report/signal`.
+                            public var signal: Swift.String?
+                            /// Human-readable formatted crash thread frames.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report/triggered_thread_frames`.
+                            public var triggered_thread_frames: Swift.String?
+                            /// Creates a new `crash_reportPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - attachment_url: URL to download the full crash log attachment.
+                            ///   - exception_subtype: The exception subtype.
+                            ///   - exception_type: The exception type (e.g., EXC_CRASH).
+                            ///   - signal: The signal (e.g., SIGABRT).
+                            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
+                            public init(
+                                attachment_url: Swift.String? = nil,
+                                exception_subtype: Swift.String? = nil,
+                                exception_type: Swift.String? = nil,
+                                signal: Swift.String? = nil,
+                                triggered_thread_frames: Swift.String? = nil
+                            ) {
+                                self.attachment_url = attachment_url
+                                self.exception_subtype = exception_subtype
+                                self.exception_type = exception_type
+                                self.signal = signal
+                                self.triggered_thread_frames = triggered_thread_frames
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case attachment_url
+                                case exception_subtype
+                                case exception_type
+                                case signal
+                                case triggered_thread_frames
+                            }
+                        }
+                        /// Crash report associated with this test case run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report`.
+                        public var crash_report: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.crash_reportPayload?
                         /// Duration in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/duration`.
@@ -11805,63 +11862,6 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/scheme`.
                         public var scheme: Swift.String?
-                        /// Crash stack trace associated with this test case run.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
-                        public struct stack_tracePayload: Codable, Hashable, Sendable {
-                            /// URL to download the full crash log attachment.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/attachment_url`.
-                            public var attachment_url: Swift.String?
-                            /// The exception subtype.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_subtype`.
-                            public var exception_subtype: Swift.String?
-                            /// The exception type (e.g., EXC_CRASH).
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_type`.
-                            public var exception_type: Swift.String?
-                            /// The signal (e.g., SIGABRT).
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/signal`.
-                            public var signal: Swift.String?
-                            /// Human-readable formatted crash thread frames.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/triggered_thread_frames`.
-                            public var triggered_thread_frames: Swift.String?
-                            /// Creates a new `stack_tracePayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - attachment_url: URL to download the full crash log attachment.
-                            ///   - exception_subtype: The exception subtype.
-                            ///   - exception_type: The exception type (e.g., EXC_CRASH).
-                            ///   - signal: The signal (e.g., SIGABRT).
-                            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
-                            public init(
-                                attachment_url: Swift.String? = nil,
-                                exception_subtype: Swift.String? = nil,
-                                exception_type: Swift.String? = nil,
-                                signal: Swift.String? = nil,
-                                triggered_thread_frames: Swift.String? = nil
-                            ) {
-                                self.attachment_url = attachment_url
-                                self.exception_subtype = exception_subtype
-                                self.exception_type = exception_type
-                                self.signal = signal
-                                self.triggered_thread_frames = triggered_thread_frames
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case attachment_url
-                                case exception_subtype
-                                case exception_type
-                                case signal
-                                case triggered_thread_frames
-                            }
-                        }
-                        /// Crash stack trace associated with this test case run.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
-                        public var stack_trace: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.stack_tracePayload?
                         /// Run status.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/status`.
@@ -11889,6 +11889,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - crash_report: Crash report associated with this test case run.
                         ///   - duration: Duration in milliseconds.
                         ///   - failures:
                         ///   - git_branch: Git branch.
@@ -11902,12 +11903,12 @@ public enum Operations {
                         ///   - ran_at: ISO 8601 timestamp when the run executed.
                         ///   - repetitions:
                         ///   - scheme: Build scheme.
-                        ///   - stack_trace: Crash stack trace associated with this test case run.
                         ///   - status: Run status.
                         ///   - suite_name: Suite name.
                         ///   - test_case_id: The test case ID.
                         ///   - test_run_id: The test run ID.
                         public init(
+                            crash_report: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.crash_reportPayload? = nil,
                             duration: Swift.Int,
                             failures: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.failuresPayload,
                             git_branch: Swift.String? = nil,
@@ -11921,12 +11922,12 @@ public enum Operations {
                             ran_at: Foundation.Date? = nil,
                             repetitions: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayload,
                             scheme: Swift.String? = nil,
-                            stack_trace: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.stack_tracePayload? = nil,
                             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload,
                             suite_name: Swift.String? = nil,
                             test_case_id: Swift.String? = nil,
                             test_run_id: Swift.String? = nil
                         ) {
+                            self.crash_report = crash_report
                             self.duration = duration
                             self.failures = failures
                             self.git_branch = git_branch
@@ -11940,13 +11941,13 @@ public enum Operations {
                             self.ran_at = ran_at
                             self.repetitions = repetitions
                             self.scheme = scheme
-                            self.stack_trace = stack_trace
                             self.status = status
                             self.suite_name = suite_name
                             self.test_case_id = test_case_id
                             self.test_run_id = test_run_id
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case crash_report
                             case duration
                             case failures
                             case git_branch
@@ -11960,7 +11961,6 @@ public enum Operations {
                             case ran_at
                             case repetitions
                             case scheme
-                            case stack_trace
                             case status
                             case suite_name
                             case test_case_id
@@ -13394,426 +13394,6 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.startAnalyticsArtifactMultipartUpload.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Upload a crash stack trace for a test run.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)`.
-    public enum createStackTrace {
-        public static let id: Swift.String = "createStackTrace"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/path`.
-            public struct Path: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/path/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/path/project_handle`.
-                public var project_handle: Swift.String
-                /// The UUID of the test run.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/path/test_run_id`.
-                public var test_run_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                ///   - test_run_id: The UUID of the test run.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    test_run_id: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                    self.test_run_id = test_run_id
-                }
-            }
-            public var path: Operations.createStackTrace.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStackTrace.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createStackTrace.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.createStackTrace.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// Parameters to upload a single crash stack trace.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The exception subtype or additional details.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/exception_subtype`.
-                    public var exception_subtype: Swift.String?
-                    /// The exception type (e.g., EXC_CRASH).
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/exception_type`.
-                    public var exception_type: Swift.String?
-                    /// The signal that caused the crash (e.g., SIGABRT).
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/signal`.
-                    public var signal: Swift.String?
-                    /// The UUID of the test case run attachment this stack trace was parsed from.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/test_case_run_attachment_id`.
-                    public var test_case_run_attachment_id: Swift.String
-                    /// The UUID of the test case run this stack trace belongs to.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/test_case_run_id`.
-                    public var test_case_run_id: Swift.String
-                    /// Human-readable formatted crash thread frames.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/triggered_thread_frames`.
-                    public var triggered_thread_frames: Swift.String?
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - exception_subtype: The exception subtype or additional details.
-                    ///   - exception_type: The exception type (e.g., EXC_CRASH).
-                    ///   - signal: The signal that caused the crash (e.g., SIGABRT).
-                    ///   - test_case_run_attachment_id: The UUID of the test case run attachment this stack trace was parsed from.
-                    ///   - test_case_run_id: The UUID of the test case run this stack trace belongs to.
-                    ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
-                    public init(
-                        exception_subtype: Swift.String? = nil,
-                        exception_type: Swift.String? = nil,
-                        signal: Swift.String? = nil,
-                        test_case_run_attachment_id: Swift.String,
-                        test_case_run_id: Swift.String,
-                        triggered_thread_frames: Swift.String? = nil
-                    ) {
-                        self.exception_subtype = exception_subtype
-                        self.exception_type = exception_type
-                        self.signal = signal
-                        self.test_case_run_attachment_id = test_case_run_attachment_id
-                        self.test_case_run_id = test_case_run_id
-                        self.triggered_thread_frames = triggered_thread_frames
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case exception_subtype
-                        case exception_type
-                        case signal
-                        case test_case_run_attachment_id
-                        case test_case_run_id
-                        case triggered_thread_frames
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/content/application\/json`.
-                case json(Operations.createStackTrace.Input.Body.jsonPayload)
-            }
-            public var body: Operations.createStackTrace.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            public init(
-                path: Operations.createStackTrace.Input.Path,
-                headers: Operations.createStackTrace.Input.Headers = .init(),
-                body: Operations.createStackTrace.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/200/content/application\/json`.
-                    case json(OpenAPIRuntime.OpenAPIValueContainer)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: OpenAPIRuntime.OpenAPIValueContainer {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createStackTrace.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createStackTrace.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// The stack trace was uploaded
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.createStackTrace.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.createStackTrace.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createStackTrace.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createStackTrace.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request parameters are invalid
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.createStackTrace.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.createStackTrace.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createStackTrace.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createStackTrace.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.createStackTrace.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.createStackTrace.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createStackTrace.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createStackTrace.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// Not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.createStackTrace.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.createStackTrace.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createStackTrace.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createStackTrace.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/post(createStackTrace)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.createStackTrace.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.createStackTrace.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -37581,6 +37161,419 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.deleteAccount.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Upload a crash report for a test case run.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
+    public enum createCrashReport {
+        public static let id: Swift.String = "createCrashReport"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createCrashReport.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCrashReport.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createCrashReport.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createCrashReport.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to upload a single crash report.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The exception subtype or additional details.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json/exception_subtype`.
+                    public var exception_subtype: Swift.String?
+                    /// The exception type (e.g., EXC_CRASH).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json/exception_type`.
+                    public var exception_type: Swift.String?
+                    /// The signal that caused the crash (e.g., SIGABRT).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json/signal`.
+                    public var signal: Swift.String?
+                    /// The UUID of the test case run attachment this crash report was parsed from.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json/test_case_run_attachment_id`.
+                    public var test_case_run_attachment_id: Swift.String
+                    /// The UUID of the test case run this crash report belongs to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json/test_case_run_id`.
+                    public var test_case_run_id: Swift.String
+                    /// Human-readable formatted crash thread frames.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/json/triggered_thread_frames`.
+                    public var triggered_thread_frames: Swift.String?
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - exception_subtype: The exception subtype or additional details.
+                    ///   - exception_type: The exception type (e.g., EXC_CRASH).
+                    ///   - signal: The signal that caused the crash (e.g., SIGABRT).
+                    ///   - test_case_run_attachment_id: The UUID of the test case run attachment this crash report was parsed from.
+                    ///   - test_case_run_id: The UUID of the test case run this crash report belongs to.
+                    ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
+                    public init(
+                        exception_subtype: Swift.String? = nil,
+                        exception_type: Swift.String? = nil,
+                        signal: Swift.String? = nil,
+                        test_case_run_attachment_id: Swift.String,
+                        test_case_run_id: Swift.String,
+                        triggered_thread_frames: Swift.String? = nil
+                    ) {
+                        self.exception_subtype = exception_subtype
+                        self.exception_type = exception_type
+                        self.signal = signal
+                        self.test_case_run_attachment_id = test_case_run_attachment_id
+                        self.test_case_run_id = test_case_run_id
+                        self.triggered_thread_frames = triggered_thread_frames
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case exception_subtype
+                        case exception_type
+                        case signal
+                        case test_case_run_attachment_id
+                        case test_case_run_id
+                        case triggered_thread_frames
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/requestBody/content/application\/json`.
+                case json(Operations.createCrashReport.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createCrashReport.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createCrashReport.Input.Path,
+                headers: Operations.createCrashReport.Input.Headers = .init(),
+                body: Operations.createCrashReport.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/200/content/application\/json`.
+                    case json(OpenAPIRuntime.OpenAPIValueContainer)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: OpenAPIRuntime.OpenAPIValueContainer {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCrashReport.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCrashReport.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The crash report was uploaded
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createCrashReport.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createCrashReport.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCrashReport.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCrashReport.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createCrashReport.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createCrashReport.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCrashReport.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCrashReport.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createCrashReport.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createCrashReport.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCrashReport.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCrashReport.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createCrashReport.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createCrashReport.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/crash-reports/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createCrashReport.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createCrashReport.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createCrashReport.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createCrashReport.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

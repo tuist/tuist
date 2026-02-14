@@ -1,6 +1,6 @@
 import Foundation
 
-public struct IPSStackTraceParser {
+public struct IPSCrashReportParser {
     public init() {}
 
     public func triggeredThreadFrames(_ content: String) -> String? {

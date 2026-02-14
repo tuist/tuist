@@ -1,7 +1,7 @@
 import Foundation
 import Path
 
-public struct CrashStackTrace {
+public struct CrashReport {
     public let exceptionType: String?
     public let signal: String?
     public let exceptionSubtype: String?

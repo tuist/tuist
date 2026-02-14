@@ -947,14 +947,14 @@ defmodule Tuist.TestsTest do
 
   end
 
-  describe "upload_stack_trace/1" do
-    test "uploads a stack trace successfully" do
+  describe "upload_crash_report/1" do
+    test "uploads a crash report successfully" do
       # Given
-      stack_trace_id = UUIDv7.generate()
+      crash_report_id = UUIDv7.generate()
       test_case_run_id = UUIDv7.generate()
 
       attrs = %{
-        id: stack_trace_id,
+        id: crash_report_id,
         exception_type: "EXC_CRASH",
         signal: "SIGABRT",
         exception_subtype: "KERN_INVALID_ADDRESS",
@@ -964,11 +964,11 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, stack_trace} = Tests.upload_stack_trace(attrs)
+      {:ok, crash_report} = Tests.upload_crash_report(attrs)
 
       # Then
-      assert stack_trace.id == stack_trace_id
-      assert stack_trace.test_case_run_id == test_case_run_id
+      assert crash_report.id == crash_report_id
+      assert crash_report.test_case_run_id == test_case_run_id
     end
 
     test "returns error for missing required fields" do
@@ -978,7 +978,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      result = Tests.upload_stack_trace(attrs)
+      result = Tests.upload_crash_report(attrs)
 
       # Then
       assert {:error, _changeset} = result

@@ -375,10 +375,10 @@ defmodule TuistWeb.API.TestCaseRunsController do
                  required: [:repetition_number, :status, :duration]
                }
              },
-             stack_trace: %Schema{
+             crash_report: %Schema{
                type: :object,
                nullable: true,
-               description: "Crash stack trace associated with this test case run.",
+               description: "Crash report associated with this test case run.",
                properties: %{
                  exception_type: %Schema{
                    type: :string,
@@ -433,7 +433,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
     case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
-          stack_trace = fetch_stack_trace(conn, run.id)
+          crash_report = fetch_crash_report(conn, run.id)
 
           json(conn, %{
             id: run.id,
@@ -468,7 +468,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
                   duration: r.duration
                 }
               end),
-            stack_trace: stack_trace
+            crash_report: crash_report
           })
         else
           conn
@@ -526,8 +526,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
-  defp fetch_stack_trace(conn, test_case_run_id) do
-    case Tests.get_stack_trace_by_test_case_run_id(test_case_run_id) do
+  defp fetch_crash_report(conn, test_case_run_id) do
+    case Tests.get_crash_report_by_test_case_run_id(test_case_run_id) do
       {:ok, st} ->
         %{account_handle: account_handle, project_handle: project_handle} = conn.params
 

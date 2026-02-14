@@ -7,18 +7,17 @@ import TuistHTTP
     import TuistXCResultService
 
     @Mockable
-    public protocol CreateStackTraceServicing {
-        func createStackTrace(
+    public protocol CreateCrashReportServicing {
+        func createCrashReport(
             fullHandle: String,
             serverURL: URL,
-            testRunId: String,
-            stackTrace: CrashStackTrace,
+            crashReport: CrashReport,
             testCaseRunId: String,
             testCaseRunAttachmentId: String
         ) async throws
     }
 
-    enum CreateStackTraceServiceError: LocalizedError {
+    enum CreateCrashReportServiceError: LocalizedError {
         case unknownError(Int)
         case forbidden(String)
         case notFound(String)
@@ -29,7 +28,7 @@ import TuistHTTP
             switch self {
             case let .unknownError(statusCode):
                 return
-                    "The stack trace could not be created due to an unknown server response of \(statusCode)."
+                    "The crash report could not be created due to an unknown server response of \(statusCode)."
             case let .forbidden(message), let .notFound(message), let .unauthorized(message),
                  let .badRequest(message):
                 return message
@@ -37,7 +36,7 @@ import TuistHTTP
         }
     }
 
-    public struct CreateStackTraceService: CreateStackTraceServicing {
+    public struct CreateCrashReportService: CreateCrashReportServicing {
         private let fullHandleService: FullHandleServicing
 
         public init(
@@ -46,32 +45,30 @@ import TuistHTTP
             self.fullHandleService = fullHandleService
         }
 
-        public func createStackTrace(
+        public func createCrashReport(
             fullHandle: String,
             serverURL: URL,
-            testRunId: String,
-            stackTrace: CrashStackTrace,
+            crashReport: CrashReport,
             testCaseRunId: String,
             testCaseRunAttachmentId: String
         ) async throws {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let response = try await client.createStackTrace(
+            let response = try await client.createCrashReport(
                 .init(
                     path: .init(
                         account_handle: handles.accountHandle,
-                        project_handle: handles.projectHandle,
-                        test_run_id: testRunId
+                        project_handle: handles.projectHandle
                     ),
                     body: .json(
                         .init(
-                            exception_subtype: stackTrace.exceptionSubtype,
-                            exception_type: stackTrace.exceptionType,
-                            signal: stackTrace.signal,
+                            exception_subtype: crashReport.exceptionSubtype,
+                            exception_type: crashReport.exceptionType,
+                            signal: crashReport.signal,
                             test_case_run_attachment_id: testCaseRunAttachmentId,
                             test_case_run_id: testCaseRunId,
-                            triggered_thread_frames: stackTrace.triggeredThreadFrames
+                            triggered_thread_frames: crashReport.triggeredThreadFrames
                         )
                     )
                 )
@@ -83,24 +80,24 @@ import TuistHTTP
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
-                    throw CreateStackTraceServiceError.forbidden(error.message)
+                    throw CreateCrashReportServiceError.forbidden(error.message)
                 }
             case let .undocumented(statusCode, _):
-                throw CreateStackTraceServiceError.unknownError(statusCode)
+                throw CreateCrashReportServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):
                 switch unauthorized.body {
                 case let .json(error):
-                    throw CreateStackTraceServiceError.unauthorized(error.message)
+                    throw CreateCrashReportServiceError.unauthorized(error.message)
                 }
             case let .notFound(notFoundResponse):
                 switch notFoundResponse.body {
                 case let .json(error):
-                    throw CreateStackTraceServiceError.notFound(error.message)
+                    throw CreateCrashReportServiceError.notFound(error.message)
                 }
             case let .badRequest(badRequestResponse):
                 switch badRequestResponse.body {
                 case let .json(error):
-                    throw CreateStackTraceServiceError.badRequest(error.message)
+                    throw CreateCrashReportServiceError.badRequest(error.message)
                 }
             }
         }

@@ -1,8 +1,8 @@
-defmodule Tuist.IngestRepo.Migrations.CreateStackTraces do
+defmodule Tuist.IngestRepo.Migrations.CreateCrashReports do
   use Ecto.Migration
 
   def up do
-    create table(:test_case_run_stack_traces,
+    create table(:test_case_run_crash_reports,
              primary_key: false,
              engine: "MergeTree",
              options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_case_run_id, id)"
@@ -19,6 +19,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateStackTraces do
   end
 
   def down do
-    drop table(:test_case_run_stack_traces)
+    drop table(:test_case_run_crash_reports)
   end
 end

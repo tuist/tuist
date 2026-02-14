@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.StackTracesController do
+defmodule TuistWeb.API.CrashReportsController do
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
@@ -17,7 +17,7 @@ defmodule TuistWeb.API.StackTracesController do
   tags ["Tests"]
 
   operation(:create,
-    summary: "Upload a crash stack trace for a test run.",
+    summary: "Upload a crash report for a test case run.",
     parameters: [
       account_handle: [
         in: :path,
@@ -30,20 +30,14 @@ defmodule TuistWeb.API.StackTracesController do
         type: :string,
         required: true,
         description: "The handle of the project."
-      ],
-      test_run_id: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The UUID of the test run."
       ]
     ],
-    operation_id: "createStackTrace",
+    operation_id: "createCrashReport",
     request_body:
-      {"Stack trace params", "application/json",
+      {"Crash report params", "application/json",
        %Schema{
-         title: "StackTraceParams",
-         description: "Parameters to upload a single crash stack trace.",
+         title: "CrashReportParams",
+         description: "Parameters to upload a single crash report.",
          type: :object,
          properties: %{
            exception_type: %Schema{
@@ -64,18 +58,18 @@ defmodule TuistWeb.API.StackTracesController do
            },
            test_case_run_id: %Schema{
              type: :string,
-             description: "The UUID of the test case run this stack trace belongs to."
+             description: "The UUID of the test case run this crash report belongs to."
            },
            test_case_run_attachment_id: %Schema{
              type: :string,
              description:
-               "The UUID of the test case run attachment this stack trace was parsed from."
+               "The UUID of the test case run attachment this crash report was parsed from."
            }
          },
          required: [:test_case_run_id, :test_case_run_attachment_id]
        }},
     responses: %{
-      ok: {"The stack trace was uploaded", "application/json", nil},
+      ok: {"The crash report was uploaded", "application/json", nil},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"Not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
@@ -83,8 +77,8 @@ defmodule TuistWeb.API.StackTracesController do
     }
   )
 
-  def create(%{body_params: body_params} = conn, %{test_run_id: _test_run_id}) do
-    stack_trace_params = %{
+  def create(%{body_params: body_params} = conn, _params) do
+    crash_report_params = %{
       id: UUIDv7.generate(),
       exception_type: Map.get(body_params, :exception_type),
       signal: Map.get(body_params, :signal),
@@ -95,7 +89,7 @@ defmodule TuistWeb.API.StackTracesController do
       inserted_at: NaiveDateTime.utc_now()
     }
 
-    case Tests.upload_stack_trace(stack_trace_params) do
+    case Tests.upload_crash_report(crash_report_params) do
       {:ok, _} ->
         conn
         |> put_status(:ok)

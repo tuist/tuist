@@ -94,13 +94,14 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             repetitions: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayloadPayload] = [],
             scheme: String? = "App",
-            stackTrace: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.stack_tracePayload? = nil,
+            crashReport: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.crash_reportPayload? = nil,
             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
             suiteName: String? = "ExampleTests",
             testCaseId: String? = "test-case-id",
             testRunId: String? = "test-run-id"
         ) -> Self {
             .init(
+                crash_report: crashReport,
                 duration: duration,
                 failures: failures,
                 git_branch: gitBranch,
@@ -114,7 +115,6 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
                 ran_at: ranAt,
                 repetitions: repetitions,
                 scheme: scheme,
-                stack_trace: stackTrace,
                 status: status,
                 suite_name: suiteName,
                 test_case_id: testCaseId,

@@ -3,11 +3,11 @@ import Path
 import Testing
 @testable import TuistXCResultService
 
-struct CrashStackTraceTests {
+struct CrashReportTests {
     @Test
     func initializesWithAllFields() throws {
         let filePath = try AbsolutePath(validating: "/tmp/crash.ips")
-        let trace = CrashStackTrace(
+        let trace = CrashReport(
             exceptionType: "EXC_CRASH",
             signal: "SIGABRT",
             exceptionSubtype: "KERN_INVALID_ADDRESS",
@@ -24,7 +24,7 @@ struct CrashStackTraceTests {
 
     @Test
     func initializesWithNilOptionalFields() throws {
-        let trace = CrashStackTrace(
+        let trace = CrashReport(
             exceptionType: nil,
             signal: nil,
             exceptionSubtype: nil,
@@ -38,9 +38,9 @@ struct CrashStackTraceTests {
     }
 }
 
-struct TestCaseStackTraceTests {
+struct TestCaseCrashReportTests {
     @Test
-    func testCaseHasNilStackTraceByDefault() {
+    func testCaseHasNilCrashReportByDefault() {
         let testCase = TestCase(
             name: "testExample",
             testSuite: "MySuite",
@@ -50,12 +50,12 @@ struct TestCaseStackTraceTests {
             failures: []
         )
 
-        #expect(testCase.stackTrace == nil)
+        #expect(testCase.crashReport == nil)
     }
 
     @Test
-    func testCaseCanHaveStackTrace() throws {
-        let trace = CrashStackTrace(
+    func testCaseCanHaveCrashReport() throws {
+        let trace = CrashReport(
             exceptionType: "EXC_CRASH",
             signal: nil,
             exceptionSubtype: nil,
@@ -69,9 +69,9 @@ struct TestCaseStackTraceTests {
             duration: 50,
             status: .failed,
             failures: [],
-            stackTrace: trace
+            crashReport: trace
         )
 
-        #expect(testCase.stackTrace?.exceptionType == "EXC_CRASH")
+        #expect(testCase.crashReport?.exceptionType == "EXC_CRASH")
     }
 }

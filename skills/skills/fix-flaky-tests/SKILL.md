@@ -32,9 +32,9 @@ This returns all test cases currently flagged as flaky. Key fields:
 
 **Triage strategy:**
 1. Group tests by suite — multiple flaky tests in the same suite often share a root cause.
-2. Check if failures share a `test_run_id` — tests that all failed in the same run may have been killed by a process crash, not individual test bugs. Run `tuist test case run show <run-id> --json` and check for `stack_trace` — if present, the test runner crashed.
+2. Check if failures share a `test_run_id` — tests that all failed in the same run may have been killed by a process crash, not individual test bugs. Run `tuist test case run show <run-id> --json` and check for `crash_report` — if present, the test runner crashed.
 3. Look at failure messages to categorize: test logic bugs vs infrastructure issues (network errors, server 502s, conflicts on retry).
-4. Prioritize crash-related failures (`stack_trace` present) — these often affect multiple tests and are more impactful to fix.
+4. Prioritize crash-related failures (`crash_report` present) — these often affect multiple tests and are more impactful to fix.
 
 ## Investigation
 
@@ -85,14 +85,14 @@ Key fields:
 - `failures[].issue_type` — type of issue (assertion_failure, etc.)
 - `repetitions` — if present, shows retry behavior (pass/fail sequence)
 - `test_run_id` — the broader test run this execution belongs to
-- `stack_trace` — crash stack trace data (present when the test crashed)
-- `stack_trace_url` — download URL for the full `.ips` crash log
+- `crash_report` — crash report data (present when the test crashed)
+- `crash_report_url` — download URL for the full `.ips` crash log
 
-### 5. Analyze crash stack traces
+### 5. Analyze crash reports
 
-If `stack_trace` is present, the test failed due to a process crash rather than an assertion failure. This is a different class of flakiness that requires reading the crash frames.
+If `crash_report` is present, the test failed due to a process crash rather than an assertion failure. This is a different class of flakiness that requires reading the crash frames.
 
-Key `stack_trace` fields:
+Key `crash_report` fields:
 - `exception_type` — the Mach exception (e.g. `EXC_BREAKPOINT`, `EXC_BAD_ACCESS`, `EXC_CRASH`)
 - `signal` — the Unix signal (e.g. `SIGTRAP`, `SIGSEGV`, `SIGABRT`)
 - `exception_subtype` — additional detail (e.g. `KERN_INVALID_ADDRESS at 0x0000...`)
@@ -109,7 +109,7 @@ Key `stack_trace` fields:
 ## Code Analysis
 
 1. Open the file at `failures[0].path` and go to `failures[0].line_number`.
-2. If a `stack_trace` is present, also read the crash frames to find the exact crash site — the first frame in your own code (not system libraries) is typically the culprit.
+2. If a `crash_report` is present, also read the crash frames to find the exact crash site — the first frame in your own code (not system libraries) is typically the culprit.
 3. Read the full test function and its setup/teardown.
 4. Identify which of the common flaky patterns below applies.
 5. Check if the test shares state with other tests in the same suite.
@@ -135,12 +135,12 @@ Key `stack_trace` fields:
 - **Implicit ordering**: Test passes only when run after another test that sets up required state. Fix: make each test self-contained.
 - **Parallel execution conflicts**: Tests that work in isolation but fail when run concurrently. Fix: use unique resources per test.
 
-### Crashes (identified via `stack_trace`)
+### Crashes (identified via `crash_report`)
 - **Force-unwrap of nil** (`EXC_BREAKPOINT`): Optional value is nil in some runs. Fix: use safe unwrapping or fix the setup that should guarantee a non-nil value.
 - **Memory corruption** (`EXC_BAD_ACCESS`): Use-after-free or dangling pointer, often caused by objects deallocated while still referenced from another thread. Fix: ensure proper ownership and synchronization.
 - **Uncaught exception** (`EXC_CRASH` / `SIGABRT`): Objective-C exception not caught by Swift test harness, often from UIKit or Foundation. Fix: guard against the condition or wrap in a catch.
 - **Stack overflow**: Deep or infinite recursion that only triggers under certain inputs. Fix: add recursion guards or restructure the algorithm.
-- **Multiple tests crashing in the same run**: If many tests in a run have the same `stack_trace`, the test runner process crashed once and all subsequent tests in that process were marked failed. The root cause is the single crash, not each individual test.
+- **Multiple tests crashing in the same run**: If many tests in a run have the same `crash_report`, the test runner process crashed once and all subsequent tests in that process were marked failed. The root cause is the single crash, not each individual test.
 
 ## Fix Implementation
 

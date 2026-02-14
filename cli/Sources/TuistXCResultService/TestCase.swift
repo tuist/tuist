@@ -8,7 +8,7 @@ public struct TestCase {
     public let status: TestStatus
     public let failures: [TestCaseFailure]
     public let repetitions: [TestCaseRepetition]
-    public let stackTrace: CrashStackTrace?
+    public let crashReport: CrashReport?
 
     public init(
         name: String,
@@ -18,7 +18,7 @@ public struct TestCase {
         status: TestStatus,
         failures: [TestCaseFailure],
         repetitions: [TestCaseRepetition] = [],
-        stackTrace: CrashStackTrace? = nil
+        crashReport: CrashReport? = nil
     ) {
         self.name = name
         self.testSuite = testSuite
@@ -27,6 +27,6 @@ public struct TestCase {
         self.status = status
         self.failures = failures
         self.repetitions = repetitions
-        self.stackTrace = stackTrace
+        self.crashReport = crashReport
     }
 }
