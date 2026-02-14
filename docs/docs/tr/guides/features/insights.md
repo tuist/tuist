@@ -33,8 +33,8 @@ yerel geliştirme ortamı için aynı görünürlüğe sahip olmayabilirsiniz. A
 yerel derleme süreleri, geliştirici deneyimine katkıda bulunan en önemli
 faktörlerden biridir.
 
-Yerel derleme sürelerini izlemeye başlamak için, şemanızın post-action kısmına
-`tuist inspect build` komutunu ekleyerek bu komuttan yararlanabilirsiniz:
+Yerel derleme sürelerini izlemeye başlamak için, şemanızın son eylemine `tuist
+inspect build` komutunu ekleyerek bu komuttan yararlanabilirsiniz:
 
 ![Derlemeleri incelemek için eylem
 sonrası](/images/guides/features/insights/inspect-build-scheme-post-action.png)
@@ -42,7 +42,7 @@ sonrası](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 ::: info
 <!-- -->
 Tuist'in yapılandırmayı izleyebilmesi için "Yapı ayarlarını şuradan sağla"
-seçeneğini yürütülebilir dosyaya veya ana yapı hedefine ayarlamanızı öneririz.
+seçeneğini yürütülebilir dosyaya veya ana yapı hedefinize ayarlamanızı öneririz.
 <!-- -->
 :::
 
@@ -55,7 +55,8 @@ olursa şema sonrası eylem yürütülmez.
 > 
 > Xcode'daki belgelenmemiş bir özellik, bu durumda bile bunu gerçekleştirmenize
 > olanak tanır. İlgili `project.pbxproj` dosyasında, şemanızın `BuildAction`
-> içindeki `runPostActionsOnFailure` özniteliğini `YES` olarak ayarlayın:
+> içindeki `runPostActionsOnFailure` özniteliğini `YES` olarak aşağıdaki gibi
+> ayarlayın:
 > 
 > ```diff
 > <BuildAction
@@ -83,9 +84,9 @@ unutmayın.
 :::
 
 
-Tuist hesabınıza giriş yaptığınız sürece yerel derlemeleriniz artık izlenir.
-Artık Tuist kontrol panelinden derleme sürelerinize erişebilir ve zaman içinde
-nasıl geliştiğini görebilirsiniz:
+Tuist hesabınıza giriş yaptığınız sürece yerel derlemeleriniz artık
+izlenmektedir. Artık Tuist kontrol panelinden derleme sürelerinize erişebilir ve
+zaman içinde nasıl geliştiğini görebilirsiniz:
 
 
 ::: tip
@@ -163,7 +164,7 @@ buildAction: .buildAction(
 
 ## Sürekli entegrasyon {#continuous-integration}
 
-CI'da derleme bilgilerini izlemek için CI'nızın
+CI'da yapı bilgilerini izlemek için CI'nızın
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">kimlik
 doğrulamasının yapıldığından</LocalizedLink> emin olmanız gerekir.
 
@@ -171,9 +172,9 @@ Ayrıca, şunlardan birini yapmanız gerekecektir:
 - `xcodebuild` eylemlerini çağırırken
   <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> komutunu kullanın.
-- `-resultBundlePath` ekleyin. `xcodebuild` çağrısına.
+- `-resultBundlePath` ekleyin. `xcodebuild` çağrısına ekleyin.
 
-`xcodebuild` komutları, `-resultBundlePath` olmadan projenizi derlediğinde,
-gerekli etkinlik günlüğü ve sonuç paketi dosyaları oluşturulmaz. `tuist inspect
-build` post-action, derlemelerinizi analiz etmek için bu dosyalara ihtiyaç
-duyar.
+`xcodebuild` komutları, `-resultBundlePath` parametresi olmadan projenizi
+derlediğinde, gerekli etkinlik günlüğü ve sonuç paketi dosyaları oluşturulmaz.
+`tuist inspect build` post-action komutu, derlemelerinizi analiz etmek için bu
+dosyalara ihtiyaç duyar.
