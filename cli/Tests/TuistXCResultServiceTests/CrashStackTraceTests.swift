@@ -51,7 +51,7 @@ struct CrashStackTraceTests {
 
 struct TestCaseStackTraceTests {
     @Test
-    func testCaseHasNilStackTraceIdByDefault() {
+    func testCaseHasNilStackTraceByDefault() {
         let testCase = TestCase(
             name: "testExample",
             testSuite: "MySuite",
@@ -61,42 +61,13 @@ struct TestCaseStackTraceTests {
             failures: []
         )
 
-        #expect(testCase.stackTraceId == nil)
+        #expect(testCase.stackTrace == nil)
     }
 
     @Test
-    func testCaseCanHaveStackTraceId() {
-        let testCase = TestCase(
-            name: "testCrash",
-            testSuite: "MySuite",
-            module: "MyModule",
-            duration: 50,
-            status: .failed,
-            failures: [],
-            stackTraceId: "some-uuid"
-        )
-
-        #expect(testCase.stackTraceId == "some-uuid")
-    }
-}
-
-struct TestSummaryStackTraceTests {
-    @Test
-    func testSummaryHasEmptyStackTracesByDefault() {
-        let summary = TestSummary(
-            testPlanName: "MyPlan",
-            status: .passed,
-            duration: 1000,
-            testModules: []
-        )
-
-        #expect(summary.stackTraces.isEmpty)
-    }
-
-    @Test
-    func testSummaryCanHaveStackTraces() {
+    func testCaseCanHaveStackTrace() {
         let trace = CrashStackTrace(
-            id: "trace-id",
+            id: "some-uuid",
             fileName: "crash.ips",
             appName: nil,
             osVersion: nil,
@@ -106,15 +77,16 @@ struct TestSummaryStackTraceTests {
             filePath: try! AbsolutePath(validating: "/tmp/crash.ips")
         )
 
-        let summary = TestSummary(
-            testPlanName: "MyPlan",
+        let testCase = TestCase(
+            name: "testCrash",
+            testSuite: "MySuite",
+            module: "MyModule",
+            duration: 50,
             status: .failed,
-            duration: 500,
-            testModules: [],
-            stackTraces: [trace]
+            failures: [],
+            stackTrace: trace
         )
 
-        #expect(summary.stackTraces.count == 1)
-        #expect(summary.stackTraces[0].id == "trace-id")
+        #expect(testCase.stackTrace?.id == "some-uuid")
     }
 }

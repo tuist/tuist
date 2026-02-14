@@ -170,12 +170,12 @@ public struct XCResultService: XCResultServicing {
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
-        let crashResult = await extractCrashAttachments(from: xcresultPath)
+        let stackTracesByTestIdentifier = await extractCrashAttachments(from: xcresultPath)
 
         allTestCases = allTestCases.map { testCase in
             let normalizedName = testCase.name.hasSuffix("()") ? String(testCase.name.dropLast(2)) : testCase.name
             let testIdentifier = testCase.testSuite.map { "\($0)/\(normalizedName)" } ?? normalizedName
-            guard let stackTraceId = crashResult.testIdentifierToStackTraceId[testIdentifier] else {
+            guard let stackTrace = stackTracesByTestIdentifier[testIdentifier] else {
                 return testCase
             }
             return TestCase(
@@ -186,7 +186,7 @@ public struct XCResultService: XCResultServicing {
                 status: testCase.status,
                 failures: testCase.failures,
                 repetitions: testCase.repetitions,
-                stackTraceId: stackTraceId
+                stackTrace: stackTrace
             )
         }
 
@@ -197,8 +197,7 @@ public struct XCResultService: XCResultServicing {
             testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
             status: overallStatus,
             duration: overallDuration,
-            testModules: testModules,
-            stackTraces: crashResult.stackTraces
+            testModules: testModules
         )
     }
 
@@ -498,11 +497,6 @@ public struct XCResultService: XCResultServicing {
 
     // MARK: - Crash Attachment Extraction
 
-    struct CrashAttachmentResult {
-        let stackTraces: [CrashStackTrace]
-        let testIdentifierToStackTraceId: [String: String]
-    }
-
     private struct AttachmentManifest: Decodable {
         let testIdentifier: String?
         let attachments: [Attachment]
@@ -514,9 +508,7 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
-    private func extractCrashAttachments(from xcresultPath: AbsolutePath) async -> CrashAttachmentResult {
-        let emptyResult = CrashAttachmentResult(stackTraces: [], testIdentifierToStackTraceId: [:])
-
+    private func extractCrashAttachments(from xcresultPath: AbsolutePath) async -> [String: CrashStackTrace] {
         do {
             return try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-crash-attachments") {
                 temporaryDirectory in
@@ -530,14 +522,13 @@ public struct XCResultService: XCResultServicing {
 
                 let manifestPath = temporaryDirectory.appending(component: "manifest.json")
                 guard try await fileSystem.exists(manifestPath) else {
-                    return emptyResult
+                    return [:]
                 }
 
                 let manifestData = try await fileSystem.readFile(at: manifestPath)
                 let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
 
-                var stackTraces: [CrashStackTrace] = []
-                var testIdentifierToStackTraceId: [String: String] = [:]
+                var stackTracesByTestIdentifier: [String: CrashStackTrace] = [:]
 
                 for entry in manifestEntries {
                     guard let testIdentifier = entry.testIdentifier else { continue }
@@ -557,10 +548,8 @@ public struct XCResultService: XCResultServicing {
                             attachment.suggestedHumanReadableName ?? attachment.exportedFileName
                         let sanitizedFileName = humanReadableName.replacingOccurrences(of: " ", with: "_")
 
-                        let stackTraceId = UUID().uuidString.lowercased()
-
                         let stackTrace = CrashStackTrace(
-                            id: stackTraceId,
+                            id: UUID().uuidString.lowercased(),
                             fileName: sanitizedFileName,
                             appName: metadata.appName,
                             osVersion: metadata.osVersion,
@@ -571,21 +560,16 @@ public struct XCResultService: XCResultServicing {
                             triggeredThreadFrames: triggeredThreadFrames
                         )
 
-                        stackTraces.append(stackTrace)
-
                         let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
-                        testIdentifierToStackTraceId[normalizedIdentifier] = stackTraceId
+                        stackTracesByTestIdentifier[normalizedIdentifier] = stackTrace
                     }
                 }
 
-                return CrashAttachmentResult(
-                    stackTraces: stackTraces,
-                    testIdentifierToStackTraceId: testIdentifierToStackTraceId
-                )
+                return stackTracesByTestIdentifier
             }
         } catch {
             Logger.current.debug("Failed to extract crash attachments: \(error)")
-            return emptyResult
+            return [:]
         }
     }
 

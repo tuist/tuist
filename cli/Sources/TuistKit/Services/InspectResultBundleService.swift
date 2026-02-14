@@ -132,50 +132,16 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             ciProvider: ciInfo?.provider
         )
 
-        if !testSummary.stackTraces.isEmpty {
-            let testCaseRunMap = buildTestCaseRunMap(
-                testCaseRuns: test.test_case_runs ?? [],
-                testIdentifierToStackTraceId: testSummary.testCases.reduce(into: [:]) { result, testCase in
-                    let normalizedName = testCase.name.hasSuffix("()") ? String(testCase.name.dropLast(2)) : testCase.name
-                    let testIdentifier = testCase.testSuite.map { "\($0)/\(normalizedName)" } ?? normalizedName
-                    if let stackTraceId = testCase.stackTraceId {
-                        result[stackTraceId] = (
-                            name: testCase.name,
-                            moduleName: testCase.module ?? "",
-                            suiteName: testCase.testSuite ?? ""
-                        )
-                    }
-                }
+        let testCaseRunIdsByIdentity = buildTestCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs ?? [])
+
+        await testSummary.testCases.forEach(context: .concurrent) { testCase in
+            await uploadStackTrace(
+                for: testCase,
+                testRunId: test.id,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                testCaseRunIdsByIdentity: testCaseRunIdsByIdentity
             )
-
-            await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
-                let testCaseRunId = testCaseRunMap[stackTrace.id]
-
-                do {
-                    var testCaseRunAttachmentId: String?
-                    if let testCaseRunId {
-                        testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
-                            fullHandle: fullHandle,
-                            serverURL: serverURL,
-                            testCaseRunId: testCaseRunId,
-                            fileName: stackTrace.fileName,
-                            contentType: "application/x-ips",
-                            filePath: stackTrace.filePath
-                        )
-                    }
-                    try await createStackTraceService.createStackTrace(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        testRunId: test.id,
-                        stackTrace: stackTrace,
-                        testCaseRunId: testCaseRunId,
-                        testCaseRunAttachmentId: testCaseRunAttachmentId
-                    )
-                } catch {
-                    Logger.current
-                        .warning("Failed to upload stack trace for \(stackTrace.fileName): \(error.localizedDescription)")
-                }
-            }
         }
 
         await RunMetadataStorage.current.update(testRunId: test.id)
@@ -183,24 +149,60 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         return test
     }
 
-    private func buildTestCaseRunMap(
-        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload],
-        testIdentifierToStackTraceId: [String: (name: String, moduleName: String, suiteName: String)]
+    private func uploadStackTrace(
+        for testCase: TestCase,
+        testRunId: String,
+        fullHandle: String,
+        serverURL: URL,
+        testCaseRunIdsByIdentity: [String: String]
+    ) async {
+        guard let stackTrace = testCase.stackTrace else { return }
+
+        let identityKey = testCaseRunIdentityKey(
+            moduleName: testCase.module ?? "",
+            suiteName: testCase.testSuite ?? "",
+            name: testCase.name
+        )
+        guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
+
+        do {
+            let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                testCaseRunId: testCaseRunId,
+                fileName: stackTrace.fileName,
+                contentType: "application/x-ips",
+                filePath: stackTrace.filePath
+            )
+            try await createStackTraceService.createStackTrace(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                testRunId: testRunId,
+                stackTrace: stackTrace,
+                testCaseRunId: testCaseRunId,
+                testCaseRunAttachmentId: testCaseRunAttachmentId
+            )
+        } catch {
+            Logger.current
+                .warning("Failed to upload stack trace for \(stackTrace.fileName): \(error.localizedDescription)")
+        }
+    }
+
+    private func buildTestCaseRunIdsByIdentity(
+        testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) -> [String: String] {
-        let runsByIdentity: [String: String] = testCaseRuns.reduce(into: [:]) { result, run in
-            let key = "\(run.module_name)/\(run.suite_name)/\(run.name)"
+        testCaseRuns.reduce(into: [:]) { result, run in
+            let key = testCaseRunIdentityKey(moduleName: run.module_name, suiteName: run.suite_name, name: run.name)
             result[key] = run.id
         }
+    }
 
-        var stackTraceIdToRunId: [String: String] = [:]
-        for (stackTraceId, testCaseInfo) in testIdentifierToStackTraceId {
-            let key = "\(testCaseInfo.moduleName)/\(testCaseInfo.suiteName)/\(testCaseInfo.name)"
-            if let runId = runsByIdentity[key] {
-                stackTraceIdToRunId[stackTraceId] = runId
-            }
+    private func testCaseRunIdentityKey(moduleName: String, suiteName: String, name: String) -> String {
+        if suiteName.isEmpty {
+            return "\(moduleName)/\(name)"
+        } else {
+            return "\(moduleName)/\(suiteName)/\(name)"
         }
-
-        return stackTraceIdToRunId
     }
 
     private func rootDirectory() async throws -> AbsolutePath? {

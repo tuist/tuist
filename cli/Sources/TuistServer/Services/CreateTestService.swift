@@ -144,7 +144,7 @@ import TuistHTTP
                             failures: failures,
                             name: testCase.name,
                             repetitions: repetitions,
-                            stack_trace_id: testCase.stackTraceId,
+                            stack_trace_id: testCase.stackTrace?.id,
                             status: testCaseStatusToServerStatus(testCase.status),
                             test_suite_name: testCase.testSuite
                         )

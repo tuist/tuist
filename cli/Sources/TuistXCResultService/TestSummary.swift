@@ -5,7 +5,6 @@ public struct TestSummary {
     public let status: TestStatus
     public let duration: Int?
     public let testModules: [TestModule]
-    public let stackTraces: [CrashStackTrace]
 
     public var testCases: [TestCase] {
         testModules.flatMap(\.testCases)
@@ -15,13 +14,11 @@ public struct TestSummary {
         testPlanName: String?,
         status: TestStatus,
         duration: Int?,
-        testModules: [TestModule],
-        stackTraces: [CrashStackTrace] = []
+        testModules: [TestModule]
     ) {
         self.testPlanName = testPlanName
         self.status = status
         self.duration = duration
         self.testModules = testModules
-        self.stackTraces = stackTraces
     }
 }
