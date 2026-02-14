@@ -16,6 +16,7 @@ import postcssRtlcss from "postcss-rtlcss";
 import { validateAdmonitions } from "./validate-admonitions.mjs";
 import { checkLocalePages } from "./check-locale-pages.mjs";
 import { validateLocalizedLinks } from "./validate-localized-links.mjs";
+import tidewave from "tidewave/vite-plugin";
 
 const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -237,6 +238,7 @@ export default withMermaid(
     vite: {
       cacheDir: path.join(vitepressDir, "cache"),
       plugins: [
+        tidewave(),
         llmstxtPlugin({
           ignore: llmsIgnore,
         }),
@@ -315,12 +317,19 @@ export default withMermaid(
       ["meta", { property: "og:type", content: "website" }, ""],
       [
         "meta",
-        { property: "og:image", content: "https://docs.tuist.dev/images/og.jpeg" },
+        {
+          property: "og:image",
+          content: "https://docs.tuist.dev/images/og.jpeg",
+        },
         "",
       ],
       ["meta", { name: "twitter:card", content: "summary" }, ""],
       ["meta", { property: "twitter:domain", content: "docs.tuist.dev" }, ""],
-      ["meta", { property: "twitter:url", content: "https://docs.tuist.dev" }, ""],
+      [
+        "meta",
+        { property: "twitter:url", content: "https://docs.tuist.dev" },
+        "",
+      ],
       [
         "meta",
         {
@@ -546,7 +555,11 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
             vitepress: {
               attributesForFaceting: ["type", "lang"],
               attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
-              attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
+              attributesToHighlight: [
+                "hierarchy",
+                "hierarchy_camel",
+                "content",
+              ],
               attributesToSnippet: ["content:10"],
               camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
               searchableAttributes: [
@@ -628,5 +641,5 @@ ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
         copyright: "Copyright © 2024-present Tuist GmbH",
       },
     },
-  })
+  }),
 );

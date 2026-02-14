@@ -2,37 +2,32 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize build times with Tuist Cache, including module cache and Xcode cache (Xcode compilation cache)."
+  "description": "Optimize build times with Tuist Cache, including module cache, Xcode cache, and Gradle cache."
 }
 ---
 # Cache {#cache}
 
-Build systems provide [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over -- either in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments.
+Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
 
-Tuist addresses these challenges with its caching feature, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
+Pick the caching solution that matches your build system:
 
-We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module cache</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode cache</LocalizedLink>
-
-## Module cache {#module-cache}
-
-For projects that use Tuist's <LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities, we provide a powerful caching system, which caches individual modules as binaries and shares them across your team and CI environments.
-
-While you can also use the new Xcode cache, this feature is currently optimized for local builds and you will likely have a lower cache hit rate compared to the generated project caching. However, the decision for which caching solution to use depends on your specific needs and preferences. You may also combine both caching solutions to achieve the best results.
-
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about Module cache →</LocalizedLink>
-
-## Xcode cache {#xcode-cache}
-
-The Xcode cache (also called the Xcode compilation cache or Xcode build cache) stores compilation artifacts so Xcode can reuse them across builds. With Tuist, you can share those artifacts across environments, including local, CI, and agentic environments, to speed up clean builds.
-
-::: warning STATE OF CACHE IN XCODE
-<!-- -->
-Xcode caching is currently optimized for local incremental builds and the whole spectrum of build tasks is not yet path-independent. Still you can experience benefits by plugging Tuist's remote cache, and we expect build times to improve over time as the build system's capability keeps improving.
-<!-- -->
-:::
-
-Apple has been working on a new caching solution at the build level, similar to other build systems like Bazel and Buck. The new caching capability is available since Xcode 26 and Tuist now seamlessly integrates with it – regardless of whether you are using Tuist's <LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities or not.
-
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode cache →</LocalizedLink>
+<HomeCards>
+    <HomeCard
+        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
+        title="Module cache"
+        details="Cache individual modules as binaries for projects using Tuist's generated projects. Requires Tuist project generation."
+        linkText="Set up module cache"
+        link="/guides/features/cache/module-cache"/>
+    <HomeCard
+        icon="<img src='/images/guides/features/xcode-icon.png' alt='Xcode' width='32' height='32' />"
+        title="Xcode cache"
+        details="Share Xcode compilation artifacts across environments. Works with any Xcode project, no project generation required."
+        linkText="Set up Xcode cache"
+        link="/guides/features/cache/xcode-cache"/>
+    <HomeCard
+        icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
+        title="Gradle cache"
+        details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
+        linkText="Set up Gradle cache"
+        link="/guides/features/cache/gradle-cache"/>
+</HomeCards>

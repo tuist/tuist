@@ -18,7 +18,8 @@ import org.gradle.api.logging.Logging
  * }
  *
  * tuist {
- *     project = "account/project"
+ *     // Optional: if not set, the project is read from tuist.toml
+ *     // project = "account/project"
  *
  *     uploadInBackground = true // default: true locally, false on CI
  *
@@ -34,7 +35,7 @@ import org.gradle.api.logging.Logging
  */
 data class TuistGradleConfig(
     val url: String,
-    val project: String,
+    val project: String?,
     val executablePath: String,
     val uploadInBackground: Boolean? = null
 ) {
@@ -70,26 +71,22 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configure(settings: Settings, extension: TuistExtension) {
-        val project = extension.project
-        if (project.isBlank()) {
-            logger.warn("Tuist: project not configured. Tuist features will be disabled.")
-            return
-        }
-
         configureBuildCache(settings, extension)
         configureBuildInsights(settings, extension)
     }
 
     private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
+        val project = extension.project.ifBlank { null }
         settings.gradle.rootProject {
             extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
                 url = extension.url,
-                project = extension.project,
+                project = project,
                 executablePath = extension.executablePath ?: "tuist",
                 uploadInBackground = extension.uploadInBackground
             ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
+            val projectLabel = project ?: "(from tuist.toml)"
+            logger.lifecycle("Tuist: Build insights configured for $projectLabel")
         }
     }
 
@@ -100,9 +97,11 @@ class TuistPlugin : Plugin<Settings> {
             return
         }
 
+        val project = extension.project.ifBlank { null }
+
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
-                this.project = extension.project
+                this.project = project
                 this.executablePath = extension.executablePath
                 this.url = extension.url
                 isPush = buildCacheConfig.push
@@ -111,7 +110,8 @@ class TuistPlugin : Plugin<Settings> {
         }
 
         settings.gradle.rootProject {
-            logger.lifecycle("Tuist: Remote build cache configured for ${extension.project}")
+            val projectLabel = project ?: "(from tuist.toml)"
+            logger.lifecycle("Tuist: Remote build cache configured for $projectLabel")
         }
     }
 }
@@ -122,7 +122,7 @@ class TuistPlugin : Plugin<Settings> {
 open class TuistExtension {
     /**
      * The project identifier in format "account/project".
-     * This is required for all Tuist features.
+     * If not set, the plugin reads it from the tuist.toml file in the project root.
      */
     var project: String = ""
 
