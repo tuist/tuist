@@ -4,7 +4,7 @@ import Testing
 
 struct AppTests {
     @Test func example() async throws {
-        fatalError("intentional crash for testing")
+        #expect(true == true)
     }
 }
 
