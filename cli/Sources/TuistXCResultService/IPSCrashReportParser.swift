@@ -1,5 +1,16 @@
 import Foundation
 
+enum IPSCrashReportParserError: LocalizedError {
+    case invalidFormat
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidFormat:
+            return "The IPS file does not contain a valid JSON payload on the second line."
+        }
+    }
+}
+
 public struct IPSCrashReportParser {
     public struct IPSCrashReport {
         public let exceptionType: String?
@@ -10,12 +21,13 @@ public struct IPSCrashReportParser {
 
     public init() {}
 
-    public func parse(_ content: String) -> IPSCrashReport? {
+    public func parse(_ content: String) throws -> IPSCrashReport {
         let lines = content.components(separatedBy: .newlines)
         guard lines.count >= 2,
-              let payloadData = lines[1].data(using: .utf8),
-              let payload = try? JSONDecoder().decode(IPSPayload.self, from: payloadData)
-        else { return nil }
+              let payloadData = lines[1].data(using: .utf8)
+        else { throw IPSCrashReportParserError.invalidFormat }
+
+        let payload = try JSONDecoder().decode(IPSPayload.self, from: payloadData)
 
         return IPSCrashReport(
             exceptionType: payload.exception?.type,

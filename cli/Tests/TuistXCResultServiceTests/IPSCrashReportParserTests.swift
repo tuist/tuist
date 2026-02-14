@@ -6,7 +6,7 @@ struct IPSCrashReportParserTests {
     let parser = IPSCrashReportParser()
 
     @Test
-    func parse_withValidIPS_returnsFormattedFrames() {
+    func parse_withValidIPS_returnsFormattedFrames() throws {
         // Given
         let header = """
         {"app_name":"MyApp","timestamp":"2024-01-15 12:00:00"}
@@ -46,10 +46,10 @@ struct IPSCrashReportParserTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = parser.parse(content)
+        let result = try parser.parse(content)
 
         // Then
-        let frames = try! #require(result?.triggeredThreadFrames)
+        let frames = try #require(result.triggeredThreadFrames)
         let lines = frames.components(separatedBy: "\n")
         #expect(lines.count == 3)
         #expect(lines[0].contains("libswiftCore.dylib"))
@@ -62,7 +62,7 @@ struct IPSCrashReportParserTests {
     }
 
     @Test
-    func parse_withExceptionMetadata_returnsExceptionFields() {
+    func parse_withExceptionMetadata_returnsExceptionFields() throws {
         // Given
         let header = "{}"
         let payload: [String: Any] = [
@@ -85,26 +85,30 @@ struct IPSCrashReportParserTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = parser.parse(content)
+        let result = try parser.parse(content)
 
         // Then
-        #expect(result?.exceptionType == "EXC_CRASH")
-        #expect(result?.signal == "SIGABRT")
-        #expect(result?.exceptionSubtype == "KERN_INVALID_ADDRESS")
+        #expect(result.exceptionType == "EXC_CRASH")
+        #expect(result.signal == "SIGABRT")
+        #expect(result.exceptionSubtype == "KERN_INVALID_ADDRESS")
     }
 
     @Test
-    func parse_withInvalidContent_returnsNil() {
-        #expect(parser.parse("not valid") == nil)
+    func parse_withInvalidContent_throws() {
+        #expect(throws: IPSCrashReportParserError.self) {
+            try parser.parse("not valid")
+        }
     }
 
     @Test
-    func parse_withEmptyContent_returnsNil() {
-        #expect(parser.parse("") == nil)
+    func parse_withEmptyContent_throws() {
+        #expect(throws: IPSCrashReportParserError.self) {
+            try parser.parse("")
+        }
     }
 
     @Test
-    func parse_withNoTriggeredThread_usesFirstThread() {
+    func parse_withNoTriggeredThread_usesFirstThread() throws {
         // Given
         let header = "{}"
         let payload: [String: Any] = [
@@ -128,15 +132,15 @@ struct IPSCrashReportParserTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = parser.parse(content)
+        let result = try parser.parse(content)
 
         // Then
-        let frames = try! #require(result?.triggeredThreadFrames)
+        let frames = try #require(result.triggeredThreadFrames)
         #expect(frames.contains("main + 100"))
     }
 
     @Test
-    func parse_withImagePath_extractsLastComponent() {
+    func parse_withImagePath_extractsLastComponent() throws {
         // Given
         let header = "{}"
         let payload: [String: Any] = [
@@ -161,10 +165,10 @@ struct IPSCrashReportParserTests {
         let content = header + "\n" + payloadString
 
         // When
-        let result = parser.parse(content)
+        let result = try parser.parse(content)
 
         // Then
-        let frames = try! #require(result?.triggeredThreadFrames)
+        let frames = try #require(result.triggeredThreadFrames)
         #expect(frames.contains("libsystem_kernel.dylib"))
     }
 }

@@ -543,15 +543,15 @@ public struct XCResultService: XCResultServicing {
                         guard try await fileSystem.exists(filePath) else { continue }
 
                         let content = try await fileSystem.readTextFile(at: filePath)
-                        let crashReport = IPSCrashReportParser().parse(content)
+                        let crashReport = try IPSCrashReportParser().parse(content)
 
                         let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
                         crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
-                            exceptionType: crashReport?.exceptionType,
-                            signal: crashReport?.signal,
-                            exceptionSubtype: crashReport?.exceptionSubtype,
+                            exceptionType: crashReport.exceptionType,
+                            signal: crashReport.signal,
+                            exceptionSubtype: crashReport.exceptionSubtype,
                             filePath: filePath,
-                            triggeredThreadFrames: crashReport?.triggeredThreadFrames
+                            triggeredThreadFrames: crashReport.triggeredThreadFrames
                         )
                     }
                 }
