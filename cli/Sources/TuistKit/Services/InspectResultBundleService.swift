@@ -132,7 +132,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
             ciProvider: ciInfo?.provider
         )
 
-        let testCaseRunIdsByIdentity = buildTestCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs ?? [])
+        let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs ?? [])
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
             await uploadStackTrace(
@@ -188,7 +188,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         }
     }
 
-    private func buildTestCaseRunIdsByIdentity(
+    private func testCaseRunIdsByIdentity(
         testCaseRuns: [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
     ) -> [String: String] {
         testCaseRuns.reduce(into: [:]) { result, run in
