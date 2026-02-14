@@ -332,16 +332,12 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
-    /// Create a test case run attachment and get a presigned upload URL.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)`.
-    func createTestCaseRunAttachment(_ input: Operations.createTestCaseRunAttachment.Input) async throws -> Operations.createTestCaseRunAttachment.Output
-    /// List runs for a test case.
+    /// List runs for a test case. Deprecated: use listTestCaseRuns with test_case_id query param instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRunsByTestCase)`.
+    @available(*, deprecated)
+    func listTestCaseRunsByTestCase(_ input: Operations.listTestCaseRunsByTestCase.Input) async throws -> Operations.listTestCaseRunsByTestCase.Output
     /// Get a test case by ID.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}`.
@@ -390,6 +386,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/delete(deletePreview)`.
     func deletePreview(_ input: Operations.deletePreview.Input) async throws -> Operations.deletePreview.Output
+    /// List test case runs.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)`.
+    func listTestCaseRuns(_ input: Operations.listTestCaseRuns.Input) async throws -> Operations.listTestCaseRuns.Output
     /// It checks if an artifact exists in the cache.
     ///
     /// This endpoint checks if an artifact exists in the cache. It returns a 404 status code if the artifact does not exist.
@@ -504,6 +505,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/post(createTest)`.
     func createTest(_ input: Operations.createTest.Input) async throws -> Operations.createTest.Output
+    /// Create a test case run attachment and get a presigned upload URL.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/attachments`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
+    func createTestCaseRunAttachment(_ input: Operations.createTestCaseRunAttachment.Input) async throws -> Operations.createTestCaseRunAttachment.Output
     /// Completes artifacts uploads for a given run
     ///
     /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -512,10 +518,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: Generated from `#/paths//api/runs/{run_id}/complete_artifacts_uploads/put(completeAnalyticsArtifactsUploads)`.
     @available(*, deprecated)
     func completeAnalyticsArtifactsUploads(_ input: Operations.completeAnalyticsArtifactsUploads.Input) async throws -> Operations.completeAnalyticsArtifactsUploads.Output
-    /// List test case runs for a test run.
+    /// List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/get(listTestCaseRunsByTestRun)`.
+    @available(*, deprecated)
     func listTestCaseRunsByTestRun(_ input: Operations.listTestCaseRunsByTestRun.Input) async throws -> Operations.listTestCaseRunsByTestRun.Output
 }
 
@@ -1290,31 +1297,17 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Create a test case run attachment and get a presigned upload URL.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)`.
-    public func createTestCaseRunAttachment(
-        path: Operations.createTestCaseRunAttachment.Input.Path,
-        headers: Operations.createTestCaseRunAttachment.Input.Headers = .init(),
-        body: Operations.createTestCaseRunAttachment.Input.Body? = nil
-    ) async throws -> Operations.createTestCaseRunAttachment.Output {
-        try await createTestCaseRunAttachment(Operations.createTestCaseRunAttachment.Input(
-            path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// List runs for a test case.
+    /// List runs for a test case. Deprecated: use listTestCaseRuns with test_case_id query param instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    public func listTestCaseRuns(
-        path: Operations.listTestCaseRuns.Input.Path,
-        query: Operations.listTestCaseRuns.Input.Query = .init(),
-        headers: Operations.listTestCaseRuns.Input.Headers = .init()
-    ) async throws -> Operations.listTestCaseRuns.Output {
-        try await listTestCaseRuns(Operations.listTestCaseRuns.Input(
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRunsByTestCase)`.
+    @available(*, deprecated)
+    public func listTestCaseRunsByTestCase(
+        path: Operations.listTestCaseRunsByTestCase.Input.Path,
+        query: Operations.listTestCaseRunsByTestCase.Input.Query = .init(),
+        headers: Operations.listTestCaseRunsByTestCase.Input.Headers = .init()
+    ) async throws -> Operations.listTestCaseRunsByTestCase.Output {
+        try await listTestCaseRunsByTestCase(Operations.listTestCaseRunsByTestCase.Input(
             path: path,
             query: query,
             headers: headers
@@ -1417,6 +1410,21 @@ extension APIProtocol {
     ) async throws -> Operations.deletePreview.Output {
         try await deletePreview(Operations.deletePreview.Input(
             path: path,
+            headers: headers
+        ))
+    }
+    /// List test case runs.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)`.
+    public func listTestCaseRuns(
+        path: Operations.listTestCaseRuns.Input.Path,
+        query: Operations.listTestCaseRuns.Input.Query = .init(),
+        headers: Operations.listTestCaseRuns.Input.Headers = .init()
+    ) async throws -> Operations.listTestCaseRuns.Output {
+        try await listTestCaseRuns(Operations.listTestCaseRuns.Input(
+            path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -1704,6 +1712,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Create a test case run attachment and get a presigned upload URL.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/attachments`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
+    public func createTestCaseRunAttachment(
+        path: Operations.createTestCaseRunAttachment.Input.Path,
+        headers: Operations.createTestCaseRunAttachment.Input.Headers = .init(),
+        body: Operations.createTestCaseRunAttachment.Input.Body? = nil
+    ) async throws -> Operations.createTestCaseRunAttachment.Output {
+        try await createTestCaseRunAttachment(Operations.createTestCaseRunAttachment.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Completes artifacts uploads for a given run
     ///
     /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -1722,10 +1745,11 @@ extension APIProtocol {
             body: body
         ))
     }
-    /// List test case runs for a test run.
+    /// List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/get(listTestCaseRunsByTestRun)`.
+    @available(*, deprecated)
     public func listTestCaseRunsByTestRun(
         path: Operations.listTestCaseRunsByTestRun.Input.Path,
         query: Operations.listTestCaseRunsByTestRun.Input.Query = .init(),
@@ -1744,7 +1768,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:4002",
+                validatingOpenAPIServerURL: "http://localhost:8080",
                 variables: []
             )
         }
@@ -1752,7 +1776,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:4002",
+            validatingOpenAPIServerURL: "http://localhost:8080",
             variables: []
         )
     }
@@ -1762,6 +1786,10 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestCaseRunsByTestCasePage`.
+        public typealias TestCaseRunsByTestCasePage = Swift.Int
         /// The maximum number of cache runs to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheRunsIndexPageSize`.
@@ -5390,6 +5418,10 @@ public enum Components {
                 case version
             }
         }
+        /// The maximum number of test case runs to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestCaseRunsByTestCasePageSize`.
+        public typealias TestCaseRunsByTestCasePageSize = Swift.Int
         /// A bundle artifact schema
         ///
         /// - Remark: Generated from `#/components/schemas/BundleArtifact`.
@@ -6294,6 +6326,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/app_name`.
             public var app_name: Swift.String?
+            /// The UUID of the attachment this stack trace was parsed from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StackTraceParams/attachment_id`.
+            public var attachment_id: Swift.String?
             /// The exception subtype or additional details.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/exception_subtype`.
@@ -6306,10 +6342,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/file_name`.
             public var file_name: Swift.String
-            /// Human-readable formatted crash thread frames.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/triggered_thread_frames`.
-            public var triggered_thread_frames: Swift.String?
             /// Deterministic UUID generated from content hash and file name.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/id`.
@@ -6322,45 +6354,53 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/signal`.
             public var signal: Swift.String?
+            /// Human-readable formatted crash thread frames.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StackTraceParams/triggered_thread_frames`.
+            public var triggered_thread_frames: Swift.String?
             /// Creates a new `StackTraceParams`.
             ///
             /// - Parameters:
             ///   - app_name: The name of the crashed application.
+            ///   - attachment_id: The UUID of the attachment this stack trace was parsed from.
             ///   - exception_subtype: The exception subtype or additional details.
             ///   - exception_type: The exception type (e.g., EXC_CRASH).
             ///   - file_name: The human-readable name of the crash log file.
-            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
             ///   - id: Deterministic UUID generated from content hash and file name.
             ///   - os_version: The OS version when the crash occurred.
             ///   - signal: The signal that caused the crash (e.g., SIGABRT).
+            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
             public init(
                 app_name: Swift.String? = nil,
+                attachment_id: Swift.String? = nil,
                 exception_subtype: Swift.String? = nil,
                 exception_type: Swift.String? = nil,
                 file_name: Swift.String,
-                triggered_thread_frames: Swift.String? = nil,
                 id: Swift.String,
                 os_version: Swift.String? = nil,
-                signal: Swift.String? = nil
+                signal: Swift.String? = nil,
+                triggered_thread_frames: Swift.String? = nil
             ) {
                 self.app_name = app_name
+                self.attachment_id = attachment_id
                 self.exception_subtype = exception_subtype
                 self.exception_type = exception_type
                 self.file_name = file_name
-                self.triggered_thread_frames = triggered_thread_frames
                 self.id = id
                 self.os_version = os_version
                 self.signal = signal
+                self.triggered_thread_frames = triggered_thread_frames
             }
             public enum CodingKeys: String, CodingKey {
                 case app_name
+                case attachment_id
                 case exception_subtype
                 case exception_type
                 case file_name
-                case triggered_thread_frames
                 case id
                 case os_version
                 case signal
+                case triggered_thread_frames
             }
         }
         /// The page number to return.
@@ -11754,14 +11794,14 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace`.
                         public struct stack_tracePayload: Codable, Hashable, Sendable {
-                            /// URL to download the full crash log attachment.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/attachment_url`.
-                            public var attachment_url: Swift.String
                             /// The app name.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/app_name`.
                             public var app_name: Swift.String?
+                            /// URL to download the full crash log attachment.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/attachment_url`.
+                            public var attachment_url: Swift.String
                             /// The exception subtype.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/exception_subtype`.
@@ -11774,10 +11814,6 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/file_name`.
                             public var file_name: Swift.String
-                            /// Human-readable formatted crash thread frames.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/triggered_thread_frames`.
-                            public var triggered_thread_frames: Swift.String?
                             /// The stack trace ID.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/id`.
@@ -11790,49 +11826,53 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/signal`.
                             public var signal: Swift.String?
+                            /// Human-readable formatted crash thread frames.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/stack_trace/triggered_thread_frames`.
+                            public var triggered_thread_frames: Swift.String?
                             /// Creates a new `stack_tracePayload`.
                             ///
                             /// - Parameters:
-                            ///   - attachment_url: URL to download the full crash log attachment.
                             ///   - app_name: The app name.
+                            ///   - attachment_url: URL to download the full crash log attachment.
                             ///   - exception_subtype: The exception subtype.
                             ///   - exception_type: The exception type (e.g., EXC_CRASH).
                             ///   - file_name: The crash log file name.
-                            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                             ///   - id: The stack trace ID.
                             ///   - os_version: The OS version.
                             ///   - signal: The signal (e.g., SIGABRT).
+                            ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                             public init(
-                                attachment_url: Swift.String,
                                 app_name: Swift.String? = nil,
+                                attachment_url: Swift.String,
                                 exception_subtype: Swift.String? = nil,
                                 exception_type: Swift.String? = nil,
                                 file_name: Swift.String,
-                                triggered_thread_frames: Swift.String? = nil,
                                 id: Swift.String,
                                 os_version: Swift.String? = nil,
-                                signal: Swift.String? = nil
+                                signal: Swift.String? = nil,
+                                triggered_thread_frames: Swift.String? = nil
                             ) {
-                                self.attachment_url = attachment_url
                                 self.app_name = app_name
+                                self.attachment_url = attachment_url
                                 self.exception_subtype = exception_subtype
                                 self.exception_type = exception_type
                                 self.file_name = file_name
-                                self.triggered_thread_frames = triggered_thread_frames
                                 self.id = id
                                 self.os_version = os_version
                                 self.signal = signal
+                                self.triggered_thread_frames = triggered_thread_frames
                             }
                             public enum CodingKeys: String, CodingKey {
-                                case attachment_url
                                 case app_name
+                                case attachment_url
                                 case exception_subtype
                                 case exception_type
                                 case file_name
-                                case triggered_thread_frames
                                 case id
                                 case os_version
                                 case signal
+                                case triggered_thread_frames
                             }
                         }
                         /// Crash stack trace associated with this test case run.
@@ -12162,28 +12202,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -13474,6 +13514,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/app_name`.
                     public var app_name: Swift.String?
+                    /// The UUID of the attachment this stack trace was parsed from.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/attachment_id`.
+                    public var attachment_id: Swift.String?
                     /// The exception subtype or additional details.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/exception_subtype`.
@@ -13486,10 +13530,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/file_name`.
                     public var file_name: Swift.String
-                    /// Human-readable formatted crash thread frames.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/triggered_thread_frames`.
-                    public var triggered_thread_frames: Swift.String?
                     /// Deterministic UUID generated from content hash and file name.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/id`.
@@ -13502,45 +13542,53 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/signal`.
                     public var signal: Swift.String?
+                    /// Human-readable formatted crash thread frames.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/triggered_thread_frames`.
+                    public var triggered_thread_frames: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - app_name: The name of the crashed application.
+                    ///   - attachment_id: The UUID of the attachment this stack trace was parsed from.
                     ///   - exception_subtype: The exception subtype or additional details.
                     ///   - exception_type: The exception type (e.g., EXC_CRASH).
                     ///   - file_name: The human-readable name of the crash log file.
-                    ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                     ///   - id: Deterministic UUID generated from content hash and file name.
                     ///   - os_version: The OS version when the crash occurred.
                     ///   - signal: The signal that caused the crash (e.g., SIGABRT).
+                    ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                     public init(
                         app_name: Swift.String? = nil,
+                        attachment_id: Swift.String? = nil,
                         exception_subtype: Swift.String? = nil,
                         exception_type: Swift.String? = nil,
                         file_name: Swift.String,
-                        triggered_thread_frames: Swift.String? = nil,
                         id: Swift.String,
                         os_version: Swift.String? = nil,
-                        signal: Swift.String? = nil
+                        signal: Swift.String? = nil,
+                        triggered_thread_frames: Swift.String? = nil
                     ) {
                         self.app_name = app_name
+                        self.attachment_id = attachment_id
                         self.exception_subtype = exception_subtype
                         self.exception_type = exception_type
                         self.file_name = file_name
-                        self.triggered_thread_frames = triggered_thread_frames
                         self.id = id
                         self.os_version = os_version
                         self.signal = signal
+                        self.triggered_thread_frames = triggered_thread_frames
                     }
                     public enum CodingKeys: String, CodingKey {
                         case app_name
+                        case attachment_id
                         case exception_subtype
                         case exception_type
                         case file_name
-                        case triggered_thread_frames
                         case id
                         case os_version
                         case signal
+                        case triggered_thread_frames
                     }
                 }
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/content/application\/json`.
@@ -27188,524 +27236,94 @@ public enum Operations {
             }
         }
     }
-    /// Create a test case run attachment and get a presigned upload URL.
-    ///
-    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
-    public enum createTestCaseRunAttachment {
-        public static let id: Swift.String = "createTestCaseRunAttachment"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/path`.
-            public struct Path: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/path/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/path/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var path: Operations.createTestCaseRunAttachment.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestCaseRunAttachment.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestCaseRunAttachment.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.createTestCaseRunAttachment.Input.Headers
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The MIME content type of the attachment.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody/json/content_type`.
-                    public var content_type: Swift.String?
-                    /// The file name of the attachment.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody/json/file_name`.
-                    public var file_name: Swift.String
-                    /// The size of the attachment in bytes.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody/json/size`.
-                    public var size: Swift.Int?
-                    /// The UUID of the test case run.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody/json/test_case_run_id`.
-                    public var test_case_run_id: Swift.String
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - content_type: The MIME content type of the attachment.
-                    ///   - file_name: The file name of the attachment.
-                    ///   - size: The size of the attachment in bytes.
-                    ///   - test_case_run_id: The UUID of the test case run.
-                    public init(
-                        content_type: Swift.String? = nil,
-                        file_name: Swift.String,
-                        size: Swift.Int? = nil,
-                        test_case_run_id: Swift.String
-                    ) {
-                        self.content_type = content_type
-                        self.file_name = file_name
-                        self.size = size
-                        self.test_case_run_id = test_case_run_id
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case content_type
-                        case file_name
-                        case size
-                        case test_case_run_id
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/requestBody/content/application\/json`.
-                case json(Operations.createTestCaseRunAttachment.Input.Body.jsonPayload)
-            }
-            public var body: Operations.createTestCaseRunAttachment.Input.Body?
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - headers:
-            ///   - body:
-            public init(
-                path: Operations.createTestCaseRunAttachment.Input.Path,
-                headers: Operations.createTestCaseRunAttachment.Input.Headers = .init(),
-                body: Operations.createTestCaseRunAttachment.Input.Body? = nil
-            ) {
-                self.path = path
-                self.headers = headers
-                self.body = body
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Created: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/201/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/201/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// Unix timestamp when the upload URL expires.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/201/content/json/expires_at`.
-                        public var expires_at: Swift.Int
-                        /// The attachment ID.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/201/content/json/id`.
-                        public var id: Swift.String
-                        /// Presigned URL to upload the file.
-                        ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/201/content/json/upload_url`.
-                        public var upload_url: Swift.String
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - expires_at: Unix timestamp when the upload URL expires.
-                        ///   - id: The attachment ID.
-                        ///   - upload_url: Presigned URL to upload the file.
-                        public init(
-                            expires_at: Swift.Int,
-                            id: Swift.String,
-                            upload_url: Swift.String
-                        ) {
-                            self.expires_at = expires_at
-                            self.id = id
-                            self.upload_url = upload_url
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case expires_at
-                            case id
-                            case upload_url
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/201/content/application\/json`.
-                    case json(Operations.createTestCaseRunAttachment.Output.Created.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.createTestCaseRunAttachment.Output.Created.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createTestCaseRunAttachment.Output.Created.Body
-                /// Creates a new `Created`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createTestCaseRunAttachment.Output.Created.Body) {
-                    self.body = body
-                }
-            }
-            /// The attachment was created
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)/responses/201`.
-            ///
-            /// HTTP response code: `201 created`.
-            case created(Operations.createTestCaseRunAttachment.Output.Created)
-            /// The associated value of the enum case if `self` is `.created`.
-            ///
-            /// - Throws: An error if `self` is not `.created`.
-            /// - SeeAlso: `.created`.
-            public var created: Operations.createTestCaseRunAttachment.Output.Created {
-                get throws {
-                    switch self {
-                    case let .created(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "created",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createTestCaseRunAttachment.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createTestCaseRunAttachment.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request parameters are invalid
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.createTestCaseRunAttachment.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.createTestCaseRunAttachment.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createTestCaseRunAttachment.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createTestCaseRunAttachment.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.createTestCaseRunAttachment.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.createTestCaseRunAttachment.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createTestCaseRunAttachment.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createTestCaseRunAttachment.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// Not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.createTestCaseRunAttachment.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.createTestCaseRunAttachment.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/POST/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.createTestCaseRunAttachment.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.createTestCaseRunAttachment.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project doesn't exist
-            ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.createTestCaseRunAttachment.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.createTestCaseRunAttachment.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// List runs for a test case.
+    /// List runs for a test case. Deprecated: use listTestCaseRuns with test_case_id query param instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)`.
-    public enum listTestCaseRuns {
-        public static let id: Swift.String = "listTestCaseRuns"
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRunsByTestCase)`.
+    public enum listTestCaseRunsByTestCase {
+        public static let id: Swift.String = "listTestCaseRunsByTestCase"
         public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/path`.
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path`.
             public struct Path: Sendable, Hashable {
                 /// The handle of the account.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/path/account_handle`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/account_handle`.
                 public var account_handle: Swift.String
                 /// The handle of the project.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/path/project_handle`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/project_handle`.
                 public var project_handle: Swift.String
+                /// The ID of the test case.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/path/test_case_id`.
+                public var test_case_id: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - account_handle: The handle of the account.
                 ///   - project_handle: The handle of the project.
+                ///   - test_case_id: The ID of the test case.
                 public init(
                     account_handle: Swift.String,
-                    project_handle: Swift.String
+                    project_handle: Swift.String,
+                    test_case_id: Swift.String
                 ) {
                     self.account_handle = account_handle
                     self.project_handle = project_handle
+                    self.test_case_id = test_case_id
                 }
             }
-            public var path: Operations.listTestCaseRuns.Input.Path
-            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query`.
+            public var path: Operations.listTestCaseRunsByTestCase.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query`.
             public struct Query: Sendable, Hashable {
-                /// Filter by test case ID.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/test_case_id`.
-                public var test_case_id: Swift.String?
                 /// Filter by flaky status. When true, only returns flaky runs.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/flaky`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/flaky`.
                 public var flaky: Swift.Bool?
                 /// Filter by test run ID.
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/test_run_id`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/test_run_id`.
                 public var test_run_id: Swift.String?
                 ///
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/page_size`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/page_size`.
                 public var page_size: Swift.Int?
                 ///
                 ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/page`.
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/query/page`.
                 public var page: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
-                ///   - test_case_id: Filter by test case ID.
                 ///   - flaky: Filter by flaky status. When true, only returns flaky runs.
                 ///   - test_run_id: Filter by test run ID.
                 ///   - page_size:
                 ///   - page:
                 public init(
-                    test_case_id: Swift.String? = nil,
                     flaky: Swift.Bool? = nil,
                     test_run_id: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
-                    self.test_case_id = test_case_id
                     self.flaky = flaky
                     self.test_run_id = test_run_id
                     self.page_size = page_size
                     self.page = page
                 }
             }
-            public var query: Operations.listTestCaseRuns.Input.Query
+            public var query: Operations.listTestCaseRunsByTestCase.Input.Query
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRunsByTestCase.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRunsByTestCase.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.listTestCaseRuns.Input.Headers
+            public var headers: Operations.listTestCaseRunsByTestCase.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
@@ -27713,9 +27331,9 @@ public enum Operations {
             ///   - query:
             ///   - headers:
             public init(
-                path: Operations.listTestCaseRuns.Input.Path,
-                query: Operations.listTestCaseRuns.Input.Query = .init(),
-                headers: Operations.listTestCaseRuns.Input.Headers = .init()
+                path: Operations.listTestCaseRunsByTestCase.Input.Path,
+                query: Operations.listTestCaseRunsByTestCase.Input.Query = .init(),
+                headers: Operations.listTestCaseRunsByTestCase.Input.Headers = .init()
             ) {
                 self.path = path
                 self.query = query
@@ -27734,51 +27352,51 @@ public enum Operations {
                         public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
                             /// Duration in milliseconds.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/duration`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/duration`.
                             public var duration: Swift.Int
                             /// Git branch.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/git_branch`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/git_branch`.
                             public var git_branch: Swift.String?
                             /// Git commit SHA.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/git_commit_sha`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/git_commit_sha`.
                             public var git_commit_sha: Swift.String?
                             /// The test case run ID.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/id`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/id`.
                             public var id: Swift.String
                             /// Whether the run was on CI.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/is_ci`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_ci`.
                             public var is_ci: Swift.Bool
                             /// Whether the run was flaky.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/is_flaky`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_flaky`.
                             public var is_flaky: Swift.Bool
                             /// Whether this was a new test case.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/is_new`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/is_new`.
                             public var is_new: Swift.Bool
                             /// Module name.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/module_name`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/module_name`.
                             public var module_name: Swift.String
                             /// Name of the test case.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/name`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/name`.
                             public var name: Swift.String
                             /// ISO 8601 timestamp when the run executed.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
                             public var ran_at: Foundation.Date?
                             /// Build scheme.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
                             public var scheme: Swift.String?
                             /// Run status.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
                             @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case success = "success"
                                 case failure = "failure"
@@ -27786,11 +27404,11 @@ public enum Operations {
                             }
                             /// Run status.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
-                            public var status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
+                            public var status: Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
                             /// Suite name.
                             ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/suite_name`.
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runsPayload/suite_name`.
                             public var suite_name: Swift.String?
                             /// Creates a new `test_case_runsPayloadPayload`.
                             ///
@@ -27820,7 +27438,7 @@ public enum Operations {
                                 name: Swift.String,
                                 ran_at: Foundation.Date? = nil,
                                 scheme: Swift.String? = nil,
-                                status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload,
+                                status: Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload,
                                 suite_name: Swift.String? = nil
                             ) {
                                 self.duration = duration
@@ -27854,9 +27472,9 @@ public enum Operations {
                             }
                         }
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runs`.
-                        public typealias test_case_runsPayload = [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+                        public typealias test_case_runsPayload = [Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/json/test_case_runs`.
-                        public var test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
+                        public var test_case_runs: Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload.test_case_runsPayload
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
@@ -27864,7 +27482,7 @@ public enum Operations {
                         ///   - test_case_runs:
                         public init(
                             pagination_metadata: Components.Schemas.PaginationMetadata,
-                            test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
+                            test_case_runs: Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload.test_case_runsPayload
                         ) {
                             self.pagination_metadata = pagination_metadata
                             self.test_case_runs = test_case_runs
@@ -27875,12 +27493,12 @@ public enum Operations {
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/GET/responses/200/content/application\/json`.
-                    case json(Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload)
+                    case json(Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload)
                     /// The associated value of the enum case if `self` is `.json`.
                     ///
                     /// - Throws: An error if `self` is not `.json`.
                     /// - SeeAlso: `.json`.
-                    public var json: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+                    public var json: Operations.listTestCaseRunsByTestCase.Output.Ok.Body.jsonPayload {
                         get throws {
                             switch self {
                             case let .json(body):
@@ -27890,26 +27508,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.listTestCaseRuns.Output.Ok.Body
+                public var body: Operations.listTestCaseRunsByTestCase.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.listTestCaseRuns.Output.Ok.Body) {
+                public init(body: Operations.listTestCaseRunsByTestCase.Output.Ok.Body) {
                     self.body = body
                 }
             }
             /// List of test case runs
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRuns)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRunsByTestCase)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.listTestCaseRuns.Output.Ok)
+            case ok(Operations.listTestCaseRunsByTestCase.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.listTestCaseRuns.Output.Ok {
+            public var ok: Operations.listTestCaseRunsByTestCase.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -27941,26 +27559,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.listTestCaseRuns.Output.Forbidden.Body
+                public var body: Operations.listTestCaseRunsByTestCase.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.listTestCaseRuns.Output.Forbidden.Body) {
+                public init(body: Operations.listTestCaseRunsByTestCase.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// You don't have permission to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs/get(listTestCaseRunsByTestCase)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.listTestCaseRuns.Output.Forbidden)
+            case forbidden(Operations.listTestCaseRunsByTestCase.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.listTestCaseRuns.Output.Forbidden {
+            public var forbidden: Operations.listTestCaseRunsByTestCase.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -30016,6 +29634,392 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List test case runs.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)`.
+    public enum listTestCaseRuns {
+        public static let id: Swift.String = "listTestCaseRuns"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listTestCaseRuns.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Filter by test case ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/test_case_id`.
+                public var test_case_id: Swift.String?
+                /// Filter by flaky status. When true, only returns flaky runs.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/flaky`.
+                public var flaky: Swift.Bool?
+                /// Filter by test run ID.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/test_run_id`.
+                public var test_run_id: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - test_case_id: Filter by test case ID.
+                ///   - flaky: Filter by flaky status. When true, only returns flaky runs.
+                ///   - test_run_id: Filter by test run ID.
+                ///   - page_size:
+                ///   - page:
+                public init(
+                    test_case_id: Swift.String? = nil,
+                    flaky: Swift.Bool? = nil,
+                    test_run_id: Swift.String? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.test_case_id = test_case_id
+                    self.flaky = flaky
+                    self.test_run_id = test_run_id
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listTestCaseRuns.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCaseRuns.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listTestCaseRuns.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listTestCaseRuns.Input.Path,
+                query: Operations.listTestCaseRuns.Input.Query = .init(),
+                headers: Operations.listTestCaseRuns.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload`.
+                        public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Duration in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/duration`.
+                            public var duration: Swift.Int
+                            /// Git branch.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/git_branch`.
+                            public var git_branch: Swift.String?
+                            /// Git commit SHA.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String?
+                            /// The test case run ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/id`.
+                            public var id: Swift.String
+                            /// Whether the run was on CI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/is_ci`.
+                            public var is_ci: Swift.Bool
+                            /// Whether the run was flaky.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/is_flaky`.
+                            public var is_flaky: Swift.Bool
+                            /// Whether this was a new test case.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/is_new`.
+                            public var is_new: Swift.Bool
+                            /// Module name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/module_name`.
+                            public var module_name: Swift.String
+                            /// Name of the test case.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/name`.
+                            public var name: Swift.String
+                            /// ISO 8601 timestamp when the run executed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
+                            public var ran_at: Foundation.Date?
+                            /// Build scheme.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
+                            public var scheme: Swift.String?
+                            /// Run status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                                case skipped = "skipped"
+                            }
+                            /// Run status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/status`.
+                            public var status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload
+                            /// Suite name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runsPayload/suite_name`.
+                            public var suite_name: Swift.String?
+                            /// Creates a new `test_case_runsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration: Duration in milliseconds.
+                            ///   - git_branch: Git branch.
+                            ///   - git_commit_sha: Git commit SHA.
+                            ///   - id: The test case run ID.
+                            ///   - is_ci: Whether the run was on CI.
+                            ///   - is_flaky: Whether the run was flaky.
+                            ///   - is_new: Whether this was a new test case.
+                            ///   - module_name: Module name.
+                            ///   - name: Name of the test case.
+                            ///   - ran_at: ISO 8601 timestamp when the run executed.
+                            ///   - scheme: Build scheme.
+                            ///   - status: Run status.
+                            ///   - suite_name: Suite name.
+                            public init(
+                                duration: Swift.Int,
+                                git_branch: Swift.String? = nil,
+                                git_commit_sha: Swift.String? = nil,
+                                id: Swift.String,
+                                is_ci: Swift.Bool,
+                                is_flaky: Swift.Bool,
+                                is_new: Swift.Bool,
+                                module_name: Swift.String,
+                                name: Swift.String,
+                                ran_at: Foundation.Date? = nil,
+                                scheme: Swift.String? = nil,
+                                status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload,
+                                suite_name: Swift.String? = nil
+                            ) {
+                                self.duration = duration
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.id = id
+                                self.is_ci = is_ci
+                                self.is_flaky = is_flaky
+                                self.is_new = is_new
+                                self.module_name = module_name
+                                self.name = name
+                                self.ran_at = ran_at
+                                self.scheme = scheme
+                                self.status = status
+                                self.suite_name = suite_name
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration
+                                case git_branch
+                                case git_commit_sha
+                                case id
+                                case is_ci
+                                case is_flaky
+                                case is_new
+                                case module_name
+                                case name
+                                case ran_at
+                                case scheme
+                                case status
+                                case suite_name
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runs`.
+                        public typealias test_case_runsPayload = [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/json/test_case_runs`.
+                        public var test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - test_case_runs:
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            test_case_runs: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayload
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.test_case_runs = test_case_runs
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case test_case_runs
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/200/content/application\/json`.
+                    case json(Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestCaseRuns.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestCaseRuns.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of test case runs
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listTestCaseRuns.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listTestCaseRuns.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestCaseRuns.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestCaseRuns.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/get(listTestCaseRuns)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listTestCaseRuns.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listTestCaseRuns.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -38478,6 +38482,436 @@ public enum Operations {
             }
         }
     }
+    /// Create a test case run attachment and get a presigned upload URL.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/attachments`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
+    public enum createTestCaseRunAttachment {
+        public static let id: Swift.String = "createTestCaseRunAttachment"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the project's account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the project's account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createTestCaseRunAttachment.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestCaseRunAttachment.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createTestCaseRunAttachment.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createTestCaseRunAttachment.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The MIME content type of the attachment.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/content_type`.
+                    public var content_type: Swift.String?
+                    /// The file name of the attachment.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/file_name`.
+                    public var file_name: Swift.String
+                    /// The size of the attachment in bytes.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/size`.
+                    public var size: Swift.Int?
+                    /// The UUID of the test case run.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/test_case_run_id`.
+                    public var test_case_run_id: Swift.String
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - content_type: The MIME content type of the attachment.
+                    ///   - file_name: The file name of the attachment.
+                    ///   - size: The size of the attachment in bytes.
+                    ///   - test_case_run_id: The UUID of the test case run.
+                    public init(
+                        content_type: Swift.String? = nil,
+                        file_name: Swift.String,
+                        size: Swift.Int? = nil,
+                        test_case_run_id: Swift.String
+                    ) {
+                        self.content_type = content_type
+                        self.file_name = file_name
+                        self.size = size
+                        self.test_case_run_id = test_case_run_id
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case content_type
+                        case file_name
+                        case size
+                        case test_case_run_id
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/content/application\/json`.
+                case json(Operations.createTestCaseRunAttachment.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createTestCaseRunAttachment.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createTestCaseRunAttachment.Input.Path,
+                headers: Operations.createTestCaseRunAttachment.Input.Headers = .init(),
+                body: Operations.createTestCaseRunAttachment.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Created: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/201/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/201/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Unix timestamp when the upload URL expires.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/201/content/json/expires_at`.
+                        public var expires_at: Swift.Int
+                        /// The attachment ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/201/content/json/id`.
+                        public var id: Swift.String
+                        /// Presigned URL to upload the file.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/201/content/json/upload_url`.
+                        public var upload_url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - expires_at: Unix timestamp when the upload URL expires.
+                        ///   - id: The attachment ID.
+                        ///   - upload_url: Presigned URL to upload the file.
+                        public init(
+                            expires_at: Swift.Int,
+                            id: Swift.String,
+                            upload_url: Swift.String
+                        ) {
+                            self.expires_at = expires_at
+                            self.id = id
+                            self.upload_url = upload_url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case expires_at
+                            case id
+                            case upload_url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/201/content/application\/json`.
+                    case json(Operations.createTestCaseRunAttachment.Output.Created.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createTestCaseRunAttachment.Output.Created.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestCaseRunAttachment.Output.Created.Body
+                /// Creates a new `Created`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestCaseRunAttachment.Output.Created.Body) {
+                    self.body = body
+                }
+            }
+            /// The attachment was created
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)/responses/201`.
+            ///
+            /// HTTP response code: `201 created`.
+            case created(Operations.createTestCaseRunAttachment.Output.Created)
+            /// The associated value of the enum case if `self` is `.created`.
+            ///
+            /// - Throws: An error if `self` is not `.created`.
+            /// - SeeAlso: `.created`.
+            public var created: Operations.createTestCaseRunAttachment.Output.Created {
+                get throws {
+                    switch self {
+                    case let .created(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "created",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestCaseRunAttachment.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestCaseRunAttachment.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createTestCaseRunAttachment.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createTestCaseRunAttachment.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestCaseRunAttachment.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestCaseRunAttachment.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createTestCaseRunAttachment.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createTestCaseRunAttachment.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestCaseRunAttachment.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestCaseRunAttachment.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createTestCaseRunAttachment.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createTestCaseRunAttachment.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createTestCaseRunAttachment.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createTestCaseRunAttachment.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createTestCaseRunAttachment.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createTestCaseRunAttachment.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Completes artifacts uploads for a given run
     ///
     /// Given a run, it marks all artifact uploads as finished and does extra processing of a given command run, such as test flakiness detection.
@@ -38756,7 +39190,7 @@ public enum Operations {
             }
         }
     }
-    /// List test case runs for a test run.
+    /// List test case runs for a test run. Deprecated: use listTestCaseRuns with test_run_id query param instead.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/get(listTestCaseRunsByTestRun)`.
@@ -38860,6 +39294,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/duration`.
                             public var duration: Swift.Int
+                            /// Git branch.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/git_branch`.
+                            public var git_branch: Swift.String?
+                            /// Git commit SHA.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String?
                             /// The test case run ID.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/id`.
@@ -38884,6 +39326,14 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/name`.
                             public var name: Swift.String
+                            /// ISO 8601 timestamp when the run executed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/ran_at`.
+                            public var ran_at: Foundation.Date?
+                            /// Build scheme.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/scheme`.
+                            public var scheme: Swift.String?
                             /// Run status.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/test-case-runs/GET/responses/200/content/json/test_case_runsPayload/status`.
@@ -38904,43 +39354,59 @@ public enum Operations {
                             ///
                             /// - Parameters:
                             ///   - duration: Duration in milliseconds.
+                            ///   - git_branch: Git branch.
+                            ///   - git_commit_sha: Git commit SHA.
                             ///   - id: The test case run ID.
                             ///   - is_ci: Whether the run was on CI.
                             ///   - is_flaky: Whether the run was flaky.
                             ///   - is_new: Whether this was a new test case.
                             ///   - module_name: Module name.
                             ///   - name: Name of the test case.
+                            ///   - ran_at: ISO 8601 timestamp when the run executed.
+                            ///   - scheme: Build scheme.
                             ///   - status: Run status.
                             ///   - suite_name: Suite name.
                             public init(
                                 duration: Swift.Int,
+                                git_branch: Swift.String? = nil,
+                                git_commit_sha: Swift.String? = nil,
                                 id: Swift.String,
                                 is_ci: Swift.Bool,
                                 is_flaky: Swift.Bool,
                                 is_new: Swift.Bool,
                                 module_name: Swift.String,
                                 name: Swift.String,
+                                ran_at: Foundation.Date? = nil,
+                                scheme: Swift.String? = nil,
                                 status: Operations.listTestCaseRunsByTestRun.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload.statusPayload,
                                 suite_name: Swift.String? = nil
                             ) {
                                 self.duration = duration
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
                                 self.id = id
                                 self.is_ci = is_ci
                                 self.is_flaky = is_flaky
                                 self.is_new = is_new
                                 self.module_name = module_name
                                 self.name = name
+                                self.ran_at = ran_at
+                                self.scheme = scheme
                                 self.status = status
                                 self.suite_name = suite_name
                             }
                             public enum CodingKeys: String, CodingKey {
                                 case duration
+                                case git_branch
+                                case git_commit_sha
                                 case id
                                 case is_ci
                                 case is_flaky
                                 case is_new
                                 case module_name
                                 case name
+                                case ran_at
+                                case scheme
                                 case status
                                 case suite_name
                             }

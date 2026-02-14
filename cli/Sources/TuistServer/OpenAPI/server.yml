@@ -3022,6 +3022,11 @@ components:
           type: string
           x-struct:
           x-validate:
+        attachment_id:
+          description: The UUID of the attachment this stack trace was parsed from.
+          type: string
+          x-struct:
+          x-validate:
         exception_subtype:
           description: The exception subtype or additional details.
           type: string
@@ -5873,14 +5878,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -5897,12 +5894,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
+        - description: Page number for pagination.
           in: query
-          name: git_branch
+          name: page
           required: false
           schema:
-            type: string
+            type: integer
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -5911,6 +5908,14 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
       responses:
@@ -6232,6 +6237,11 @@ paths:
               properties:
                 app_name:
                   description: The name of the crashed application.
+                  type: string
+                  x-struct:
+                  x-validate:
+                attachment_id:
+                  description: The UUID of the attachment this stack trace was parsed from.
                   type: string
                   x-struct:
                   x-validate:
@@ -14110,6 +14120,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:4002
+  - url: http://localhost:8080
     variables: {}
 tags: []

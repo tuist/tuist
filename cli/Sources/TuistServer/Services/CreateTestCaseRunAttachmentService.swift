@@ -14,7 +14,7 @@ public protocol CreateTestCaseRunAttachmentServicing {
         fileName: String,
         contentType: String,
         filePath: AbsolutePath
-    ) async throws
+    ) async throws -> String
 }
 
 enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
@@ -61,7 +61,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
         fileName: String,
         contentType: String,
         filePath: AbsolutePath
-    ) async throws {
+    ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -103,6 +103,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 else {
                     throw CreateTestCaseRunAttachmentServiceError.uploadFailed
                 }
+                return json.id
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {

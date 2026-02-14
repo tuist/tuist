@@ -135,30 +135,30 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         if !testSummary.stackTraces.isEmpty {
             do {
                 try await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
+                    var attachmentId: String?
+                    do {
+                        attachmentId = try await createTestCaseRunAttachmentService.createAttachment(
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            testCaseRunId: stackTrace.id,
+                            fileName: stackTrace.fileName,
+                            contentType: "application/x-ips",
+                            filePath: stackTrace.filePath
+                        )
+                    } catch {
+                        Logger.current
+                            .warning("Failed to upload attachment for \(stackTrace.fileName): \(error.localizedDescription)")
+                    }
                     try await createStackTraceService.createStackTrace(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         testRunId: test.id,
-                        stackTrace: stackTrace
+                        stackTrace: stackTrace,
+                        attachmentId: attachmentId
                     )
                 }
             } catch {
                 Logger.current.warning("Failed to upload stack traces: \(error.localizedDescription)")
-            }
-
-            do {
-                try await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
-                    try await createTestCaseRunAttachmentService.createAttachment(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        testCaseRunId: stackTrace.id,
-                        fileName: stackTrace.fileName,
-                        contentType: "application/x-ips",
-                        filePath: stackTrace.filePath
-                    )
-                }
-            } catch {
-                Logger.current.warning("Failed to upload stack trace attachments: \(error.localizedDescription)")
             }
         }
 

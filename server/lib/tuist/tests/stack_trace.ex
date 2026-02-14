@@ -17,6 +17,7 @@ defmodule Tuist.Tests.StackTrace do
     field :exception_subtype, Ch, type: "String"
     field :raw_content, Ch, type: "String"
     field :triggered_thread_frames, Ch, type: "String"
+    field :attachment_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -32,6 +33,7 @@ defmodule Tuist.Tests.StackTrace do
       :exception_subtype,
       :raw_content,
       :triggered_thread_frames,
+      :attachment_id,
       :inserted_at
     ])
     |> validate_required([:id, :file_name])
