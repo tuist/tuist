@@ -15,10 +15,10 @@ bir şekilde derlemenizi ve test etmenizi sağlayan güçlü bir araçtır.
 veya [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) gibi bazı büyük
 kuruluşlar bu aracı kullanmaktadır, ancak bu aracı tanıtmak ve sürdürmek için
 önceden (yani teknolojiyi öğrenmek) ve sürekli yatırım (yani Xcode
-güncellemelerini takip etmek) gereklidir. Bu, onu çapraz kesen bir sorun olarak
+güncellemelerini takip etmek) gerekir. Bu, onu çapraz kesen bir sorun olarak
 gören bazı kuruluşlar için işe yararken, ürün geliştirmeye odaklanmak isteyen
 diğerleri için en uygun seçenek olmayabilir. Örneğin, iOS platform ekibi Bazel'i
-tanıtan ve bu çalışmayı yöneten mühendisler şirketten ayrıldıktan sonra onu
+kullanan ve bu çalışmayı yöneten mühendisler şirketten ayrıldıktan sonra onu
 bırakmak zorunda kalan kuruluşlar gördük. Apple'ın Xcode ve derleme sistemi
 arasındaki güçlü bağa ilişkin tutumu, Bazel projelerini zaman içinde sürdürmeyi
 zorlaştıran bir başka faktördür.
@@ -97,9 +97,9 @@ let project = Project(
 :::
 
 
-## Swift paketi Yöneticisi bağımlılıkları {#swift-package-manager-dependencies}
+## Swift package Yöneticisi bağımlılıkları {#swift-package-manager-dependencies}
 
-Bazel'de, Swift paketlerini bağımlılık olarak kullanmak için
+Bazel'de, Swift package'leri bağımlılık olarak kullanmak için
 [`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager)
 [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md)
 eklentisini kullanabilirsiniz. Eklenti, bağımlılıklar için doğru kaynak olarak
