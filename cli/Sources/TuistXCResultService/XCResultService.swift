@@ -170,7 +170,7 @@ public struct XCResultService: XCResultServicing {
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
-        let crashReportsByTestIdentifier = await extractCrashAttachments(from: xcresultPath)
+        let crashReportsByTestIdentifier = await crashReportsByTestIdentifiers(from: xcresultPath)
 
         allTestCases = allTestCases.map { testCase in
             let testIdentifier = normalizeTestIdentifier(
@@ -509,7 +509,7 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
-    private func extractCrashAttachments(from xcresultPath: AbsolutePath) async -> [String: CrashReport] {
+    private func crashReportsByTestIdentifiers(from xcresultPath: AbsolutePath) async -> [String: CrashReport] {
         do {
             return try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-crash-attachments") {
                 temporaryDirectory in
