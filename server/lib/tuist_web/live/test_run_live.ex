@@ -604,13 +604,12 @@ defmodule TuistWeb.TestRunLive do
 
     {failures, meta} = Tests.list_test_run_failures(run.id, attrs)
 
-    stack_trace_ids =
+    test_case_run_ids =
       failures
-      |> Enum.map(& &1.stack_trace_id)
-      |> Enum.reject(&is_nil/1)
+      |> Enum.map(& &1.test_case_run_id)
       |> Enum.uniq()
 
-    stack_traces = Tests.get_stack_traces_by_ids(stack_trace_ids)
+    stack_traces = Tests.get_stack_traces_by_test_case_run_ids(test_case_run_ids)
 
     # Group failures by test case
     failures_grouped =

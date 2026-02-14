@@ -2,10 +2,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateStackTraces do
   use Ecto.Migration
 
   def up do
-    create table(:stack_traces,
+    create table(:test_case_run_stack_traces,
              primary_key: false,
              engine: "MergeTree",
-             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (id)"
+             options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_case_run_id, id)"
            ) do
       add :id, :uuid, null: false
       add :file_name, :string, null: false
@@ -15,11 +15,14 @@ defmodule Tuist.IngestRepo.Migrations.CreateStackTraces do
       add :signal, :string, default: ""
       add :exception_subtype, :string, default: ""
       add :raw_content, :string, null: false
+      add :triggered_thread_frames, :string, default: ""
+      add :test_case_run_id, :uuid, null: false
+      add :test_case_run_attachment_id, :uuid
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
     end
   end
 
   def down do
-    drop table(:stack_traces)
+    drop table(:test_case_run_stack_traces)
   end
 end

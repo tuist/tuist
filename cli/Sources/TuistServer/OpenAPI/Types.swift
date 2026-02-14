@@ -6638,10 +6638,6 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/repetitions`.
                     public var repetitions: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload?
-                    /// The deterministic UUID of the crash stack trace associated with this test case.
-                    ///
-                    /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/stack_trace_id`.
-                    public var stack_trace_id: Swift.String?
                     /// The status of the test case.
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestParams/test_modulesPayload/test_casesPayload/status`.
@@ -6665,7 +6661,6 @@ public enum Components {
                     ///   - failures: The failures that occurred in this test case.
                     ///   - name: The name of the test case.
                     ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
-                    ///   - stack_trace_id: The deterministic UUID of the crash stack trace associated with this test case.
                     ///   - status: The status of the test case.
                     ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                     public init(
@@ -6673,7 +6668,6 @@ public enum Components {
                         failures: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                         name: Swift.String,
                         repetitions: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
-                        stack_trace_id: Swift.String? = nil,
                         status: Components.Schemas.TestParams.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                         test_suite_name: Swift.String? = nil
                     ) {
@@ -6681,7 +6675,6 @@ public enum Components {
                         self.failures = failures
                         self.name = name
                         self.repetitions = repetitions
-                        self.stack_trace_id = stack_trace_id
                         self.status = status
                         self.test_suite_name = test_suite_name
                     }
@@ -6690,7 +6683,6 @@ public enum Components {
                         case failures
                         case name
                         case repetitions
-                        case stack_trace_id
                         case status
                         case test_suite_name
                     }
@@ -38004,10 +37996,6 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/repetitions`.
                             public var repetitions: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload?
-                            /// The deterministic UUID of the crash stack trace associated with this test case.
-                            ///
-                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/stack_trace_id`.
-                            public var stack_trace_id: Swift.String?
                             /// The status of the test case.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/test_modulesPayload/test_casesPayload/status`.
@@ -38031,7 +38019,6 @@ public enum Operations {
                             ///   - failures: The failures that occurred in this test case.
                             ///   - name: The name of the test case.
                             ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
-                            ///   - stack_trace_id: The deterministic UUID of the crash stack trace associated with this test case.
                             ///   - status: The status of the test case.
                             ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                             public init(
@@ -38039,7 +38026,6 @@ public enum Operations {
                                 failures: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                                 name: Swift.String,
                                 repetitions: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
-                                stack_trace_id: Swift.String? = nil,
                                 status: Operations.createTest.Input.Body.jsonPayload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                                 test_suite_name: Swift.String? = nil
                             ) {
@@ -38047,7 +38033,6 @@ public enum Operations {
                                 self.failures = failures
                                 self.name = name
                                 self.repetitions = repetitions
-                                self.stack_trace_id = stack_trace_id
                                 self.status = status
                                 self.test_suite_name = test_suite_name
                             }
@@ -38056,7 +38041,6 @@ public enum Operations {
                                 case failures
                                 case name
                                 case repetitions
-                                case stack_trace_id
                                 case status
                                 case test_suite_name
                             }

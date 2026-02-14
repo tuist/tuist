@@ -3277,11 +3277,6 @@ components:
                       type: array
                       x-struct:
                       x-validate:
-                    stack_trace_id:
-                      description: The deterministic UUID of the crash stack trace associated with this test case.
-                      type: string
-                      x-struct:
-                      x-validate:
                     status:
                       description: The status of the test case.
                       enum:
@@ -13700,11 +13695,6 @@ paths:
                                 x-struct:
                                 x-validate:
                               type: array
-                              x-struct:
-                              x-validate:
-                            stack_trace_id:
-                              description: The deterministic UUID of the crash stack trace associated with this test case.
-                              type: string
                               x-struct:
                               x-validate:
                             status:

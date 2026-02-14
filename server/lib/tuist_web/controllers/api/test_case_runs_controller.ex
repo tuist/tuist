@@ -452,7 +452,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
     case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
-          stack_trace = fetch_stack_trace(conn, run.id, run.stack_trace_id)
+          stack_trace = fetch_stack_trace(conn, run.id)
 
           json(conn, %{
             id: run.id,
@@ -545,10 +545,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
-  defp fetch_stack_trace(_conn, _test_case_run_id, nil), do: nil
-
-  defp fetch_stack_trace(conn, test_case_run_id, stack_trace_id) do
-    case Tests.get_stack_trace_by_id(stack_trace_id) do
+  defp fetch_stack_trace(conn, test_case_run_id) do
+    case Tests.get_stack_trace_by_test_case_run_id(test_case_run_id) do
       {:ok, st} ->
         %{account_handle: account_handle, project_handle: project_handle} = conn.params
 

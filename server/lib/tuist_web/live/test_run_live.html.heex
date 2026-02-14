@@ -383,7 +383,7 @@
                 <span :for={failure <- failures} data-part="failure">
                   {format_failure_message(failure, @run)}
                 </span>
-                <% stack_trace = @stack_traces[List.first(failures).stack_trace_id] %>
+                <% stack_trace = @stack_traces[test_case_run_id] %>
                 <div :if={stack_trace} data-part="stack-trace-details">
                   <div data-part="stack-trace-header">
                     <span data-part="stack-trace-title">
@@ -1477,7 +1477,7 @@
               <span :for={failure <- failures} data-part="failure">
                 {format_failure_message(failure, @run)}
               </span>
-              <% stack_trace = @stack_traces[List.first(failures).stack_trace_id] %>
+              <% stack_trace = @stack_traces[test_case_run_id] %>
               <div :if={stack_trace} data-part="stack-trace-details">
                 <div data-part="stack-trace-header">
                   <span data-part="stack-trace-title">

@@ -49,10 +49,10 @@ defmodule Tuist.Tests do
     end
   end
 
-  def get_stack_trace_by_id(id) do
+  def get_stack_trace_by_test_case_run_id(test_case_run_id) do
     query =
       from(st in StackTrace,
-        where: st.id == ^id,
+        where: st.test_case_run_id == ^test_case_run_id,
         limit: 1
       )
 
@@ -62,14 +62,14 @@ defmodule Tuist.Tests do
     end
   end
 
-  def get_stack_traces_by_ids([]), do: %{}
+  def get_stack_traces_by_test_case_run_ids([]), do: %{}
 
-  def get_stack_traces_by_ids(ids) do
-    query = from(st in StackTrace, where: st.id in ^ids)
+  def get_stack_traces_by_test_case_run_ids(test_case_run_ids) do
+    query = from(st in StackTrace, where: st.test_case_run_id in ^test_case_run_ids)
 
     query
     |> ClickHouseRepo.all()
-    |> Map.new(fn st -> {st.id, st} end)
+    |> Map.new(fn st -> {st.test_case_run_id, st} end)
   end
 
   def get_test(id, opts \\ []) do
@@ -147,8 +147,7 @@ defmodule Tuist.Tests do
           inserted_at: f.inserted_at,
           test_case_name: tcr.name,
           test_module_name: tcr.module_name,
-          test_suite_name: tcr.suite_name,
-          stack_trace_id: tcr.stack_trace_id
+          test_suite_name: tcr.suite_name
         }
 
     Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)
@@ -779,8 +778,7 @@ defmodule Tuist.Tests do
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
-          suite_name: suite_name || "",
-          stack_trace_id: Map.get(case_attrs, :stack_trace_id)
+          suite_name: suite_name || ""
         }
 
         failures = Map.get(case_attrs, :failures, [])

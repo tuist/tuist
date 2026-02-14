@@ -17,7 +17,7 @@ defmodule Tuist.Tests.StackTrace do
     field :exception_subtype, Ch, type: "String"
     field :raw_content, Ch, type: "String"
     field :triggered_thread_frames, Ch, type: "String"
-    field :test_case_run_id, Ch, type: "Nullable(UUID)"
+    field :test_case_run_id, Ecto.UUID
     field :test_case_run_attachment_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
@@ -38,6 +38,6 @@ defmodule Tuist.Tests.StackTrace do
       :test_case_run_attachment_id,
       :inserted_at
     ])
-    |> validate_required([:id, :file_name])
+    |> validate_required([:id, :file_name, :test_case_run_id])
   end
 end
