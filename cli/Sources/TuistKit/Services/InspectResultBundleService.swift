@@ -148,27 +148,20 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                 }
             )
 
-            do {
-                try await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
-                    let testCaseRunId = testCaseRunMap[stackTrace.id]
+            await testSummary.stackTraces.forEach(context: .concurrent) { stackTrace in
+                let testCaseRunId = testCaseRunMap[stackTrace.id]
 
+                do {
                     var testCaseRunAttachmentId: String?
                     if let testCaseRunId {
-                        do {
-                            testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
-                                fullHandle: fullHandle,
-                                serverURL: serverURL,
-                                testCaseRunId: testCaseRunId,
-                                fileName: stackTrace.fileName,
-                                contentType: "application/x-ips",
-                                filePath: stackTrace.filePath
-                            )
-                        } catch {
-                            Logger.current
-                                .warning(
-                                    "Failed to upload attachment for \(stackTrace.fileName): \(error.localizedDescription)"
-                                )
-                        }
+                        testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            testCaseRunId: testCaseRunId,
+                            fileName: stackTrace.fileName,
+                            contentType: "application/x-ips",
+                            filePath: stackTrace.filePath
+                        )
                     }
                     try await createStackTraceService.createStackTrace(
                         fullHandle: fullHandle,
@@ -178,9 +171,10 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                         testCaseRunId: testCaseRunId,
                         testCaseRunAttachmentId: testCaseRunAttachmentId
                     )
+                } catch {
+                    Logger.current
+                        .warning("Failed to upload stack trace for \(stackTrace.fileName): \(error.localizedDescription)")
                 }
-            } catch {
-                Logger.current.warning("Failed to upload stack traces: \(error.localizedDescription)")
             }
         }
 
