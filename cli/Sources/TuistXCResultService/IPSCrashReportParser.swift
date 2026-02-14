@@ -1,15 +1,31 @@
 import Foundation
 
 public struct IPSCrashReportParser {
+    public struct Result {
+        public let exceptionType: String?
+        public let signal: String?
+        public let exceptionSubtype: String?
+        public let triggeredThreadFrames: String?
+    }
+
     public init() {}
 
-    public func triggeredThreadFrames(_ content: String) -> String? {
+    public func parse(_ content: String) -> Result? {
         let lines = content.components(separatedBy: .newlines)
         guard lines.count >= 2,
               let payloadData = lines[1].data(using: .utf8),
               let payload = try? JSONDecoder().decode(IPSPayload.self, from: payloadData)
         else { return nil }
 
+        return Result(
+            exceptionType: payload.exception?.type,
+            signal: payload.exception?.signal,
+            exceptionSubtype: payload.exception?.subtype,
+            triggeredThreadFrames: formatTriggeredThread(payload)
+        )
+    }
+
+    private func formatTriggeredThread(_ payload: IPSPayload) -> String? {
         let imageNames = payload.usedImages.map { image in
             image.name ?? image.path.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "???"
         }
@@ -49,6 +65,13 @@ public struct IPSCrashReportParser {
 private struct IPSPayload: Decodable {
     let usedImages: [IPSImage]
     let threads: [IPSThread]
+    let exception: IPSException?
+}
+
+private struct IPSException: Decodable {
+    let type: String?
+    let signal: String?
+    let subtype: String?
 }
 
 private struct IPSImage: Decodable {

@@ -173,8 +173,9 @@ public struct XCResultService: XCResultServicing {
         let crashReportsByTestIdentifier = await extractCrashAttachments(from: xcresultPath)
 
         allTestCases = allTestCases.map { testCase in
-            let normalizedName = testCase.name.hasSuffix("()") ? String(testCase.name.dropLast(2)) : testCase.name
-            let testIdentifier = testCase.testSuite.map { "\($0)/\(normalizedName)" } ?? normalizedName
+            let testIdentifier = normalizeTestIdentifier(
+                testCase.testSuite.map { "\($0)/\(testCase.name)" } ?? testCase.name
+            )
             guard let crashReport = crashReportsByTestIdentifier[testIdentifier] else {
                 return testCase
             }
@@ -542,19 +543,16 @@ public struct XCResultService: XCResultServicing {
                         guard try await fileSystem.exists(filePath) else { continue }
 
                         let content = try await fileSystem.readTextFile(at: filePath)
-                        let metadata = parseIPSMetadata(content)
-                        let triggeredThreadFrames = IPSCrashReportParser().triggeredThreadFrames(content)
-
-                        let crashReport = CrashReport(
-                            exceptionType: metadata.exceptionType,
-                            signal: metadata.signal,
-                            exceptionSubtype: metadata.exceptionSubtype,
-                            filePath: filePath,
-                            triggeredThreadFrames: triggeredThreadFrames
-                        )
+                        let crashReport = IPSCrashReportParser().parse(content)
 
                         let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
-                        crashReportsByTestIdentifier[normalizedIdentifier] = crashReport
+                        crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
+                            exceptionType: crashReport?.exceptionType,
+                            signal: crashReport?.signal,
+                            exceptionSubtype: crashReport?.exceptionSubtype,
+                            filePath: filePath,
+                            triggeredThreadFrames: crashReport?.triggeredThreadFrames
+                        )
                     }
                 }
 
@@ -576,31 +574,6 @@ public struct XCResultService: XCResultServicing {
             return "\(components[components.count - 2])/\(components[components.count - 1])"
         }
         return normalized
-    }
-
-    private struct IPSMetadata {
-        var exceptionType: String?
-        var signal: String?
-        var exceptionSubtype: String?
-    }
-
-    private func parseIPSMetadata(_ content: String) -> IPSMetadata {
-        var metadata = IPSMetadata()
-
-        let lines = content.components(separatedBy: .newlines)
-        guard lines.count >= 2 else { return metadata }
-
-        if let payloadData = lines[1].data(using: .utf8),
-           let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any]
-        {
-            if let exception = payload["exception"] as? [String: Any] {
-                metadata.exceptionType = exception["type"] as? String
-                metadata.signal = exception["signal"] as? String
-                metadata.exceptionSubtype = exception["subtype"] as? String
-            }
-        }
-
-        return metadata
     }
 
     // MARK: - Swift Testing Duration Parsing
