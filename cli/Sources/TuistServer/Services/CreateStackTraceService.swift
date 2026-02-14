@@ -13,8 +13,8 @@ import TuistHTTP
             serverURL: URL,
             testRunId: String,
             stackTrace: CrashStackTrace,
-            testCaseRunId: String?,
-            testCaseRunAttachmentId: String?
+            testCaseRunId: String,
+            testCaseRunAttachmentId: String
         ) async throws
     }
 
@@ -51,8 +51,8 @@ import TuistHTTP
             serverURL: URL,
             testRunId: String,
             stackTrace: CrashStackTrace,
-            testCaseRunId: String? = nil,
-            testCaseRunAttachmentId: String? = nil
+            testCaseRunId: String,
+            testCaseRunAttachmentId: String
         ) async throws {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
