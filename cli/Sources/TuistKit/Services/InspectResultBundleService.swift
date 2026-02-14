@@ -151,7 +151,6 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                     try await createTestCaseRunAttachmentService.createAttachment(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        testRunId: test.id,
                         testCaseRunId: stackTrace.id,
                         fileName: stackTrace.fileName,
                         contentType: "application/x-ips",

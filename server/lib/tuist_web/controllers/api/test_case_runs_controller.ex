@@ -422,7 +422,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
                    nullable: true,
                    description: "The exception subtype."
                  },
-                 formatted_frames: %Schema{
+                 triggered_thread_frames: %Schema{
                    type: :string,
                    nullable: true,
                    description: "Human-readable formatted crash thread frames."
@@ -576,7 +576,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
           exception_type: nullable_string(st.exception_type),
           signal: nullable_string(st.signal),
           exception_subtype: nullable_string(st.exception_subtype),
-          formatted_frames: nullable_string(st.formatted_frames),
+          triggered_thread_frames: nullable_string(st.triggered_thread_frames),
           attachment_url: attachment_url
         }
 

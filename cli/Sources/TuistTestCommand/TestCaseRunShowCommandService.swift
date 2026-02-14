@@ -91,8 +91,8 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
             }
             Noora.current.passthrough("\(summary.joined(separator: "\n"))\n")
             Noora.current.passthrough("  \(.link(title: "Full stack trace", href: stackTrace.attachment_url))\n")
-            if let formattedFrames = stackTrace.formatted_frames, !formattedFrames.isEmpty {
-                Noora.current.passthrough("\n\(formattedFrames)\n")
+            if let triggeredThreadFrames = stackTrace.triggered_thread_frames, !triggeredThreadFrames.isEmpty {
+                Noora.current.passthrough("\n\(triggeredThreadFrames)\n")
             }
         }
         Noora.current.passthrough("")

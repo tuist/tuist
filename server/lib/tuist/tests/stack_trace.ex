@@ -16,7 +16,7 @@ defmodule Tuist.Tests.StackTrace do
     field :signal, Ch, type: "String"
     field :exception_subtype, Ch, type: "String"
     field :raw_content, Ch, type: "String"
-    field :formatted_frames, Ch, type: "String"
+    field :triggered_thread_frames, Ch, type: "String"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
@@ -31,7 +31,7 @@ defmodule Tuist.Tests.StackTrace do
       :signal,
       :exception_subtype,
       :raw_content,
-      :formatted_frames,
+      :triggered_thread_frames,
       :inserted_at
     ])
     |> validate_required([:id, :file_name])

@@ -6936,18 +6936,17 @@ public struct Client: APIProtocol {
     /// Create a test case run attachment and get a presigned upload URL.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments/post(createTestCaseRunAttachment)`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/attachments/post(createTestCaseRunAttachment)`.
     public func createTestCaseRunAttachment(_ input: Operations.createTestCaseRunAttachment.Input) async throws -> Operations.createTestCaseRunAttachment.Output {
         try await client.send(
             input: input,
             forOperation: Operations.createTestCaseRunAttachment.id,
             serializer: { input in
                 let path = try converter.renderedPath(
-                    template: "/api/projects/{}/{}/tests/{}/attachments",
+                    template: "/api/projects/{}/{}/tests/attachments",
                     parameters: [
                         input.path.account_handle,
-                        input.path.project_handle,
-                        input.path.test_run_id
+                        input.path.project_handle
                     ]
                 )
                 var request: HTTPTypes.HTTPRequest = .init(

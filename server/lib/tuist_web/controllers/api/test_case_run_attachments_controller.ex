@@ -32,12 +32,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
         type: :string,
         required: true,
         description: "The handle of the project."
-      ],
-      test_run_id: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The UUID of the test run."
       ]
     ],
     request_body:
@@ -86,18 +80,9 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
 
   def create(
         %{assigns: %{selected_project: project}, body_params: body_params} = conn,
-        %{test_run_id: test_run_id}
+        _params
       ) do
     attachment_id = UUIDv7.generate()
-
-    s3_object_key =
-      Tests.attachment_storage_key(%{
-        account_handle: project.account.name,
-        project_handle: project.name,
-        test_run_id: test_run_id,
-        attachment_id: attachment_id,
-        file_name: body_params.file_name
-      })
 
     attrs = %{
       id: attachment_id,
@@ -105,13 +90,21 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       file_name: body_params.file_name,
       content_type: Map.get(body_params, :content_type, ""),
       size: Map.get(body_params, :size, 0),
-      s3_object_key: s3_object_key,
       inserted_at: NaiveDateTime.utc_now()
     }
 
     case Tests.create_test_case_run_attachment(attrs) do
       {:ok, _attachment} ->
         expires_in = 3600
+
+        s3_object_key =
+          Tests.attachment_storage_key(%{
+            account_handle: project.account.name,
+            project_handle: project.name,
+            test_case_run_id: body_params.test_case_run_id,
+            attachment_id: attachment_id,
+            file_name: body_params.file_name
+          })
 
         upload_url =
           Storage.generate_upload_url(s3_object_key, project.account, expires_in: expires_in)
@@ -179,11 +172,19 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
         %{assigns: %{selected_project: project}} = conn,
         %{test_case_run_id: test_case_run_id, file_name: file_name}
       ) do
-    with {:ok, test_case_run} <- Tests.get_test_case_run_by_id(test_case_run_id),
-         stack_trace_id when not is_nil(stack_trace_id) <- test_case_run.stack_trace_id,
-         {:ok, attachment} <- Tests.get_attachment(stack_trace_id, file_name) do
+    with {:ok, attachment} <- Tests.get_attachment(test_case_run_id, file_name) do
       expires_in = 3600
-      url = Storage.generate_download_url(attachment.s3_object_key, project.account, expires_in: expires_in)
+
+      s3_object_key =
+        Tests.attachment_storage_key(%{
+          account_handle: project.account.name,
+          project_handle: project.name,
+          test_case_run_id: test_case_run_id,
+          attachment_id: attachment.id,
+          file_name: file_name
+        })
+
+      url = Storage.generate_download_url(s3_object_key, project.account, expires_in: expires_in)
 
       json(conn, %{url: url})
     else

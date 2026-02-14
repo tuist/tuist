@@ -74,7 +74,7 @@ defmodule TuistWeb.API.StackTracesController do
              type: :string,
              description: "The exception subtype or additional details."
            },
-           formatted_frames: %Schema{
+           triggered_thread_frames: %Schema{
              type: :string,
              description: "Human-readable formatted crash thread frames."
            }
@@ -99,7 +99,7 @@ defmodule TuistWeb.API.StackTracesController do
       exception_type: Map.get(body_params, :exception_type),
       signal: Map.get(body_params, :signal),
       exception_subtype: Map.get(body_params, :exception_subtype),
-      formatted_frames: Map.get(body_params, :formatted_frames, ""),
+      triggered_thread_frames: Map.get(body_params, :triggered_thread_frames, ""),
       inserted_at: NaiveDateTime.utc_now()
     }
 

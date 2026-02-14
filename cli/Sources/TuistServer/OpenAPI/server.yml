@@ -3037,11 +3037,6 @@ components:
           type: string
           x-struct:
           x-validate:
-        formatted_frames:
-          description: Human-readable formatted crash thread frames.
-          type: string
-          x-struct:
-          x-validate:
         id:
           description: Deterministic UUID generated from content hash and file name.
           type: string
@@ -3054,6 +3049,11 @@ components:
           x-validate:
         signal:
           description: The signal that caused the crash (e.g., SIGABRT).
+          type: string
+          x-struct:
+          x-validate:
+        triggered_thread_frames:
+          description: Human-readable formatted crash thread frames.
           type: string
           x-struct:
           x-validate:
@@ -5778,12 +5778,6 @@ paths:
                         type: string
                         x-struct:
                         x-validate:
-                      formatted_frames:
-                        description: Human-readable formatted crash thread frames.
-                        nullable: true
-                        type: string
-                        x-struct:
-                        x-validate:
                       id:
                         description: The stack trace ID.
                         format: uuid
@@ -5798,6 +5792,12 @@ paths:
                         x-validate:
                       signal:
                         description: The signal (e.g., SIGABRT).
+                        nullable: true
+                        type: string
+                        x-struct:
+                        x-validate:
+                      triggered_thread_frames:
+                        description: Human-readable formatted crash thread frames.
                         nullable: true
                         type: string
                         x-struct:
@@ -6250,11 +6250,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                formatted_frames:
-                  description: Human-readable formatted crash thread frames.
-                  type: string
-                  x-struct:
-                  x-validate:
                 id:
                   description: Deterministic UUID generated from content hash and file name.
                   type: string
@@ -6267,6 +6262,11 @@ paths:
                   x-validate:
                 signal:
                   description: The signal that caused the crash (e.g., SIGABRT).
+                  type: string
+                  x-struct:
+                  x-validate:
+                triggered_thread_frames:
+                  description: Human-readable formatted crash thread frames.
                   type: string
                   x-struct:
                   x-validate:
@@ -10024,126 +10024,6 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
-  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/attachments:
-    post:
-      callbacks: {}
-      operationId: createTestCaseRunAttachment
-      parameters:
-        - description: The handle of the project's account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The UUID of the test run.
-          in: path
-          name: test_run_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                content_type:
-                  description: The MIME content type of the attachment.
-                  type: string
-                  x-struct:
-                  x-validate:
-                file_name:
-                  description: The file name of the attachment.
-                  type: string
-                  x-struct:
-                  x-validate:
-                size:
-                  description: The size of the attachment in bytes.
-                  type: integer
-                  x-struct:
-                  x-validate:
-                test_case_run_id:
-                  description: The UUID of the test case run.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - test_case_run_id
-                - file_name
-              title: TestCaseRunAttachmentParams
-              type: object
-              x-struct:
-              x-validate:
-        description: Attachment params
-        required: false
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                properties:
-                  expires_at:
-                    description: Unix timestamp when the upload URL expires.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  id:
-                    description: The attachment ID.
-                    format: uuid
-                    type: string
-                    x-struct:
-                    x-validate:
-                  upload_url:
-                    description: Presigned URL to upload the file.
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - id
-                  - upload_url
-                  - expires_at
-                type: object
-                x-struct:
-                x-validate:
-          description: The attachment was created
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request parameters are invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: Create a test case run attachment and get a presigned upload URL.
-      tags:
-        - Tests
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs:
     get:
       callbacks: {}
@@ -13888,6 +13768,118 @@ paths:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
       summary: Create a new test run.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/tests/attachments:
+    post:
+      callbacks: {}
+      operationId: createTestCaseRunAttachment
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                content_type:
+                  description: The MIME content type of the attachment.
+                  type: string
+                  x-struct:
+                  x-validate:
+                file_name:
+                  description: The file name of the attachment.
+                  type: string
+                  x-struct:
+                  x-validate:
+                size:
+                  description: The size of the attachment in bytes.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                test_case_run_id:
+                  description: The UUID of the test case run.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - test_case_run_id
+                - file_name
+              title: TestCaseRunAttachmentParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Attachment params
+        required: false
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                properties:
+                  expires_at:
+                    description: Unix timestamp when the upload URL expires.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The attachment ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  upload_url:
+                    description: Presigned URL to upload the file.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - upload_url
+                  - expires_at
+                type: object
+                x-struct:
+                x-validate:
+          description: The attachment was created
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Create a test case run attachment and get a presigned upload URL.
       tags:
         - Tests
   /api/runs/{run_id}/complete_artifacts_uploads:

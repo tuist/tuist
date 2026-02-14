@@ -66,7 +66,7 @@ import TuistHTTP
                             exception_subtype: stackTrace.exceptionSubtype,
                             exception_type: stackTrace.exceptionType,
                             file_name: stackTrace.fileName,
-                            formatted_frames: stackTrace.triggeredThreadFrames,
+                            triggered_thread_frames: stackTrace.triggeredThreadFrames,
                             id: stackTrace.id,
                             os_version: stackTrace.osVersion,
                             signal: stackTrace.signal

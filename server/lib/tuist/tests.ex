@@ -1712,10 +1712,10 @@ defmodule Tuist.Tests do
   def attachment_storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        test_run_id: test_run_id,
+        test_case_run_id: test_case_run_id,
         attachment_id: attachment_id,
         file_name: file_name
       }) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/test-case-runs/#{test_case_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 end

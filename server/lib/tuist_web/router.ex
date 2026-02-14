@@ -384,7 +384,7 @@ defmodule TuistWeb.Router do
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
           post "/:test_run_id/stack-traces", StackTracesController, :create
-          post "/:test_run_id/attachments", TestCaseRunAttachmentsController, :create
+          post "/attachments", TestCaseRunAttachmentsController, :create
 
           get "/test-case-runs/:test_case_run_id/attachments/:file_name",
               TestCaseRunAttachmentsController,

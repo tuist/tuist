@@ -10,7 +10,6 @@ public protocol CreateTestCaseRunAttachmentServicing {
     func createAttachment(
         fullHandle: String,
         serverURL: URL,
-        testRunId: String,
         testCaseRunId: String,
         fileName: String,
         contentType: String,
@@ -58,7 +57,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
     public func createAttachment(
         fullHandle: String,
         serverURL: URL,
-        testRunId: String,
         testCaseRunId: String,
         fileName: String,
         contentType: String,
@@ -73,8 +71,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
-                    test_run_id: testRunId
+                    project_handle: handles.projectHandle
                 ),
                 body: .json(
                     .init(

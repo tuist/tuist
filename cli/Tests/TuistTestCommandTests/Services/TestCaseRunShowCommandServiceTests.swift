@@ -261,7 +261,7 @@ struct TestCaseRunShowCommandServiceTests {
                 exception_subtype: "KERN_INVALID_ADDRESS",
                 exception_type: "EXC_CRASH",
                 file_name: "MyApp-2024-01-15-123456.ips",
-                formatted_frames: "0  libswiftCore.dylib  _assertionFailure + 156\n1  MyApp               MyApp.example() + 180",
+                triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156\n1  MyApp               MyApp.example() + 180",
                 id: "trace-id",
                 os_version: "17.2",
                 signal: "SIGABRT"

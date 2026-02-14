@@ -1061,7 +1061,7 @@ defmodule Tuist.TestsTest do
         exception_type: "EXC_CRASH",
         signal: "SIGABRT",
         exception_subtype: "KERN_INVALID_ADDRESS",
-        formatted_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
+        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
         inserted_at: NaiveDateTime.utc_now()
       }
 
