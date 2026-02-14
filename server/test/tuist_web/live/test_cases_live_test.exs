@@ -53,7 +53,7 @@ defmodule TuistWeb.TestCasesLiveTest do
       project: project
     } do
       # Given - create test run with test modules/cases using the proper flow
-      {:ok, _test_run} = create_test_run_with_cases(project, organization.account)
+      {:ok, _test_run, _} = create_test_run_with_cases(project, organization.account)
 
       # Wait for ClickHouse to process
       Process.sleep(100)

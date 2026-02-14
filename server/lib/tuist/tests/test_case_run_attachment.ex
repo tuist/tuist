@@ -1,4 +1,5 @@
 defmodule Tuist.Tests.TestCaseRunAttachment do
+  @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset

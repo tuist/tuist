@@ -11,7 +11,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunAttachments do
       add :test_case_run_id, :string, null: false
       add :file_name, :string, null: false
       add :content_type, :string, default: ""
-      add :size, :"UInt64", default: 0
+      add :size, :UInt64, default: 0
       add :s3_object_key, :string, null: false
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
     end

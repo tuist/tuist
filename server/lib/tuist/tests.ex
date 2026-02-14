@@ -29,10 +29,10 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.StackTrace
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
-  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -67,7 +67,8 @@ defmodule Tuist.Tests do
   def get_stack_traces_by_ids(ids) do
     query = from(st in StackTrace, where: st.id in ^ids)
 
-    ClickHouseRepo.all(query)
+    query
+    |> ClickHouseRepo.all()
     |> Map.new(fn st -> {st.id, st} end)
   end
 
@@ -201,7 +202,7 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        test_case_ids_with_flaky_run = create_test_modules(test, test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs_info} = create_test_modules(test, test_modules)
 
         schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
@@ -213,7 +214,7 @@ defmodule Tuist.Tests do
           :test_created
         )
 
-        {:ok, test}
+        {:ok, test, test_case_runs_info}
 
       {:error, changeset} ->
         {:error, changeset}
@@ -497,7 +498,7 @@ defmodule Tuist.Tests do
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
-    Enum.flat_map(test_modules, fn module_attrs ->
+    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_runs_info ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -536,14 +537,17 @@ defmodule Tuist.Tests do
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
-      create_test_cases_for_module(
-        test,
-        module_id,
-        test_cases,
-        suite_name_to_id,
-        module_name,
-        module_test_case_run_data
-      )
+      {flaky_ids, runs_info} =
+        create_test_cases_for_module(
+          test,
+          module_id,
+          test_cases,
+          suite_name_to_id,
+          module_name,
+          module_test_case_run_data
+        )
+
+      {flaky_ids, acc_runs_info ++ runs_info}
     end)
   end
 
@@ -819,7 +823,17 @@ defmodule Tuist.Tests do
 
     create_first_run_events(test_case_runs)
 
-    test_case_ids_with_flaky_run
+    runs_info =
+      Enum.map(test_case_runs, fn run ->
+        %{
+          id: run.id,
+          name: run.name,
+          module_name: run.module_name,
+          suite_name: run.suite_name
+        }
+      end)
+
+    {test_case_ids_with_flaky_run, runs_info}
   end
 
   defp create_first_run_events(test_case_runs) do

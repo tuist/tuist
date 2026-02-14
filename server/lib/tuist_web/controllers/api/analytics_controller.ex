@@ -408,7 +408,7 @@ defmodule TuistWeb.API.AnalyticsController do
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
         case create_test_run_from_command_event(body_params, selected_project) do
-          {:ok, test_run} -> test_run.id
+          {:ok, test_run, _test_case_runs_info} -> test_run.id
           {:error, _} -> nil
         end
       else

@@ -13,7 +13,8 @@ import TuistHTTP
             serverURL: URL,
             testRunId: String,
             stackTrace: CrashStackTrace,
-            attachmentId: String?
+            testCaseRunId: String?,
+            testCaseRunAttachmentId: String?
         ) async throws
     }
 
@@ -50,7 +51,8 @@ import TuistHTTP
             serverURL: URL,
             testRunId: String,
             stackTrace: CrashStackTrace,
-            attachmentId: String? = nil
+            testCaseRunId: String? = nil,
+            testCaseRunAttachmentId: String? = nil
         ) async throws {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -65,13 +67,14 @@ import TuistHTTP
                     body: .json(
                         .init(
                             app_name: stackTrace.appName,
-                            attachment_id: attachmentId,
                             exception_subtype: stackTrace.exceptionSubtype,
                             exception_type: stackTrace.exceptionType,
                             file_name: stackTrace.fileName,
                             id: stackTrace.id,
                             os_version: stackTrace.osVersion,
                             signal: stackTrace.signal,
+                            test_case_run_attachment_id: testCaseRunAttachmentId,
+                            test_case_run_id: testCaseRunId,
                             triggered_thread_frames: stackTrace.triggeredThreadFrames
                         )
                     )

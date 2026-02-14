@@ -203,7 +203,7 @@ defmodule Tuist.VCSTest do
           display_name: "WatchApp"
         )
 
-      {:ok, test_run_one} =
+      {:ok, test_run_one, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -231,7 +231,7 @@ defmodule Tuist.VCSTest do
           test_run_id: test_run_one.id
         )
 
-      {:ok, test_run_two} =
+      {:ok, test_run_two, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -1030,7 +1030,7 @@ defmodule Tuist.VCSTest do
           display_name: "App"
         )
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,

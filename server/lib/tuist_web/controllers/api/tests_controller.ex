@@ -267,7 +267,7 @@ defmodule TuistWeb.API.TestsController do
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
     case get_or_create_test(run_params) do
-      {:ok, test_run} ->
+      {:ok, test_run, test_case_runs_info} ->
         conn
         |> put_status(:ok)
         |> json(%{
@@ -275,7 +275,16 @@ defmodule TuistWeb.API.TestsController do
           id: test_run.id,
           duration: test_run.duration,
           project_id: test_run.project_id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}")
+          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
+          test_case_runs:
+            Enum.map(test_case_runs_info, fn run ->
+              %{
+                id: run.id,
+                name: run.name,
+                module_name: run.module_name,
+                suite_name: run.suite_name
+              }
+            end)
         })
 
       {:error, _changeset} ->
@@ -335,17 +344,24 @@ defmodule TuistWeb.API.TestsController do
              flaky_test_count: %Schema{type: :integer, description: "Number of flaky test cases."},
              avg_test_duration: %Schema{type: :integer, description: "Average test case duration in milliseconds."}
            },
-           required: [:id, :status, :duration, :is_ci, :is_flaky, :total_test_count, :failed_test_count, :flaky_test_count, :avg_test_duration]
+           required: [
+             :id,
+             :status,
+             :duration,
+             :is_ci,
+             :is_flaky,
+             :total_test_count,
+             :failed_test_count,
+             :flaky_test_count,
+             :avg_test_duration
+           ]
          }},
       not_found: {"Test run not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
-  def show(
-        %{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id}} = conn,
-        _params
-      ) do
+  def show(%{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id}} = conn, _params) do
     case Tests.get_test(test_run_id) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
@@ -406,7 +422,7 @@ defmodule TuistWeb.API.TestsController do
 
     case Tests.get_test(test_id) do
       {:ok, test_run} ->
-        {:ok, test_run}
+        {:ok, test_run, []}
 
       {:error, :not_found} ->
         Tests.create_test(%{

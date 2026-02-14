@@ -16,7 +16,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -89,7 +89,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -174,7 +174,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -209,7 +209,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       project = ProjectsFixtures.project_fixture()
 
       # Create test runs
-      {:ok, test_run_one} =
+      {:ok, test_run_one, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -227,7 +227,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           test_modules: []
         })
 
-      {:ok, test_run_two} =
+      {:ok, test_run_two, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -367,7 +367,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -426,7 +426,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -509,7 +509,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, ci_test_run} =
+      {:ok, ci_test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -527,7 +527,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           test_modules: []
         })
 
-      {:ok, local_test_run} =
+      {:ok, local_test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -609,7 +609,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -710,7 +710,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test_run} =
+      {:ok, test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -827,7 +827,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, ci_test_run} =
+      {:ok, ci_test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -845,7 +845,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           test_modules: []
         })
 
-      {:ok, local_test_run} =
+      {:ok, local_test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -915,7 +915,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _test_run_1} =
+      {:ok, _test_run_1, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -933,7 +933,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           test_modules: []
         })
 
-      {:ok, _test_run_2} =
+      {:ok, _test_run_2, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -951,7 +951,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           test_modules: []
         })
 
-      {:ok, _test_run_3} =
+      {:ok, _test_run_3, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -1020,7 +1020,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _ci_test_run} =
+      {:ok, _ci_test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -1038,7 +1038,7 @@ defmodule Tuist.Tests.AnalyticsTest do
           test_modules: []
         })
 
-      {:ok, _local_test_run} =
+      {:ok, _local_test_run, _} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,

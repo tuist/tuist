@@ -815,6 +815,7 @@ defmodule TuistWeb.Router do
       get "/tests/test-case-runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
           :download
+
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/notifications", ProjectNotificationsLive

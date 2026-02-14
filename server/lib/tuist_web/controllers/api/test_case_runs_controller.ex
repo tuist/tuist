@@ -112,16 +112,12 @@ defmodule TuistWeb.API.TestCaseRunsController do
     ],
     responses: %{
       ok: {"List of test case runs", "application/json", @test_case_runs_list_response},
-      forbidden:
-        {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
   def index(
-        %{
-          assigns: %{selected_project: _selected_project},
-          params: %{page_size: page_size, page: page} = params
-        } = conn,
+        %{assigns: %{selected_project: _selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
     filters = build_run_filters(params)
@@ -187,8 +183,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
     ],
     responses: %{
       ok: {"List of test case runs", "application/json", @test_case_runs_list_response},
-      forbidden:
-        {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
@@ -251,11 +246,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
       ]
     ],
     responses: %{
-      ok:
-        {"List of test case runs for a test run", "application/json",
-         @test_case_runs_list_response},
-      forbidden:
-        {"You don't have permission to access this resource", "application/json", Error}
+      ok: {"List of test case runs for a test run", "application/json", @test_case_runs_list_response},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
@@ -449,16 +441,12 @@ defmodule TuistWeb.API.TestCaseRunsController do
            ]
          }},
       not_found: {"Test case run not found", "application/json", Error},
-      forbidden:
-        {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
   def show(
-        %{
-          assigns: %{selected_project: selected_project},
-          params: %{test_case_run_id: test_case_run_id}
-        } = conn,
+        %{assigns: %{selected_project: selected_project}, params: %{test_case_run_id: test_case_run_id}} = conn,
         _params
       ) do
     case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do

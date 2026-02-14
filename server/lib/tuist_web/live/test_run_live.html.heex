@@ -402,20 +402,37 @@
                     </.button>
                   </div>
                   <div data-part="stack-trace-metadata">
-                    <span :if={stack_trace.exception_type && stack_trace.exception_type != ""} data-part="stack-trace-meta-item">
-                      <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
+                    <span
+                      :if={stack_trace.exception_type && stack_trace.exception_type != ""}
+                      data-part="stack-trace-meta-item"
+                    >
+                      <span data-part="meta-label">
+                        {dgettext("dashboard_tests", "Exception")}
+                      </span>
                       <span data-part="meta-value">{stack_trace.exception_type}</span>
                     </span>
-                    <span :if={stack_trace.signal && stack_trace.signal != ""} data-part="stack-trace-meta-item">
+                    <span
+                      :if={stack_trace.signal && stack_trace.signal != ""}
+                      data-part="stack-trace-meta-item"
+                    >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
                       <span data-part="meta-value">{stack_trace.signal}</span>
                     </span>
-                    <span :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""} data-part="stack-trace-meta-item">
+                    <span
+                      :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""}
+                      data-part="stack-trace-meta-item"
+                    >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
                       <span data-part="meta-value">{stack_trace.exception_subtype}</span>
                     </span>
                   </div>
-                  <pre :if={stack_trace.triggered_thread_frames && stack_trace.triggered_thread_frames != ""} data-part="stack-trace-frames">{stack_trace.triggered_thread_frames}</pre>
+                  <pre
+                    :if={
+                      stack_trace.triggered_thread_frames &&
+                        stack_trace.triggered_thread_frames != ""
+                    }
+                    data-part="stack-trace-frames"
+                  >{stack_trace.triggered_thread_frames}</pre>
                 </div>
               </div>
             </div>
@@ -1479,28 +1496,49 @@
                   </.button>
                 </div>
                 <div data-part="stack-trace-metadata">
-                  <span :if={stack_trace.exception_type && stack_trace.exception_type != ""} data-part="stack-trace-meta-item">
+                  <span
+                    :if={stack_trace.exception_type && stack_trace.exception_type != ""}
+                    data-part="stack-trace-meta-item"
+                  >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
                     <span data-part="meta-value">{stack_trace.exception_type}</span>
                   </span>
-                  <span :if={stack_trace.signal && stack_trace.signal != ""} data-part="stack-trace-meta-item">
+                  <span
+                    :if={stack_trace.signal && stack_trace.signal != ""}
+                    data-part="stack-trace-meta-item"
+                  >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
                     <span data-part="meta-value">{stack_trace.signal}</span>
                   </span>
-                  <span :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""} data-part="stack-trace-meta-item">
+                  <span
+                    :if={stack_trace.exception_subtype && stack_trace.exception_subtype != ""}
+                    data-part="stack-trace-meta-item"
+                  >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
                     <span data-part="meta-value">{stack_trace.exception_subtype}</span>
                   </span>
-                  <span :if={stack_trace.app_name && stack_trace.app_name != ""} data-part="stack-trace-meta-item">
+                  <span
+                    :if={stack_trace.app_name && stack_trace.app_name != ""}
+                    data-part="stack-trace-meta-item"
+                  >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "App")}</span>
                     <span data-part="meta-value">{stack_trace.app_name}</span>
                   </span>
-                  <span :if={stack_trace.os_version && stack_trace.os_version != ""} data-part="stack-trace-meta-item">
+                  <span
+                    :if={stack_trace.os_version && stack_trace.os_version != ""}
+                    data-part="stack-trace-meta-item"
+                  >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "OS")}</span>
                     <span data-part="meta-value">{stack_trace.os_version}</span>
                   </span>
                 </div>
-                <pre :if={stack_trace.triggered_thread_frames && stack_trace.triggered_thread_frames != ""} data-part="stack-trace-frames">{stack_trace.triggered_thread_frames}</pre>
+                <pre
+                  :if={
+                    stack_trace.triggered_thread_frames &&
+                      stack_trace.triggered_thread_frames != ""
+                  }
+                  data-part="stack-trace-frames"
+                >{stack_trace.triggered_thread_frames}</pre>
               </div>
             </div>
           </div>

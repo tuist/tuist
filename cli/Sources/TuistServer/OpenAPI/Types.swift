@@ -6326,10 +6326,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/app_name`.
             public var app_name: Swift.String?
-            /// The UUID of the attachment this stack trace was parsed from.
-            ///
-            /// - Remark: Generated from `#/components/schemas/StackTraceParams/attachment_id`.
-            public var attachment_id: Swift.String?
             /// The exception subtype or additional details.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/exception_subtype`.
@@ -6354,6 +6350,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/signal`.
             public var signal: Swift.String?
+            /// The UUID of the test case run attachment this stack trace was parsed from.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StackTraceParams/test_case_run_attachment_id`.
+            public var test_case_run_attachment_id: Swift.String?
+            /// The UUID of the test case run this stack trace belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StackTraceParams/test_case_run_id`.
+            public var test_case_run_id: Swift.String?
             /// Human-readable formatted crash thread frames.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/triggered_thread_frames`.
@@ -6362,44 +6366,48 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - app_name: The name of the crashed application.
-            ///   - attachment_id: The UUID of the attachment this stack trace was parsed from.
             ///   - exception_subtype: The exception subtype or additional details.
             ///   - exception_type: The exception type (e.g., EXC_CRASH).
             ///   - file_name: The human-readable name of the crash log file.
             ///   - id: Deterministic UUID generated from content hash and file name.
             ///   - os_version: The OS version when the crash occurred.
             ///   - signal: The signal that caused the crash (e.g., SIGABRT).
+            ///   - test_case_run_attachment_id: The UUID of the test case run attachment this stack trace was parsed from.
+            ///   - test_case_run_id: The UUID of the test case run this stack trace belongs to.
             ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
             public init(
                 app_name: Swift.String? = nil,
-                attachment_id: Swift.String? = nil,
                 exception_subtype: Swift.String? = nil,
                 exception_type: Swift.String? = nil,
                 file_name: Swift.String,
                 id: Swift.String,
                 os_version: Swift.String? = nil,
                 signal: Swift.String? = nil,
+                test_case_run_attachment_id: Swift.String? = nil,
+                test_case_run_id: Swift.String? = nil,
                 triggered_thread_frames: Swift.String? = nil
             ) {
                 self.app_name = app_name
-                self.attachment_id = attachment_id
                 self.exception_subtype = exception_subtype
                 self.exception_type = exception_type
                 self.file_name = file_name
                 self.id = id
                 self.os_version = os_version
                 self.signal = signal
+                self.test_case_run_attachment_id = test_case_run_attachment_id
+                self.test_case_run_id = test_case_run_id
                 self.triggered_thread_frames = triggered_thread_frames
             }
             public enum CodingKeys: String, CodingKey {
                 case app_name
-                case attachment_id
                 case exception_subtype
                 case exception_type
                 case file_name
                 case id
                 case os_version
                 case signal
+                case test_case_run_attachment_id
+                case test_case_run_id
                 case triggered_thread_frames
             }
         }
@@ -8095,6 +8103,57 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/RunsTest/project_id`.
             public var project_id: Swift.Int
+            /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload`.
+            public struct test_case_runsPayloadPayload: Codable, Hashable, Sendable {
+                /// The UUID of the test case run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/id`.
+                public var id: Swift.String
+                /// The module name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/module_name`.
+                public var module_name: Swift.String
+                /// The name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/name`.
+                public var name: Swift.String
+                /// The suite name of the test case.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runsPayload/suite_name`.
+                public var suite_name: Swift.String
+                /// Creates a new `test_case_runsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - id: The UUID of the test case run.
+                ///   - module_name: The module name of the test case.
+                ///   - name: The name of the test case.
+                ///   - suite_name: The suite name of the test case.
+                public init(
+                    id: Swift.String,
+                    module_name: Swift.String,
+                    name: Swift.String,
+                    suite_name: Swift.String
+                ) {
+                    self.id = id
+                    self.module_name = module_name
+                    self.name = name
+                    self.suite_name = suite_name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case id
+                    case module_name
+                    case name
+                    case suite_name
+                }
+            }
+            /// The test case runs created by this test run, with their identifiers.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runs`.
+            public typealias test_case_runsPayload = [Components.Schemas.RunsTest.test_case_runsPayloadPayload]
+            /// The test case runs created by this test run, with their identifiers.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsTest/test_case_runs`.
+            public var test_case_runs: Components.Schemas.RunsTest.test_case_runsPayload?
             /// The type of the run, which is 'test' in this case
             ///
             /// - Remark: Generated from `#/components/schemas/RunsTest/type`.
@@ -8115,18 +8174,21 @@ public enum Components {
             ///   - duration: The duration of the test run in milliseconds
             ///   - id: The unique identifier of the test run
             ///   - project_id: The ID of the Tuist project associated with this test run
+            ///   - test_case_runs: The test case runs created by this test run, with their identifiers.
             ///   - _type: The type of the run, which is 'test' in this case
             ///   - url: The URL to access the test run
             public init(
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
+                test_case_runs: Components.Schemas.RunsTest.test_case_runsPayload? = nil,
                 _type: Components.Schemas.RunsTest._typePayload,
                 url: Swift.String
             ) {
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
+                self.test_case_runs = test_case_runs
                 self._type = _type
                 self.url = url
             }
@@ -8134,6 +8196,7 @@ public enum Components {
                 case duration
                 case id
                 case project_id
+                case test_case_runs
                 case _type = "type"
                 case url
             }
@@ -13514,10 +13577,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/app_name`.
                     public var app_name: Swift.String?
-                    /// The UUID of the attachment this stack trace was parsed from.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/attachment_id`.
-                    public var attachment_id: Swift.String?
                     /// The exception subtype or additional details.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/exception_subtype`.
@@ -13542,6 +13601,14 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/signal`.
                     public var signal: Swift.String?
+                    /// The UUID of the test case run attachment this stack trace was parsed from.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/test_case_run_attachment_id`.
+                    public var test_case_run_attachment_id: Swift.String?
+                    /// The UUID of the test case run this stack trace belongs to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/test_case_run_id`.
+                    public var test_case_run_id: Swift.String?
                     /// Human-readable formatted crash thread frames.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/triggered_thread_frames`.
@@ -13550,44 +13617,48 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - app_name: The name of the crashed application.
-                    ///   - attachment_id: The UUID of the attachment this stack trace was parsed from.
                     ///   - exception_subtype: The exception subtype or additional details.
                     ///   - exception_type: The exception type (e.g., EXC_CRASH).
                     ///   - file_name: The human-readable name of the crash log file.
                     ///   - id: Deterministic UUID generated from content hash and file name.
                     ///   - os_version: The OS version when the crash occurred.
                     ///   - signal: The signal that caused the crash (e.g., SIGABRT).
+                    ///   - test_case_run_attachment_id: The UUID of the test case run attachment this stack trace was parsed from.
+                    ///   - test_case_run_id: The UUID of the test case run this stack trace belongs to.
                     ///   - triggered_thread_frames: Human-readable formatted crash thread frames.
                     public init(
                         app_name: Swift.String? = nil,
-                        attachment_id: Swift.String? = nil,
                         exception_subtype: Swift.String? = nil,
                         exception_type: Swift.String? = nil,
                         file_name: Swift.String,
                         id: Swift.String,
                         os_version: Swift.String? = nil,
                         signal: Swift.String? = nil,
+                        test_case_run_attachment_id: Swift.String? = nil,
+                        test_case_run_id: Swift.String? = nil,
                         triggered_thread_frames: Swift.String? = nil
                     ) {
                         self.app_name = app_name
-                        self.attachment_id = attachment_id
                         self.exception_subtype = exception_subtype
                         self.exception_type = exception_type
                         self.file_name = file_name
                         self.id = id
                         self.os_version = os_version
                         self.signal = signal
+                        self.test_case_run_attachment_id = test_case_run_attachment_id
+                        self.test_case_run_id = test_case_run_id
                         self.triggered_thread_frames = triggered_thread_frames
                     }
                     public enum CodingKeys: String, CodingKey {
                         case app_name
-                        case attachment_id
                         case exception_subtype
                         case exception_type
                         case file_name
                         case id
                         case os_version
                         case signal
+                        case test_case_run_attachment_id
+                        case test_case_run_id
                         case triggered_thread_frames
                     }
                 }

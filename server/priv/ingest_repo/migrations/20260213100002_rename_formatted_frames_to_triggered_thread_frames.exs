@@ -6,7 +6,9 @@ defmodule Tuist.IngestRepo.Migrations.RenameFormattedFramesToTriggeredThreadFram
       "ALTER TABLE stack_traces ADD COLUMN IF NOT EXISTS triggered_thread_frames String DEFAULT ''"
     )
 
-    execute("ALTER TABLE stack_traces UPDATE triggered_thread_frames = formatted_frames WHERE 1=1")
+    execute(
+      "ALTER TABLE stack_traces UPDATE triggered_thread_frames = formatted_frames WHERE 1=1"
+    )
   end
 
   def down do

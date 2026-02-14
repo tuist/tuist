@@ -1,5 +1,4 @@
 import Command
-import CryptoKit
 import FileSystem
 import Foundation
 import Mockable
@@ -537,7 +536,7 @@ public struct XCResultService: XCResultServicing {
                 let manifestData = try await fileSystem.readFile(at: manifestPath)
                 let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
 
-                var stackTracesByKey: [String: CrashStackTrace] = [:]
+                var stackTraces: [CrashStackTrace] = []
                 var testIdentifierToStackTraceId: [String: String] = [:]
 
                 for entry in manifestEntries {
@@ -552,45 +551,35 @@ public struct XCResultService: XCResultServicing {
                         guard try await fileSystem.exists(filePath) else { continue }
 
                         let content = try await fileSystem.readTextFile(at: filePath)
-                        let contentHash = SHA256.hash(data: Data(content.utf8))
-                        let hashString = contentHash.map { String(format: "%02x", $0) }.joined()
+                        let metadata = parseIPSMetadata(content)
+                        let triggeredThreadFrames = IPSStackTraceParser().triggeredThreadFrames(content)
                         let humanReadableName =
                             attachment.suggestedHumanReadableName ?? attachment.exportedFileName
-                        let deduplicationKey = "\(hashString):\(humanReadableName)"
+                        let sanitizedFileName = humanReadableName.replacingOccurrences(of: " ", with: "_")
 
-                        if stackTracesByKey[deduplicationKey] == nil {
-                            let idInput = deduplicationKey
-                            let idHash = SHA256.hash(data: Data(idInput.utf8))
-                            let idBytes = Array(idHash.prefix(16))
-                            let deterministicId = formatAsUUID(bytes: idBytes)
+                        let stackTraceId = UUID().uuidString.lowercased()
 
-                            let metadata = parseIPSMetadata(content)
+                        let stackTrace = CrashStackTrace(
+                            id: stackTraceId,
+                            fileName: sanitizedFileName,
+                            appName: metadata.appName,
+                            osVersion: metadata.osVersion,
+                            exceptionType: metadata.exceptionType,
+                            signal: metadata.signal,
+                            exceptionSubtype: metadata.exceptionSubtype,
+                            filePath: filePath,
+                            triggeredThreadFrames: triggeredThreadFrames
+                        )
 
-                            let triggeredThreadFrames = IPSStackTraceParser().triggeredThreadFrames(content)
-
-                            let sanitizedFileName = humanReadableName.replacingOccurrences(of: " ", with: "_")
-
-                            stackTracesByKey[deduplicationKey] = CrashStackTrace(
-                                id: deterministicId,
-                                fileName: sanitizedFileName,
-                                appName: metadata.appName,
-                                osVersion: metadata.osVersion,
-                                exceptionType: metadata.exceptionType,
-                                signal: metadata.signal,
-                                exceptionSubtype: metadata.exceptionSubtype,
-                                filePath: filePath,
-                                triggeredThreadFrames: triggeredThreadFrames
-                            )
-                        }
+                        stackTraces.append(stackTrace)
 
                         let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
-                        testIdentifierToStackTraceId[normalizedIdentifier] =
-                            stackTracesByKey[deduplicationKey]!.id
+                        testIdentifierToStackTraceId[normalizedIdentifier] = stackTraceId
                     }
                 }
 
                 return CrashAttachmentResult(
-                    stackTraces: Array(stackTracesByKey.values),
+                    stackTraces: stackTraces,
                     testIdentifierToStackTraceId: testIdentifierToStackTraceId
                 )
             }
@@ -645,23 +634,6 @@ public struct XCResultService: XCResultServicing {
         }
 
         return metadata
-    }
-
-    private func formatAsUUID(bytes: [UInt8]) -> String {
-        var uuidBytes = Array(bytes.prefix(16))
-        while uuidBytes.count < 16 {
-            uuidBytes.append(0)
-        }
-        // Set version 5 (SHA-based) and variant bits
-        uuidBytes[6] = (uuidBytes[6] & 0x0F) | 0x50
-        uuidBytes[8] = (uuidBytes[8] & 0x3F) | 0x80
-
-        let hex = uuidBytes.map { String(format: "%02x", $0) }.joined()
-        let idx = hex.index(hex.startIndex, offsetBy: 8)
-        let idx2 = hex.index(idx, offsetBy: 4)
-        let idx3 = hex.index(idx2, offsetBy: 4)
-        let idx4 = hex.index(idx3, offsetBy: 4)
-        return "\(hex[hex.startIndex..<idx])-\(hex[idx..<idx2])-\(hex[idx2..<idx3])-\(hex[idx3..<idx4])-\(hex[idx4...])"
     }
 
     // MARK: - Swift Testing Duration Parsing

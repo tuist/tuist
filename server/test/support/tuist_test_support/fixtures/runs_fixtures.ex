@@ -99,28 +99,31 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         }
       ])
 
-    Tests.create_test(%{
-      id: Keyword.get(attrs, :id, UUIDv7.generate()),
-      project_id: project_id,
-      account_id: account_id,
-      duration: Keyword.get(attrs, :duration, 2000),
-      status: Keyword.get(attrs, :status, "success"),
-      scheme: Keyword.get(attrs, :scheme),
-      model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
-      macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
-      xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
-      git_branch: Keyword.get(attrs, :git_branch, "main"),
-      git_ref: Keyword.get(attrs, :git_ref),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
-      ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      build_run_id: Keyword.get(attrs, :build_run_id),
-      ci_run_id: Keyword.get(attrs, :ci_run_id),
-      ci_project_handle: Keyword.get(attrs, :ci_project_handle),
-      ci_host: Keyword.get(attrs, :ci_host),
-      ci_provider: Keyword.get(attrs, :ci_provider),
-      test_modules: test_modules
-    })
+    case Tests.create_test(%{
+           id: Keyword.get(attrs, :id, UUIDv7.generate()),
+           project_id: project_id,
+           account_id: account_id,
+           duration: Keyword.get(attrs, :duration, 2000),
+           status: Keyword.get(attrs, :status, "success"),
+           scheme: Keyword.get(attrs, :scheme),
+           model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+           macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+           xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+           git_branch: Keyword.get(attrs, :git_branch, "main"),
+           git_ref: Keyword.get(attrs, :git_ref),
+           git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+           ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
+           is_ci: Keyword.get(attrs, :is_ci, false),
+           build_run_id: Keyword.get(attrs, :build_run_id),
+           ci_run_id: Keyword.get(attrs, :ci_run_id),
+           ci_project_handle: Keyword.get(attrs, :ci_project_handle),
+           ci_host: Keyword.get(attrs, :ci_host),
+           ci_provider: Keyword.get(attrs, :ci_provider),
+           test_modules: test_modules
+         }) do
+      {:ok, test, _test_case_runs_info} -> {:ok, test}
+      {:error, changeset} -> {:error, changeset}
+    end
   end
 
   def cas_output_fixture(attrs \\ []) do

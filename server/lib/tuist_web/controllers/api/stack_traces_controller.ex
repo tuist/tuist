@@ -78,9 +78,13 @@ defmodule TuistWeb.API.StackTracesController do
              type: :string,
              description: "Human-readable formatted crash thread frames."
            },
-           attachment_id: %Schema{
+           test_case_run_id: %Schema{
              type: :string,
-             description: "The UUID of the attachment this stack trace was parsed from."
+             description: "The UUID of the test case run this stack trace belongs to."
+           },
+           test_case_run_attachment_id: %Schema{
+             type: :string,
+             description: "The UUID of the test case run attachment this stack trace was parsed from."
            }
          },
          required: [:id, :file_name]
@@ -104,7 +108,8 @@ defmodule TuistWeb.API.StackTracesController do
       signal: Map.get(body_params, :signal),
       exception_subtype: Map.get(body_params, :exception_subtype),
       triggered_thread_frames: Map.get(body_params, :triggered_thread_frames, ""),
-      attachment_id: Map.get(body_params, :attachment_id),
+      test_case_run_id: Map.get(body_params, :test_case_run_id),
+      test_case_run_attachment_id: Map.get(body_params, :test_case_run_attachment_id),
       inserted_at: NaiveDateTime.utc_now()
     }
 

@@ -78,10 +78,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
     }
   )
 
-  def create(
-        %{assigns: %{selected_project: project}, body_params: body_params} = conn,
-        _params
-      ) do
+  def create(%{assigns: %{selected_project: project}, body_params: body_params} = conn, _params) do
     attachment_id = UUIDv7.generate()
 
     attrs = %{
@@ -168,26 +165,27 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
     }
   )
 
-  def download(
-        %{assigns: %{selected_project: project}} = conn,
-        %{test_case_run_id: test_case_run_id, file_name: file_name}
-      ) do
-    with {:ok, attachment} <- Tests.get_attachment(test_case_run_id, file_name) do
-      expires_in = 3600
+  def download(%{assigns: %{selected_project: project}} = conn, %{
+        test_case_run_id: test_case_run_id,
+        file_name: file_name
+      }) do
+    case Tests.get_attachment(test_case_run_id, file_name) do
+      {:ok, attachment} ->
+        expires_in = 3600
 
-      s3_object_key =
-        Tests.attachment_storage_key(%{
-          account_handle: project.account.name,
-          project_handle: project.name,
-          test_case_run_id: test_case_run_id,
-          attachment_id: attachment.id,
-          file_name: file_name
-        })
+        s3_object_key =
+          Tests.attachment_storage_key(%{
+            account_handle: project.account.name,
+            project_handle: project.name,
+            test_case_run_id: test_case_run_id,
+            attachment_id: attachment.id,
+            file_name: file_name
+          })
 
-      url = Storage.generate_download_url(s3_object_key, project.account, expires_in: expires_in)
+        url = Storage.generate_download_url(s3_object_key, project.account, expires_in: expires_in)
 
-      json(conn, %{url: url})
-    else
+        json(conn, %{url: url})
+
       _ ->
         conn
         |> put_status(:not_found)

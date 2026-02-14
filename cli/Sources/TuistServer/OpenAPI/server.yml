@@ -3022,11 +3022,6 @@ components:
           type: string
           x-struct:
           x-validate:
-        attachment_id:
-          description: The UUID of the attachment this stack trace was parsed from.
-          type: string
-          x-struct:
-          x-validate:
         exception_subtype:
           description: The exception subtype or additional details.
           type: string
@@ -3054,6 +3049,16 @@ components:
           x-validate:
         signal:
           description: The signal that caused the crash (e.g., SIGABRT).
+          type: string
+          x-struct:
+          x-validate:
+        test_case_run_attachment_id:
+          description: The UUID of the test case run attachment this stack trace was parsed from.
+          type: string
+          x-struct:
+          x-validate:
+        test_case_run_id:
+          description: The UUID of the test case run this stack trace belongs to.
           type: string
           x-struct:
           x-validate:
@@ -4237,6 +4242,41 @@ components:
         project_id:
           description: The ID of the Tuist project associated with this test run
           type: integer
+          x-struct:
+          x-validate:
+        test_case_runs:
+          description: The test case runs created by this test run, with their identifiers.
+          items:
+            properties:
+              id:
+                description: The UUID of the test case run.
+                type: string
+                x-struct:
+                x-validate:
+              module_name:
+                description: The module name of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              name:
+                description: The name of the test case.
+                type: string
+                x-struct:
+                x-validate:
+              suite_name:
+                description: The suite name of the test case.
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - id
+              - name
+              - module_name
+              - suite_name
+            type: object
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         type:
@@ -6240,11 +6280,6 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                attachment_id:
-                  description: The UUID of the attachment this stack trace was parsed from.
-                  type: string
-                  x-struct:
-                  x-validate:
                 exception_subtype:
                   description: The exception subtype or additional details.
                   type: string
@@ -6272,6 +6307,16 @@ paths:
                   x-validate:
                 signal:
                   description: The signal that caused the crash (e.g., SIGABRT).
+                  type: string
+                  x-struct:
+                  x-validate:
+                test_case_run_attachment_id:
+                  description: The UUID of the test case run attachment this stack trace was parsed from.
+                  type: string
+                  x-struct:
+                  x-validate:
+                test_case_run_id:
+                  description: The UUID of the test case run this stack trace belongs to.
                   type: string
                   x-struct:
                   x-validate:
