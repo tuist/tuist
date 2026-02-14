@@ -1531,11 +1531,6 @@ components:
           type: string
           x-struct:
           x-validate:
-        size:
-          description: The size of the attachment in bytes.
-          type: integer
-          x-struct:
-          x-validate:
         test_case_run_id:
           description: The UUID of the test case run.
           type: string
@@ -13863,11 +13858,6 @@ paths:
                 file_name:
                   description: The file name of the attachment.
                   type: string
-                  x-struct:
-                  x-validate:
-                size:
-                  description: The size of the attachment in bytes.
-                  type: integer
                   x-struct:
                   x-validate:
                 test_case_run_id:

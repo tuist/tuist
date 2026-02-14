@@ -3924,10 +3924,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/file_name`.
             public var file_name: Swift.String
-            /// The size of the attachment in bytes.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/size`.
-            public var size: Swift.Int?
             /// The UUID of the test case run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/test_case_run_id`.
@@ -3937,23 +3933,19 @@ public enum Components {
             /// - Parameters:
             ///   - content_type: The MIME content type of the attachment.
             ///   - file_name: The file name of the attachment.
-            ///   - size: The size of the attachment in bytes.
             ///   - test_case_run_id: The UUID of the test case run.
             public init(
                 content_type: Swift.String? = nil,
                 file_name: Swift.String,
-                size: Swift.Int? = nil,
                 test_case_run_id: Swift.String
             ) {
                 self.content_type = content_type
                 self.file_name = file_name
-                self.size = size
                 self.test_case_run_id = test_case_run_id
             }
             public enum CodingKeys: String, CodingKey {
                 case content_type
                 case file_name
-                case size
                 case test_case_run_id
             }
         }
@@ -38608,10 +38600,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/file_name`.
                     public var file_name: Swift.String
-                    /// The size of the attachment in bytes.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/size`.
-                    public var size: Swift.Int?
                     /// The UUID of the test case run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/test_case_run_id`.
@@ -38621,23 +38609,19 @@ public enum Operations {
                     /// - Parameters:
                     ///   - content_type: The MIME content type of the attachment.
                     ///   - file_name: The file name of the attachment.
-                    ///   - size: The size of the attachment in bytes.
                     ///   - test_case_run_id: The UUID of the test case run.
                     public init(
                         content_type: Swift.String? = nil,
                         file_name: Swift.String,
-                        size: Swift.Int? = nil,
                         test_case_run_id: Swift.String
                     ) {
                         self.content_type = content_type
                         self.file_name = file_name
-                        self.size = size
                         self.test_case_run_id = test_case_run_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case content_type
                         case file_name
-                        case size
                         case test_case_run_id
                     }
                 }

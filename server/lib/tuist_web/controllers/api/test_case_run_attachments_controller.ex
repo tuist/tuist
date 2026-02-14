@@ -51,10 +51,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
            content_type: %Schema{
              type: :string,
              description: "The MIME content type of the attachment."
-           },
-           size: %Schema{
-             type: :integer,
-             description: "The size of the attachment in bytes."
            }
          },
          required: [:test_case_run_id, :file_name]
@@ -86,7 +82,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       test_case_run_id: body_params.test_case_run_id,
       file_name: body_params.file_name,
       content_type: Map.get(body_params, :content_type, ""),
-      size: Map.get(body_params, :size, 0),
       inserted_at: NaiveDateTime.utc_now()
     }
 

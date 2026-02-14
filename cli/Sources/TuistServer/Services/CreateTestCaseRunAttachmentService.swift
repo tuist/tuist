@@ -65,8 +65,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let fileSize = Int(try await fileSystem.fileSizeInBytes(at: filePath) ?? 0)
-
         let response = try await client.createTestCaseRunAttachment(
             .init(
                 path: .init(
@@ -77,7 +75,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                     .init(
                         content_type: contentType,
                         file_name: fileName,
-                        size: fileSize,
                         test_case_run_id: testCaseRunId
                     )
                 )
@@ -94,7 +91,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 var request = URLRequest(url: url)
                 request.httpMethod = "PUT"
                 request.setValue(contentType, forHTTPHeaderField: "Content-Type")
-                request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
                 request.httpBody = try await fileSystem.readFile(at: filePath)
 
                 let (_, uploadResponse) = try await urlSession.data(for: request)
