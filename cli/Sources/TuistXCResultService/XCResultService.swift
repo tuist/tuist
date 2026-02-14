@@ -176,19 +176,9 @@ public struct XCResultService: XCResultServicing {
             let testIdentifier = normalizeTestIdentifier(
                 testCase.testSuite.map { "\($0)/\(testCase.name)" } ?? testCase.name
             )
-            guard let crashReport = crashReportsByTestIdentifier[testIdentifier] else {
-                return testCase
-            }
-            return TestCase(
-                name: testCase.name,
-                testSuite: testCase.testSuite,
-                module: testCase.module,
-                duration: testCase.duration,
-                status: testCase.status,
-                failures: testCase.failures,
-                repetitions: testCase.repetitions,
-                crashReport: crashReport
-            )
+            var testCase = testCase
+            testCase.crashReport = crashReportsByTestIdentifier[testIdentifier]
+            return testCase
         }
 
         let overallStatus = overallStatus(from: allTestCases)
@@ -559,7 +549,7 @@ public struct XCResultService: XCResultServicing {
                 return crashReportsByTestIdentifier
             }
         } catch {
-            Logger.current.debug("Failed to extract crash attachments: \(error)")
+            Logger.current.warning("Failed to extract crash attachments: \(error)")
             return [:]
         }
     }

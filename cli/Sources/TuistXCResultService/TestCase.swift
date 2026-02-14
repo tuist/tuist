@@ -8,7 +8,7 @@ public struct TestCase {
     public let status: TestStatus
     public let failures: [TestCaseFailure]
     public let repetitions: [TestCaseRepetition]
-    public let crashReport: CrashReport?
+    public var crashReport: CrashReport?
 
     public init(
         name: String,
