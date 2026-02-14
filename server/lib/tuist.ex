@@ -50,6 +50,7 @@ defmodule Tuist do
       Tests.Test,
       Tests.TestCase,
       Tests.Analytics,
+      MCP.Server,
       # App
       # -----
       # They are modules that are core to the Tuist domain (e.g. accounts) and that other
