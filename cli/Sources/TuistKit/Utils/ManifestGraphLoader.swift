@@ -156,8 +156,10 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         )
 
         // Lint Manifests
-        let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
-        let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+        let workspaceLintingIssues = try await manifestLinter.lint(workspace: allManifests.workspace, path: allManifests.path)
+        let projectLintingIssues = try await manifestProjects.concurrentFlatMap {
+            try await manifestLinter.lint(project: $0.value, path: $0.key)
+        }
         let lintingIssues = workspaceLintingIssues + projectLintingIssues
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
