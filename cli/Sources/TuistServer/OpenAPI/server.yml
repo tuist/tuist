@@ -3070,6 +3070,8 @@ components:
       required:
         - id
         - file_name
+        - test_case_run_id
+        - test_case_run_attachment_id
       title: StackTraceParams
       type: object
       x-struct:
@@ -6328,6 +6330,8 @@ paths:
               required:
                 - id
                 - file_name
+                - test_case_run_id
+                - test_case_run_attachment_id
               title: StackTraceParams
               type: object
               x-struct:

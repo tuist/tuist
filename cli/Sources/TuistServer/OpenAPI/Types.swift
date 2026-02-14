@@ -6353,11 +6353,11 @@ public enum Components {
             /// The UUID of the test case run attachment this stack trace was parsed from.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/test_case_run_attachment_id`.
-            public var test_case_run_attachment_id: Swift.String?
+            public var test_case_run_attachment_id: Swift.String
             /// The UUID of the test case run this stack trace belongs to.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/test_case_run_id`.
-            public var test_case_run_id: Swift.String?
+            public var test_case_run_id: Swift.String
             /// Human-readable formatted crash thread frames.
             ///
             /// - Remark: Generated from `#/components/schemas/StackTraceParams/triggered_thread_frames`.
@@ -6383,8 +6383,8 @@ public enum Components {
                 id: Swift.String,
                 os_version: Swift.String? = nil,
                 signal: Swift.String? = nil,
-                test_case_run_attachment_id: Swift.String? = nil,
-                test_case_run_id: Swift.String? = nil,
+                test_case_run_attachment_id: Swift.String,
+                test_case_run_id: Swift.String,
                 triggered_thread_frames: Swift.String? = nil
             ) {
                 self.app_name = app_name
@@ -13604,11 +13604,11 @@ public enum Operations {
                     /// The UUID of the test case run attachment this stack trace was parsed from.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/test_case_run_attachment_id`.
-                    public var test_case_run_attachment_id: Swift.String?
+                    public var test_case_run_attachment_id: Swift.String
                     /// The UUID of the test case run this stack trace belongs to.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/test_case_run_id`.
-                    public var test_case_run_id: Swift.String?
+                    public var test_case_run_id: Swift.String
                     /// Human-readable formatted crash thread frames.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/stack-traces/POST/requestBody/json/triggered_thread_frames`.
@@ -13634,8 +13634,8 @@ public enum Operations {
                         id: Swift.String,
                         os_version: Swift.String? = nil,
                         signal: Swift.String? = nil,
-                        test_case_run_attachment_id: Swift.String? = nil,
-                        test_case_run_id: Swift.String? = nil,
+                        test_case_run_attachment_id: Swift.String,
+                        test_case_run_id: Swift.String,
                         triggered_thread_frames: Swift.String? = nil
                     ) {
                         self.app_name = app_name
