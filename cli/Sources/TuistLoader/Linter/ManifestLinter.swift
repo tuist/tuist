@@ -1,36 +1,39 @@
+import FileSystem
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
+import TuistRootDirectoryLocator
 import TuistSupport
 
 public protocol ManifestLinting {
-    func lint(project: ProjectDescription.Project) -> [LintingIssue]
-    func lint(workspace: ProjectDescription.Workspace) -> [LintingIssue]
+    func lint(project: ProjectDescription.Project, path: AbsolutePath) async throws -> [LintingIssue]
+    func lint(workspace: ProjectDescription.Workspace, path: AbsolutePath) async throws -> [LintingIssue]
 }
 
 public struct AnyManifestLinter: ManifestLinting {
-    let lintProject: ((ProjectDescription.Project) -> [LintingIssue])?
-    let lintWorkspace: ((ProjectDescription.Workspace) -> [LintingIssue])?
+    let lintProject: ((ProjectDescription.Project, AbsolutePath) async throws -> [LintingIssue])?
+    let lintWorkspace: ((ProjectDescription.Workspace, AbsolutePath) async throws -> [LintingIssue])?
 
     public init(
-        lintProject: ((ProjectDescription.Project) -> [LintingIssue])? = nil,
-        lintWorkspace: ((ProjectDescription.Workspace) -> [LintingIssue])? = nil
+        lintProject: ((ProjectDescription.Project, AbsolutePath) async throws -> [LintingIssue])? = nil,
+        lintWorkspace: ((ProjectDescription.Workspace, AbsolutePath) async throws -> [LintingIssue])? = nil
     ) {
         self.lintProject = lintProject
         self.lintWorkspace = lintWorkspace
     }
 
-    public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
+    public func lint(project: ProjectDescription.Project, path: AbsolutePath) async throws -> [LintingIssue] {
         if let lintProject {
-            return lintProject(project)
+            return try await lintProject(project, path)
         } else {
             return []
         }
     }
 
-    public func lint(workspace: ProjectDescription.Workspace) -> [LintingIssue] {
+    public func lint(workspace: ProjectDescription.Workspace, path: AbsolutePath) async throws -> [LintingIssue] {
         if let lintWorkspace {
-            return lintWorkspace(workspace)
+            return try await lintWorkspace(workspace, path)
         } else {
             return []
         }
@@ -38,23 +41,44 @@ public struct AnyManifestLinter: ManifestLinting {
 }
 
 public struct ManifestLinter: ManifestLinting {
-    public init() {}
+    private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
-    public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
+        self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
+
+    public func lint(project: ProjectDescription.Project, path: AbsolutePath) async throws -> [LintingIssue] {
         var issues = [LintingIssue]()
+        let rootDirectory = try await rootDirectoryLocator.locate(from: path)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
 
         if let settings = project.settings {
             issues.append(contentsOf: lint(settings: settings, declarationLocation: project.name))
         }
 
         issues.append(contentsOf: lintDuplicates(project: project))
-        issues.append(contentsOf: project.targets.flatMap(lint))
+
+        for target in project.targets {
+            issues.append(contentsOf: lint(target: target))
+            try await issues.append(contentsOf: lintFileElements(target: target, generatorPaths: generatorPaths))
+        }
+
+        for fileElement in project.additionalFiles {
+            try await issues.append(contentsOf: lintFileElement(fileElement, generatorPaths: generatorPaths))
+        }
 
         return issues
     }
 
-    public func lint(workspace: ProjectDescription.Workspace) -> [LintingIssue] {
+    public func lint(workspace: ProjectDescription.Workspace, path: AbsolutePath) async throws -> [LintingIssue] {
         var issues = [LintingIssue]()
+        let rootDirectory = try await rootDirectoryLocator.locate(from: path)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
 
         for scheme in workspace.schemes {
             issues.append(contentsOf: lintSchemeActions(
@@ -66,8 +90,168 @@ public struct ManifestLinter: ManifestLinting {
             ))
         }
 
+        try await issues.append(contentsOf: lintWorkspaceProjects(workspace, generatorPaths: generatorPaths))
+
+        for fileElement in workspace.additionalFiles {
+            try await issues.append(contentsOf: lintFileElement(fileElement, generatorPaths: generatorPaths))
+        }
+
         return issues
     }
+
+    // MARK: - File Element Linting
+
+    private func lintFileElements(
+        target: ProjectDescription.Target,
+        generatorPaths: GeneratorPaths
+    ) async throws -> [LintingIssue] {
+        var issues = [LintingIssue]()
+
+        if let resources = target.resources {
+            for element in resources.resources {
+                try await issues.append(contentsOf: lintResourceFileElement(element, generatorPaths: generatorPaths))
+            }
+        }
+
+        if let copyFiles = target.copyFiles {
+            for action in copyFiles {
+                for element in action.files {
+                    try await issues.append(contentsOf: lintCopyFileElement(element, generatorPaths: generatorPaths))
+                }
+            }
+        }
+
+        for fileElement in target.additionalFiles {
+            try await issues.append(contentsOf: lintFileElement(fileElement, generatorPaths: generatorPaths))
+        }
+
+        return issues
+    }
+
+    private func lintFileElement(
+        _ element: ProjectDescription.FileElement,
+        generatorPaths: GeneratorPaths
+    ) async throws -> [LintingIssue] {
+        switch element {
+        case let .glob(pattern, _):
+            let resolvedPath = try generatorPaths.resolve(path: pattern)
+            return try await lintGlobPattern(resolvedPath)
+        case let .folderReference(path):
+            let resolvedPath = try generatorPaths.resolve(path: path)
+            return try await lintFolderReference(resolvedPath)
+        }
+    }
+
+    private func lintResourceFileElement(
+        _ element: ProjectDescription.ResourceFileElement,
+        generatorPaths: GeneratorPaths
+    ) async throws -> [LintingIssue] {
+        switch element {
+        case let .glob(pattern, _, _, _):
+            let resolvedPath = try generatorPaths.resolve(path: pattern)
+            return try await lintGlobPattern(resolvedPath)
+        case let .folderReference(path, _, _):
+            let resolvedPath = try generatorPaths.resolve(path: path)
+            return try await lintFolderReference(resolvedPath)
+        }
+    }
+
+    private func lintCopyFileElement(
+        _ element: ProjectDescription.CopyFileElement,
+        generatorPaths: GeneratorPaths
+    ) async throws -> [LintingIssue] {
+        switch element {
+        case let .glob(pattern, _, _):
+            let resolvedPath = try generatorPaths.resolve(path: pattern)
+            return try await lintGlobPattern(resolvedPath)
+        case let .folderReference(path, _, _):
+            let resolvedPath = try generatorPaths.resolve(path: path)
+            return try await lintFolderReference(resolvedPath)
+        }
+    }
+
+    private func lintGlobPattern(_ path: AbsolutePath) async throws -> [LintingIssue] {
+        if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) {
+            return []
+        }
+
+        let files: [AbsolutePath]
+        do {
+            files = try await fileSystem.throwingGlob(
+                directory: AbsolutePath.root,
+                include: [String(path.pathString.dropFirst())]
+            )
+            .collect()
+        } catch GlobError.nonExistentDirectory {
+            files = []
+        }
+
+        if files.isEmpty {
+            if FileHandler.shared.isFolder(path) {
+                return [LintingIssue(
+                    reason: "'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files",
+                    severity: .warning
+                )]
+            } else if !path.isGlobPath {
+                return [LintingIssue(
+                    reason: "No files found at: \(path.pathString)",
+                    severity: .warning
+                )]
+            }
+        }
+
+        return []
+    }
+
+    private func lintFolderReference(_ path: AbsolutePath) async throws -> [LintingIssue] {
+        guard try await fileSystem.exists(path) else {
+            return [LintingIssue(
+                reason: "\(path.pathString) does not exist",
+                severity: .warning
+            )]
+        }
+
+        guard FileHandler.shared.isFolder(path) else {
+            return [LintingIssue(
+                reason: "\(path.pathString) is not a directory - folder reference paths need to point to directories",
+                severity: .warning
+            )]
+        }
+
+        return []
+    }
+
+    private func lintWorkspaceProjects(
+        _ workspace: ProjectDescription.Workspace,
+        generatorPaths: GeneratorPaths
+    ) async throws -> [LintingIssue] {
+        var issues = [LintingIssue]()
+
+        for projectPath in workspace.projects {
+            let resolvedPath = try generatorPaths.resolve(path: projectPath)
+            let projects = try await fileSystem.glob(
+                directory: AbsolutePath.root,
+                include: [
+                    String(resolvedPath.appending(component: "Package.swift").pathString.dropFirst()),
+                    String(resolvedPath.appending(component: "Project.swift").pathString.dropFirst()),
+                ]
+            )
+            .collect()
+            .map(\.parentDirectory)
+            .uniqued()
+
+            if projects.isEmpty {
+                issues.append(LintingIssue(
+                    reason: "No projects found at: \(projectPath.pathString)",
+                    severity: .warning
+                ))
+            }
+        }
+
+        return issues
+    }
+
+    // MARK: - Scheme Linting
 
     private func lintSchemeActions(
         buildAction: BuildAction?,
@@ -172,6 +356,8 @@ public struct ManifestLinter: ManifestLinting {
             ),
         ]
     }
+
+    // MARK: - Project Linting
 
     private func lintDuplicates(project: ProjectDescription.Project) -> [LintingIssue] {
         let targetsNames = project.targets.map(\.name)
