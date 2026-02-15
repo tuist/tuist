@@ -98,6 +98,13 @@ defmodule Tuist.Slack do
     )
   end
 
+  def get_installation_by_team_id(team_id) do
+    case Repo.get_by(Installation, team_id: team_id) do
+      nil -> {:error, :not_found}
+      installation -> {:ok, installation}
+    end
+  end
+
   def generate_state_token(account_id) do
     Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
       type: :account_installation,

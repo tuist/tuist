@@ -159,4 +159,59 @@ defmodule Tuist.Slack.ClientTest do
       assert message =~ "Request failed"
     end
   end
+
+  describe "unfurl/4" do
+    test "returns :ok on successful unfurl" do
+      stub(Req, :post, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{"ok" => true}
+         }}
+      end)
+
+      result =
+        Client.unfurl("xoxb-token", "C123", "1234567890.123456", %{
+          "https://tuist.dev/example" => %{blocks: [%{type: "section"}]}
+        })
+
+      assert :ok = result
+    end
+
+    test "returns error when Slack API returns error" do
+      stub(Req, :post, fn _url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{"ok" => false, "error" => "not_in_channel"}
+         }}
+      end)
+
+      result = Client.unfurl("xoxb-token", "C123", "1234567890.123456", %{})
+
+      assert {:error, "not_in_channel"} = result
+    end
+
+    test "returns error on unexpected status code" do
+      stub(Req, :post, fn _url, _opts ->
+        {:ok, %Req.Response{status: 500, body: %{}}}
+      end)
+
+      result = Client.unfurl("xoxb-token", "C123", "1234567890.123456", %{})
+
+      assert {:error, message} = result
+      assert message =~ "Unexpected status code: 500"
+    end
+
+    test "returns error when request fails" do
+      stub(Req, :post, fn _url, _opts ->
+        {:error, %Req.TransportError{reason: :timeout}}
+      end)
+
+      result = Client.unfurl("xoxb-token", "C123", "1234567890.123456", %{})
+
+      assert {:error, message} = result
+      assert message =~ "Request failed"
+    end
+  end
 end

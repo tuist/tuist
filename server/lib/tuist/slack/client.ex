@@ -7,6 +7,7 @@ defmodule Tuist.Slack.Client do
 
   @oauth_token_url "https://slack.com/api/oauth.v2.access"
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
+  @chat_unfurl_url "https://slack.com/api/chat.unfurl"
 
   @doc """
   Exchanges an OAuth authorization code for an access token.
@@ -39,6 +40,22 @@ defmodule Tuist.Slack.Client do
     body = JSON.encode!(%{channel: channel_id, blocks: blocks, unfurl_links: false, unfurl_media: false})
 
     @chat_post_message_url
+    |> Req.post(headers: headers, body: body)
+    |> handle_post_response()
+  end
+
+  @doc """
+  Unfurls links in a Slack message.
+  """
+  def unfurl(access_token, channel, ts, unfurls) do
+    headers = [
+      {"Authorization", "Bearer #{access_token}"},
+      {"Content-Type", "application/json"}
+    ]
+
+    body = JSON.encode!(%{channel: channel, ts: ts, unfurls: unfurls})
+
+    @chat_unfurl_url
     |> Req.post(headers: headers, body: body)
     |> handle_post_response()
   end
