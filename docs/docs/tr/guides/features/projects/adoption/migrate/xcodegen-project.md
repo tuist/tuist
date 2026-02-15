@@ -8,9 +8,9 @@
 # XcodeGen projesini taşıma {#migrate-an-xcodegen-project}
 
 [XcodeGen](https://github.com/yonaskolb/XcodeGen), Xcode projelerini tanımlamak
-için [bir yapılandırma
+için YAML'yi [bir yapılandırma
 biçimi](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md)
-olarak YAML kullanan bir proje oluşturma aracıdır. Birçok kuruluş **, Xcode
+olarak kullanan bir proje oluşturma aracıdır. Birçok kuruluş **, Xcode
 projeleriyle çalışırken sık sık ortaya çıkan Git çakışmalarından kurtulmak için
 bu aracı benimsemiştir.** Ancak, sık sık ortaya çıkan Git çakışmaları,
 kuruluşların karşılaştığı birçok sorundan sadece biridir. Xcode,
@@ -57,8 +57,8 @@ istediğinizde özellikle kullanışlıdır.
 ## `project.yaml` {#projectyaml}
 
 XcodeGen'in `project.yaml` açıklama dosyası, `Project.swift` haline gelir.
-Ayrıca, projelerin çalışma alanlarında nasıl gruplandırılacağını özelleştirmek
-için `Workspace.swift` dosyasını kullanabilirsiniz. Diğer projelerden hedefleri
+Ayrıca, `Workspace.swift` dosyasını kullanarak projelerin çalışma alanlarında
+nasıl gruplandırılacağını özelleştirebilirsiniz. Diğer projelerdeki hedefleri
 referans alan hedefleri içeren bir proje `Project.swift` de oluşturabilirsiniz.
 Bu durumlarda Tuist, tüm projeleri içeren bir Xcode Çalışma Alanı oluşturur.
 
@@ -93,9 +93,9 @@ dosyaları arasında yeniden kullanılabilirliği desteklememesidir. Bu, projele
 tanımlarken sıkça karşılaşılan bir ihtiyaçtır ve XcodeGen, bunu kendi özel
 çözümü olan *"şablonları"* ile çözmek zorunda kalmıştır. Tuist'te yeniden
 kullanılabilirlik, dilin kendisi olan Swift'e ve
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklaması
-yardımcıları</LocalizedLink> adlı bir Swift modülüne entegre edilmiştir, bu da
-tüm manifest dosyalarınızda kodun yeniden kullanılmasını sağlar.
+<LocalizedLink href="/guides/features/projects/code-sharing">proje tanımı
+yardımcıları</LocalizedLink> adlı bir Swift modülüne entegre edilmiştir. Bu
+modül, tüm manifest dosyalarınızda kodun yeniden kullanılmasını sağlar.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
