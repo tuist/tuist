@@ -651,7 +651,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       assert test.id == test_attrs.id
@@ -699,7 +699,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       assert test.id == test_attrs.id
@@ -773,7 +773,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       # Verify test suites were created
@@ -833,7 +833,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When / Then
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
       assert test.id == test_attrs.id
     end
 
@@ -875,7 +875,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When / Then
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
       assert test.id == test_attrs.id
     end
 
@@ -922,7 +922,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       # Verify test was created with failure status
@@ -961,6 +961,7 @@ defmodule Tuist.TestsTest do
         exception_subtype: "KERN_INVALID_ADDRESS",
         triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
         test_case_run_id: test_case_run_id,
+        test_case_run_attachment_id: UUIDv7.generate(),
         inserted_at: NaiveDateTime.utc_now()
       }
 
@@ -1424,7 +1425,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then - test run should be marked as flaky with original status preserved
       assert test.status == "success"
@@ -1497,7 +1498,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then - test run should NOT be marked as flaky for non-CI
       assert test.status == "success"
@@ -1558,7 +1559,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, ci_test, _test_case_runs_info} = Tests.create_test(ci_test_attrs)
+      {:ok, ci_test, _test_case_runs} = Tests.create_test(ci_test_attrs)
 
       # Get the test case ID from the CI run
       {ci_test_case_runs, _meta} =
@@ -1606,7 +1607,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, _non_ci_test, _test_case_runs_info} = Tests.create_test(non_ci_test_attrs)
+      {:ok, _non_ci_test, _test_case_runs} = Tests.create_test(non_ci_test_attrs)
 
       # TestCase should STILL be marked as flaky (non-CI run should not clear it)
       {:ok, test_case_after_non_ci} = Tests.get_test_case_by_id(test_case_id)
@@ -1662,7 +1663,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       {test_cases, _meta} =
@@ -1733,7 +1734,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       {test_cases, _meta} =
@@ -1782,7 +1783,7 @@ defmodule Tuist.TestsTest do
       }
 
       # When
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then
       {test_cases, _meta} =
@@ -3943,7 +3944,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, test, _test_case_runs_info} = Tests.create_test(test_attrs)
+      {:ok, test, _test_case_runs} = Tests.create_test(test_attrs)
 
       # Then - the test case run should be marked as new
       {test_case_runs, _meta} =
@@ -3991,7 +3992,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, _main_test, _test_case_runs_info} = Tests.create_test(main_test_attrs)
+      {:ok, _main_test, _test_case_runs} = Tests.create_test(main_test_attrs)
 
       # When - create another test run on a feature branch with the same test case
       feature_test_attrs = %{
@@ -4023,7 +4024,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, feature_test, _test_case_runs_info} = Tests.create_test(feature_test_attrs)
+      {:ok, feature_test, _test_case_runs} = Tests.create_test(feature_test_attrs)
 
       # Then - the test case run should NOT be marked as new
       {test_case_runs, _meta} =
@@ -4071,7 +4072,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, _non_ci_test, _test_case_runs_info} = Tests.create_test(non_ci_main_attrs)
+      {:ok, _non_ci_test, _test_case_runs} = Tests.create_test(non_ci_main_attrs)
 
       # When - create a CI test run on feature branch with the same test case
       ci_feature_attrs = %{
@@ -4103,7 +4104,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, ci_test, _test_case_runs_info} = Tests.create_test(ci_feature_attrs)
+      {:ok, ci_test, _test_case_runs} = Tests.create_test(ci_feature_attrs)
 
       # Then - the test case run should still be marked as new (non-CI runs don't count)
       {test_case_runs, _meta} =
@@ -4151,7 +4152,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, _main_test, _test_case_runs_info} = Tests.create_test(main_test_attrs)
+      {:ok, _main_test, _test_case_runs} = Tests.create_test(main_test_attrs)
 
       # When - create a test run on feature branch with both existing and new test cases
       feature_test_attrs = %{
@@ -4188,7 +4189,7 @@ defmodule Tuist.TestsTest do
         ]
       }
 
-      {:ok, feature_test, _test_case_runs_info} = Tests.create_test(feature_test_attrs)
+      {:ok, feature_test, _test_case_runs} = Tests.create_test(feature_test_attrs)
 
       # Then - one should be new, one should not
       {test_case_runs, _meta} =

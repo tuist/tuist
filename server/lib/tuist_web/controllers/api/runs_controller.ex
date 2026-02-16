@@ -814,7 +814,7 @@ defmodule TuistWeb.API.RunsController do
 
       "test" ->
         case get_or_create_test(run_params) do
-          {:ok, test_run, _test_case_runs_info} ->
+          {:ok, test_run, _test_case_runs} ->
             conn
             |> put_status(:ok)
             |> json(%{

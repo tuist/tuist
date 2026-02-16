@@ -164,7 +164,7 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        {test_case_ids_with_flaky_run, test_case_runs_info} = create_test_modules(test, test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
 
         schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
@@ -176,7 +176,7 @@ defmodule Tuist.Tests do
           :test_created
         )
 
-        {:ok, test, test_case_runs_info}
+        {:ok, test, test_case_runs}
 
       {:error, changeset} ->
         {:error, changeset}
@@ -460,7 +460,7 @@ defmodule Tuist.Tests do
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
-    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_runs_info ->
+    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -499,7 +499,7 @@ defmodule Tuist.Tests do
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
-      {flaky_ids, runs_info} =
+      {flaky_ids, test_case_runs} =
         create_test_cases_for_module(
           test,
           module_id,
@@ -509,7 +509,7 @@ defmodule Tuist.Tests do
           module_test_case_run_data
         )
 
-      {flaky_ids, acc_runs_info ++ runs_info}
+      {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
   end
 
@@ -784,17 +784,7 @@ defmodule Tuist.Tests do
 
     create_first_run_events(test_case_runs)
 
-    runs_info =
-      Enum.map(test_case_runs, fn run ->
-        %{
-          id: run.id,
-          name: run.name,
-          module_name: run.module_name,
-          suite_name: run.suite_name
-        }
-      end)
-
-    {test_case_ids_with_flaky_run, runs_info}
+    {test_case_ids_with_flaky_run, test_case_runs}
   end
 
   defp create_first_run_events(test_case_runs) do
@@ -1348,7 +1338,7 @@ defmodule Tuist.Tests do
       Enum.map(existing_runs, fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions])
+        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions, :crash_report])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 

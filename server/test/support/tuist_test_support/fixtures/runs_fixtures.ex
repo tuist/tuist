@@ -123,7 +123,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
            ci_provider: Keyword.get(attrs, :ci_provider),
            test_modules: test_modules
          }) do
-      {:ok, test, _test_case_runs_info} -> {:ok, test}
+      {:ok, test, _test_case_runs} -> {:ok, test}
       {:error, changeset} -> {:error, changeset}
     end
   end
