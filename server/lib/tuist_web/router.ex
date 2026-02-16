@@ -385,10 +385,6 @@ defmodule TuistWeb.Router do
           post "/", TestsController, :create
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
-
-          get "/test-case-runs/:test_case_run_id/attachments/:file_name",
-              TestCaseRunAttachmentsController,
-              :download
         end
 
         scope "/builds" do
@@ -813,7 +809,7 @@ defmodule TuistWeb.Router do
       get "/runs/:run_id/download", RunsController, :download
 
       get "/tests/test-case-runs/:test_case_run_id/attachments/:file_name",
-          TestCaseRunAttachmentsController,
+          TuistWeb.TestCaseRunAttachmentsController,
           :download
 
       live "/settings", ProjectSettingsLive
