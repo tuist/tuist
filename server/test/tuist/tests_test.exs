@@ -445,8 +445,8 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_test_run_failures/2" do
-    test "lists failures for a test run with pagination" do
+  describe "list_failed_test_case_runs/2" do
+    test "lists failed test case runs with preloaded failures and crash reports" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
@@ -494,18 +494,17 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failures_page1, meta_page1} =
-        Tests.list_test_run_failures(test.id, %{
-          page_size: 2
-        })
-
-      {failures_page2, _meta} =
-        Tests.list_test_run_failures(test.id, Flop.to_next_page(meta_page1.flop))
+      {failed_runs, meta} = Tests.list_failed_test_case_runs(test.id, %{})
 
       # Then
-      assert length(failures_page1) == 2
-      assert length(failures_page2) == 1
-      assert meta_page1.total_count == 3
+      assert length(failed_runs) == 2
+      assert meta.total_count == 2
+
+      run1 = Enum.find(failed_runs, &(&1.name == "testCase1"))
+      run2 = Enum.find(failed_runs, &(&1.name == "testCase2"))
+
+      assert length(run1.failures) == 1
+      assert length(run2.failures) == 2
     end
 
     test "returns empty list when no failures exist for test run" do
@@ -525,10 +524,10 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failures, meta} = Tests.list_test_run_failures(test.id, %{})
+      {failed_runs, meta} = Tests.list_failed_test_case_runs(test.id, %{})
 
       # Then
-      assert failures == []
+      assert failed_runs == []
       assert meta.total_count == 0
     end
   end
@@ -933,16 +932,19 @@ defmodule Tuist.TestsTest do
       count = Tests.get_test_run_failures_count(test.id)
       assert count == 1
 
-      {failures, _meta} = Tests.list_test_run_failures(test.id, %{})
-      assert length(failures) == 1
+      {failed_runs, _meta} = Tests.list_failed_test_case_runs(test.id, %{})
+      assert length(failed_runs) == 1
 
-      failure = hd(failures)
+      failed_run = hd(failed_runs)
+      assert failed_run.name == "testThatFails"
+      assert failed_run.module_name == "FailingTestModule"
+      assert length(failed_run.failures) == 1
+
+      failure = hd(failed_run.failures)
       assert failure.message == "Expected true but was false"
       assert failure.path == "/path/to/test.swift"
       assert failure.line_number == 42
       assert failure.issue_type == "assertion"
-      assert failure.test_case_name == "testThatFails"
-      assert failure.test_module_name == "FailingTestModule"
     end
   end
 
@@ -4948,43 +4950,6 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_crash_reports_by_test_case_run_ids/1" do
-    test "returns empty map for empty list" do
-      assert Tests.get_crash_reports_by_test_case_run_ids([]) == %{}
-    end
-
-    test "returns crash reports with preloaded attachments keyed by test case run id" do
-      # Given
-      run_id_1 = UUIDv7.generate()
-      run_id_2 = UUIDv7.generate()
-
-      cr1 = RunsFixtures.crash_report_fixture(test_case_run_id: run_id_1, exception_type: "EXC_CRASH")
-      cr2 = RunsFixtures.crash_report_fixture(test_case_run_id: run_id_2, exception_type: "EXC_BAD_ACCESS")
-
-      # When
-      result = Tests.get_crash_reports_by_test_case_run_ids([run_id_1, run_id_2])
-
-      # Then
-      assert map_size(result) == 2
-      assert result[run_id_1].id == cr1.id
-      assert result[run_id_1].test_case_run_attachment.id == cr1.test_case_run_attachment_id
-      assert result[run_id_2].id == cr2.id
-      assert result[run_id_2].test_case_run_attachment.id == cr2.test_case_run_attachment_id
-    end
-
-    test "returns only matching crash reports" do
-      # Given
-      run_id = UUIDv7.generate()
-      RunsFixtures.crash_report_fixture(test_case_run_id: run_id)
-
-      # When
-      result = Tests.get_crash_reports_by_test_case_run_ids([run_id, UUIDv7.generate()])
-
-      # Then
-      assert map_size(result) == 1
-      assert Map.has_key?(result, run_id)
-    end
-  end
 
   describe "create_test_case_run_attachment/1" do
     test "creates an attachment successfully" do

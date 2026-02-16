@@ -45,17 +45,6 @@ defmodule Tuist.Tests do
     |> IngestRepo.insert()
   end
 
-  def get_crash_reports_by_test_case_run_ids([]), do: %{}
-
-  def get_crash_reports_by_test_case_run_ids(test_case_run_ids) do
-    query = from(cr in CrashReport, where: cr.test_case_run_id in ^test_case_run_ids)
-
-    query
-    |> ClickHouseRepo.all()
-    |> ClickHouseRepo.preload(:test_case_run_attachment)
-    |> Map.new(fn cr -> {cr.test_case_run_id, cr} end)
-  end
-
   def get_test(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
@@ -115,26 +104,16 @@ defmodule Tuist.Tests do
     ClickHouseRepo.one(query) || 0
   end
 
-  def list_test_run_failures(test_run_id, attrs) do
+  def list_failed_test_case_runs(test_run_id, attrs) do
     query =
-      from f in TestCaseFailure,
-        join: tcr in TestCaseRun,
-        on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id,
-        select: %{
-          id: f.id,
-          test_case_run_id: f.test_case_run_id,
-          message: f.message,
-          path: f.path,
-          line_number: f.line_number,
-          issue_type: f.issue_type,
-          inserted_at: f.inserted_at,
-          test_case_name: tcr.name,
-          test_module_name: tcr.module_name,
-          test_suite_name: tcr.suite_name
-        }
+      from tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure"
 
-    Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)
+    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseRun)
+
+    results = ClickHouseRepo.preload(results, [:failures, crash_report: :test_case_run_attachment])
+
+    {results, meta}
   end
 
   def list_test_suite_runs(attrs) do

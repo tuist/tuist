@@ -279,10 +279,9 @@ defmodule TuistWeb.TestRunLive do
 
   defp assign_initial_failures_state(socket) do
     socket
-    |> assign(:failures, [])
+    |> assign(:failed_test_case_runs, [])
     |> assign(:failures_meta, %{})
     |> assign(:failures_page, 1)
-    |> assign(:crash_reports, %{})
   end
 
   defp assign_initial_flaky_runs_state(socket) do
@@ -338,7 +337,7 @@ defmodule TuistWeb.TestRunLive do
     selected_test_tab = params["test-tab"] || "test-cases"
 
     # Load failures data for the overview preview card
-    {failures_grouped, crash_reports, failures_meta} = load_failures_data(socket.assigns.run, params)
+    {failed_test_case_runs, failures_meta} = load_failures_data(socket.assigns.run, params)
 
     # Load flaky runs data
     flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
@@ -346,8 +345,7 @@ defmodule TuistWeb.TestRunLive do
     socket =
       socket
       |> assign(:selected_test_tab, selected_test_tab)
-      |> assign(:failures_grouped_by_test_case, failures_grouped)
-      |> assign(:crash_reports, crash_reports)
+      |> assign(:failed_test_case_runs, failed_test_case_runs)
       |> assign(:failures_meta, failures_meta)
       |> assign(:flaky_runs_grouped, flaky_runs_grouped)
       |> assign_selective_testing_defaults()
@@ -374,8 +372,8 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_tab_data(socket, "failures", params) do
-    {failures, crash_reports, meta} = load_failures_data(socket.assigns.run, params)
-    assign_failures_data(socket, failures, crash_reports, meta, params)
+    {failed_test_case_runs, meta} = load_failures_data(socket.assigns.run, params)
+    assign_failures_data(socket, failed_test_case_runs, meta, params)
   end
 
   defp assign_tab_data(socket, "flaky-runs", params) do
@@ -602,28 +600,12 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [:desc]
     }
 
-    {failures, meta} = Tests.list_test_run_failures(run.id, attrs)
-
-    test_case_run_ids =
-      failures
-      |> Enum.map(& &1.test_case_run_id)
-      |> Enum.uniq()
-
-    crash_reports = Tests.get_crash_reports_by_test_case_run_ids(test_case_run_ids)
-
-    # Group failures by test case
-    failures_grouped =
-      Enum.group_by(failures, fn failure ->
-        failure.test_case_run_id
-      end)
-
-    {failures_grouped, crash_reports, meta}
+    Tests.list_failed_test_case_runs(run.id, attrs)
   end
 
-  defp assign_failures_data(socket, failures_grouped, crash_reports, meta, params) do
+  defp assign_failures_data(socket, failed_test_case_runs, meta, params) do
     socket
-    |> assign(:failures_grouped_by_test_case, failures_grouped)
-    |> assign(:crash_reports, crash_reports)
+    |> assign(:failed_test_case_runs, failed_test_case_runs)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
   end
