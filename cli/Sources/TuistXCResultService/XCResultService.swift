@@ -501,53 +501,51 @@ public struct XCResultService: XCResultServicing {
 
     private func crashReportsByTestIdentifiers(from xcresultPath: AbsolutePath) async -> [String: CrashReport] {
         do {
-            return try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-crash-attachments") {
-                temporaryDirectory in
+            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-crash-attachments")
 
-                _ = try await commandRunner.run(
-                    arguments: [
-                        "/bin/sh", "-c",
-                        "/usr/bin/xcrun xcresulttool export attachments --only-failures --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
-                    ]
-                ).concatenatedString()
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool export attachments --only-failures --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
+                ]
+            ).concatenatedString()
 
-                let manifestPath = temporaryDirectory.appending(component: "manifest.json")
-                guard try await fileSystem.exists(manifestPath) else {
-                    return [:]
-                }
-
-                let manifestData = try await fileSystem.readFile(at: manifestPath)
-                let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
-
-                var crashReportsByTestIdentifier: [String: CrashReport] = [:]
-
-                for entry in manifestEntries {
-                    guard let testIdentifier = entry.testIdentifier else { continue }
-
-                    for attachment in entry.attachments {
-                        guard attachment.exportedFileName.hasSuffix(".ips"),
-                              attachment.isAssociatedWithFailure == true
-                        else { continue }
-
-                        let filePath = temporaryDirectory.appending(component: attachment.exportedFileName)
-                        guard try await fileSystem.exists(filePath) else { continue }
-
-                        let content = try await fileSystem.readTextFile(at: filePath)
-                        let crashReport = try IPSCrashReportParser().parse(content)
-
-                        let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
-                        crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
-                            exceptionType: crashReport.exceptionType,
-                            signal: crashReport.signal,
-                            exceptionSubtype: crashReport.exceptionSubtype,
-                            filePath: filePath,
-                            triggeredThreadFrames: crashReport.triggeredThreadFrames
-                        )
-                    }
-                }
-
-                return crashReportsByTestIdentifier
+            let manifestPath = temporaryDirectory.appending(component: "manifest.json")
+            guard try await fileSystem.exists(manifestPath) else {
+                return [:]
             }
+
+            let manifestData = try await fileSystem.readFile(at: manifestPath)
+            let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
+
+            var crashReportsByTestIdentifier: [String: CrashReport] = [:]
+
+            for entry in manifestEntries {
+                guard let testIdentifier = entry.testIdentifier else { continue }
+
+                for attachment in entry.attachments {
+                    guard attachment.exportedFileName.hasSuffix(".ips"),
+                          attachment.isAssociatedWithFailure == true
+                    else { continue }
+
+                    let filePath = temporaryDirectory.appending(component: attachment.exportedFileName)
+                    guard try await fileSystem.exists(filePath) else { continue }
+
+                    let content = try await fileSystem.readTextFile(at: filePath)
+                    let crashReport = try IPSCrashReportParser().parse(content)
+
+                    let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
+                    crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
+                        exceptionType: crashReport.exceptionType,
+                        signal: crashReport.signal,
+                        exceptionSubtype: crashReport.exceptionSubtype,
+                        filePath: filePath,
+                        triggeredThreadFrames: crashReport.triggeredThreadFrames
+                    )
+                }
+            }
+
+            return crashReportsByTestIdentifier
         } catch {
             Logger.current.warning("Failed to extract crash attachments: \(error)")
             return [:]

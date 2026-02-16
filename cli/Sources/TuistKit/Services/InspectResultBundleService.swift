@@ -54,6 +54,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let xcodeBuildController: XcodeBuildControlling
     private let rootDirectoryLocator: RootDirectoryLocating
     private let xcActivityLogController: XCActivityLogControlling
+    private let fileSystem: FileSysteming
 
     init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -67,7 +68,8 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         ciController: CIControlling = CIController(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-        xcActivityLogController: XCActivityLogControlling = XCActivityLogController()
+        xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -81,6 +83,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.xcodeBuildController = xcodeBuildController
         self.rootDirectoryLocator = rootDirectoryLocator
         self.xcActivityLogController = xcActivityLogController
+        self.fileSystem = fileSystem
     }
 
     func inspectResultBundle(
@@ -182,6 +185,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                 testCaseRunId: testCaseRunId,
                 testCaseRunAttachmentId: testCaseRunAttachmentId
             )
+            try await fileSystem.remove(crashReport.filePath)
         } catch {
             Logger.current
                 .warning("Failed to upload crash report for \(fileName): \(error.localizedDescription)")
