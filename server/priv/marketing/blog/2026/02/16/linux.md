@@ -1,5 +1,5 @@
 ---
-title: "Tuist CLI now runs on Linux"
+title: "Tuist Swift CLI now runs on Linux"
 category: "product"
 tags: ["product", "linux"]
 excerpt: "Tuist is no longer macOS-only. You can now run analytical workflows or leverage the upcoming Tuist Gradle support on Linux."
@@ -37,14 +37,14 @@ When we started to add Linux support, we knew we wanted to do so gradually by cr
 
 ### Fully static binaries with musl
 
-Our first Linux builds linked the Swift standard library dynamically, meaning the binary required Swift to be installed on the target machine. Instead of requiring Swift to be installed on the target machine, we switched to Swift's [Static Linux SDK](https://www.swift.org/documentation/articles/static-linux-getting-started.html) which cross-compiles against [musl libc](https://musl.libc.org/) to produce fully static binaries with zero shared library dependencies:
+Our first Linux builds linked the Swift standard library and system libraries like `libcurl` dynamically, meaning the binary required the Swift runtime and matching system libraries on the target machine. Instead, we switched to Swift's [Static Linux SDK](https://www.swift.org/documentation/articles/static-linux-getting-started.html) which cross-compiles against [musl libc](https://musl.libc.org/) to produce fully static binaries with zero shared library dependencies:
 
 ```bash
 swift sdk install https://download.swift.org/swift-6.1.2-release/static-sdk/swift-6.1.2-RELEASE/swift-6.1.2-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
 swift build --product tuist --configuration release --swift-sdk x86_64-swift-linux-musl
 ```
 
-The resulting binary runs identically on Ubuntu, Fedora, Alpine, or any other Linux distribution. No dynamic linker, no shared libraries, no Swift installation required.
+The resulting binary runs identically on Ubuntu, Fedora, Alpine, or any other Linux distribution. No dynamic linker, no shared libraries, no Swift installation required. The trade-off is a larger binary since everything is bundled in, but for a CLI tool that's distributed once and run many times, portability is worth it.
 
 The switch to musl did require some code changes. The C library module is named `Musl` rather than `Glibc`, so platform imports became three-way:
 
