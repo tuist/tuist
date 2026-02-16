@@ -357,6 +357,17 @@
                                 },
                                 "module-cache": {
                                     "text": "模組快取"
+                                },
+                                "xcode": {
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Xcode 快取"
+                                        }
+                                    }
+                                },
+                                "gradle-cache": {
+                                    "text": "Gradle 快取"
                                 }
                             }
                         },
