@@ -7,7 +7,7 @@ defmodule Tuist.Alerts do
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
-  alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles
   alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -102,13 +102,13 @@ defmodule Tuist.Alerts do
   end
 
   def evaluate(%AlertRule{category: :bundle_size} = alert_rule) do
+    project = %Project{id: alert_rule.project_id}
+
     current_bundle =
-      Bundle
-      |> where([b], b.project_id == ^alert_rule.project_id)
-      |> where([b], b.git_branch == ^alert_rule.git_branch)
-      |> order_by([b], desc: b.inserted_at)
-      |> limit(1)
-      |> Repo.one()
+      Bundles.last_project_bundle(project,
+        git_branch: alert_rule.git_branch,
+        fallback: false
+      )
 
     case current_bundle do
       nil ->
@@ -116,14 +116,11 @@ defmodule Tuist.Alerts do
 
       current_bundle ->
         previous_bundle =
-          Bundle
-          |> where([b], b.project_id == ^alert_rule.project_id)
-          |> where([b], b.git_branch == ^alert_rule.git_branch)
-          |> where([b], b.app_bundle_id == ^current_bundle.app_bundle_id)
-          |> where([b], b.inserted_at < ^current_bundle.inserted_at)
-          |> order_by([b], desc: b.inserted_at)
-          |> limit(1)
-          |> Repo.one()
+          Bundles.last_project_bundle(project,
+            git_branch: alert_rule.git_branch,
+            bundle: current_bundle,
+            fallback: false
+          )
 
         case previous_bundle do
           nil ->
