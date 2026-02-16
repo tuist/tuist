@@ -8,11 +8,12 @@ public protocol ListTestCaseRunsServicing {
     func listTestCaseRuns(
         fullHandle: String,
         serverURL: URL,
-        testCaseId: String,
+        testCaseId: String?,
         flaky: Bool?,
+        testRunId: String?,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
+    ) async throws -> Components.Schemas.TestCaseRunsList
 }
 
 enum ListTestCaseRunsServiceError: LocalizedError {
@@ -47,11 +48,12 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
     public func listTestCaseRuns(
         fullHandle: String,
         serverURL: URL,
-        testCaseId: String,
+        testCaseId: String?,
         flaky: Bool?,
+        testRunId: String?,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+    ) async throws -> Components.Schemas.TestCaseRunsList {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -59,11 +61,12 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle,
-                    test_case_id: testCaseId
+                    project_handle: handles.projectHandle
                 ),
                 query: .init(
+                    test_case_id: testCaseId,
                     flaky: flaky,
+                    test_run_id: testRunId,
                     page_size: pageSize,
                     page: page
                 )
@@ -88,14 +91,14 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
 }
 
 #if DEBUG
-    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+    extension Components.Schemas.TestCaseRunsList {
         public static func test(
             currentPage: Int = 1,
             pageSize: Int = 10,
             totalPages: Int = 1,
             hasNextPage: Bool = false,
             hasPreviousPage: Bool = false,
-            testCaseRuns: [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+            testCaseRuns: [Components.Schemas.TestCaseRun]
         ) -> Self {
             .init(
                 pagination_metadata: .init(
@@ -111,7 +114,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         }
     }
 
-    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload {
+    extension Components.Schemas.TestCaseRun {
         public static func test(
             duration: Int = 1500,
             gitBranch: String? = "main",
@@ -120,10 +123,12 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             isCi: Bool = true,
             isFlaky: Bool = false,
             isNew: Bool = false,
+            moduleName: String = "AppTests",
+            name: String = "testExample",
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
-            status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload
-                .statusPayload = .success
+            status: Components.Schemas.TestCaseRun.statusPayload = .success,
+            suiteName: String? = nil
         ) -> Self {
             .init(
                 duration: duration,
@@ -133,9 +138,12 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
                 is_ci: isCi,
                 is_flaky: isFlaky,
                 is_new: isNew,
+                module_name: moduleName,
+                name: name,
                 ran_at: ranAt,
                 scheme: scheme,
-                status: status
+                status: status,
+                suite_name: suiteName
             )
         }
     }

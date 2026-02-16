@@ -49,6 +49,7 @@ struct InspectTestCommandServiceTests {
                     duration: 1000,
                     id: "test-id",
                     project_id: 1,
+                    test_case_runs: [],
                     _type: .test,
                     url: "https://tuist.dev/tuist/tuist/runs/test-id"
                 )

@@ -11,7 +11,7 @@ You'll typically receive a Tuist test case URL or identifier. Follow these steps
 
 1. Run `tuist test case show <id-or-identifier> --json` to get reliability metrics for the test.
 2. Run `tuist test case run list Module/Suite/TestCase --flaky --json` to see flaky run patterns.
-3. Run `tuist test case run show <run-id> --json` on failing flaky runs to get failure messages and file paths.
+3. Run `tuist test case run show <test-case-run-id> --json` on failing flaky runs to get failure messages and file paths.
 4. Read the test source at the reported path and line, identify the flaky pattern, and fix it.
 5. Verify by running the test multiple times to confirm it passes consistently.
 
@@ -74,7 +74,7 @@ Look for patterns:
 ### 4. Get failure details
 
 ```bash
-tuist test case run show <run-id> --json
+tuist test case run show <test-case-run-id> --json
 ```
 
 Key fields:
@@ -84,6 +84,7 @@ Key fields:
 - `failures[].issue_type` — type of issue (assertion_failure, etc.)
 - `repetitions` — if present, shows retry behavior (pass/fail sequence)
 - `test_run_id` — the broader test run this execution belongs to
+- `crash_report` — crash report data (present when the test runner crashed); contains `exception_type`, `signal`, `exception_subtype`, and `triggered_thread_frames`
 
 ## Code Analysis
 
@@ -113,6 +114,10 @@ Key fields:
 - **Implicit ordering**: Test passes only when run after another test that sets up required state. Fix: make each test self-contained.
 - **Parallel execution conflicts**: Tests that work in isolation but fail when run concurrently. Fix: use unique resources per test.
 
+### Crashes (identified via `crash_report`)
+- `EXC_BREAKPOINT` / `SIGTRAP` — force-unwrap of nil, Swift precondition failure
+- `EXC_BAD_ACCESS` / `SIGSEGV` — use-after-free or dangling pointer
+- `EXC_CRASH` / `SIGABRT` — uncaught Objective-C exception
 
 ## Fix Implementation
 

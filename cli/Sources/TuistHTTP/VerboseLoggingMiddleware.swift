@@ -2,10 +2,7 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
-#if os(macOS)
-    import TuistLogging
-    import TuistSupport
-#endif
+import TuistLogging
 
 /// A middleware that outputs in debug mode the request and responses sent and received from the server
 public struct VerboseLoggingMiddleware: ClientMiddleware {
@@ -23,30 +20,26 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (requestBodyToLog, requestBodyForNext) = try await process(body)
-        #if os(macOS)
-            Logger.current.debug("""
-            Sending HTTP request to \(serviceName):
-              - Method: \(request.method.rawValue)
-              - URL: \(baseURL.absoluteString)
-              - Path: \(request.path ?? "")
-              - Body: \(requestBodyToLog)
-              - Headers: \(request.headerFields)
-            """)
-        #endif
+        Logger.current.debug("""
+        Sending HTTP request to \(serviceName):
+          - Method: \(request.method.rawValue)
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
+          - Body: \(requestBodyToLog)
+          - Headers: \(request.headerFields)
+        """)
 
         let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
         let (responseBodyToLog, responseBodyForNext) = try await process(responseBody)
 
-        #if os(macOS)
-            Logger.current.debug("""
-            Received HTTP response from \(serviceName):
-              - URL: \(baseURL.absoluteString)
-              - Path: \(request.path ?? "")
-              - Status: \(response.status.code)
-              - Body: \(responseBodyToLog)
-              - Headers: \(response.headerFields)
-            """)
-        #endif
+        Logger.current.debug("""
+        Received HTTP response from \(serviceName):
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
+          - Status: \(response.status.code)
+          - Body: \(responseBodyToLog)
+          - Headers: \(response.headerFields)
+        """)
 
         return (response, responseBodyForNext)
     }

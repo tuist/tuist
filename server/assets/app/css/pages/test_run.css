@@ -701,6 +701,81 @@
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
       }
+
+      & > [data-part="crash-report-details"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+        margin-left: 44px;
+        border-top: 1px solid var(--noora-surface-border-secondary);
+        padding-top: var(--noora-spacing-5);
+
+        & > [data-part="crash-report-header"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="crash-report-title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+        }
+
+        & > [data-part="crash-report-metadata"] {
+          display: flex;
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: var(--noora-spacing-3) var(--noora-spacing-6);
+
+          & > [data-part="crash-report-meta-item"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-3);
+
+            & > [data-part="meta-label"] {
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+
+            & > [data-part="meta-value"] {
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            }
+          }
+        }
+
+        & > [data-part="crash-report-frames"] {
+          display: grid;
+          grid-template-columns: max-content max-content 1fr;
+          gap: var(--noora-spacing-3) var(--noora-spacing-7);
+          border-radius: var(--noora-radius-medium);
+          background: var(--noora-surface-background-tertiary);
+          padding: var(--noora-spacing-5);
+          overflow-x: auto;
+          font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+          & > [data-part="frame-line"] {
+            display: grid;
+            grid-template-columns: subgrid;
+            grid-column: 1 / -1;
+
+            & > [data-part="frame-index"],
+            & > [data-part="frame-image"] {
+              color: var(--noora-surface-label-secondary);
+            }
+
+            & > [data-part="frame-index"] {
+              text-align: right;
+            }
+
+            & > [data-part="frame-symbol"] {
+              color: var(--noora-surface-label-primary);
+            }
+          }
+        }
+      }
     }
   }
 }

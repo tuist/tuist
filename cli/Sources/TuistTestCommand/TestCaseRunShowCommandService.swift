@@ -69,6 +69,28 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
 
         let info = formatRunInfo(run)
         Noora.current.passthrough("\(info)")
+
+        if let crashReport = run.crash_report {
+            var summary: [String] = []
+            summary.append("Crash Report".bold())
+            if let exceptionType = crashReport.exception_type, !exceptionType.isEmpty {
+                summary.append("  Exception: \(exceptionType)")
+            }
+            if let signal = crashReport.signal, !signal.isEmpty {
+                summary.append("  Signal:    \(signal)")
+            }
+            if let subtype = crashReport.exception_subtype, !subtype.isEmpty {
+                summary.append("  Subtype:   \(subtype)")
+            }
+            Noora.current.passthrough("\(summary.joined(separator: "\n"))\n")
+            if let attachmentURL = crashReport.attachment_url {
+                Noora.current.passthrough("  \(.link(title: "Full crash report", href: attachmentURL))\n")
+            }
+            if let triggeredThreadFrames = crashReport.triggered_thread_frames, !triggeredThreadFrames.isEmpty {
+                Noora.current.passthrough("\n\(triggeredThreadFrames)\n")
+            }
+        }
+        Noora.current.passthrough("")
     }
 
     private func formatRunInfo(_ run: ServerTestCaseRun) -> String {

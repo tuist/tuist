@@ -10,7 +10,12 @@ public struct TestSummary {
         testModules.flatMap(\.testCases)
     }
 
-    public init(testPlanName: String?, status: TestStatus, duration: Int?, testModules: [TestModule]) {
+    public init(
+        testPlanName: String?,
+        status: TestStatus,
+        duration: Int?,
+        testModules: [TestModule]
+    ) {
         self.testPlanName = testPlanName
         self.status = status
         self.duration = duration
