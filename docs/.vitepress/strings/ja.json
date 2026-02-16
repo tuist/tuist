@@ -360,6 +360,12 @@
                                 },
                                 "module-cache": {
                                     "text": "モジュールキャッシュ"
+                                },
+                                "xcode": {
+                                    "text": "Xcode"
+                                },
+                                "gradle-cache": {
+                                    "text": "Gradle キャッシュ"
                                 }
                             }
                         },
