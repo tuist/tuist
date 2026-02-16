@@ -79,7 +79,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_deviation: 20.0)
     |> assign(create_alert_form_rolling_window_size: 100)
     |> assign(create_alert_form_git_branch: "")
-    |> assign(create_alert_form_bundle_size_metric: :install_size)
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
     # Metric alert edit forms - one per alert rule
@@ -94,7 +93,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
       deviation: rule.deviation_percentage,
       rolling_window_size: rule.rolling_window_size,
       git_branch: rule.git_branch || "",
-      bundle_size_metric: rule.bundle_size_metric || :install_size,
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -241,7 +239,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_deviation: 20.0)
       |> assign(create_alert_form_rolling_window_size: 100)
       |> assign(create_alert_form_git_branch: "")
-      |> assign(create_alert_form_bundle_size_metric: :install_size)
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
 
@@ -279,10 +276,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, assign(socket, create_alert_form_git_branch: git_branch)}
   end
 
-  def handle_event("update_create_alert_form_bundle_size_metric", %{"metric" => metric}, socket) do
-    {:noreply, assign(socket, create_alert_form_bundle_size_metric: String.to_existing_atom(metric))}
-  end
-
   # Edit form handlers
   def handle_event("update_edit_alert_form_name", %{"id" => id, "value" => name}, socket) do
     {:noreply, update_edit_alert_form(socket, id, :name, name)}
@@ -314,10 +307,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, update_edit_alert_form(socket, id, :git_branch, git_branch)}
   end
 
-  def handle_event("update_edit_alert_form_bundle_size_metric", %{"id" => id, "metric" => metric}, socket) do
-    {:noreply, update_edit_alert_form(socket, id, :bundle_size_metric, String.to_existing_atom(metric))}
-  end
-
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -327,7 +316,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
       deviation_percentage: assigns.create_alert_form_deviation,
       rolling_window_size: assigns.create_alert_form_rolling_window_size,
       git_branch: assigns.create_alert_form_git_branch,
-      bundle_size_metric: assigns.create_alert_form_bundle_size_metric,
       slack_channel_id: assigns.create_alert_form_channel_id,
       slack_channel_name: assigns.create_alert_form_channel_name
     }
@@ -356,7 +344,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
         deviation_percentage: form.deviation,
         rolling_window_size: form.rolling_window_size,
         git_branch: form.git_branch,
-        bundle_size_metric: form.bundle_size_metric,
         slack_channel_id: form.channel_id,
         slack_channel_name: form.channel_name
       }
@@ -552,8 +539,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     case category do
       :bundle_size ->
         git_branch = Keyword.get(opts, :git_branch, "")
-        bundle_size_metric = Keyword.get(opts, :bundle_size_metric, :install_size)
-        size_label = bundle_size_metric_label(bundle_size_metric)
+        size_label = bundle_size_metric_label(metric)
 
         text =
           dgettext(

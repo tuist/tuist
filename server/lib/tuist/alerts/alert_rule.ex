@@ -13,8 +13,7 @@ defmodule Tuist.Alerts.AlertRule do
   alias Tuist.Projects.Project
 
   @categories [build_run_duration: 0, test_run_duration: 1, cache_hit_rate: 2, bundle_size: 3]
-  @metrics [p50: 0, p90: 1, p99: 2, average: 3]
-  @bundle_size_metrics [install_size: 0, download_size: 1]
+  @metrics [p50: 0, p90: 1, p99: 2, average: 3, install_size: 4, download_size: 5]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -26,7 +25,6 @@ defmodule Tuist.Alerts.AlertRule do
     field :deviation_percentage, :float
     field :rolling_window_size, :integer
     field :git_branch, :string
-    field :bundle_size_metric, Ecto.Enum, values: @bundle_size_metrics
     field :slack_channel_id, :string
     field :slack_channel_name, :string
 
@@ -46,7 +44,6 @@ defmodule Tuist.Alerts.AlertRule do
       :deviation_percentage,
       :rolling_window_size,
       :git_branch,
-      :bundle_size_metric,
       :slack_channel_id,
       :slack_channel_name
     ])
@@ -54,6 +51,7 @@ defmodule Tuist.Alerts.AlertRule do
       :project_id,
       :name,
       :category,
+      :metric,
       :deviation_percentage,
       :slack_channel_id,
       :slack_channel_name
@@ -66,16 +64,15 @@ defmodule Tuist.Alerts.AlertRule do
   defp validate_category_fields(changeset) do
     case get_field(changeset, :category) do
       :bundle_size ->
-        validate_required(changeset, [:git_branch, :bundle_size_metric])
+        validate_required(changeset, [:git_branch])
 
       _ ->
         changeset
-        |> validate_required([:metric, :rolling_window_size])
+        |> validate_required([:rolling_window_size])
         |> validate_number(:rolling_window_size, greater_than: 0)
     end
   end
 
   def categories, do: @categories
   def metrics, do: @metrics
-  def bundle_size_metrics, do: @bundle_size_metrics
 end

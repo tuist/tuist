@@ -45,8 +45,8 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
     category_attrs =
       if category == :bundle_size do
         %{
-          git_branch: Keyword.get(opts, :git_branch, "main"),
-          bundle_size_metric: Keyword.get(opts, :bundle_size_metric, :install_size)
+          metric: Keyword.get(opts, :metric, :install_size),
+          git_branch: Keyword.get(opts, :git_branch, "main")
         }
       else
         %{

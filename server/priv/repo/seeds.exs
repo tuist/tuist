@@ -2345,7 +2345,7 @@ if slack_installation do
     %{
       name: "Bundle Size Alert",
       category: :bundle_size,
-      bundle_size_metric: :install_size,
+      metric: :install_size,
       deviation_percentage: 5.0,
       git_branch: "main",
       slack_channel_id: "C0A598PACRG",

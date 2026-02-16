@@ -321,9 +321,9 @@ defmodule Tuist.Slack do
       "Current: #{format_alert_percentage(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :bundle_size, bundle_size_metric: bundle_size_metric}} = alert) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :bundle_size, metric: metric}} = alert) do
     deviation = calculate_increase_deviation(alert)
-    label = bundle_size_metric_label(bundle_size_metric)
+    label = bundle_size_metric_label(metric)
 
     "*Bundle #{label} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_bytes(alert.previous_value)}\n" <>

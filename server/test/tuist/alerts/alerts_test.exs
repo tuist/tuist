@@ -329,7 +329,7 @@ defmodule Tuist.AlertsTest do
         AlertsFixtures.alert_rule_fixture(
           project: project,
           category: :bundle_size,
-          bundle_size_metric: :install_size,
+          metric: :install_size,
           git_branch: "main",
           deviation_percentage: 20.0
         )
@@ -371,7 +371,7 @@ defmodule Tuist.AlertsTest do
         AlertsFixtures.alert_rule_fixture(
           project: project,
           category: :bundle_size,
-          bundle_size_metric: :install_size,
+          metric: :install_size,
           git_branch: "main",
           deviation_percentage: 20.0
         )
@@ -391,7 +391,7 @@ defmodule Tuist.AlertsTest do
         AlertsFixtures.alert_rule_fixture(
           project: project,
           category: :bundle_size,
-          bundle_size_metric: :install_size,
+          metric: :install_size,
           git_branch: "main",
           deviation_percentage: 20.0
         )
@@ -420,7 +420,7 @@ defmodule Tuist.AlertsTest do
         AlertsFixtures.alert_rule_fixture(
           project: project,
           category: :bundle_size,
-          bundle_size_metric: :install_size,
+          metric: :install_size,
           git_branch: "main",
           deviation_percentage: 20.0
         )

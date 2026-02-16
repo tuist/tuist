@@ -276,8 +276,7 @@
                 @create_alert_form_metric,
                 @create_alert_form_deviation,
                 @create_alert_form_rolling_window_size,
-                git_branch: @create_alert_form_git_branch,
-                bundle_size_metric: @create_alert_form_bundle_size_metric
+                git_branch: @create_alert_form_git_branch
               )}
             </p>
             <.alert
@@ -377,17 +376,17 @@
                 </label>
                 <.dropdown
                   id="create-alert-bundle-size-metric-dropdown"
-                  label={bundle_size_metric_label(@create_alert_form_bundle_size_metric)}
+                  label={bundle_size_metric_label(@create_alert_form_metric)}
                 >
                   <.dropdown_item
                     :for={metric <- [:install_size, :download_size]}
                     value={Atom.to_string(metric)}
                     label={bundle_size_metric_label(metric)}
-                    phx-click="update_create_alert_form_bundle_size_metric"
+                    phx-click="update_create_alert_form_metric"
                     phx-value-metric={metric}
-                    data-selected={@create_alert_form_bundle_size_metric == metric}
+                    data-selected={@create_alert_form_metric == metric}
                   >
-                    <:right_icon :if={@create_alert_form_bundle_size_metric == metric}>
+                    <:right_icon :if={@create_alert_form_metric == metric}>
                       <.icon name="check" />
                     </:right_icon>
                   </.dropdown_item>
@@ -499,7 +498,7 @@
           <:col :let={rule} label={dgettext("dashboard_projects", "Metric")}>
             <.text_cell
               :if={rule.category == :bundle_size}
-              label={bundle_size_metric_label(rule.bundle_size_metric || :install_size)}
+              label={bundle_size_metric_label(rule.metric)}
             />
             <.text_cell :if={rule.category != :bundle_size} label={metric_label(rule.metric)} />
           </:col>
@@ -548,9 +547,7 @@
                       form[:metric] || rule.metric,
                       form[:deviation] || rule.deviation_percentage,
                       form[:rolling_window_size] || rule.rolling_window_size,
-                      git_branch: form[:git_branch] || rule.git_branch || "",
-                      bundle_size_metric:
-                        form[:bundle_size_metric] || rule.bundle_size_metric || :install_size
+                      git_branch: form[:git_branch] || rule.git_branch || ""
                     )}
                   </p>
                   <.alert
@@ -658,28 +655,18 @@
                       </label>
                       <.dropdown
                         id={"edit-alert-bundle-size-metric-dropdown-#{rule.id}"}
-                        label={
-                          bundle_size_metric_label(
-                            form[:bundle_size_metric] || rule.bundle_size_metric || :install_size
-                          )
-                        }
+                        label={bundle_size_metric_label(form[:metric] || rule.metric)}
                       >
                         <.dropdown_item
                           :for={metric <- [:install_size, :download_size]}
                           value={Atom.to_string(metric)}
                           label={bundle_size_metric_label(metric)}
-                          phx-click="update_edit_alert_form_bundle_size_metric"
+                          phx-click="update_edit_alert_form_metric"
                           phx-value-id={rule.id}
                           phx-value-metric={metric}
-                          data-selected={
-                            (form[:bundle_size_metric] || rule.bundle_size_metric || :install_size) ==
-                              metric
-                          }
+                          data-selected={(form[:metric] || rule.metric) == metric}
                         >
-                          <:right_icon :if={
-                            (form[:bundle_size_metric] || rule.bundle_size_metric || :install_size) ==
-                              metric
-                          }>
+                          <:right_icon :if={(form[:metric] || rule.metric) == metric}>
                             <.icon name="check" />
                           </:right_icon>
                         </.dropdown_item>
