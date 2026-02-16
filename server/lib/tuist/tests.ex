@@ -176,7 +176,7 @@ defmodule Tuist.Tests do
           :test_created
         )
 
-        {:ok, test, test_case_runs}
+        {:ok, %{test | test_case_runs: test_case_runs}}
 
       {:error, changeset} ->
         {:error, changeset}

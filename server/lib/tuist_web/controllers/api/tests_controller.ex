@@ -263,7 +263,7 @@ defmodule TuistWeb.API.TestsController do
       |> Map.put(:account, Authentication.authenticated_subject_account(conn))
 
     case get_or_create_test(run_params) do
-      {:ok, test_run, test_case_runs} ->
+      {:ok, test_run} ->
         conn
         |> put_status(:ok)
         |> json(%{
@@ -273,7 +273,7 @@ defmodule TuistWeb.API.TestsController do
           project_id: test_run.project_id,
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
           test_case_runs:
-            Enum.map(test_case_runs, fn run ->
+            Enum.map(test_run.test_case_runs, fn run ->
               %{
                 id: run.id,
                 name: run.name,
@@ -418,7 +418,7 @@ defmodule TuistWeb.API.TestsController do
 
     case Tests.get_test(test_id) do
       {:ok, test_run} ->
-        {:ok, test_run, []}
+        {:ok, test_run}
 
       {:error, :not_found} ->
         Tests.create_test(%{
