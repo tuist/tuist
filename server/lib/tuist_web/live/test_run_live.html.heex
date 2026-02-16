@@ -321,8 +321,8 @@
         </div>
         <div data-part="failures-list">
           <div
-            :for={tcr <- Enum.take(@failed_test_case_runs, 4)}
-            id={"test-failure-overview-#{tcr.id}"}
+            :for={test_case_run <- Enum.take(@failed_test_case_runs, 4)}
+            id={"test-failure-overview-#{test_case_run.id}"}
             phx-hook="NooraCollapsible"
             data-part="collapsible"
             data-state="closed"
@@ -336,23 +336,23 @@
                   </div>
                   <div data-part="title-and-subtitle">
                     <h3 data-part="title">
-                      {tcr.name}
+                      {test_case_run.name}
                     </h3>
                     <span
-                      :if={tcr.module_name && tcr.suite_name != ""}
+                      :if={test_case_run.module_name && test_case_run.suite_name != ""}
                       data-part="subtitle"
                     >
-                      {tcr.module_name} • {tcr.suite_name}
+                      {test_case_run.module_name} • {test_case_run.suite_name}
                     </span>
                     <span
-                      :if={tcr.module_name && tcr.suite_name == ""}
+                      :if={test_case_run.module_name && test_case_run.suite_name == ""}
                       data-part="subtitle"
                     >
-                      {tcr.module_name}
+                      {test_case_run.module_name}
                     </span>
                   </div>
                   <.badge
-                    label={length(tcr.failures)}
+                    label={length(test_case_run.failures)}
                     color="destructive"
                     style="light-fill"
                     size="small"
@@ -374,18 +374,18 @@
                 </.neutral_button>
               </div>
               <div data-part="content" data-state="closed">
-                <span :for={failure <- tcr.failures} data-part="failure">
+                <span :for={failure <- test_case_run.failures} data-part="failure">
                   {format_failure_message(failure, @run)}
                 </span>
-                <div :if={tcr.crash_report} data-part="crash-report-details">
+                <div :if={test_case_run.crash_report} data-part="crash-report-details">
                   <div data-part="crash-report-header">
                     <span data-part="crash-report-title">
                       {dgettext("dashboard_tests", "Crash Report")}
                     </span>
                     <.button
-                      :if={tcr.crash_report.test_case_run_attachment.file_name}
+                      :if={test_case_run.crash_report.test_case_run_attachment.file_name}
                       href={
-                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{tcr.id}/attachments/#{tcr.crash_report.test_case_run_attachment.file_name}"
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                       }
                       label={dgettext("dashboard_tests", "Download")}
                       variant="secondary"
@@ -397,36 +397,36 @@
                   </div>
                   <div data-part="crash-report-metadata">
                     <span
-                      :if={tcr.crash_report.exception_type && tcr.crash_report.exception_type != ""}
+                      :if={test_case_run.crash_report.exception_type && test_case_run.crash_report.exception_type != ""}
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">
                         {dgettext("dashboard_tests", "Exception")}
                       </span>
-                      <span data-part="meta-value">{tcr.crash_report.exception_type}</span>
+                      <span data-part="meta-value">{test_case_run.crash_report.exception_type}</span>
                     </span>
                     <span
-                      :if={tcr.crash_report.signal && tcr.crash_report.signal != ""}
+                      :if={test_case_run.crash_report.signal && test_case_run.crash_report.signal != ""}
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
-                      <span data-part="meta-value">{tcr.crash_report.signal}</span>
+                      <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
                     </span>
                     <span
-                      :if={tcr.crash_report.exception_subtype && tcr.crash_report.exception_subtype != ""}
+                      :if={test_case_run.crash_report.exception_subtype && test_case_run.crash_report.exception_subtype != ""}
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
-                      <span data-part="meta-value">{tcr.crash_report.exception_subtype}</span>
+                      <span data-part="meta-value">{test_case_run.crash_report.exception_subtype}</span>
                     </span>
                   </div>
                   <pre
                     :if={
-                      tcr.crash_report.triggered_thread_frames &&
-                        tcr.crash_report.triggered_thread_frames != ""
+                      test_case_run.crash_report.triggered_thread_frames &&
+                        test_case_run.crash_report.triggered_thread_frames != ""
                     }
                     data-part="crash-report-frames"
-                  >{tcr.crash_report.triggered_thread_frames}</pre>
+                  >{test_case_run.crash_report.triggered_thread_frames}</pre>
                 </div>
               </div>
             </div>
@@ -1409,8 +1409,8 @@
       </div>
       <div data-part="failures-list">
         <div
-          :for={tcr <- @failed_test_case_runs}
-          id={"test-failure-#{tcr.id}"}
+          :for={test_case_run <- @failed_test_case_runs}
+          id={"test-failure-#{test_case_run.id}"}
           phx-hook="NooraCollapsible"
           data-part="collapsible"
           data-state="closed"
@@ -1424,23 +1424,23 @@
                 </div>
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
-                    {tcr.name}
+                    {test_case_run.name}
                   </h3>
                   <span
-                    :if={tcr.module_name && tcr.suite_name != ""}
+                    :if={test_case_run.module_name && test_case_run.suite_name != ""}
                     data-part="subtitle"
                   >
-                    {tcr.module_name} • {tcr.suite_name}
+                    {test_case_run.module_name} • {test_case_run.suite_name}
                   </span>
                   <span
-                    :if={tcr.module_name && tcr.suite_name == ""}
+                    :if={test_case_run.module_name && test_case_run.suite_name == ""}
                     data-part="subtitle"
                   >
-                    {tcr.module_name}
+                    {test_case_run.module_name}
                   </span>
                 </div>
                 <.badge
-                  label={length(tcr.failures)}
+                  label={length(test_case_run.failures)}
                   color="destructive"
                   style="light-fill"
                   size="small"
@@ -1462,18 +1462,18 @@
               </.neutral_button>
             </div>
             <div data-part="content" data-state="closed">
-              <span :for={failure <- tcr.failures} data-part="failure">
+              <span :for={failure <- test_case_run.failures} data-part="failure">
                 {format_failure_message(failure, @run)}
               </span>
-              <div :if={tcr.crash_report} data-part="crash-report-details">
+              <div :if={test_case_run.crash_report} data-part="crash-report-details">
                 <div data-part="crash-report-header">
                   <span data-part="crash-report-title">
                     {dgettext("dashboard_tests", "Crash Report")}
                   </span>
                   <.button
-                    :if={tcr.crash_report.test_case_run_attachment.file_name}
+                    :if={test_case_run.crash_report.test_case_run_attachment.file_name}
                     href={
-                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{tcr.id}/attachments/#{tcr.crash_report.test_case_run_attachment.file_name}"
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                     }
                     label={dgettext("dashboard_tests", "Download")}
                     variant="secondary"
@@ -1485,34 +1485,34 @@
                 </div>
                 <div data-part="crash-report-metadata">
                   <span
-                    :if={tcr.crash_report.exception_type && tcr.crash_report.exception_type != ""}
+                    :if={test_case_run.crash_report.exception_type && test_case_run.crash_report.exception_type != ""}
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
-                    <span data-part="meta-value">{tcr.crash_report.exception_type}</span>
+                    <span data-part="meta-value">{test_case_run.crash_report.exception_type}</span>
                   </span>
                   <span
-                    :if={tcr.crash_report.signal && tcr.crash_report.signal != ""}
+                    :if={test_case_run.crash_report.signal && test_case_run.crash_report.signal != ""}
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
-                    <span data-part="meta-value">{tcr.crash_report.signal}</span>
+                    <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
                   </span>
                   <span
-                    :if={tcr.crash_report.exception_subtype && tcr.crash_report.exception_subtype != ""}
+                    :if={test_case_run.crash_report.exception_subtype && test_case_run.crash_report.exception_subtype != ""}
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
-                    <span data-part="meta-value">{tcr.crash_report.exception_subtype}</span>
+                    <span data-part="meta-value">{test_case_run.crash_report.exception_subtype}</span>
                   </span>
                 </div>
                 <pre
                   :if={
-                    tcr.crash_report.triggered_thread_frames &&
-                      tcr.crash_report.triggered_thread_frames != ""
+                    test_case_run.crash_report.triggered_thread_frames &&
+                      test_case_run.crash_report.triggered_thread_frames != ""
                   }
                   data-part="crash-report-frames"
-                >{tcr.crash_report.triggered_thread_frames}</pre>
+                >{test_case_run.crash_report.triggered_thread_frames}</pre>
               </div>
             </div>
           </div>
