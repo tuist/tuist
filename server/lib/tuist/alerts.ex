@@ -113,11 +113,7 @@ defmodule Tuist.Alerts do
       current_size = Map.get(current_bundle, size_field)
       previous_size = Map.get(previous_bundle, size_field)
 
-      check_increase_regression(
-        alert_rule,
-        current_size && current_size / 1,
-        previous_size && previous_size / 1
-      )
+      check_increase_regression(alert_rule, current_size, previous_size)
     else
       nil -> :ok
     end
