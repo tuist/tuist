@@ -35,6 +35,9 @@ defmodule Cache.BodyReader do
     |> Plug.Conn.read_body(merged_opts)
     |> handle_read_result(conn, merged_opts, :store, max_bytes)
   rescue
+    Bandit.HTTPError ->
+      {:error, :cancelled, conn}
+
     Bandit.TransportError ->
       {:error, :cancelled, conn}
   end
@@ -54,6 +57,9 @@ defmodule Cache.BodyReader do
     |> Plug.Conn.read_body(merged_opts)
     |> handle_device_result(conn, merged_opts, writer, max_bytes)
   rescue
+    Bandit.HTTPError ->
+      {:error, :cancelled, conn}
+
     Bandit.TransportError ->
       {:error, :cancelled, conn}
   end
@@ -107,6 +113,9 @@ defmodule Cache.BodyReader do
       {:ok, _, conn_after} -> {:ok, conn_after}
       {:error, _reason, conn_after} -> {:error, conn_after}
     end
+  rescue
+    Bandit.HTTPError -> {:error, conn}
+    Bandit.TransportError -> {:error, conn}
   end
 
   defp handle_read_result(result, conn, opts, mode, max_bytes) do
@@ -174,6 +183,9 @@ defmodule Cache.BodyReader do
     |> Plug.Conn.read_body(chunk_opts)
     |> handle_loop_result(conn, opts, bytes_read, writer, max_bytes)
   rescue
+    Bandit.HTTPError ->
+      {:error, :cancelled, conn}
+
     Bandit.TransportError ->
       {:error, :cancelled, conn}
   end

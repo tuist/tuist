@@ -11,6 +11,8 @@
 @import "./pages/error.css";
 @import "./pages/generate_runs.css";
 @import "./pages/gradle_build.css";
+@import "./pages/gradle_build_runs.css";
+@import "./pages/gradle_builds.css";
 @import "./pages/gradle_cache.css";
 @import "./pages/gradle_overview.css";
 @import "./pages/integrations.css";

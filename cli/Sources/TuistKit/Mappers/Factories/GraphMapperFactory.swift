@@ -273,9 +273,9 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 includedTargets: cacheSources
             )
 
-            // Insert scheme generation mapper for cacheable targets
-            // This is inserted early (index 2) after ModuleMapMapper and ExternalProjectsPlatformNarrowerGraphMapper
-            mappers.insert(GenerateCacheableSchemesGraphMapper(targets: targets), at: 2)
+            // Insert scheme generation mapper after ExternalProjectsPlatformNarrowerGraphMapper so it sees narrowed destinations
+            let narrowerIndex = mappers.firstIndex(where: { $0 is ExternalProjectsPlatformNarrowerGraphMapper }) ?? 0
+            mappers.insert(GenerateCacheableSchemesGraphMapper(targets: targets), at: narrowerIndex + 1)
 
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,

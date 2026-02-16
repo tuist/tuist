@@ -245,6 +245,52 @@ struct TestCaseRunShowCommandServiceTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedNoora
+    ) func run_with_crash_report() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCaseRun = ServerTestCaseRun.test(
+            id: "run-crash",
+            crashReport: .init(
+                attachment_url: "https://cloud.tuist.dev/api/projects/tuist/tuist/tests/test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips",
+                exception_subtype: "KERN_INVALID_ADDRESS",
+                exception_type: "EXC_CRASH",
+                signal: "SIGABRT",
+                triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156\n1  MyApp               MyApp.example() + 180"
+            ),
+            status: .failure
+        )
+        given(getTestCaseRunService).getTestCaseRun(
+            fullHandle: .value(fullHandle),
+            testCaseRunId: .value("run-crash"),
+            serverURL: .value(serverURL)
+        ).willReturn(testCaseRun)
+
+        // When
+        try await subject.run(
+            project: nil,
+            testCaseRunId: "run-crash",
+            path: nil,
+            json: false
+        )
+
+        // Then
+        #expect(ui().contains("Crash Report"))
+        #expect(ui().contains("EXC_CRASH"))
+        #expect(ui().contains("SIGABRT"))
+        #expect(ui().contains("KERN_INVALID_ADDRESS"))
+        #expect(ui().contains("_assertionFailure + 156"))
+        #expect(ui().contains("Full crash report"))
+        #expect(ui().contains("test-case-runs/run-crash/attachments/MyApp-2024-01-15-123456.ips"))
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora
     ) func run_without_suite() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"

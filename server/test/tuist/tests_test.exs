@@ -89,6 +89,52 @@ defmodule Tuist.TestsTest do
       assert length(run.repetitions) == 1
     end
 
+    test "preloads crash report with attachment when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run.id,
+          file_name: "crash-report.ips"
+        )
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: test_case_run.id,
+          test_case_run_attachment_id: attachment.id,
+          exception_type: "EXC_CRASH",
+          signal: "SIGABRT"
+        )
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert run.crash_report.id == crash_report.id
+      assert run.crash_report.exception_type == "EXC_CRASH"
+      assert run.crash_report.signal == "SIGABRT"
+      assert run.crash_report.test_case_run_attachment.id == attachment.id
+      assert run.crash_report.test_case_run_attachment.file_name == "crash-report.ips"
+    end
+
+    test "returns nil crash report when none exists and preload requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert run.crash_report == nil
+    end
+
     test "does not preload associations when not requested" do
       # Given
       test_case_run = RunsFixtures.test_case_run_fixture()
@@ -456,8 +502,8 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_test_run_failures/2" do
-    test "lists failures for a test run with pagination" do
+  describe "list_test_case_runs/2 with failure filter and preloads" do
+    test "lists failed test case runs with preloaded failures and crash reports" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
@@ -505,18 +551,91 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failures_page1, meta_page1} =
-        Tests.list_test_run_failures(test.id, %{
-          page_size: 2
-        })
-
-      {failures_page2, _meta} =
-        Tests.list_test_run_failures(test.id, Flop.to_next_page(meta_page1.flop))
+      {failed_runs, meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
 
       # Then
-      assert length(failures_page1) == 2
-      assert length(failures_page2) == 1
-      assert meta_page1.total_count == 3
+      assert length(failed_runs) == 2
+      assert meta.total_count == 2
+
+      run1 = Enum.find(failed_runs, &(&1.name == "testCase1"))
+      run2 = Enum.find(failed_runs, &(&1.name == "testCase2"))
+
+      assert length(run1.failures) == 1
+      assert length(run2.failures) == 2
+    end
+
+    test "preloads crash reports with attachments for failed runs" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testCrash",
+                  status: "failure",
+                  duration: 200,
+                  failures: [
+                    %{
+                      message: "Crash",
+                      path: "/path/to/test.swift",
+                      line_number: 10,
+                      issue_type: "assertion"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      run = hd(runs)
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run.id,
+          file_name: "crash-report.ips"
+        )
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: run.id,
+          test_case_run_attachment_id: attachment.id,
+          exception_type: "EXC_CRASH",
+          signal: "SIGABRT"
+        )
+
+      # When
+      {failed_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{
+            filters: [
+              %{field: :test_run_id, op: :==, value: test.id},
+              %{field: :status, op: :==, value: "failure"}
+            ]
+          },
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert length(failed_runs) == 1
+      failed_run = hd(failed_runs)
+      assert failed_run.crash_report.id == crash_report.id
+      assert failed_run.crash_report.exception_type == "EXC_CRASH"
+      assert failed_run.crash_report.test_case_run_attachment.id == attachment.id
+      assert failed_run.crash_report.test_case_run_attachment.file_name == "crash-report.ips"
     end
 
     test "returns empty list when no failures exist for test run" do
@@ -536,10 +655,14 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failures, meta} = Tests.list_test_run_failures(test.id, %{})
+      {failed_runs, meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
 
       # Then
-      assert failures == []
+      assert failed_runs == []
       assert meta.total_count == 0
     end
   end
@@ -944,16 +1067,63 @@ defmodule Tuist.TestsTest do
       count = Tests.get_test_run_failures_count(test.id)
       assert count == 1
 
-      {failures, _meta} = Tests.list_test_run_failures(test.id, %{})
-      assert length(failures) == 1
+      {failed_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures]
+        )
 
-      failure = hd(failures)
+      assert length(failed_runs) == 1
+
+      failed_run = hd(failed_runs)
+      assert failed_run.name == "testThatFails"
+      assert failed_run.module_name == "FailingTestModule"
+      assert length(failed_run.failures) == 1
+
+      failure = hd(failed_run.failures)
       assert failure.message == "Expected true but was false"
       assert failure.path == "/path/to/test.swift"
       assert failure.line_number == 42
       assert failure.issue_type == "assertion"
-      assert failure.test_case_name == "testThatFails"
-      assert failure.test_module_name == "FailingTestModule"
+    end
+  end
+
+  describe "upload_crash_report/1" do
+    test "uploads a crash report successfully" do
+      # Given
+      crash_report_id = UUIDv7.generate()
+      test_case_run_id = UUIDv7.generate()
+
+      attrs = %{
+        id: crash_report_id,
+        exception_type: "EXC_CRASH",
+        signal: "SIGABRT",
+        exception_subtype: "KERN_INVALID_ADDRESS",
+        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
+        test_case_run_id: test_case_run_id,
+        test_case_run_attachment_id: UUIDv7.generate(),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      # When
+      {:ok, crash_report} = Tests.upload_crash_report(attrs)
+
+      # Then
+      assert crash_report.id == crash_report_id
+      assert crash_report.test_case_run_id == test_case_run_id
+    end
+
+    test "returns error for missing required fields" do
+      # Given
+      attrs = %{
+        id: UUIDv7.generate()
+      }
+
+      # When
+      result = Tests.upload_crash_report(attrs)
+
+      # Then
+      assert {:error, _changeset} = result
     end
   end
 
@@ -4918,6 +5088,116 @@ defmodule Tuist.TestsTest do
 
       actors2 = Tests.get_quarantine_actors(project2.id)
       assert actors2 == []
+    end
+  end
+
+  describe "create_test_case_run_attachment/1" do
+    test "creates an attachment successfully" do
+      # Given
+      attachment_id = UUIDv7.generate()
+      test_case_run_id = UUIDv7.generate()
+
+      attrs = %{
+        id: attachment_id,
+        test_case_run_id: test_case_run_id,
+        file_name: "crash-report.ips",
+        content_type: "application/x-ips",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      # When
+      result = Tests.create_test_case_run_attachment(attrs)
+
+      # Then
+      assert {:ok, attachment} = result
+      assert attachment.id == attachment_id
+      assert attachment.test_case_run_id == test_case_run_id
+      assert attachment.file_name == "crash-report.ips"
+    end
+
+    test "returns error for missing required fields" do
+      # Given
+      attrs = %{id: UUIDv7.generate()}
+
+      # When
+      result = Tests.create_test_case_run_attachment(attrs)
+
+      # Then
+      assert {:error, _changeset} = result
+    end
+  end
+
+  describe "get_attachment_by_id/1" do
+    test "returns attachment when it exists" do
+      # Given
+      test_case_run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run_id,
+          file_name: "crash.ips"
+        )
+
+      # When
+      result = Tests.get_attachment_by_id(attachment.id)
+
+      # Then
+      assert {:ok, a} = result
+      assert a.id == attachment.id
+      assert a.file_name == "crash.ips"
+    end
+
+    test "returns error when attachment does not exist" do
+      # When
+      result = Tests.get_attachment_by_id(UUIDv7.generate())
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_attachment/2" do
+    test "returns attachment matching test_case_run_id and file_name" do
+      # Given
+      run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run_id,
+          file_name: "crash-report.ips"
+        )
+
+      # When
+      result = Tests.get_attachment(run_id, "crash-report.ips")
+
+      # Then
+      assert {:ok, a} = result
+      assert a.id == attachment.id
+    end
+
+    test "returns error when no matching attachment exists" do
+      # When
+      result = Tests.get_attachment(UUIDv7.generate(), "nonexistent.ips")
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "attachment_storage_key/1" do
+    test "builds the correct S3 key with downcased handles" do
+      # When
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_case_run_id: "run-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      # Then
+      assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
     end
   end
 end

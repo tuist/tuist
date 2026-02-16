@@ -31,17 +31,32 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
 
     unique_id = TuistTestSupport.Utilities.unique_integer()
 
-    %AlertRule{}
-    |> AlertRule.changeset(%{
+    category = Keyword.get(opts, :category, :build_run_duration)
+
+    base_attrs = %{
       project_id: Keyword.get(opts, :project_id, project.id),
       name: Keyword.get(opts, :name, "Test Alert #{unique_id}"),
-      category: Keyword.get(opts, :category, :build_run_duration),
-      metric: Keyword.get(opts, :metric, :p90),
+      category: category,
       deviation_percentage: Keyword.get(opts, :deviation_percentage, 20.0),
-      rolling_window_size: Keyword.get(opts, :rolling_window_size, 100),
       slack_channel_id: Keyword.get(opts, :slack_channel_id, "C#{unique_id}"),
       slack_channel_name: Keyword.get(opts, :slack_channel_name, "test-channel-#{unique_id}")
-    })
+    }
+
+    category_attrs =
+      if category == :bundle_size do
+        %{
+          metric: Keyword.get(opts, :metric, :install_size),
+          git_branch: Keyword.get(opts, :git_branch, "main")
+        }
+      else
+        %{
+          metric: Keyword.get(opts, :metric, :p90),
+          rolling_window_size: Keyword.get(opts, :rolling_window_size, 100)
+        }
+      end
+
+    %AlertRule{}
+    |> AlertRule.changeset(Map.merge(base_attrs, category_attrs))
     |> Repo.insert!()
     |> Repo.preload(Keyword.get(opts, :preload, []))
   end

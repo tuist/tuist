@@ -15,9 +15,9 @@ public struct TestCommand: AsyncParsableCommand {
 
     private static var subcommands: [ParsableCommand.Type] {
         #if os(macOS)
-            [TestRunCommand.self, TestCaseCommand.self]
+            [TestRunCommand.self, TestShowCommand.self, TestCaseCommand.self]
         #else
-            [TestCaseCommand.self]
+            [TestShowCommand.self, TestCaseCommand.self]
         #endif
     }
 

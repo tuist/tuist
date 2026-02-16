@@ -67,6 +67,11 @@ Examples:
   ```
 - Do not modify CHANGELOG.md as it is auto-generated
 
+## OpenAPI Code Generation
+- The server's OpenAPI spec and CLI Swift client code are regenerated with: `mise run generate-api-cli-code` (run from the `server/` directory)
+- This exports the spec to `cli/Sources/TuistServer/OpenAPI/server.yml` and regenerates `Types.swift` and `Client.swift`
+- Do not edit `server.yml`, `Types.swift`, or `Client.swift` manually — update the controller schemas in the server and regenerate
+
 ## Linting
 - To check for linting issues: `mise run lint`
 - To automatically fix fixable linting issues: `mise run lint --fix`

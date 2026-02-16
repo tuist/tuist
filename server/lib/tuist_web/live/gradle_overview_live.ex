@@ -5,6 +5,7 @@ defmodule TuistWeb.GradleOverviewLive do
 
   import TuistWeb.Components.EmptyCardSection
 
+  alias Tuist.Gradle
   alias Tuist.Gradle.Analytics, as: GradleAnalytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
@@ -18,6 +19,7 @@ defmodule TuistWeb.GradleOverviewLive do
 
     socket
     |> assign_analytics(params)
+    |> assign_builds(params)
     |> assign(:uri, uri)
     |> assign(:uri_path, uri_path)
   end
@@ -58,6 +60,57 @@ defmodule TuistWeb.GradleOverviewLive do
     |> assign(:build_duration_analytics, build_duration_analytics)
   end
 
+  defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "builds")
+
+    builds_environment = params["builds-environment"] || "any"
+
+    opts = [
+      project_id: project.id,
+      start_datetime: start_datetime,
+      end_datetime: end_datetime
+    ]
+
+    opts =
+      case builds_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: 30})
+
+    recent_builds_chart_data =
+      builds
+      |> Enum.reverse()
+      |> Enum.map(fn build ->
+        color =
+          case build.status do
+            "success" -> "var:noora-chart-primary"
+            "failure" -> "var:noora-chart-destructive"
+            _ -> "var:noora-chart-warning"
+          end
+
+        %{value: build.duration_ms, itemStyle: %{color: color}, date: build.inserted_at}
+      end)
+
+    successful_builds_count = Enum.count(builds, &(&1.status == "success"))
+    failed_builds_count = Enum.count(builds, &(&1.status == "failure"))
+
+    builds_duration_analytics = GradleAnalytics.build_duration_analytics(project.id, opts)
+
+    socket
+    |> assign(:builds_preset, preset)
+    |> assign(:builds_period, period)
+    |> assign(:builds_environment, builds_environment)
+    |> assign(:builds_environment_label, builds_environment_label(builds_environment))
+    |> assign(:recent_build_runs, recent_builds_chart_data)
+    |> assign(:successful_builds_count, successful_builds_count)
+    |> assign(:failed_builds_count, failed_builds_count)
+    |> assign(:builds_duration_analytics, builds_duration_analytics)
+  end
+
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
   defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_gradle", "since last year")
@@ -67,6 +120,10 @@ defmodule TuistWeb.GradleOverviewLive do
   defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
   defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
+
+  defp builds_environment_label("any"), do: dgettext("dashboard_gradle", "Any")
+  defp builds_environment_label("local"), do: dgettext("dashboard_gradle", "Local")
+  defp builds_environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
 
   defp combined_overview_analytics(project_id, opts) do
     queries = [

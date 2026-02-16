@@ -181,6 +181,37 @@ defmodule TuistWeb.AppLayoutComponents do
           ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache" == @current_path
         }
       />
+      <.sidebar_group
+        :if={Project.gradle_project?(@selected_project)}
+        id="sidebar-gradle-builds"
+        label={dgettext("dashboard", "Builds")}
+        icon="versions"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+        }
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+          )
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Build Runs")}
+          icon="chart_column"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
+            )
+          }
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={Project.gradle_project?(@selected_project)}
         label={dgettext("dashboard", "Gradle Cache")}
