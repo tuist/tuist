@@ -445,7 +445,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "list_failed_test_case_runs/2" do
+  describe "list_test_case_runs/2 with failure filter and preloads" do
     test "lists failed test case runs with preloaded failures and crash reports" do
       # Given
       {:ok, test} =
@@ -494,7 +494,11 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failed_runs, meta} = Tests.list_failed_test_case_runs(test.id, %{})
+      {failed_runs, meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
 
       # Then
       assert length(failed_runs) == 2
@@ -524,7 +528,11 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failed_runs, meta} = Tests.list_failed_test_case_runs(test.id, %{})
+      {failed_runs, meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
 
       # Then
       assert failed_runs == []
@@ -932,7 +940,11 @@ defmodule Tuist.TestsTest do
       count = Tests.get_test_run_failures_count(test.id)
       assert count == 1
 
-      {failed_runs, _meta} = Tests.list_failed_test_case_runs(test.id, %{})
+      {failed_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures]
+        )
       assert length(failed_runs) == 1
 
       failed_run = hd(failed_runs)

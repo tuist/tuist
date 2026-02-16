@@ -104,17 +104,6 @@ defmodule Tuist.Tests do
     ClickHouseRepo.one(query) || 0
   end
 
-  def list_failed_test_case_runs(test_run_id, attrs) do
-    query =
-      from tcr in TestCaseRun,
-        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure"
-
-    {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseRun)
-
-    results = ClickHouseRepo.preload(results, [:failures, crash_report: :test_case_run_attachment])
-
-    {results, meta}
-  end
 
   def list_test_suite_runs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
@@ -425,12 +414,16 @@ defmodule Tuist.Tests do
   At least one of `test_case_id` or `test_run_id` must be provided in filters.
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
-  def list_test_case_runs(attrs) do
+  def list_test_case_runs(attrs, opts \\ []) do
     base_query = from(tcr in TestCaseRun)
+    preloads = Keyword.get(opts, :preload, [])
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
-    results = Repo.preload(results, :ran_by_account)
+    results =
+      results
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
 
     {results, meta}
   end

@@ -594,13 +594,17 @@ defmodule TuistWeb.TestRunLive do
     page_size = 30
 
     attrs = %{
+      filters: [
+        %{field: :test_run_id, op: :==, value: run.id},
+        %{field: :status, op: :==, value: "failure"}
+      ],
       page: page,
       page_size: page_size,
       order_by: [:inserted_at],
       order_directions: [:desc]
     }
 
-    Tests.list_failed_test_case_runs(run.id, attrs)
+    Tests.list_test_case_runs(attrs, preload: [:failures, crash_report: :test_case_run_attachment])
   end
 
   defp assign_failures_data(socket, failed_test_case_runs, meta, params) do
