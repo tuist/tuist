@@ -421,10 +421,7 @@
                     </span>
                   </div>
                   <pre
-                    :if={
-                      test_case_run.crash_report.triggered_thread_frames &&
-                        test_case_run.crash_report.triggered_thread_frames != ""
-                    }
+                    :if={test_case_run.crash_report.triggered_thread_frames != ""}
                     data-part="crash-report-frames"
                   >{test_case_run.crash_report.triggered_thread_frames}</pre>
                 </div>
@@ -1507,10 +1504,7 @@
                   </span>
                 </div>
                 <pre
-                  :if={
-                    test_case_run.crash_report.triggered_thread_frames &&
-                      test_case_run.crash_report.triggered_thread_frames != ""
-                  }
+                  :if={test_case_run.crash_report.triggered_thread_frames != ""}
                   data-part="crash-report-frames"
                 >{test_case_run.crash_report.triggered_thread_frames}</pre>
               </div>
