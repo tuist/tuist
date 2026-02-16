@@ -16,6 +16,14 @@ defmodule Tuist.Tests.CrashReport do
     field :test_case_run_id, Ecto.UUID
     field :test_case_run_attachment_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
+
+    belongs_to :test_case_run, Tuist.Tests.TestCaseRun,
+      foreign_key: :test_case_run_id,
+      define_field: false
+
+    belongs_to :test_case_run_attachment, Tuist.Tests.TestCaseRunAttachment,
+      foreign_key: :test_case_run_attachment_id,
+      define_field: false
   end
 
   def create_changeset(crash_report, attrs) do

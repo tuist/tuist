@@ -430,11 +430,11 @@ defmodule TuistWeb.API.TestCaseRunsController do
         %{assigns: %{selected_project: selected_project}, params: %{test_case_run_id: test_case_run_id}} = conn,
         _params
       ) do
-    case Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]) do
+    case Tests.get_test_case_run_by_id(test_case_run_id,
+           preload: [:failures, :repetitions, crash_report: :test_case_run_attachment]
+         ) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
-          crash_report = fetch_crash_report(conn, run.id)
-
           json(conn, %{
             id: run.id,
             test_case_id: run.test_case_id,
@@ -468,7 +468,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
                   duration: r.duration
                 }
               end),
-            crash_report: crash_report
+            crash_report: format_crash_report(conn, run)
           })
         else
           conn
@@ -526,32 +526,28 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
-  defp fetch_crash_report(conn, test_case_run_id) do
-    case Tests.get_crash_report_by_test_case_run_id(test_case_run_id) do
-      {:ok, st} ->
-        %{account_handle: account_handle, project_handle: project_handle} = conn.params
+  defp format_crash_report(_conn, %{crash_report: nil}), do: nil
 
-        attachment_url =
-          case Tests.get_attachment_by_id(st.test_case_run_attachment_id) do
-            {:ok, attachment} ->
-              TuistWeb.Endpoint.url() <>
-                "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{attachment.file_name}"
+  defp format_crash_report(conn, %{crash_report: cr, id: test_case_run_id}) do
+    %{account_handle: account_handle, project_handle: project_handle} = conn.params
 
-            _ ->
-              nil
-          end
+    attachment_url =
+      case cr.test_case_run_attachment do
+        %{file_name: file_name} ->
+          TuistWeb.Endpoint.url() <>
+            "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{file_name}"
 
-        %{
-          exception_type: nullable_string(st.exception_type),
-          signal: nullable_string(st.signal),
-          exception_subtype: nullable_string(st.exception_subtype),
-          triggered_thread_frames: nullable_string(st.triggered_thread_frames),
-          attachment_url: attachment_url
-        }
+        _ ->
+          nil
+      end
 
-      {:error, :not_found} ->
-        nil
-    end
+    %{
+      exception_type: nullable_string(cr.exception_type),
+      signal: nullable_string(cr.signal),
+      exception_subtype: nullable_string(cr.exception_subtype),
+      triggered_thread_frames: nullable_string(cr.triggered_thread_frames),
+      attachment_url: attachment_url
+    }
   end
 
   defp nullable_string(""), do: nil
