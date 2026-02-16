@@ -89,6 +89,52 @@ defmodule Tuist.TestsTest do
       assert length(run.repetitions) == 1
     end
 
+    test "preloads crash report with attachment when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run.id,
+          file_name: "crash-report.ips"
+        )
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: test_case_run.id,
+          test_case_run_attachment_id: attachment.id,
+          exception_type: "EXC_CRASH",
+          signal: "SIGABRT"
+        )
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert run.crash_report.id == crash_report.id
+      assert run.crash_report.exception_type == "EXC_CRASH"
+      assert run.crash_report.signal == "SIGABRT"
+      assert run.crash_report.test_case_run_attachment.id == attachment.id
+      assert run.crash_report.test_case_run_attachment.file_name == "crash-report.ips"
+    end
+
+    test "returns nil crash report when none exists and preload requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert run.crash_report == nil
+    end
+
     test "does not preload associations when not requested" do
       # Given
       test_case_run = RunsFixtures.test_case_run_fixture()
@@ -509,6 +555,76 @@ defmodule Tuist.TestsTest do
 
       assert length(run1.failures) == 1
       assert length(run2.failures) == 2
+    end
+
+    test "preloads crash reports with attachments for failed runs" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testCrash",
+                  status: "failure",
+                  duration: 200,
+                  failures: [
+                    %{
+                      message: "Crash",
+                      path: "/path/to/test.swift",
+                      line_number: 10,
+                      issue_type: "assertion"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      run = hd(runs)
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run.id,
+          file_name: "crash-report.ips"
+        )
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: run.id,
+          test_case_run_attachment_id: attachment.id,
+          exception_type: "EXC_CRASH",
+          signal: "SIGABRT"
+        )
+
+      # When
+      {failed_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{
+            filters: [
+              %{field: :test_run_id, op: :==, value: test.id},
+              %{field: :status, op: :==, value: "failure"}
+            ]
+          },
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert length(failed_runs) == 1
+      failed_run = hd(failed_runs)
+      assert failed_run.crash_report.id == crash_report.id
+      assert failed_run.crash_report.exception_type == "EXC_CRASH"
+      assert failed_run.crash_report.test_case_run_attachment.id == attachment.id
+      assert failed_run.crash_report.test_case_run_attachment.file_name == "crash-report.ips"
     end
 
     test "returns empty list when no failures exist for test run" do
@@ -5071,6 +5187,78 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
+    end
+  end
+
+  describe "CrashReport.create_changeset/2" do
+    alias Tuist.Tests.CrashReport
+
+    test "returns valid changeset with all fields" do
+      attrs = %{
+        id: UUIDv7.generate(),
+        exception_type: "EXC_CRASH",
+        signal: "SIGABRT",
+        exception_subtype: "KERN_INVALID_ADDRESS",
+        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
+        test_case_run_id: UUIDv7.generate(),
+        test_case_run_attachment_id: UUIDv7.generate(),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      changeset = CrashReport.create_changeset(%CrashReport{}, attrs)
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :exception_type) == "EXC_CRASH"
+      assert Ecto.Changeset.get_change(changeset, :signal) == "SIGABRT"
+      assert Ecto.Changeset.get_change(changeset, :exception_subtype) == "KERN_INVALID_ADDRESS"
+    end
+
+    test "requires id, test_case_run_id, and test_case_run_attachment_id" do
+      changeset = CrashReport.create_changeset(%CrashReport{}, %{})
+
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).id
+      assert "can't be blank" in errors_on(changeset).test_case_run_id
+      assert "can't be blank" in errors_on(changeset).test_case_run_attachment_id
+    end
+
+    test "allows optional fields to be nil" do
+      attrs = %{
+        id: UUIDv7.generate(),
+        test_case_run_id: UUIDv7.generate(),
+        test_case_run_attachment_id: UUIDv7.generate()
+      }
+
+      changeset = CrashReport.create_changeset(%CrashReport{}, attrs)
+
+      assert changeset.valid?
+    end
+  end
+
+  describe "TestCaseRunAttachment.create_changeset/2" do
+    alias Tuist.Tests.TestCaseRunAttachment
+
+    test "returns valid changeset with all fields" do
+      attrs = %{
+        id: UUIDv7.generate(),
+        test_case_run_id: UUIDv7.generate(),
+        file_name: "crash-report.ips",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      changeset = TestCaseRunAttachment.create_changeset(%TestCaseRunAttachment{}, attrs)
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :file_name) == "crash-report.ips"
+    end
+
+    test "requires id, test_case_run_id, and file_name" do
+      changeset = TestCaseRunAttachment.create_changeset(%TestCaseRunAttachment{}, %{})
+
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).id
+      assert "can't be blank" in errors_on(changeset).test_case_run_id
+      assert "can't be blank" in errors_on(changeset).file_name
     end
   end
 end
