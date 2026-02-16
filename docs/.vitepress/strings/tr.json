@@ -357,6 +357,12 @@
                                 },
                                 "module-cache": {
                                     "text": "Modül önbelleği"
+                                },
+                                "xcode": {
+                                    "text": "Xcode"
+                                },
+                                "gradle-cache": {
+                                    "text": "Gradle önbelleği"
                                 }
                             }
                         },
