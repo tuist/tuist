@@ -40,6 +40,7 @@ defmodule Tuist.Tests.Test do
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
     field :build_run_id, Ecto.UUID
+    field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :ci_run_id, Ch, type: "String", default: ""
     field :ci_project_handle, Ch, type: "String", default: ""
     field :ci_host, Ch, type: "String", default: ""
@@ -48,6 +49,7 @@ defmodule Tuist.Tests.Test do
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
+    belongs_to :gradle_build, Tuist.Gradle.Build, foreign_key: :gradle_build_id, define_field: false
     has_many :test_case_runs, Tuist.Tests.TestCaseRun, foreign_key: :test_run_id
 
     field :inserted_at, Ch, type: "DateTime64(6)"
@@ -73,6 +75,7 @@ defmodule Tuist.Tests.Test do
       :ran_at,
       :inserted_at,
       :build_run_id,
+      :gradle_build_id,
       :ci_run_id,
       :ci_project_handle,
       :ci_host,

@@ -8,6 +8,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Noora.Filter
   alias Tuist.Gradle
   alias Tuist.Repo
+  alias Tuist.Tests
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
@@ -39,6 +40,12 @@ defmodule TuistWeb.GradleBuildLive do
   defp assign_build(socket, build, account) do
     build = Repo.preload(build, :built_by_account)
 
+    test_run =
+      case Tests.get_latest_test_by_gradle_build_id(build.id) do
+        {:ok, test} -> test
+        {:error, :not_found} -> nil
+      end
+
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
 
@@ -62,6 +69,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     socket
     |> assign(:build, build)
+    |> assign(:test_run, test_run)
     |> assign(:build_started_at, build_started_at)
     |> assign(:from_cache, from_cache)
     |> assign(:cache_misses, cacheable - from_cache)

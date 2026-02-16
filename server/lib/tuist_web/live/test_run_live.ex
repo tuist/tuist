@@ -22,7 +22,7 @@ defmodule TuistWeb.TestRunLive do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Tests.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run]) do
+      case Tests.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run, :gradle_build]) do
         {:ok, test} ->
           test
 

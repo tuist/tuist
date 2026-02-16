@@ -55,7 +55,7 @@ defmodule Tuist.Tests do
             {:error, :not_found}
 
           test ->
-            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 == :build_run))
+            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build]))
 
             test =
               test
@@ -74,6 +74,20 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.build_run_id == ^build_run_id,
+        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      test -> {:ok, test}
+    end
+  end
+
+  def get_latest_test_by_gradle_build_id(gradle_build_id) do
+    query =
+      from(t in Test,
+        where: t.gradle_build_id == ^gradle_build_id,
         order_by: [desc: t.ran_at, desc: t.inserted_at],
         limit: 1
       )

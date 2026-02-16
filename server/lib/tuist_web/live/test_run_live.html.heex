@@ -59,6 +59,25 @@
       >
         <:icon_left><.versions /></:icon_left>
       </.link_button>
+      <.link_button
+        :if={@run.gradle_build}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.gradle_build_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name:
+              if(@run.gradle_build.root_project_name == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.gradle_build.root_project_name
+              )
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button

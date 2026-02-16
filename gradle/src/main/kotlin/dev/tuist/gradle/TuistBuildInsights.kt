@@ -38,6 +38,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 // --- Data classes ---
@@ -117,6 +119,9 @@ abstract class TuistBuildInsightsService :
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
 
+    @Volatile internal var buildId: String? = null
+    private val uploadComplete = CountDownLatch(1)
+
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
     private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private var buildStartTime: Long = System.currentTimeMillis()
@@ -126,6 +131,11 @@ abstract class TuistBuildInsightsService :
     private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
     private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
     private val taskCacheMetadata = ConcurrentHashMap<String, TaskCacheMetadata>()
+
+    fun awaitBuildId(timeoutMs: Long = 15_000): String? {
+        uploadComplete.await(timeoutMs, TimeUnit.MILLISECONDS)
+        return buildId
+    }
 
     fun setCacheableTasks(paths: Set<String>) {
         cacheableTaskPaths.addAll(paths)
@@ -298,76 +308,81 @@ abstract class TuistBuildInsightsService :
     }
 
     private fun sendReport() {
-        val projectValue = parameters.project.get()
-        val parts = projectValue.split("/")
-        if (parts.size != 2) {
-            logger.warn("Tuist: Invalid project format for build insights: $projectValue")
-            return
-        }
-        val (accountHandle, projectHandle) = parts
+        try {
+            val projectValue = parameters.project.get()
+            val parts = projectValue.split("/")
+            if (parts.size != 2) {
+                logger.warn("Tuist: Invalid project format for build insights: $projectValue")
+                return
+            }
+            val (accountHandle, projectHandle) = parts
 
-        val configProvider = TuistCommandConfigurationProvider(
-            project = projectValue,
-            command = listOf(parameters.executablePath.orNull ?: "tuist"),
-            url = parameters.url.get()
-        )
+            val configProvider = TuistCommandConfigurationProvider(
+                project = projectValue,
+                command = listOf(parameters.executablePath.orNull ?: "tuist"),
+                url = parameters.url.get()
+            )
 
-        val httpClient = TuistHttpClient(
-            configurationProvider = configProvider,
-            connectTimeoutMs = 10_000,
-            readTimeoutMs = 10_000
-        )
+            val httpClient = TuistHttpClient(
+                configurationProvider = configProvider,
+                connectTimeoutMs = 10_000,
+                readTimeoutMs = 10_000
+            )
 
-        val totalDurationMs = System.currentTimeMillis() - buildStartTime
+            val totalDurationMs = System.currentTimeMillis() - buildStartTime
 
-        val report = buildReport(
-            taskOutcomes = taskOutcomes.toList(),
-            buildFailed = buildFailed,
-            totalDurationMs = totalDurationMs,
-            gradleVersion = parameters.gradleVersion.orNull,
-            rootProjectName = parameters.rootProjectName.orNull,
-            ciDetector = ciDetector,
-            gitInfoProvider = gitInfoProvider
-        )
+            val report = buildReport(
+                taskOutcomes = taskOutcomes.toList(),
+                buildFailed = buildFailed,
+                totalDurationMs = totalDurationMs,
+                gradleVersion = parameters.gradleVersion.orNull,
+                rootProjectName = parameters.rootProjectName.orNull,
+                ciDetector = ciDetector,
+                gitInfoProvider = gitInfoProvider
+            )
 
-        val baseUrl = parameters.url.get().trimEnd('/')
+            val baseUrl = parameters.url.get().trimEnd('/')
 
-        val response = httpClient.execute { config ->
-            val url = URI(baseUrl).resolve("/api/projects/$accountHandle/$projectHandle/gradle/builds")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
+            val response = httpClient.execute { config ->
+                val url = URI(baseUrl).resolve("/api/projects/$accountHandle/$projectHandle/gradle/builds")
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        Gson().toJson(report, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_CREATED -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, BuildReportResponse::class.java)
+                    when (connection.responseCode) {
+                        HttpURLConnection.HTTP_CREATED -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, BuildReportResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            logger.warn("Tuist: Build insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Build insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
-        }
 
-        if (response != null) {
-            logger.lifecycle("Tuist: Build insights reported successfully (build ${response.id})")
-        } else {
-            logger.warn("Tuist: Failed to report build insights.")
+            if (response != null) {
+                buildId = response.id
+                logger.lifecycle("Tuist: Build insights reported successfully (build ${response.id})")
+            } else {
+                logger.warn("Tuist: Failed to report build insights.")
+            }
+        } finally {
+            uploadComplete.countDown()
         }
     }
 }

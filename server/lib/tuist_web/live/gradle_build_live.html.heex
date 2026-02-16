@@ -30,6 +30,25 @@
         </div>
         <h1 data-part="label">{@title}</h1>
       </div>
+      <.link_button
+        :if={@test_run}
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{@test_run.id}"
+        }
+        label={
+          dgettext("dashboard_gradle", "Test: %{scheme}",
+            scheme:
+              if(@test_run.scheme == "",
+                do: dgettext("dashboard_gradle", "Unknown"),
+                else: @test_run.scheme
+              )
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.subtask /></:icon_left>
+      </.link_button>
     </div>
   </div>
   <.tab_menu_horizontal>

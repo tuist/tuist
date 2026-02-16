@@ -33,6 +33,7 @@ data class TestReportRequest(
     @SerializedName("git_branch") val gitBranch: String?,
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
+    @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
     @SerializedName("test_modules") val testModules: List<TestModuleReport>
 )
 
@@ -109,6 +110,7 @@ abstract class TuistTestInsightsService :
     internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
+    internal var buildInsightsService: TuistBuildInsightsService? = null
 
     private val modules = mutableMapOf<String, CollectedTestModule>()
     private var buildStartTime: Long = System.currentTimeMillis()
@@ -208,7 +210,10 @@ abstract class TuistTestInsightsService :
     }
 
     override fun close() {
-        if (!hasTests) return
+        if (!hasTests) {
+            logger.lifecycle("Tuist: No test results collected, skipping test insights upload.")
+            return
+        }
 
         val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
 
@@ -263,6 +268,8 @@ abstract class TuistTestInsightsService :
             )
         }
 
+        val gradleBuildId = buildInsightsService?.awaitBuildId()
+
         return TestReportRequest(
             duration = totalDurationMs,
             status = overallStatus,
@@ -272,6 +279,7 @@ abstract class TuistTestInsightsService :
             gitBranch = gitInfoProvider.branch(),
             gitCommitSha = gitInfoProvider.commitSha(),
             gitRef = gitInfoProvider.ref(),
+            gradleBuildId = gradleBuildId,
             testModules = testModules
         )
     }
@@ -379,6 +387,12 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         project.gradle.taskGraph.whenReady {
             val service = serviceProvider.get()
             service.uploadInBackground = config.uploadInBackground
+
+            val buildService = project.gradle.sharedServices.registrations
+                .findByName("tuistBuildInsights")?.service?.orNull as? TuistBuildInsightsService
+            if (buildService != null) {
+                service.buildInsightsService = buildService
+            }
         }
 
     }

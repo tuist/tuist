@@ -108,6 +108,10 @@ defmodule TuistWeb.API.TestsController do
              description: "The CI provider.",
              enum: Tests.valid_ci_providers()
            },
+           gradle_build_id: %Schema{
+             type: :string,
+             description: "The UUID of an associated Gradle build."
+           },
            build_system: %Schema{
              type: :string,
              description: "The build system used for the test run.",
@@ -314,7 +318,8 @@ defmodule TuistWeb.API.TestsController do
           build_system: Map.get(params, :build_system, "xcode"),
           test_modules: Map.get(params, :test_modules, []),
           test_cases: Map.get(params, :test_cases, []),
-          build_run_id: Map.get(params, :build_run_id)
+          build_run_id: Map.get(params, :build_run_id),
+          gradle_build_id: Map.get(params, :gradle_build_id)
         })
     end
   end
