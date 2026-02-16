@@ -1,10 +1,10 @@
 <div id="gradle-build">
   <.button
-    label={dgettext("dashboard_gradle", "Gradle Cache")}
+    label={dgettext("dashboard_gradle", "Build Runs")}
     data-part="back-button"
     variant="secondary"
     size="medium"
-    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
   >
     <:icon_left>
       <.icon name="arrow_left" />

@@ -63,16 +63,18 @@ msgid "Billing"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:48
+#: lib/tuist_web/components/app_layout_components.ex:203
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:31
+#: lib/tuist_web/components/app_layout_components.ex:186
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:224
+#: lib/tuist_web/components/app_layout_components.ex:255
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -240,7 +242,7 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:197
+#: lib/tuist_web/components/app_layout_components.ex:228
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -250,7 +252,7 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:212
+#: lib/tuist_web/components/app_layout_components.ex:243
 #: lib/tuist_web/components/layouts/ops.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "QA"
@@ -261,7 +263,7 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:236
+#: lib/tuist_web/components/app_layout_components.ex:267
 #: lib/tuist_web/components/layouts/account.html.heex:56
 #, elixir-autogen, elixir-format
 msgid "Settings"
@@ -370,8 +372,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:263
-#: lib/tuist_web/components/app_layout_components.ex:290
+#: lib/tuist_web/components/app_layout_components.ex:294
+#: lib/tuist_web/components/app_layout_components.ex:321
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -466,7 +468,7 @@ msgstr ""
 msgid "Generations"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:185
+#: lib/tuist_web/components/app_layout_components.ex:216
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""
