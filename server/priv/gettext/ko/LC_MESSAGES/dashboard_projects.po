@@ -609,8 +609,8 @@ msgid ""
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
-"<strong></strong> 의 %{size_label} 가 이전 번들에 비해 %{deviation}% "
-"증가했습니다. %{size_label}의 최신 번들</strong> <strong> <strong></strong>"
+"<strong></strong> 의 %{size_label} 가 이전 번들에 비해 %{deviation}% 증가했습"
+"니다. %{size_label}의 최신 번들</strong> <strong> <strong></strong>"
 
 #, fuzzy
 msgid "Branch"
