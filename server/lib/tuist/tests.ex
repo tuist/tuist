@@ -35,7 +35,8 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
-  def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+  def valid_ci_providers,
+    do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic", "jenkins", "teamcity", "azure_devops"]
 
   def get_test(id, opts \\ []) do
     case Ecto.UUID.cast(id) do

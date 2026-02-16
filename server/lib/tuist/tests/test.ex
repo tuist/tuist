@@ -17,7 +17,8 @@ defmodule Tuist.Tests.Test do
       :xcode_version,
       :macos_version,
       :account_id,
-      :is_ci
+      :is_ci,
+      :build_system
     ],
     sortable: [:ran_at, :duration, :inserted_at]
   }
@@ -43,6 +44,7 @@ defmodule Tuist.Tests.Test do
     field :ci_project_handle, Ch, type: "String", default: ""
     field :ci_host, Ch, type: "String", default: ""
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
+    field :build_system, Ch, type: "LowCardinality(String)", default: "xcode"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     belongs_to :build_run, Tuist.Builds.Build, foreign_key: :build_run_id, define_field: false
@@ -74,20 +76,21 @@ defmodule Tuist.Tests.Test do
       :ci_run_id,
       :ci_project_handle,
       :ci_host,
-      :ci_provider
+      :ci_provider,
+      :build_system
     ])
     |> validate_required([
       :id,
       :duration,
-      :macos_version,
-      :xcode_version,
       :is_ci,
       :project_id,
       :account_id,
       :status,
-      :ran_at
+      :ran_at,
+      :build_system
     ])
     |> validate_inclusion(:status, ["success", "failure", "skipped"])
-    |> validate_inclusion(:ci_provider, ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"])
+    |> validate_inclusion(:build_system, ["xcode", "gradle"])
+    |> validate_inclusion(:ci_provider, Tuist.Tests.valid_ci_providers())
   end
 end

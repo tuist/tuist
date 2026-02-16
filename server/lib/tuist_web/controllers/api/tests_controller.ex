@@ -108,6 +108,12 @@ defmodule TuistWeb.API.TestsController do
              description: "The CI provider.",
              enum: Tests.valid_ci_providers()
            },
+           build_system: %Schema{
+             type: :string,
+             description: "The build system used for the test run.",
+             enum: ["xcode", "gradle"],
+             default: "xcode"
+           },
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -239,7 +245,6 @@ defmodule TuistWeb.API.TestsController do
          required: [
            :duration,
            :test_modules,
-           :macos_version,
            :is_ci
          ]
        }},
@@ -306,6 +311,7 @@ defmodule TuistWeb.API.TestsController do
           ci_project_handle: Map.get(params, :ci_project_handle),
           ci_host: Map.get(params, :ci_host),
           ci_provider: Map.get(params, :ci_provider),
+          build_system: Map.get(params, :build_system, "xcode"),
           test_modules: Map.get(params, :test_modules, []),
           test_cases: Map.get(params, :test_cases, []),
           build_run_id: Map.get(params, :build_run_id)

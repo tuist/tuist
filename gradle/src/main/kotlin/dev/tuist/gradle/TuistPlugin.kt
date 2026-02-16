@@ -78,6 +78,7 @@ class TuistPlugin : Plugin<Settings> {
 
         configureBuildCache(settings, extension)
         configureBuildInsights(settings, extension)
+        configureTestInsights(settings, extension)
     }
 
     private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
@@ -90,6 +91,13 @@ class TuistPlugin : Plugin<Settings> {
             ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
             logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
+        }
+    }
+
+    private fun configureTestInsights(settings: Settings, extension: TuistExtension) {
+        settings.gradle.rootProject {
+            pluginManager.apply(TuistTestInsightsPlugin::class.java)
+            logger.lifecycle("Tuist: Test insights configured for ${extension.project}")
         }
     }
 
