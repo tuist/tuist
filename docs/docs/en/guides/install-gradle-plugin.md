@@ -48,16 +48,7 @@ The Gradle plugin reads this file through the Tuist CLI, so you only need to def
 
 ## 3. Authenticate {#authenticate}
 
-The plugin uses the Tuist CLI authentication flow and reads credentials from the same sources as other Tuist tooling. Follow <LocalizedLink href="/guides/server/authentication#gradle-plugin-authentication">Gradle plugin authentication</LocalizedLink> for setup details.
-
-## Self-hosted servers {#self-hosted-servers}
-
-If you are running a <LocalizedLink href="/guides/server/self-host/install">self-hosted Tuist server</LocalizedLink>, set the `url` in your `tuist.toml`:
-
-```toml
-project = "your-org/your-project"
-url = "https://tuist.your-company.com"
-```
+The plugin uses the Tuist CLI authentication flow and reads credentials from the same sources as other Tuist tooling. Follow <LocalizedLink href="/guides/server/authentication#gradle-plugin-authentication">Gradle plugin authentication</LocalizedLink> for setup details, including CI and self-hosted server configuration.
 
 ## Configuration reference {#configuration-reference}
 

@@ -21,20 +21,7 @@ Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cac
 <!-- -->
 :::
 
-## Enable the build cache {#enable-the-build-cache}
-
-Add the `buildCache` block to the `tuist` extension in your `settings.gradle.kts`:
-
-```kotlin
-tuist {
-    buildCache {
-        enabled = true
-        push = true
-    }
-}
-```
-
-That's it. Gradle will now use Tuist as a remote build cache. Cached task outputs are downloaded on cache hits and uploaded after task execution.
+The build cache is enabled by default once the <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> is installed. Gradle will use Tuist as a remote build cache, downloading cached task outputs on cache hits and uploading them after task execution.
 
 ## Cache upload policy {#cache-upload-policy}
 
@@ -43,7 +30,6 @@ By default, the plugin both downloads and uploads artifacts to the remote cache.
 ```kotlin
 tuist {
     buildCache {
-        enabled = true
         push = false // read-only mode
     }
 }
@@ -54,7 +40,6 @@ A common pattern is to push artifacts only from CI, where builds are reproducibl
 ```kotlin
 tuist {
     buildCache {
-        enabled = true
         push = System.getenv("CI") != null
     }
 }

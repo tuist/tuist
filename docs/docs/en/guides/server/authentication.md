@@ -64,12 +64,12 @@ For local usage, run:
 tuist auth login
 ```
 
-For self-hosted Tuist servers, define the server URL in `tuist.toml` (for example `url = "https://tuist.your-company.com"`) and run the standard login flow. The URL is resolved from the same configuration file used by the plugin.
-
 For CI, use either:
 
 - <LocalizedLink href="/guides/server/authentication#setting-up-oidc-authentication">OIDC authentication</LocalizedLink> (recommended when available)
 - <LocalizedLink href="/guides/server/authentication#continuous-integration">Account token authentication</LocalizedLink> via `TUIST_TOKEN`
+
+For self-hosted Tuist servers, define the server URL in `tuist.toml` (for example `url = "https://tuist.your-company.com"`) and run the standard login flow. The URL is resolved from the same configuration file used by the plugin.
 
 After authentication is configured, run your Gradle caching commands and tasks normally.
 
