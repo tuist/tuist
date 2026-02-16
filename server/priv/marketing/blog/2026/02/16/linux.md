@@ -1,5 +1,5 @@
 ---
-title: "Tuist Swift CLI now runs on Linux"
+title: "Our Swift CLI now runs on Linux"
 category: "product"
 tags: ["product", "linux"]
 excerpt: "Tuist is no longer macOS-only. You can now run analytical workflows or leverage the upcoming Tuist Gradle support on Linux."
