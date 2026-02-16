@@ -158,8 +158,7 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
     }
 
     private func formatRunRow(
-        _ run: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
-            .test_case_runsPayloadPayload,
+        _ run: Components.Schemas.TestCaseRun,
         showNameColumns: Bool
     ) -> [String] {
         var row = [run.id]

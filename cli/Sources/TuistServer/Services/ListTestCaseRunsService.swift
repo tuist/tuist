@@ -13,7 +13,7 @@ public protocol ListTestCaseRunsServicing {
         testRunId: String?,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
+    ) async throws -> Components.Schemas.TestCaseRunsList
 }
 
 enum ListTestCaseRunsServiceError: LocalizedError {
@@ -53,7 +53,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         testRunId: String?,
         page: Int?,
         pageSize: Int
-    ) async throws -> Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+    ) async throws -> Components.Schemas.TestCaseRunsList {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
@@ -91,14 +91,14 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
 }
 
 #if DEBUG
-    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload {
+    extension Components.Schemas.TestCaseRunsList {
         public static func test(
             currentPage: Int = 1,
             pageSize: Int = 10,
             totalPages: Int = 1,
             hasNextPage: Bool = false,
             hasPreviousPage: Bool = false,
-            testCaseRuns: [Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload]
+            testCaseRuns: [Components.Schemas.TestCaseRun]
         ) -> Self {
             .init(
                 pagination_metadata: .init(
@@ -114,7 +114,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
         }
     }
 
-    extension Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload {
+    extension Components.Schemas.TestCaseRun {
         public static func test(
             duration: Int = 1500,
             gitBranch: String? = "main",
@@ -127,8 +127,7 @@ public struct ListTestCaseRunsService: ListTestCaseRunsServicing {
             name: String = "testExample",
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             scheme: String? = "App",
-            status: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test_case_runsPayloadPayload
-                .statusPayload = .success,
+            status: Components.Schemas.TestCaseRun.statusPayload = .success,
             suiteName: String? = nil
         ) -> Self {
             .init(

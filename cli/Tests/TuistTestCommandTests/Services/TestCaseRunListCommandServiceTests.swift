@@ -92,7 +92,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value("ExampleSuite"),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
+        let response = Components.Schemas.TestCaseRunsList.test(
             testCaseRuns: [
                 .test(duration: 1500, status: .success),
             ]
@@ -142,7 +142,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value(nil),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [])
+        let response = Components.Schemas.TestCaseRunsList.test(testCaseRuns: [])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
@@ -188,7 +188,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value(nil),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [])
+        let response = Components.Schemas.TestCaseRunsList.test(testCaseRuns: [])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
@@ -234,7 +234,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value("AuthSuite"),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [
+        let response = Components.Schemas.TestCaseRunsList.test(testCaseRuns: [
             .test(status: .success),
         ])
         given(listTestCaseRunsService).listTestCaseRuns(
@@ -288,7 +288,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value(nil),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [
+        let response = Components.Schemas.TestCaseRunsList.test(testCaseRuns: [
             .test(status: .success),
         ])
         given(listTestCaseRunsService).listTestCaseRuns(
@@ -334,7 +334,7 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [
+        let response = Components.Schemas.TestCaseRunsList.test(testCaseRuns: [
             .test(status: .success),
         ])
         given(listTestCaseRunsService).listTestCaseRuns(
@@ -390,7 +390,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value(nil),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
+        let response = Components.Schemas.TestCaseRunsList.test(
             pageSize: 5,
             testCaseRuns: [.test()]
         )
@@ -447,7 +447,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value(nil),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
+        let response = Components.Schemas.TestCaseRunsList.test(
             currentPage: 3,
             totalPages: 5,
             hasPreviousPage: true,
@@ -504,7 +504,7 @@ struct TestCaseRunListCommandServiceTests {
             suiteName: .value(nil),
             serverURL: .value(serverURL)
         ).willReturn(testCase)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(testCaseRuns: [])
+        let response = Components.Schemas.TestCaseRunsList.test(testCaseRuns: [])
         given(listTestCaseRunsService).listTestCaseRuns(
             fullHandle: .value(explicitFullHandle),
             serverURL: .value(serverURL),
@@ -550,7 +550,7 @@ struct TestCaseRunListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload.test(
+        let response = Components.Schemas.TestCaseRunsList.test(
             testCaseRuns: [
                 .test(moduleName: "AppTests", name: "testLogin", status: .success),
                 .test(id: "run-id-2", moduleName: "AppTests", name: "testLogout", status: .failure),
