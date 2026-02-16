@@ -62,6 +62,23 @@ defmodule Tuist.CacheEndpoints do
     Repo.delete(endpoint)
   end
 
+  @doc "Returns active cache endpoint URLs. Uses secrets override if set, otherwise queries the database."
+  def active_endpoint_urls do
+    case Tuist.Environment.cache_endpoints() do
+      endpoints when is_list(endpoints) ->
+        endpoints
+
+      nil ->
+        if Tuist.Environment.tuist_hosted?() do
+          Tuist.Environment.env()
+          |> list_active_cache_endpoints()
+          |> Enum.map(& &1.url)
+        else
+          []
+        end
+    end
+  end
+
   @doc "Toggles the maintenance flag on a cache endpoint."
   def toggle_maintenance(%CacheEndpoint{} = endpoint) do
     endpoint

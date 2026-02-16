@@ -102,13 +102,7 @@ defmodule Tuist.Environment do
         endpoints |> String.split(",") |> Enum.map(&String.trim/1)
 
       _ ->
-        if tuist_hosted?() do
-          env()
-          |> Tuist.CacheEndpoints.list_active_cache_endpoints()
-          |> Enum.map(& &1.url)
-        else
-          []
-        end
+        nil
     end
   end
 
