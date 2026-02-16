@@ -5,6 +5,7 @@ defmodule TuistWeb.TestRunsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 

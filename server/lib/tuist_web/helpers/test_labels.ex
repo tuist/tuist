@@ -22,4 +22,7 @@ defmodule TuistWeb.Helpers.TestLabels do
 
   def test_suites_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Test Classes")
   def test_suites_label(_), do: dgettext("dashboard_tests", "Test Suites")
+
+  def scheme_label(%Project{build_system: :gradle}), do: dgettext("dashboard_tests", "Project")
+  def scheme_label(_), do: dgettext("dashboard_tests", "Scheme")
 end
