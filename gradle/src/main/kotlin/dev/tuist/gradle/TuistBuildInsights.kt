@@ -298,18 +298,13 @@ abstract class TuistBuildInsightsService :
     }
 
     private fun sendReport() {
-        val projectValue = parameters.project.get()
-        val parts = projectValue.split("/")
-        if (parts.size != 2) {
-            logger.warn("Tuist: Invalid project format for build insights: $projectValue")
-            return
-        }
-        val (accountHandle, projectHandle) = parts
+        val projectValue = parameters.project.orNull
 
         val configProvider = TuistCommandConfigurationProvider(
             project = projectValue,
             command = listOf(parameters.executablePath.orNull ?: "tuist"),
-            url = parameters.url.get()
+            url = parameters.url.get(),
+            projectDir = java.io.File(System.getProperty("user.dir"))
         )
 
         val httpClient = TuistHttpClient(
@@ -330,10 +325,9 @@ abstract class TuistBuildInsightsService :
             gitInfoProvider = gitInfoProvider
         )
 
-        val baseUrl = parameters.url.get().trimEnd('/')
-
         val response = httpClient.execute { config ->
-            val url = URI(baseUrl).resolve("/api/projects/$accountHandle/$projectHandle/gradle/builds")
+            val baseUrl = config.url.trimEnd('/')
+            val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
             val connection = httpClient.openConnection(url, config)
             try {
                 connection.requestMethod = "POST"
@@ -426,7 +420,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             TuistBuildInsightsService::class.java
         ) {
             parameters.url.set(config.url)
-            parameters.project.set(config.project)
+            config.project?.let { parameters.project.set(it) }
             parameters.executablePath.set(config.executablePath)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
