@@ -809,7 +809,7 @@ defmodule TuistWeb.Router do
       get "/runs/:run_id/download", RunsController, :download
 
       get "/tests/test-case-runs/:test_case_run_id/attachments/:file_name",
-          TuistWeb.TestCaseRunAttachmentsController,
+          TestCaseRunAttachmentsController,
           :download
 
       live "/settings", ProjectSettingsLive
