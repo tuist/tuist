@@ -84,7 +84,7 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin warns when project is blank`() {
+    fun `plugin works when project is blank and falls back to tuist toml`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
@@ -107,12 +107,12 @@ class TuistPluginTest {
 
         val result = GradleRunner.create()
             .withProjectDir(testProjectDir)
-            .withArguments("hello", "--warn")
+            .withArguments("hello")
             .withPluginClasspath()
             .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
-        assertTrue(result.output.contains("project not configured"))
+        assertTrue(result.output.contains("(from tuist.toml)"))
     }
 
     @Test
