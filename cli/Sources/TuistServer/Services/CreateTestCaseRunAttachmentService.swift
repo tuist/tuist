@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import Path
 import TuistHTTP
 

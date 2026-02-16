@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 public typealias ServerTestRun = Operations.getTestRun.Output.Ok.Body.jsonPayload
