@@ -173,7 +173,6 @@ struct InspectResultBundleService: InspectResultBundleServicing {
                 serverURL: serverURL,
                 testCaseRunId: testCaseRunId,
                 fileName: fileName,
-                contentType: "application/x-ips",
                 filePath: crashReport.filePath
             )
             try await createCrashReportService.createCrashReport(

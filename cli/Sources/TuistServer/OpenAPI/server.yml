@@ -1521,11 +1521,6 @@ components:
       x-validate:
     TestCaseRunAttachmentParams:
       properties:
-        content_type:
-          description: The MIME content type of the attachment.
-          type: string
-          x-struct:
-          x-validate:
         file_name:
           description: The file name of the attachment.
           type: string
@@ -13763,11 +13758,6 @@ paths:
           application/json:
             schema:
               properties:
-                content_type:
-                  description: The MIME content type of the attachment.
-                  type: string
-                  x-struct:
-                  x-validate:
                 file_name:
                   description: The file name of the attachment.
                   type: string

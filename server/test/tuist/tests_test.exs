@@ -4948,44 +4948,12 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  describe "get_crash_report_by_test_case_run_id/1" do
-    test "returns crash report when it exists" do
-      # Given
-      test_case_run_id = UUIDv7.generate()
-
-      crash_report =
-        RunsFixtures.crash_report_fixture(
-          test_case_run_id: test_case_run_id,
-          exception_type: "EXC_BAD_ACCESS",
-          signal: "SIGSEGV"
-        )
-
-      # When
-      result = Tests.get_crash_report_by_test_case_run_id(test_case_run_id)
-
-      # Then
-      assert {:ok, cr} = result
-      assert cr.id == crash_report.id
-      assert cr.test_case_run_id == test_case_run_id
-      assert cr.exception_type == "EXC_BAD_ACCESS"
-      assert cr.signal == "SIGSEGV"
-    end
-
-    test "returns error when crash report does not exist" do
-      # When
-      result = Tests.get_crash_report_by_test_case_run_id(UUIDv7.generate())
-
-      # Then
-      assert {:error, :not_found} = result
-    end
-  end
-
   describe "get_crash_reports_by_test_case_run_ids/1" do
     test "returns empty map for empty list" do
       assert Tests.get_crash_reports_by_test_case_run_ids([]) == %{}
     end
 
-    test "returns crash reports keyed by test case run id" do
+    test "returns crash reports with preloaded attachments keyed by test case run id" do
       # Given
       run_id_1 = UUIDv7.generate()
       run_id_2 = UUIDv7.generate()
@@ -4999,7 +4967,9 @@ defmodule Tuist.TestsTest do
       # Then
       assert map_size(result) == 2
       assert result[run_id_1].id == cr1.id
+      assert result[run_id_1].test_case_run_attachment.id == cr1.test_case_run_attachment_id
       assert result[run_id_2].id == cr2.id
+      assert result[run_id_2].test_case_run_attachment.id == cr2.test_case_run_attachment_id
     end
 
     test "returns only matching crash reports" do
@@ -5078,37 +5048,6 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert {:error, :not_found} = result
-    end
-  end
-
-  describe "get_attachments_by_ids/1" do
-    test "returns empty map for empty list" do
-      assert Tests.get_attachments_by_ids([]) == %{}
-    end
-
-    test "returns attachments keyed by id" do
-      # Given
-      run_id = UUIDv7.generate()
-
-      a1 =
-        RunsFixtures.test_case_run_attachment_fixture(
-          test_case_run_id: run_id,
-          file_name: "crash1.ips"
-        )
-
-      a2 =
-        RunsFixtures.test_case_run_attachment_fixture(
-          test_case_run_id: run_id,
-          file_name: "crash2.ips"
-        )
-
-      # When
-      result = Tests.get_attachments_by_ids([a1.id, a2.id])
-
-      # Then
-      assert map_size(result) == 2
-      assert result[a1.id].file_name == "crash1.ips"
-      assert result[a2.id].file_name == "crash2.ips"
     end
   end
 

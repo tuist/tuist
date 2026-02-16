@@ -32,7 +32,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       stub(Tests, :create_test_case_run_attachment, fn attrs ->
         assert attrs.test_case_run_id == test_case_run_id
         assert attrs.file_name == "crash-report.ips"
-        assert attrs.content_type == "application/x-ips"
         {:ok, %{id: attrs.id}}
       end)
 
@@ -47,8 +46,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
           "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
           %{
             test_case_run_id: test_case_run_id,
-            file_name: "crash-report.ips",
-            content_type: "application/x-ips"
+            file_name: "crash-report.ips"
           }
         )
 

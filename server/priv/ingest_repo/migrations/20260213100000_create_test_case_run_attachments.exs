@@ -10,7 +10,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunAttachments do
       add :id, :uuid, null: false
       add :test_case_run_id, :uuid, null: false
       add :file_name, :string, null: false
-      add :content_type, :string, default: ""
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
     end
   end

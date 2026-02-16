@@ -3916,10 +3916,6 @@ public enum Components {
         public typealias TestCaseRunsIndexPageSize = Swift.Int
         /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams`.
         public struct TestCaseRunAttachmentParams: Codable, Hashable, Sendable {
-            /// The MIME content type of the attachment.
-            ///
-            /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/content_type`.
-            public var content_type: Swift.String?
             /// The file name of the attachment.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/file_name`.
@@ -3931,20 +3927,16 @@ public enum Components {
             /// Creates a new `TestCaseRunAttachmentParams`.
             ///
             /// - Parameters:
-            ///   - content_type: The MIME content type of the attachment.
             ///   - file_name: The file name of the attachment.
             ///   - test_case_run_id: The UUID of the test case run.
             public init(
-                content_type: Swift.String? = nil,
                 file_name: Swift.String,
                 test_case_run_id: Swift.String
             ) {
-                self.content_type = content_type
                 self.file_name = file_name
                 self.test_case_run_id = test_case_run_id
             }
             public enum CodingKeys: String, CodingKey {
-                case content_type
                 case file_name
                 case test_case_run_id
             }
@@ -38473,10 +38465,6 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The MIME content type of the attachment.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/content_type`.
-                    public var content_type: Swift.String?
                     /// The file name of the attachment.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/file_name`.
@@ -38488,20 +38476,16 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - content_type: The MIME content type of the attachment.
                     ///   - file_name: The file name of the attachment.
                     ///   - test_case_run_id: The UUID of the test case run.
                     public init(
-                        content_type: Swift.String? = nil,
                         file_name: Swift.String,
                         test_case_run_id: Swift.String
                     ) {
-                        self.content_type = content_type
                         self.file_name = file_name
                         self.test_case_run_id = test_case_run_id
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case content_type
                         case file_name
                         case test_case_run_id
                     }

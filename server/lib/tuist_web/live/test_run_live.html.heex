@@ -390,9 +390,9 @@
                       {dgettext("dashboard_tests", "Crash Report")}
                     </span>
                     <.button
-                      :if={crash_report.attachment_file_name}
+                      :if={crash_report.test_case_run_attachment.file_name}
                       href={
-                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{crash_report.attachment_file_name}"
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{crash_report.test_case_run_attachment.file_name}"
                       }
                       label={dgettext("dashboard_tests", "Download")}
                       variant="secondary"
@@ -1485,9 +1485,9 @@
                     {dgettext("dashboard_tests", "Crash Report")}
                   </span>
                   <.button
-                    :if={crash_report.attachment_file_name}
+                    :if={crash_report.test_case_run_attachment.file_name}
                     href={
-                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{crash_report.attachment_file_name}"
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/#{crash_report.test_case_run_attachment.file_name}"
                     }
                     label={dgettext("dashboard_tests", "Download")}
                     variant="secondary"

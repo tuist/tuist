@@ -262,7 +262,6 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
       file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
-      content_type: Keyword.get(attrs, :content_type, "application/x-ips"),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 

@@ -47,10 +47,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
            file_name: %Schema{
              type: :string,
              description: "The file name of the attachment."
-           },
-           content_type: %Schema{
-             type: :string,
-             description: "The MIME content type of the attachment."
            }
          },
          required: [:test_case_run_id, :file_name]
@@ -81,7 +77,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       id: attachment_id,
       test_case_run_id: body_params.test_case_run_id,
       file_name: body_params.file_name,
-      content_type: Map.get(body_params, :content_type, ""),
       inserted_at: NaiveDateTime.utc_now()
     }
 

@@ -49,19 +49,6 @@ defmodule Tuist.Tests do
     end
   end
 
-  def get_crash_report_by_test_case_run_id(test_case_run_id) do
-    query =
-      from(cr in CrashReport,
-        where: cr.test_case_run_id == ^test_case_run_id,
-        limit: 1
-      )
-
-    case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      crash_report -> {:ok, crash_report}
-    end
-  end
-
   def get_crash_reports_by_test_case_run_ids([]), do: %{}
 
   def get_crash_reports_by_test_case_run_ids(test_case_run_ids) do
@@ -69,6 +56,7 @@ defmodule Tuist.Tests do
 
     query
     |> ClickHouseRepo.all()
+    |> ClickHouseRepo.preload(:test_case_run_attachment)
     |> Map.new(fn cr -> {cr.test_case_run_id, cr} end)
   end
 
@@ -1706,16 +1694,6 @@ defmodule Tuist.Tests do
     else
       {:error, changeset}
     end
-  end
-
-  def get_attachments_by_ids([]), do: %{}
-
-  def get_attachments_by_ids(ids) do
-    query = from(a in TestCaseRunAttachment, where: a.id in ^ids)
-
-    query
-    |> ClickHouseRepo.all()
-    |> Map.new(fn a -> {a.id, a} end)
   end
 
   def get_attachment_by_id(id) do

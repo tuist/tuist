@@ -12,7 +12,6 @@ public protocol CreateTestCaseRunAttachmentServicing {
         serverURL: URL,
         testCaseRunId: String,
         fileName: String,
-        contentType: String,
         filePath: AbsolutePath
     ) async throws -> String
 }
@@ -59,7 +58,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
         serverURL: URL,
         testCaseRunId: String,
         fileName: String,
-        contentType: String,
         filePath: AbsolutePath
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
@@ -73,7 +71,6 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 ),
                 body: .json(
                     .init(
-                        content_type: contentType,
                         file_name: fileName,
                         test_case_run_id: testCaseRunId
                     )
@@ -90,7 +87,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 }
                 var request = URLRequest(url: url)
                 request.httpMethod = "PUT"
-                request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+                request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
                 request.httpBody = try await fileSystem.readFile(at: filePath)
 
                 let (_, uploadResponse) = try await urlSession.data(for: request)
