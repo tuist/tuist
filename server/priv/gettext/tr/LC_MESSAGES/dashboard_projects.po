@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-11 17:31+0000\n"
+"PO-Revision-Date: 2026-02-16 18:02+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/tr/>\n"
@@ -703,26 +703,35 @@ msgstr "Sistem oluşturma"
 msgid "Select build system"
 msgstr "Derleme sistemini seçin"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
+"<strong>%{size_label}</strong> dalındaki en son paketin <strong>%{git_branch}"
+"</strong> önceki pakete göre <strong>%{deviation}%</strong> arttığında uyarı "
+"verin."
 
+#, fuzzy
 msgid "Branch"
-msgstr ""
+msgstr "Dal"
 
+#, fuzzy
 msgid "Bundle size"
-msgstr ""
+msgstr "Paket boyutu"
 
+#, fuzzy
 msgid "Download size"
-msgstr ""
+msgstr "İndirme boyutu"
 
+#, fuzzy
 msgid "Size metric"
-msgstr ""
+msgstr "Boyut ölçüsü"
 
+#, fuzzy
 msgid "e.g. main"
-msgstr ""
+msgstr "Örnek: main"
 
 #, fuzzy
 #~ msgid "Only people with access"
