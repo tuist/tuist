@@ -362,7 +362,15 @@
                                     "text": "Módulo caché"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Caché de Xcode"
+                                        },
+                                        "module-cache": {
+                                            "text": "Módulo caché"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Caché de Gradle"
