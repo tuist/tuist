@@ -206,4 +206,266 @@
       </:image>
     </.empty_card_section>
   </.card>
+  <.card
+    title={dgettext("dashboard_gradle", "Builds")}
+    icon="subtask"
+    data-part="builds-card-section"
+  >
+    <:actions>
+      <.dropdown
+        id="overview-builds-environment-dropdown"
+        label={@builds_environment_label}
+        secondary_text={dgettext("dashboard_gradle", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_gradle", "Any")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "any")}"}
+          data-selected={@builds_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_gradle", "Local")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
+          data-selected={@builds_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_gradle", "CI")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "ci")}"}
+          data-selected={@builds_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="builds-date-range-picker"
+        name="builds-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_gradle", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_gradle", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_gradle", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_gradle", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_gradle", "Custom")}
+        ]}
+        selected_preset={@builds_preset}
+        period={@builds_period}
+        on_period_change="builds_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_gradle", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_gradle", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "builds-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="builds-card-sections">
+      <.card_section :if={not Enum.empty?(@recent_build_runs)}>
+        <div data-part="build-runs-chart">
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_gradle", "Passed builds")}
+              value={@successful_builds_count}
+              style="primary"
+            />
+            <.legend
+              title={dgettext("dashboard_gradle", "Failed builds")}
+              value={@failed_builds_count}
+              style="destructive"
+            />
+          </div>
+          <.chart
+            id="chart-recent-build-runs"
+            type="bar"
+            extra_options={
+              %{
+                grid: %{
+                  width: "100%",
+                  left: "0.4%",
+                  height: "88%",
+                  top: "5%"
+                },
+                tooltip: %{
+                  valueFormat: "fn:formatMilliseconds",
+                  dateFormat: "minute"
+                },
+                xAxis: %{
+                  axisLabel: %{show: false},
+                  data: @recent_build_runs |> Enum.map(& &1.date)
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatMilliseconds"
+                  }
+                },
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data: @recent_build_runs,
+                name: "Build",
+                type: "bar"
+              }
+            ]}
+            y_axis_min={0}
+            grid_lines
+            bar_width={8}
+            bar_radius={2}
+          />
+          <span data-part="label">{dgettext("dashboard_gradle", "Last 30 runs")}</span>
+        </div>
+      </.card_section>
+      <.empty_card_section
+        :if={Enum.empty?(@recent_build_runs)}
+        title={dgettext("dashboard_gradle", "No recent builds yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/gradle"
+      >
+        <:image>
+          <img src="/images/empty_bar_chart_light.png" data-theme="light" />
+          <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+      <.card_section
+        :if={@builds_duration_analytics.total_average_duration != 0}
+        data-part="average-build-time-card-section"
+      >
+        <div data-part="average-build-time-chart">
+          <.button
+            data-part="view-more"
+            label={dgettext("dashboard_gradle", "View more")}
+            size="small"
+            variant="secondary"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+          />
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_gradle", "Average build time")}
+              value={
+                dgettext("dashboard_gradle", "%{duration}s",
+                  duration:
+                    Float.round(@builds_duration_analytics.total_average_duration / 1000, 1)
+                )
+              }
+              style="secondary"
+            />
+          </div>
+          <.chart
+            id="average-build-time-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "95%",
+                  left: "0.4%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @builds_duration_analytics.dates |> List.first(),
+                      @builds_duration_analytics.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatSeconds"
+                  }
+                },
+                tooltip:
+                  if @builds_preset == "last-24-hours" do
+                    %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "fn:formatSeconds"}
+                  end,
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                color: "var:noora-chart-secondary",
+                data:
+                  Enum.zip(
+                    @builds_duration_analytics.dates,
+                    @builds_duration_analytics.values
+                    |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_gradle", "Average build time"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </div>
+      </.card_section>
+      <.empty_card_section
+        :if={@builds_duration_analytics.total_average_duration == 0}
+        title={dgettext("dashboard_gradle", "No builds yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/gradle"
+      >
+        <:image>
+          <img src="/images/empty_line_chart_light.png" data-theme="light" />
+          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </div>
+  </.card>
 </div>
