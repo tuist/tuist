@@ -27,6 +27,21 @@ defmodule TuistWeb.Runs.CacheEndpointFormatter do
   end
 
   @doc """
+  Returns the display name for a cache endpoint URL.
+  Looks up the display name from the database first, falling back to URL-based formatting.
+  """
+  def display_name_for_endpoint(url) when url in ["", nil], do: "tuist.dev"
+
+  def display_name_for_endpoint(url) do
+    env = Tuist.Environment.env()
+
+    case Tuist.CacheEndpoints.get_cache_endpoint_by_url(url, env) do
+      {:ok, endpoint} -> endpoint.display_name
+      {:error, :not_found} -> format_cache_endpoint(url)
+    end
+  end
+
+  @doc """
   Formats a cache endpoint URL into a human-readable region name.
 
   ## Examples

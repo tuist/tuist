@@ -10,23 +10,45 @@ defmodule Tuist.CacheEndpoints do
 
   @doc "Lists all cache endpoints for a given environment, ordered by display_name."
   def list_cache_endpoints(environment) do
+    env = to_string(environment)
+
     CacheEndpoint
-    |> where(environment: ^environment)
+    |> where(environment: ^env)
     |> order_by(:display_name)
     |> Repo.all()
   end
 
   @doc "Lists active (non-maintenance) cache endpoints for a given environment."
   def list_active_cache_endpoints(environment) do
+    env = to_string(environment)
+
     CacheEndpoint
-    |> where(environment: ^environment)
+    |> where(environment: ^env)
     |> where([c], c.maintenance == false)
     |> order_by(:display_name)
     |> Repo.all()
   end
 
-  @doc "Gets a single cache endpoint by ID. Raises if not found."
-  def get_cache_endpoint!(id), do: Repo.get!(CacheEndpoint, id)
+  @doc "Gets a single cache endpoint by ID."
+  def get_cache_endpoint(id) do
+    case Repo.get(CacheEndpoint, id) do
+      nil -> {:error, :not_found}
+      endpoint -> {:ok, endpoint}
+    end
+  end
+
+  @doc "Gets a single cache endpoint by URL and environment."
+  def get_cache_endpoint_by_url(url, environment) do
+    env = to_string(environment)
+
+    CacheEndpoint
+    |> where(url: ^url, environment: ^env)
+    |> Repo.one()
+    |> case do
+      nil -> {:error, :not_found}
+      endpoint -> {:ok, endpoint}
+    end
+  end
 
   @doc "Creates a cache endpoint."
   def create_cache_endpoint(attrs) do

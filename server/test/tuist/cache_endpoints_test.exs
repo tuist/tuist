@@ -1,8 +1,14 @@
 defmodule Tuist.CacheEndpointsTest do
-  use Tuist.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.CacheEndpoints
   alias Tuist.CacheEndpoints.CacheEndpoint
+  alias Tuist.Repo
+
+  setup do
+    Repo.delete_all(CacheEndpoint)
+    :ok
+  end
 
   defp create_endpoint(attrs \\ %{}) do
     default_attrs = %{
@@ -49,7 +55,7 @@ defmodule Tuist.CacheEndpointsTest do
   describe "list_active_cache_endpoints/1" do
     test "excludes maintenance endpoints" do
       endpoint1 = create_endpoint(%{maintenance: false})
-      endpoint2 = create_endpoint(%{maintenance: true})
+      create_endpoint(%{maintenance: true})
 
       result = CacheEndpoints.list_active_cache_endpoints("test")
 
@@ -79,20 +85,17 @@ defmodule Tuist.CacheEndpointsTest do
     end
   end
 
-  describe "get_cache_endpoint!/1" do
+  describe "get_cache_endpoint/1" do
     test "returns the endpoint" do
       endpoint = create_endpoint()
 
-      result = CacheEndpoints.get_cache_endpoint!(endpoint.id)
-
+      assert {:ok, result} = CacheEndpoints.get_cache_endpoint(endpoint.id)
       assert result.id == endpoint.id
       assert result.url == endpoint.url
     end
 
-    test "raises for non-existent ID" do
-      assert_raise Ecto.NoResultsError, fn ->
-        CacheEndpoints.get_cache_endpoint!("nonexistent-id")
-      end
+    test "returns error for non-existent ID" do
+      assert {:error, :not_found} = CacheEndpoints.get_cache_endpoint(Ecto.UUID.generate())
     end
   end
 
@@ -187,10 +190,7 @@ defmodule Tuist.CacheEndpointsTest do
       {:ok, deleted} = CacheEndpoints.delete_cache_endpoint(endpoint)
 
       assert deleted.id == endpoint.id
-
-      assert_raise Ecto.NoResultsError, fn ->
-        CacheEndpoints.get_cache_endpoint!(endpoint.id)
-      end
+      assert {:error, :not_found} = CacheEndpoints.get_cache_endpoint(endpoint.id)
     end
   end
 
@@ -218,7 +218,7 @@ defmodule Tuist.CacheEndpointsTest do
 
       {:ok, _updated} = CacheEndpoints.toggle_maintenance(endpoint)
 
-      reloaded = CacheEndpoints.get_cache_endpoint!(endpoint.id)
+      assert {:ok, reloaded} = CacheEndpoints.get_cache_endpoint(endpoint.id)
       assert reloaded.maintenance == true
     end
   end

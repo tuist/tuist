@@ -10,19 +10,21 @@ defmodule TuistWeb.OpsCacheLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
-    # Create an ops user (admin)
-    user = AccountsFixtures.user_fixture(ops: true)
+    Tuist.Repo.delete_all(CacheEndpoints.CacheEndpoint)
+
+    user = AccountsFixtures.user_fixture(preload: [:account])
 
     conn = log_in_user(conn, user)
 
-    Mimic.stub(Environment, :env, fn -> :test end)
+    Mimic.stub(Environment, :env, fn -> "test" end)
+    Mimic.stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
 
     %{conn: conn, user: user}
   end
 
   test "renders the cache endpoints page", %{conn: conn} do
     # Given
-    {:ok, endpoint} =
+    {:ok, _endpoint} =
       CacheEndpoints.create_cache_endpoint(%{
         url: "https://cache-test.tuist.dev",
         display_name: "Test Node",
@@ -54,7 +56,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
     lv |> element("button", "Maintenance") |> render_click()
 
     # Then
-    updated_endpoint = CacheEndpoints.get_cache_endpoint!(endpoint.id)
+    {:ok, updated_endpoint} = CacheEndpoints.get_cache_endpoint(endpoint.id)
     assert updated_endpoint.maintenance == true
   end
 
@@ -73,9 +75,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
     lv |> element("button", "Delete") |> render_click()
 
     # Then
-    assert_raise Ecto.NoResultsError, fn ->
-      CacheEndpoints.get_cache_endpoint!(endpoint.id)
-    end
+    assert {:error, :not_found} = CacheEndpoints.get_cache_endpoint(endpoint.id)
   end
 
   test "adds a new endpoint", %{conn: conn} do
