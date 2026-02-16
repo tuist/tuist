@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-11 17:31+0000\n"
+"PO-Revision-Date: 2026-02-16 18:02+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ja/>\n"
@@ -696,26 +696,34 @@ msgstr "ビルドシステム"
 msgid "Select build system"
 msgstr "ビルドシステムを選択"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
+"ブランチ<strong>%{git_branch}</strong> の最新バンドルにおける<strong>%"
+"{size_label}</strong> が、前回のバンドルと比較して<strong>%{deviation}%</"
+"strong> 増加したことを警告します。"
 
+#, fuzzy
 msgid "Branch"
-msgstr ""
+msgstr "Branch"
 
 msgid "Bundle size"
 msgstr ""
 
+#, fuzzy
 msgid "Download size"
-msgstr ""
+msgstr "ダウンロードサイズ"
 
+#, fuzzy
 msgid "Size metric"
-msgstr ""
+msgstr "サイズ指標"
 
+#, fuzzy
 msgid "e.g. main"
-msgstr ""
+msgstr "例: main"
 
 #, fuzzy
 #~ msgid "Only people with access"
