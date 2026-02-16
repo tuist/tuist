@@ -2,9 +2,8 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
-#if os(macOS)
+#if canImport(TuistAlert)
     import TuistAlert
-    import TuistSupport
 #endif
 
 public enum OutputWarningsMiddlewareError: LocalizedError {
@@ -52,7 +51,7 @@ public struct OutputWarningsMiddleware: ClientMiddleware {
             throw OutputWarningsMiddlewareError.invalidSchema
         }
 
-        #if os(macOS)
+        #if canImport(TuistAlert)
             json.forEach { AlertController.current.warning(.alert("\($0)")) }
         #endif
 

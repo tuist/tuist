@@ -9,7 +9,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
-  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id/runs" do
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/runs" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -19,7 +19,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       %{conn: conn, user: user, project: project}
     end
 
-    test "lists runs for a test case", %{conn: conn, user: user, project: project} do
+    test "lists runs filtered by test case id", %{conn: conn, user: user, project: project} do
       # Given
       test_case_id = UUIDv7.generate()
 
@@ -32,7 +32,182 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           git_branch: "main"
         )
 
-      stub(Tests, :list_test_case_runs_by_test_case_id, fn _test_case_id, _options ->
+      stub(Tests, :list_test_case_runs, fn options ->
+        assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
+
+        {[%{struct(TestCaseRun, test_case_run) | status: :success}],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+
+      run = hd(response["test_case_runs"])
+      assert run["id"] == test_case_run.id
+      assert run["status"] == "success"
+      assert run["is_flaky"] == true
+      assert run["git_branch"] == "main"
+    end
+
+    test "passes flaky filter to service", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      expect(Tests, :list_test_case_runs, fn options ->
+        assert %{field: :is_flaky, op: :==, value: true} in options.filters
+        assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}&flaky=true"
+        )
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
+    test "supports pagination parameters", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      expect(Tests, :list_test_case_runs, fn options ->
+        assert options.page == 2
+        assert options.page_size == 5
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: true,
+           current_page: 2,
+           page_size: 5,
+           total_count: 6,
+           total_pages: 2
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}&page=2&page_size=5"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["pagination_metadata"]["current_page"] == 2
+      assert response["pagination_metadata"]["page_size"] == 5
+      assert response["pagination_metadata"]["total_count"] == 6
+      assert response["pagination_metadata"]["has_previous_page"] == true
+    end
+
+    test "lists all runs when no filters are provided", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      stub(Tests, :list_test_case_runs, fn options ->
+        assert options.filters == []
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["test_case_runs"] == []
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      # Given
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+      test_case_id = UUIDv7.generate()
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}"
+        )
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id/runs (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "lists runs for a test case via legacy route", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: 0,
+          is_flaky: true,
+          git_branch: "main"
+        )
+
+      stub(Tests, :list_test_case_runs, fn options ->
+        assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
+
         {[%{struct(TestCaseRun, test_case_run) | status: :success}],
          %{
            has_next_page?: false,
@@ -54,92 +229,6 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert length(response["test_case_runs"]) == 1
-
-      run = hd(response["test_case_runs"])
-      assert run["id"] == test_case_run.id
-      assert run["status"] == "success"
-      assert run["is_flaky"] == true
-      assert run["git_branch"] == "main"
-    end
-
-    test "passes flaky filter to service", %{conn: conn, user: user, project: project} do
-      # Given
-      test_case_id = UUIDv7.generate()
-
-      expect(Tests, :list_test_case_runs_by_test_case_id, fn _test_case_id, options ->
-        assert %{field: :is_flaky, op: :==, value: true} in options.filters
-
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 0,
-           total_pages: 0
-         }}
-      end)
-
-      # When
-      conn =
-        get(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case_id}/runs?flaky=true"
-        )
-
-      # Then
-      assert json_response(conn, :ok)
-    end
-
-    test "supports pagination parameters", %{conn: conn, user: user, project: project} do
-      # Given
-      test_case_id = UUIDv7.generate()
-
-      expect(Tests, :list_test_case_runs_by_test_case_id, fn _test_case_id, options ->
-        assert options.page == 2
-        assert options.page_size == 5
-
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: true,
-           current_page: 2,
-           page_size: 5,
-           total_count: 6,
-           total_pages: 2
-         }}
-      end)
-
-      # When
-      conn =
-        get(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case_id}/runs?page=2&page_size=5"
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-      assert response["pagination_metadata"]["current_page"] == 2
-      assert response["pagination_metadata"]["page_size"] == 5
-      assert response["pagination_metadata"]["total_count"] == 6
-      assert response["pagination_metadata"]["has_previous_page"] == true
-    end
-
-    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
-      # Given
-      other_user = AccountsFixtures.user_fixture(preload: [:account])
-      conn = Authentication.put_current_user(conn, other_user)
-      test_case_id = UUIDv7.generate()
-
-      # When
-      conn =
-        get(
-          conn,
-          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/#{test_case_id}/runs"
-        )
-
-      # Then
-      assert json_response(conn, :forbidden)
     end
   end
 
@@ -153,7 +242,11 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       %{conn: conn, user: user, project: project}
     end
 
-    test "returns test case run with failures and repetitions", %{conn: conn, user: user, project: project} do
+    test "returns test case run with failures and repetitions", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
       # Given
       test_case_run =
         RunsFixtures.test_case_run_fixture(
@@ -194,7 +287,8 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
         run_with_preloads = %{
           run_struct
           | failures: [struct(Tuist.Tests.TestCaseFailure, failure)],
-            repetitions: [struct(Tuist.Tests.TestCaseRunRepetition, repetition)]
+            repetitions: [struct(Tuist.Tests.TestCaseRunRepetition, repetition)],
+            crash_report: nil
         }
 
         {:ok, run_with_preloads}
@@ -218,6 +312,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc1234"
       assert response["test_run_id"] == test_case_run.test_run_id
+      assert response["crash_report"] == nil
 
       assert length(response["failures"]) == 1
       failure_response = hd(response["failures"])
@@ -233,7 +328,11 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert repetition_response["duration"] == 50
     end
 
-    test "returns 404 when test case run does not exist", %{conn: conn, user: user, project: project} do
+    test "returns 404 when test case run does not exist", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
       # Given
       stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:error, :not_found} end)
 
@@ -248,14 +347,23 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert json_response(conn, :not_found)
     end
 
-    test "returns 404 when test case run belongs to a different project", %{conn: conn, user: user, project: project} do
+    test "returns 404 when test case run belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
       # Given
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
       test_case_run =
         RunsFixtures.test_case_run_fixture(project_id: other_project.id)
 
-      run_struct = %{struct(TestCaseRun, test_case_run) | status: :success, failures: [], repetitions: []}
+      run_struct = %{
+        struct(TestCaseRun, test_case_run)
+        | status: :success,
+          failures: [],
+          repetitions: []
+      }
 
       stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:ok, run_struct} end)
 
@@ -268,6 +376,96 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
 
       # Then
       assert json_response(conn, :not_found)
+    end
+
+    test "returns test case run with crash report", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          name: "testCrashing",
+          module_name: "CrashTests",
+          suite_name: "CrashSuite",
+          status: 1
+        )
+
+      run_struct = %{
+        struct(TestCaseRun, test_case_run)
+        | status: :failure,
+          failures: [],
+          repetitions: []
+      }
+
+      crash_report = %Tuist.Tests.CrashReport{
+        id: UUIDv7.generate(),
+        exception_type: "EXC_BAD_ACCESS",
+        signal: "SIGSEGV",
+        exception_subtype: "KERN_INVALID_ADDRESS",
+        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
+        test_case_run_id: test_case_run.id,
+        test_case_run_attachment: %Tuist.Tests.TestCaseRunAttachment{
+          id: UUIDv7.generate(),
+          file_name: "crash-report.ips",
+          test_case_run_id: test_case_run.id
+        }
+      }
+
+      stub(Tests, :get_test_case_run_by_id, fn _id, _opts ->
+        {:ok, %{run_struct | crash_report: crash_report}}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case_run.id
+
+      cr = response["crash_report"]
+      assert cr["exception_type"] == "EXC_BAD_ACCESS"
+      assert cr["signal"] == "SIGSEGV"
+      assert cr["exception_subtype"] == "KERN_INVALID_ADDRESS"
+      assert cr["triggered_thread_frames"] == "0  libswiftCore.dylib  _assertionFailure + 156"
+      assert cr["attachment_url"] =~ "/tests/test-cases/runs/#{test_case_run.id}/attachments/crash-report.ips"
+    end
+
+    test "returns null crash_report when none exists", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id, status: 0)
+
+      run_struct = %{
+        struct(TestCaseRun, test_case_run)
+        | status: :success,
+          failures: [],
+          repetitions: [],
+          crash_report: nil
+      }
+
+      stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:ok, run_struct} end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["crash_report"] == nil
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

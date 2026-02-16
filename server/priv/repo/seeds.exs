@@ -2341,6 +2341,15 @@ if slack_installation do
       rolling_window_size: 7,
       slack_channel_id: "C0A598PACRG",
       slack_channel_name: "test"
+    },
+    %{
+      name: "Bundle Size Alert",
+      category: :bundle_size,
+      metric: :install_size,
+      deviation_percentage: 5.0,
+      git_branch: "main",
+      slack_channel_id: "C0A598PACRG",
+      slack_channel_name: "test"
     }
   ]
 

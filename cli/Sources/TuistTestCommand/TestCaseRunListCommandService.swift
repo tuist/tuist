@@ -10,8 +10,9 @@ protocol TestCaseRunListCommandServicing {
     func run(
         project: String?,
         path: String?,
-        testCaseIdentifier: String,
+        testCaseIdentifier: String?,
         flaky: Bool,
+        testRunId: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -50,8 +51,9 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
     func run(
         project: String?,
         path: String?,
-        testCaseIdentifier: String,
+        testCaseIdentifier: String?,
         flaky: Bool,
+        testRunId: String?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -65,29 +67,34 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let testCaseId: String
-        switch try TestCaseIdentifier(testCaseIdentifier) {
-        case let .name(moduleName, suiteName, testName):
-            let testCase = try await getTestCaseService.getTestCaseByName(
-                fullHandle: resolvedFullHandle,
-                moduleName: moduleName,
-                name: testName,
-                suiteName: suiteName,
-                serverURL: serverURL
-            )
-            testCaseId = testCase.id
-        case let .id(id):
-            testCaseId = id
-        }
-
         let pageSize = pageSize ?? 10
         let startPage = (page ?? 1) - 1
+
+        let testCaseId: String?
+        if let testCaseIdentifier {
+            switch try TestCaseIdentifier(testCaseIdentifier) {
+            case let .name(moduleName, suiteName, testName):
+                let testCase = try await getTestCaseService.getTestCaseByName(
+                    fullHandle: resolvedFullHandle,
+                    moduleName: moduleName,
+                    name: testName,
+                    suiteName: suiteName,
+                    serverURL: serverURL
+                )
+                testCaseId = testCase.id
+            case let .id(id):
+                testCaseId = id
+            }
+        } else {
+            testCaseId = nil
+        }
 
         let initialPage = try await listTestCaseRunsService.listTestCaseRuns(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
             testCaseId: testCaseId,
             flaky: flaky ? true : nil,
+            testRunId: testRunId,
             page: startPage + 1,
             pageSize: pageSize
         )
@@ -100,7 +107,14 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
         }
 
         if initialRuns.isEmpty {
-            var message = "No test case runs found for \(testCaseIdentifier)"
+            var message: String
+            if let testCaseIdentifier {
+                message = "No test case runs found for \(testCaseIdentifier)"
+            } else if let testRunId {
+                message = "No test case runs found for test run \(testRunId)"
+            } else {
+                message = "No test case runs found"
+            }
             if flaky { message += " (flaky only)" }
             Noora.current.passthrough(TerminalText(stringLiteral: message + "."))
             return
@@ -108,10 +122,18 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
 
         let totalPages = initialPage.pagination_metadata.total_pages ?? 1
 
-        let initialRows = initialRuns.map { formatRunRow($0) }
+        let showNameColumns = testCaseId == nil
+        let headers: [String]
+        if showNameColumns {
+            headers = ["ID", "Name", "Module", "Status", "Duration", "CI", "Flaky", "Branch", "Commit", "Ran At"]
+        } else {
+            headers = ["ID", "Status", "Duration", "CI", "Flaky", "Branch", "Commit", "Ran At"]
+        }
+
+        let initialRows = initialRuns.map { formatRunRow($0, showNameColumns: showNameColumns) }
 
         try await Noora.current.paginatedTable(
-            headers: ["ID", "Status", "Duration", "CI", "Flaky", "Branch", "Commit", "Ran At"],
+            headers: headers,
             pageSize: pageSize,
             totalPages: totalPages,
             startPage: startPage,
@@ -125,20 +147,31 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
                     serverURL: serverURL,
                     testCaseId: testCaseId,
                     flaky: flaky ? true : nil,
+                    testRunId: testRunId,
                     page: pageIndex + 1,
                     pageSize: pageSize
                 )
 
-                return runsPage.test_case_runs.map { formatRunRow($0) }
+                return runsPage.test_case_runs.map { formatRunRow($0, showNameColumns: showNameColumns) }
             }
         )
     }
 
-    private func formatRunRow(_ run: Operations.listTestCaseRuns.Output.Ok.Body.jsonPayload
-        .test_case_runsPayloadPayload) -> [String]
-    {
-        [
-            run.id,
+    private func formatRunRow(
+        _ run: Components.Schemas.TestCaseRun,
+        showNameColumns: Bool
+    ) -> [String] {
+        var row = [run.id]
+
+        if showNameColumns {
+            let name = [run.module_name, run.suite_name, run.name]
+                .compactMap { $0 }
+                .joined(separator: "/")
+            row.append(name)
+            row.append(run.module_name)
+        }
+
+        row.append(contentsOf: [
             run.status.rawValue,
             Formatters.formatDuration(run.duration),
             run.is_ci ? "Yes" : "No",
@@ -146,6 +179,8 @@ struct TestCaseRunListCommandService: TestCaseRunListCommandServicing {
             run.git_branch ?? "-",
             run.git_commit_sha.map { String($0.prefix(7)) } ?? "-",
             run.ran_at.map { Formatters.formatDate($0) } ?? "-",
-        ]
+        ])
+
+        return row
     }
 }

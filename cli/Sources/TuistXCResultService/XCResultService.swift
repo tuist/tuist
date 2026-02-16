@@ -27,13 +27,16 @@ public protocol XCResultServicing {
 public struct XCResultService: XCResultServicing {
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
+    private let ipsCrashReportParser: IPSCrashReportParsing
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        commandRunner: CommandRunning = CommandRunner()
+        commandRunner: CommandRunning = CommandRunner(),
+        ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser()
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.ipsCrashReportParser = ipsCrashReportParser
     }
 
     /// Convert seconds to milliseconds, ensuring non-zero values are at least 1ms
@@ -169,6 +172,17 @@ public struct XCResultService: XCResultServicing {
         allTestCases = updatedTestCases
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
+
+        let crashReportsByTestIdentifier = await crashReportsByTestIdentifiers(from: xcresultPath)
+
+        allTestCases = allTestCases.map { testCase in
+            let testIdentifier = normalizeTestIdentifier(
+                testCase.testSuite.map { "\($0)/\(testCase.name)" } ?? testCase.name
+            )
+            var testCase = testCase
+            testCase.crashReport = crashReportsByTestIdentifier[testIdentifier]
+            return testCase
+        }
 
         let overallStatus = overallStatus(from: allTestCases)
         let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
@@ -473,6 +487,91 @@ public struct XCResultService: XCResultServicing {
             updated.duration = duration
             return updated
         }
+    }
+
+    // MARK: - Crash Attachment Extraction
+
+    private struct AttachmentManifest: Decodable {
+        let testIdentifier: String?
+        let attachments: [Attachment]
+
+        struct Attachment: Decodable {
+            let exportedFileName: String
+            let suggestedHumanReadableName: String?
+            let isAssociatedWithFailure: Bool?
+        }
+    }
+
+    private func crashReportsByTestIdentifiers(from xcresultPath: AbsolutePath) async -> [String: CrashReport] {
+        do {
+            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-crash-attachments")
+
+            _ = try await commandRunner.run(
+                arguments: [
+                    "/bin/sh", "-c",
+                    "/usr/bin/xcrun xcresulttool export attachments --only-failures --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
+                ]
+            ).concatenatedString()
+
+            let manifestPath = temporaryDirectory.appending(component: "manifest.json")
+            guard try await fileSystem.exists(manifestPath) else {
+                return [:]
+            }
+
+            let manifestData = try await fileSystem.readFile(at: manifestPath)
+            let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
+
+            var crashReportsByTestIdentifier: [String: CrashReport] = [:]
+
+            for entry in manifestEntries {
+                guard let testIdentifier = entry.testIdentifier else { continue }
+
+                for attachment in entry.attachments {
+                    guard attachment.exportedFileName.hasSuffix(".ips"),
+                          attachment.isAssociatedWithFailure == true
+                    else { continue }
+
+                    let filePath = temporaryDirectory.appending(component: attachment.exportedFileName)
+                    guard try await fileSystem.exists(filePath) else { continue }
+
+                    let content = try await fileSystem.readTextFile(at: filePath)
+                    let crashReport = try ipsCrashReportParser.parse(content)
+
+                    let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
+                    crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
+                        exceptionType: crashReport.exceptionType,
+                        signal: crashReport.signal,
+                        exceptionSubtype: crashReport.exceptionSubtype,
+                        filePath: filePath,
+                        triggeredThreadFrames: crashReport.triggeredThreadFrames
+                    )
+                }
+            }
+
+            return crashReportsByTestIdentifier
+        } catch {
+            Logger.current.warning("Failed to extract crash attachments: \(error)")
+            return [:]
+        }
+    }
+
+    /// Normalizes a test identifier to the `SuiteName/testName` format by stripping
+    /// trailing parentheses and keeping only the last two path components.
+    ///
+    /// Examples:
+    ///   - `"Module/TestClass/testMethod()"` → `"TestClass/testMethod"`
+    ///   - `"TestClass/testMethod()"` → `"TestClass/testMethod"`
+    ///   - `"testMethod()"` → `"testMethod"`
+    private func normalizeTestIdentifier(_ identifier: String) -> String {
+        var normalized = identifier
+        if normalized.hasSuffix("()") {
+            normalized = String(normalized.dropLast(2))
+        }
+        let components = normalized.split(separator: "/")
+        if components.count >= 2 {
+            return "\(components[components.count - 2])/\(components[components.count - 1])"
+        }
+        return normalized
     }
 
     // MARK: - Swift Testing Duration Parsing

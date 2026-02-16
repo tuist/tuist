@@ -12,6 +12,7 @@ defmodule Tuist.Slack do
   alias Tuist.Repo
   alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
 
   @api_url "https://slack.com/api/chat.postMessage"
@@ -209,7 +210,7 @@ defmodule Tuist.Slack do
       alert_context_block(alert),
       alert_divider_block(),
       alert_metric_block(alert),
-      alert_footer_block(account_name, project_name)
+      alert_footer_block(alert, account_name, project_name)
     ]
   end
 
@@ -252,7 +253,21 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp alert_footer_block(account_name, project_name) do
+  defp alert_footer_block(%Alert{alert_rule: %{category: :bundle_size}}, account_name, project_name) do
+    base_url = Environment.app_url()
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{base_url}/#{account_name}/#{project_name}/bundles|View bundles>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(_alert, account_name, project_name) do
     base_url = Environment.app_url()
 
     %{
@@ -269,10 +284,12 @@ defmodule Tuist.Slack do
   defp alert_category_emoji(:build_run_duration), do: ":hammer_and_wrench:"
   defp alert_category_emoji(:test_run_duration), do: ":test_tube:"
   defp alert_category_emoji(:cache_hit_rate), do: ":zap:"
+  defp alert_category_emoji(:bundle_size), do: ":package:"
 
   defp alert_title(:build_run_duration, metric), do: "Build Time #{alert_metric_label(metric)} Increased"
   defp alert_title(:test_run_duration, metric), do: "Test Time #{alert_metric_label(metric)} Increased"
   defp alert_title(:cache_hit_rate, metric), do: "Cache Hit Rate #{alert_metric_label(metric)} Decreased"
+  defp alert_title(:bundle_size, _metric), do: "Bundle Size Increased"
 
   defp alert_metric_label(:p50), do: "p50"
   defp alert_metric_label(:p90), do: "p90"
@@ -304,6 +321,15 @@ defmodule Tuist.Slack do
       "Current: #{format_alert_percentage(alert.current_value)}"
   end
 
+  defp format_alert_message(%Alert{alert_rule: %{category: :bundle_size, metric: metric}} = alert) do
+    deviation = calculate_increase_deviation(alert)
+    label = bundle_size_metric_label(metric)
+
+    "*Bundle #{label} increased by #{deviation}%*\n" <>
+      "Previous: #{format_alert_bytes(alert.previous_value)}\n" <>
+      "Current: #{format_alert_bytes(alert.current_value)}"
+  end
+
   defp calculate_increase_deviation(%Alert{current_value: current, previous_value: previous}) do
     Float.round((current - previous) / previous * 100, 1)
   end
@@ -319,6 +345,13 @@ defmodule Tuist.Slack do
   defp format_alert_percentage(rate) when is_number(rate) do
     "#{Float.round(rate * 100, 1)}%"
   end
+
+  defp format_alert_bytes(value) when is_number(value) do
+    ByteFormatter.format_bytes(round(value))
+  end
+
+  defp bundle_size_metric_label(:install_size), do: "install size"
+  defp bundle_size_metric_label(:download_size), do: "download size"
 
   defp maybe_add_suite(details, nil), do: details
   defp maybe_add_suite(details, ""), do: details

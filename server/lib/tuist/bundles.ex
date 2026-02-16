@@ -241,6 +241,8 @@ defmodule Tuist.Bundles do
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
 
+    fallback = Keyword.get(opts, :fallback, true)
+
     last_bundle =
       query
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
@@ -249,7 +251,7 @@ defmodule Tuist.Bundles do
       |> limit(1)
       |> Repo.one()
 
-    if is_nil(last_bundle) do
+    if is_nil(last_bundle) && fallback do
       query
       |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
       |> order_by([b], desc: b.inserted_at)
