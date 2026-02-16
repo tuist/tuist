@@ -362,7 +362,12 @@
                                     "text": "Кэш модулей"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Кэш Xcode"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Кэш Gradle"
