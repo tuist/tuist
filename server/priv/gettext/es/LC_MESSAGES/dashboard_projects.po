@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-02-16 18:02+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/es/>\n"
 "Language: es\n"
@@ -724,8 +725,9 @@ msgstr ""
 msgid "Branch"
 msgstr "Rama"
 
+#, fuzzy
 msgid "Bundle size"
-msgstr ""
+msgstr "Bundle size"
 
 #, fuzzy
 msgid "Download size"
