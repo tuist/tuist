@@ -32,7 +32,7 @@ This returns all test cases currently flagged as flaky. Key fields:
 
 **Triage strategy:**
 1. Group tests by suite — multiple flaky tests in the same suite often share a root cause.
-2. Check if failures share a `test_run_id` — tests that all failed in the same run may have been killed by a process crash, not individual test bugs. Run `tuist test case run show <test-case-run-id> --json` and check for `crash_report` — if present, the test runner crashed.
+2. Check if failures share a `test_run_id` — tests that all failed in the same run may have been killed by a process crash, not individual test bugs.
 3. Look at failure messages to categorize: test logic bugs vs infrastructure issues (network errors, server 502s, conflicts on retry).
 
 ## Investigation
