@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-11 17:31+0000\n"
+"PO-Revision-Date: 2026-02-16 18:02+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hant/>\n"
@@ -689,26 +689,34 @@ msgstr "建置系統"
 msgid "Select build system"
 msgstr "選擇建置系統"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
+"當分支<strong>%{git_branch}</strong> 上的最新封裝包<strong>%{size_label}</"
+"strong> 相較於前次封裝包，其<strong>%{deviation}%</strong> 增加時發出警示。"
 
+#, fuzzy
 msgid "Branch"
-msgstr ""
+msgstr "分支"
 
+#, fuzzy
 msgid "Bundle size"
-msgstr ""
+msgstr "套件大小"
 
+#, fuzzy
 msgid "Download size"
-msgstr ""
+msgstr "下載大小"
 
+#, fuzzy
 msgid "Size metric"
-msgstr ""
+msgstr "尺寸指標"
 
+#, fuzzy
 msgid "e.g. main"
-msgstr ""
+msgstr "例如：main"
 
 #, fuzzy
 #~ msgid "Only people with access"
