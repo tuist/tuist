@@ -362,7 +362,12 @@
                                     "text": "モジュールキャッシュ"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Xcodeキャッシュ"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Gradle キャッシュ"
