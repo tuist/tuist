@@ -98,6 +98,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `BuildReportRequest serializes with snake_case field names`() {
         val report = BuildReportRequest(
+            id = "test-build-id",
             durationMs = 5000,
             status = "success",
             gradleVersion = "8.5",
@@ -144,6 +145,7 @@ class TuistBuildInsightsTest {
         )
 
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = tasks,
             buildFailed = false,
             totalDurationMs = 5000,
@@ -174,6 +176,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport sets status to failure when buildFailed is true`() {
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = listOf(
                 TaskOutcomeData(":app:compile", TaskOutcome.EXECUTED, true, 1000, null, null, null)
             ),
@@ -189,6 +192,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport sets status to failure when any task failed`() {
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = listOf(
                 TaskOutcomeData(":app:compile", TaskOutcome.EXECUTED, true, 1000, null, null, null),
                 TaskOutcomeData(":app:test", TaskOutcome.FAILED, false, 2000, null, null, null)
@@ -205,6 +209,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport sets status to success when all tasks succeed`() {
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = listOf(
                 TaskOutcomeData(":app:compile", TaskOutcome.EXECUTED, true, 1000, null, null, null),
                 TaskOutcomeData(":lib:compile", TaskOutcome.LOCAL_HIT, true, 200, "key1", 512, null)
@@ -221,6 +226,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport includes git info from provider`() {
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = emptyList(),
             buildFailed = false,
             totalDurationMs = 100,
@@ -240,6 +246,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport includes CI detection`() {
         val ciReport = buildReport(
+            id = "test-id",
             taskOutcomes = emptyList(),
             buildFailed = false,
             totalDurationMs = 100,
@@ -249,6 +256,7 @@ class TuistBuildInsightsTest {
         assertTrue(ciReport.isCi)
 
         val localReport = buildReport(
+            id = "test-id",
             taskOutcomes = emptyList(),
             buildFailed = false,
             totalDurationMs = 100,
@@ -261,6 +269,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport includes gradle version and root project name`() {
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = emptyList(),
             buildFailed = false,
             totalDurationMs = 100,
@@ -277,6 +286,7 @@ class TuistBuildInsightsTest {
     @Test
     fun `buildReport sets duration from parameter`() {
         val report = buildReport(
+            id = "test-id",
             taskOutcomes = emptyList(),
             buildFailed = false,
             totalDurationMs = 42000,

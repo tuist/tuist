@@ -314,7 +314,7 @@ abstract class TuistTestInsightsService :
 
     internal fun buildTestReport(): TestReportRequest {
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
-        val gradleBuildId = buildInsightsService?.awaitBuildId()
+        val gradleBuildId = buildInsightsService?.buildId
 
         return buildTestReportFromModules(
             modules = modules,
