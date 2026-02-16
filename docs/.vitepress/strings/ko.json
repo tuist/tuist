@@ -366,6 +366,9 @@
                                     "items": {
                                         "xcode-cache": {
                                             "text": "Xcode 캐시"
+                                        },
+                                        "module-cache": {
+                                            "text": "모듈 캐시"
                                         }
                                     }
                                 },
