@@ -362,7 +362,15 @@
                                     "text": "Buforowanie modułu"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Buforowanie Xcode"
+                                        },
+                                        "module-cache": {
+                                            "text": "Buforowanie modułu"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Pamięć podręczna Gradle"
