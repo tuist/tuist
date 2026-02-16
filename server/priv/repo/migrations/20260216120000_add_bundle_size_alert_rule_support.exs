@@ -1,4 +1,5 @@
 defmodule Tuist.Repo.Migrations.AddBundleSizeAlertRuleSupport do
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
   use Ecto.Migration
 
   def change do
