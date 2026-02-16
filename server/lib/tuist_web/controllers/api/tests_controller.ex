@@ -359,35 +359,29 @@ defmodule TuistWeb.API.TestsController do
 
   def show(%{assigns: %{selected_project: selected_project}, params: %{test_run_id: test_run_id}} = conn, _params) do
     case Tests.get_test(test_run_id) do
-      {:ok, run} ->
-        if run.project_id == selected_project.id do
-          test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
+      {:ok, %{project_id: project_id} = run} when project_id == selected_project.id ->
+        test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
 
-          json(conn, %{
-            id: run.id,
-            status: to_string(run.status),
-            duration: run.duration,
-            is_ci: run.is_ci,
-            is_flaky: run.is_flaky,
-            scheme: run.scheme,
-            macos_version: run.macos_version,
-            xcode_version: run.xcode_version,
-            model_identifier: run.model_identifier,
-            git_branch: run.git_branch,
-            git_commit_sha: run.git_commit_sha,
-            ran_at: format_ran_at(run.ran_at),
-            total_test_count: test_metrics.total_count,
-            failed_test_count: test_metrics.failed_count,
-            flaky_test_count: test_metrics.flaky_count,
-            avg_test_duration: test_metrics.avg_duration
-          })
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Test run not found."})
-        end
+        json(conn, %{
+          id: run.id,
+          status: to_string(run.status),
+          duration: run.duration,
+          is_ci: run.is_ci,
+          is_flaky: run.is_flaky,
+          scheme: run.scheme,
+          macos_version: run.macos_version,
+          xcode_version: run.xcode_version,
+          model_identifier: run.model_identifier,
+          git_branch: run.git_branch,
+          git_commit_sha: run.git_commit_sha,
+          ran_at: format_ran_at(run.ran_at),
+          total_test_count: test_metrics.total_count,
+          failed_test_count: test_metrics.failed_count,
+          flaky_test_count: test_metrics.flaky_count,
+          avg_test_duration: test_metrics.avg_duration
+        })
 
-      {:error, :not_found} ->
+      _error ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Test run not found."})

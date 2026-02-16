@@ -492,18 +492,15 @@ defmodule TuistWeb.API.TestCaseRunsController do
     %{account_handle: account_handle, project_handle: project_handle} = conn.params
 
     %{
-      exception_type: nullable_string(cr.exception_type),
-      signal: nullable_string(cr.signal),
-      exception_subtype: nullable_string(cr.exception_subtype),
-      triggered_thread_frames: nullable_string(cr.triggered_thread_frames),
+      exception_type: cr.exception_type,
+      signal: cr.signal,
+      exception_subtype: cr.exception_subtype,
+      triggered_thread_frames: cr.triggered_thread_frames,
       attachment_url:
         TuistWeb.Endpoint.url() <>
           "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
     }
   end
-
-  defp nullable_string(""), do: nil
-  defp nullable_string(value), do: value
 
   defp format_ran_at(nil), do: nil
 
