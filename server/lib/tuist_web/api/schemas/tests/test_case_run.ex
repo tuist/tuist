@@ -1,4 +1,6 @@
 defmodule TuistWeb.API.Schemas.Tests.TestCaseRun do
+  @moduledoc false
+
   alias OpenApiSpex.Schema
 
   require OpenApiSpex

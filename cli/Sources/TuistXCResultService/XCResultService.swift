@@ -555,6 +555,13 @@ public struct XCResultService: XCResultServicing {
         }
     }
 
+    /// Normalizes a test identifier to the `SuiteName/testName` format by stripping
+    /// trailing parentheses and keeping only the last two path components.
+    ///
+    /// Examples:
+    ///   - `"Module/TestClass/testMethod()"` → `"TestClass/testMethod"`
+    ///   - `"TestClass/testMethod()"` → `"TestClass/testMethod"`
+    ///   - `"testMethod()"` → `"testMethod"`
     private func normalizeTestIdentifier(_ identifier: String) -> String {
         var normalized = identifier
         if normalized.hasSuffix("()") {

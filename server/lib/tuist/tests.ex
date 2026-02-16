@@ -24,9 +24,9 @@ defmodule Tuist.Tests do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Repo
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
-  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
@@ -109,7 +109,6 @@ defmodule Tuist.Tests do
 
     ClickHouseRepo.one(query) || 0
   end
-
 
   def list_test_suite_runs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
@@ -416,8 +415,7 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Lists test case runs filtered by test case ID, test run ID, or both.
-  At least one of `test_case_id` or `test_run_id` must be provided in filters.
+  Lists test case runs with optional filters (e.g. test_case_id, test_run_id).
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
   def list_test_case_runs(attrs, opts \\ []) do

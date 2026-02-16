@@ -1072,6 +1072,7 @@ defmodule Tuist.TestsTest do
           %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
           preload: [:failures]
         )
+
       assert length(failed_runs) == 1
 
       failed_run = hd(failed_runs)
@@ -5090,7 +5091,6 @@ defmodule Tuist.TestsTest do
     end
   end
 
-
   describe "create_test_case_run_attachment/1" do
     test "creates an attachment successfully" do
       # Given
@@ -5200,5 +5200,4 @@ defmodule Tuist.TestsTest do
       assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
     end
   end
-
 end

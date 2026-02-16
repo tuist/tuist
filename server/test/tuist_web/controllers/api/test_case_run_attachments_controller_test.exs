@@ -57,7 +57,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["expires_at"]
     end
 
-
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
       # Given
       other_user = AccountsFixtures.user_fixture(preload: [:account])
@@ -78,5 +77,4 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert json_response(conn, :forbidden)
     end
   end
-
 end

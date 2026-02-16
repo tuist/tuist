@@ -1,4 +1,6 @@
 defmodule TuistWeb.API.Schemas.Tests.TestCaseRunsList do
+  @moduledoc false
+
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Tests.TestCaseRun
 

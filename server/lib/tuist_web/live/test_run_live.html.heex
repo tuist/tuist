@@ -401,7 +401,9 @@
                       <span data-part="meta-label">
                         {dgettext("dashboard_tests", "Exception")}
                       </span>
-                      <span data-part="meta-value">{test_case_run.crash_report.exception_type}</span>
+                      <span data-part="meta-value">
+                        {test_case_run.crash_report.exception_type}
+                      </span>
                     </span>
                     <span
                       :if={test_case_run.crash_report.signal != ""}
@@ -415,7 +417,9 @@
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
-                      <span data-part="meta-value">{test_case_run.crash_report.exception_subtype}</span>
+                      <span data-part="meta-value">
+                        {test_case_run.crash_report.exception_subtype}
+                      </span>
                     </span>
                   </div>
                   <div
@@ -1494,7 +1498,9 @@
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
-                    <span data-part="meta-value">{test_case_run.crash_report.exception_type}</span>
+                    <span data-part="meta-value">
+                      {test_case_run.crash_report.exception_type}
+                    </span>
                   </span>
                   <span
                     :if={test_case_run.crash_report.signal != ""}
@@ -1508,7 +1514,9 @@
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
-                    <span data-part="meta-value">{test_case_run.crash_report.exception_subtype}</span>
+                    <span data-part="meta-value">
+                      {test_case_run.crash_report.exception_subtype}
+                    </span>
                   </span>
                 </div>
                 <div

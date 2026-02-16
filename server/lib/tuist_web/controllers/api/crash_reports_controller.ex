@@ -62,8 +62,7 @@ defmodule TuistWeb.API.CrashReportsController do
            },
            test_case_run_attachment_id: %Schema{
              type: :string,
-             description:
-               "The UUID of the test case run attachment this crash report was parsed from."
+             description: "The UUID of the test case run attachment this crash report was parsed from."
            }
          },
          required: [:test_case_run_id, :test_case_run_attachment_id]

@@ -104,5 +104,4 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       expires_at: System.system_time(:second) + expires_in
     })
   end
-
 end
