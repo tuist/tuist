@@ -4,6 +4,7 @@ category: "product"
 tags: ["product", "linux"]
 excerpt: "Tuist is no longer macOS-only. You can now run analytical workflows or leverage the upcoming Tuist Gradle support on Linux."
 author: fortmarek
+og_image_path: /marketing/images/blog/2026/02/16/linux/og.png
 highlighted: true
 ---
 
