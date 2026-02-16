@@ -706,6 +706,27 @@ msgstr "Система сборки"
 msgid "Select build system"
 msgstr "Выберите систему сборки"
 
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
+"<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
+"strong> compared to the previous bundle."
+msgstr ""
+
+msgid "Branch"
+msgstr ""
+
+msgid "Bundle size"
+msgstr ""
+
+msgid "Download size"
+msgstr ""
+
+msgid "Size metric"
+msgstr ""
+
+msgid "e.g. main"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "Только люди с доступом"

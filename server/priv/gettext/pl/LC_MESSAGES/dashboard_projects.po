@@ -707,6 +707,27 @@ msgstr "System kompilacji"
 msgid "Select build system"
 msgstr "Wybierz system kompilacji"
 
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
+"<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
+"strong> compared to the previous bundle."
+msgstr ""
+
+msgid "Branch"
+msgstr ""
+
+msgid "Bundle size"
+msgstr ""
+
+msgid "Download size"
+msgstr ""
+
+msgid "Size metric"
+msgstr ""
+
+msgid "e.g. main"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Only people with access"
 #~ msgstr "Tylko osoby z dostępem"

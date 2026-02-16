@@ -602,5 +602,26 @@ msgstr "빌드 시스템"
 msgid "Select build system"
 msgstr "빌드 시스템 선택"
 
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
+"<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
+"strong> compared to the previous bundle."
+msgstr ""
+
+msgid "Branch"
+msgstr ""
+
+msgid "Bundle size"
+msgstr ""
+
+msgid "Download size"
+msgstr ""
+
+msgid "Size metric"
+msgstr ""
+
+msgid "e.g. main"
+msgstr ""
+
 #~ msgid "Only people with access"
 #~ msgstr "접근 권한이 있는 사람만 볼 수 있음"
