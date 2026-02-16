@@ -1,4 +1,5 @@
 import Foundation
+import Mockable
 
 enum IPSCrashReportParserError: LocalizedError {
     case invalidFormat
@@ -11,14 +12,19 @@ enum IPSCrashReportParserError: LocalizedError {
     }
 }
 
-public struct IPSCrashReportParser {
-    public struct IPSCrashReport {
-        public let exceptionType: String?
-        public let signal: String?
-        public let exceptionSubtype: String?
-        public let triggeredThreadFrames: String?
-    }
+public struct IPSCrashReport {
+    public let exceptionType: String?
+    public let signal: String?
+    public let exceptionSubtype: String?
+    public let triggeredThreadFrames: String?
+}
 
+@Mockable
+public protocol IPSCrashReportParsing {
+    func parse(_ content: String) throws -> IPSCrashReport
+}
+
+public struct IPSCrashReportParser: IPSCrashReportParsing {
     public init() {}
 
     public func parse(_ content: String) throws -> IPSCrashReport {

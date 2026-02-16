@@ -27,13 +27,16 @@ public protocol XCResultServicing {
 public struct XCResultService: XCResultServicing {
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
+    private let ipsCrashReportParser: IPSCrashReportParsing
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        commandRunner: CommandRunning = CommandRunner()
+        commandRunner: CommandRunning = CommandRunner(),
+        ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser()
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.ipsCrashReportParser = ipsCrashReportParser
     }
 
     /// Convert seconds to milliseconds, ensuring non-zero values are at least 1ms
@@ -532,7 +535,7 @@ public struct XCResultService: XCResultServicing {
                     guard try await fileSystem.exists(filePath) else { continue }
 
                     let content = try await fileSystem.readTextFile(at: filePath)
-                    let crashReport = try IPSCrashReportParser().parse(content)
+                    let crashReport = try ipsCrashReportParser.parse(content)
 
                     let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
                     crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
