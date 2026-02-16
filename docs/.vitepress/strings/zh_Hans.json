@@ -362,7 +362,15 @@
                                     "text": "模块缓存"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Xcode缓存"
+                                        },
+                                        "module-cache": {
+                                            "text": "模块缓存"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Gradle 缓存"
