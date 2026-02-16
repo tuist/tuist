@@ -179,5 +179,4 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
 
         return info.joined(separator: "\n") + "\n"
     }
-
 }

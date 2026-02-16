@@ -154,7 +154,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
 
     private func uploadCrashReport(
         for testCase: TestCase,
-        testRunId: String,
+        testRunId _: String,
         fullHandle: String,
         serverURL: URL,
         testCaseRunIdsByIdentity: [String: String]

@@ -69,7 +69,10 @@ struct TestShowCommandService: TestShowCommandServicing {
 
         let info = formatRunInfo(run)
         Noora.current.passthrough("\(info)")
-        Noora.current.passthrough("\nNext steps:\n ▸ Run \(.command("tuist test case run list --test-run-id \(run.id)")) to see the test case runs\n")
+        Noora.current
+            .passthrough(
+                "\nNext steps:\n ▸ Run \(.command("tuist test case run list --test-run-id \(run.id)")) to see the test case runs\n"
+            )
     }
 
     private func formatRunInfo(_ run: ServerTestRun) -> String {
