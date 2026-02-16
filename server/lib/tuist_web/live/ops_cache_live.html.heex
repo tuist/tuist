@@ -12,7 +12,7 @@
           <.text_cell label={if endpoint.maintenance, do: "Maintenance", else: "Active"} />
         </:col>
         <:col :let={endpoint} label="Actions">
-          <div style="display: flex; gap: 8px;">
+          <div data-part="actions">
             <.button
               variant="secondary"
               label={if endpoint.maintenance, do: "Activate", else: "Maintenance"}
@@ -40,8 +40,8 @@
 
   <.card title="Add Cache Endpoint" icon="circle_plus">
     <.card_section>
-      <form phx-submit="add" style="display: flex; gap: 12px; align-items: flex-end;">
-        <div>
+      <form phx-submit="add" data-part="add-form">
+        <div data-part="field">
           <label for="url">URL</label>
           <input
             type="text"
@@ -51,7 +51,7 @@
             required
           />
         </div>
-        <div>
+        <div data-part="field">
           <label for="display_name">Display Name</label>
           <input
             type="text"
