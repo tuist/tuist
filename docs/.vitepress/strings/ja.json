@@ -366,6 +366,9 @@
                                     "items": {
                                         "xcode-cache": {
                                             "text": "Xcodeキャッシュ"
+                                        },
+                                        "module-cache": {
+                                            "text": "モジュールキャッシュ"
                                         }
                                     }
                                 },
