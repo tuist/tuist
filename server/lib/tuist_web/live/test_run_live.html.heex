@@ -397,7 +397,7 @@
                   </div>
                   <div data-part="crash-report-metadata">
                     <span
-                      :if={test_case_run.crash_report.exception_type && test_case_run.crash_report.exception_type != ""}
+                      :if={test_case_run.crash_report.exception_type != ""}
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">
@@ -406,14 +406,14 @@
                       <span data-part="meta-value">{test_case_run.crash_report.exception_type}</span>
                     </span>
                     <span
-                      :if={test_case_run.crash_report.signal && test_case_run.crash_report.signal != ""}
+                      :if={test_case_run.crash_report.signal != ""}
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
                       <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
                     </span>
                     <span
-                      :if={test_case_run.crash_report.exception_subtype && test_case_run.crash_report.exception_subtype != ""}
+                      :if={test_case_run.crash_report.exception_subtype != ""}
                       data-part="crash-report-meta-item"
                     >
                       <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
@@ -1482,21 +1482,21 @@
                 </div>
                 <div data-part="crash-report-metadata">
                   <span
-                    :if={test_case_run.crash_report.exception_type && test_case_run.crash_report.exception_type != ""}
+                    :if={test_case_run.crash_report.exception_type != ""}
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
                     <span data-part="meta-value">{test_case_run.crash_report.exception_type}</span>
                   </span>
                   <span
-                    :if={test_case_run.crash_report.signal && test_case_run.crash_report.signal != ""}
+                    :if={test_case_run.crash_report.signal != ""}
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
                     <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
                   </span>
                   <span
-                    :if={test_case_run.crash_report.exception_subtype && test_case_run.crash_report.exception_subtype != ""}
+                    :if={test_case_run.crash_report.exception_subtype != ""}
                     data-part="crash-report-meta-item"
                   >
                     <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
