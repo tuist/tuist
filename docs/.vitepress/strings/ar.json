@@ -403,7 +403,15 @@
                                     "text": "ذاكرة التخزين المؤقت للوحدة"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "ذاكرة التخزين المؤقت لـ Xcode"
+                                        },
+                                        "module-cache": {
+                                            "text": "ذاكرة التخزين المؤقت للوحدة"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "ذاكرة التخزين المؤقت لـ Gradle"
