@@ -34,6 +34,14 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
       conn
       |> redirect(external: url)
       |> halt()
+    else
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> assign(:reason, nil)
+        |> put_view(TuistWeb.ErrorHTML)
+        |> render("404.html")
+        |> halt()
     end
   end
 end
