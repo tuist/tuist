@@ -382,18 +382,16 @@
                     <span data-part="crash-report-title">
                       {dgettext("dashboard_tests", "Crash Report")}
                     </span>
-                    <.button
+                    <.neutral_button
                       :if={test_case_run.crash_report.test_case_run_attachment.file_name}
                       href={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                       }
-                      label={dgettext("dashboard_tests", "Download")}
-                      variant="secondary"
-                      size="small"
                       target="_blank"
+                      size="medium"
                     >
-                      <:icon_left><.download /></:icon_left>
-                    </.button>
+                      <.download />
+                    </.neutral_button>
                   </div>
                   <div data-part="crash-report-metadata">
                     <span
@@ -420,10 +418,22 @@
                       <span data-part="meta-value">{test_case_run.crash_report.exception_subtype}</span>
                     </span>
                   </div>
-                  <pre
+                  <div
                     :if={test_case_run.crash_report.triggered_thread_frames != ""}
                     data-part="crash-report-frames"
-                  >{test_case_run.crash_report.triggered_thread_frames}</pre>
+                  >
+                    <div
+                      :for={
+                        {index, image_name, symbol} <-
+                          parse_frames(test_case_run.crash_report.triggered_thread_frames)
+                      }
+                      data-part="frame-line"
+                    >
+                      <span :if={index} data-part="frame-index">{index}</span>
+                      <span :if={image_name} data-part="frame-image">{image_name}</span>
+                      <span data-part="frame-symbol">{symbol}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1467,18 +1477,16 @@
                   <span data-part="crash-report-title">
                     {dgettext("dashboard_tests", "Crash Report")}
                   </span>
-                  <.button
+                  <.neutral_button
                     :if={test_case_run.crash_report.test_case_run_attachment.file_name}
                     href={
                       ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                     }
-                    label={dgettext("dashboard_tests", "Download")}
-                    variant="secondary"
-                    size="small"
                     target="_blank"
+                    size="medium"
                   >
-                    <:icon_left><.download /></:icon_left>
-                  </.button>
+                    <.download />
+                  </.neutral_button>
                 </div>
                 <div data-part="crash-report-metadata">
                   <span
@@ -1503,10 +1511,22 @@
                     <span data-part="meta-value">{test_case_run.crash_report.exception_subtype}</span>
                   </span>
                 </div>
-                <pre
+                <div
                   :if={test_case_run.crash_report.triggered_thread_frames != ""}
                   data-part="crash-report-frames"
-                >{test_case_run.crash_report.triggered_thread_frames}</pre>
+                >
+                  <div
+                    :for={
+                      {index, image_name, symbol} <-
+                        parse_frames(test_case_run.crash_report.triggered_thread_frames)
+                    }
+                    data-part="frame-line"
+                  >
+                    <span :if={index} data-part="frame-index">{index}</span>
+                    <span :if={image_name} data-part="frame-image">{image_name}</span>
+                    <span data-part="frame-symbol">{symbol}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

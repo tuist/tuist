@@ -4,6 +4,7 @@ defmodule TuistWeb.TestRunLive do
   use Noora
 
   import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
