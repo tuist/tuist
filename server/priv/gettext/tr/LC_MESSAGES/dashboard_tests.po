@@ -819,6 +819,18 @@ msgstr "Karantinaya alınan testler"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Crash Report"
+msgstr ""
+
+msgid "Exception"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Subtype"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Binary Cache"
 #~ msgstr "İkili Önbellek"

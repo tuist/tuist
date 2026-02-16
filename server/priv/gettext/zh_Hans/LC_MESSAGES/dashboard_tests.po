@@ -806,6 +806,18 @@ msgstr "隔离测试"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Crash Report"
+msgstr ""
+
+msgid "Exception"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Subtype"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Binary Cache"
 #~ msgstr "二进制缓存"

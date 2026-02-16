@@ -666,6 +666,18 @@ msgstr "격리된 테스트"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Crash Report"
+msgstr ""
+
+msgid "Exception"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Subtype"
+msgstr ""
+
 #~ msgid "Binary Cache"
 #~ msgstr "바이너리 캐시"
 
