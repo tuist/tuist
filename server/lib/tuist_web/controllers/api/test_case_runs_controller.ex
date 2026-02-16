@@ -468,7 +468,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
                   duration: r.duration
                 }
               end),
-            crash_report: format_crash_report(conn, run)
+            crash_report: map_crash_report(conn, run)
           })
         else
           conn
@@ -526,27 +526,19 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
-  defp format_crash_report(_conn, %{crash_report: nil}), do: nil
+  defp map_crash_report(_conn, %{crash_report: nil}), do: nil
 
-  defp format_crash_report(conn, %{crash_report: cr, id: test_case_run_id}) do
+  defp map_crash_report(conn, %{crash_report: cr, id: test_case_run_id}) do
     %{account_handle: account_handle, project_handle: project_handle} = conn.params
-
-    attachment_url =
-      case cr.test_case_run_attachment do
-        %{file_name: file_name} ->
-          TuistWeb.Endpoint.url() <>
-            "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{file_name}"
-
-        _ ->
-          nil
-      end
 
     %{
       exception_type: nullable_string(cr.exception_type),
       signal: nullable_string(cr.signal),
       exception_subtype: nullable_string(cr.exception_subtype),
       triggered_thread_frames: nullable_string(cr.triggered_thread_frames),
-      attachment_url: attachment_url
+      attachment_url:
+        TuistWeb.Endpoint.url() <>
+          "/api/projects/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
     }
   end
 
