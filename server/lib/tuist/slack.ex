@@ -210,7 +210,7 @@ defmodule Tuist.Slack do
       alert_context_block(alert),
       alert_divider_block(),
       alert_metric_block(alert),
-      alert_footer_block(account_name, project_name)
+      alert_footer_block(alert, account_name, project_name)
     ]
   end
 
@@ -253,7 +253,21 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp alert_footer_block(account_name, project_name) do
+  defp alert_footer_block(%Alert{alert_rule: %{category: :bundle_size}}, account_name, project_name) do
+    base_url = Environment.app_url()
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{base_url}/#{account_name}/#{project_name}/bundles|View bundles>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(_alert, account_name, project_name) do
     base_url = Environment.app_url()
 
     %{

@@ -511,11 +511,7 @@
               :if={rule.rolling_window_size}
               label={Integer.to_string(rule.rolling_window_size)}
             />
-            <.text_cell :if={is_nil(rule.rolling_window_size)} label="-" />
-          </:col>
-          <:col :let={rule} label={dgettext("dashboard_projects", "Branch")}>
-            <.text_cell :if={rule.git_branch} label={rule.git_branch} />
-            <.text_cell :if={is_nil(rule.git_branch)} label="-" />
+            <.text_cell :if={is_nil(rule.rolling_window_size)} label="1" />
           </:col>
           <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
             <.text_cell
