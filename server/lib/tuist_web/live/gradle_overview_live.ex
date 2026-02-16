@@ -7,6 +7,8 @@ defmodule TuistWeb.GradleOverviewLive do
 
   alias Tuist.Gradle
   alias Tuist.Gradle.Analytics, as: GradleAnalytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -20,6 +22,7 @@ defmodule TuistWeb.GradleOverviewLive do
     socket
     |> assign_analytics(params)
     |> assign_builds(params)
+    |> assign_test_runs()
     |> assign(:uri, uri)
     |> assign(:uri_path, uri_path)
   end
@@ -43,7 +46,7 @@ defmodule TuistWeb.GradleOverviewLive do
         _ -> opts
       end
 
-    [cache_hit_rate_analytics, build_duration_analytics] =
+    [cache_hit_rate_analytics, build_duration_analytics, test_duration_analytics] =
       combined_overview_analytics(project.id, opts)
 
     socket
@@ -58,6 +61,7 @@ defmodule TuistWeb.GradleOverviewLive do
     )
     |> assign(:cache_hit_rate_analytics, cache_hit_rate_analytics)
     |> assign(:build_duration_analytics, build_duration_analytics)
+    |> assign(:test_duration_analytics, test_duration_analytics)
   end
 
   defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
@@ -111,6 +115,41 @@ defmodule TuistWeb.GradleOverviewLive do
     |> assign(:builds_duration_analytics, builds_duration_analytics)
   end
 
+  defp assign_test_runs(%{assigns: %{selected_project: project}} = socket) do
+    {recent_test_runs, _meta} =
+      Tests.list_test_runs(%{
+        last: 40,
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :build_system, op: :==, value: "gradle"}
+        ],
+        order_by: [:ran_at],
+        order_directions: [:asc]
+      })
+
+    recent_test_runs_chart_data =
+      Enum.map(recent_test_runs, fn run ->
+        color =
+          case run.status do
+            "success" -> "var:noora-chart-primary"
+            "failure" -> "var:noora-chart-destructive"
+            "skipped" -> "var:noora-chart-warning"
+          end
+
+        value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
+
+        %{value: value, itemStyle: %{color: color}, date: run.ran_at}
+      end)
+
+    failed_test_runs_count = Enum.count(recent_test_runs, &(&1.status == "failure"))
+    passed_test_runs_count = Enum.count(recent_test_runs, &(&1.status == "success"))
+
+    socket
+    |> assign(:recent_test_runs, recent_test_runs_chart_data)
+    |> assign(:failed_test_runs_count, failed_test_runs_count)
+    |> assign(:passed_test_runs_count, passed_test_runs_count)
+  end
+
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
   defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_gradle", "since last year")
@@ -128,7 +167,8 @@ defmodule TuistWeb.GradleOverviewLive do
   defp combined_overview_analytics(project_id, opts) do
     queries = [
       fn -> GradleAnalytics.cache_hit_rate_analytics(project_id, opts) end,
-      fn -> GradleAnalytics.build_duration_analytics(project_id, opts) end
+      fn -> GradleAnalytics.build_duration_analytics(project_id, opts) end,
+      fn -> TestsAnalytics.test_run_duration_analytics(project_id, opts) end
     ]
 
     Tuist.Tasks.parallel_tasks(queries)
