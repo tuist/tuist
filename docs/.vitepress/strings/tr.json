@@ -359,7 +359,15 @@
                                     "text": "Modül önbelleği"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Xcode önbelleği"
+                                        },
+                                        "module-cache": {
+                                            "text": "Modül önbelleği"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Gradle önbelleği"
