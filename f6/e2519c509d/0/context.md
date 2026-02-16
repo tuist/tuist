@@ -1,0 +1,51 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+We get many of these errors, and they only happen with /webhooks/github. Can you handle them toa void reporting them to Sentry since we are consuming their quota?
+https://tuist.sentry.io/issues/91210208/?query=is%3Aunresolved%20issue.category%3A%5Berror%2Coutage%5D&referrer=issue-stream&sort=freq
+
+### Prompt 2
+
+I think you should, the mcp should be configured
+
+### Prompt 3
+
+You should have acess to Sentry now:
+https://tuist.sentry.io/issues/91210208/?query=is%3Aunresolved%20issue.category%3A%5Berror%2Coutage%5D&referrer=issue-stream&sort=freq
+
+We have the one connected with github webhooks. That one we should ignore. And then this one in the cache server: https://tuist.sentry.io/issues/91225705/?query=is%3Aunresolved&referrer=issue-stream
+
+### Prompt 4
+
+I want you to create a PR with the fix. What about the issue in the case of the cache server?
+
+### Prompt 5
+
+<task-notification>
+<task-id>b94377d</task-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b94377d.output</output-file>
+<status>completed</status>
+<summary>Background command "Run cache body reader tests" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b94377d.output
+
+### Prompt 6
+
+I see CI is failing
+
+### Prompt 7
+
+Yes
+
+### Prompt 8
+
+someone reported a crash here:
+ "REDACTED copy.txt". Can you create a project at ~/Downloads to reproduce it and fix it?
+
+### Prompt 9
+
+[Request interrupted by user for tool use]
+

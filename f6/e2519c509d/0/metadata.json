@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "f6e2519c509d",
+  "session_id": "2df2032d-4301-4d21-bc51-2843ef979b35",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-16T18:01:34.565355Z",
+  "branch": "main",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "cache/lib/cache/body_reader.ex",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
+    "tuist_common/lib/tuist_common/sentry_event_filter.ex",
+    "tuist_common/test/tuist_common/sentry_event_filter_test.exs"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "c925f50b-5d26-4cc9-9893-f49872397c54",
+  "checkpoint_transcript_start": 521,
+  "transcript_lines_at_start": 521,
+  "token_usage": {
+    "input_tokens": 23,
+    "cache_creation_tokens": 111176,
+    "cache_read_tokens": 1337245,
+    "output_tokens": 987,
+    "api_call_count": 15
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-16T18:01:34.30271Z",
+    "agent_lines": 0,
+    "human_added": 174117,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 174117,
+    "agent_percentage": 0
+  }
+}
