@@ -401,6 +401,12 @@
                                 },
                                 "module-cache": {
                                     "text": "ذاكرة التخزين المؤقت للوحدة"
+                                },
+                                "xcode": {
+                                    "text": "Xcode"
+                                },
+                                "gradle-cache": {
+                                    "text": "ذاكرة التخزين المؤقت لـ Gradle"
                                 }
                             }
                         },
