@@ -9,12 +9,12 @@ defmodule Tuist.Tests.CrashReport do
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_run_crash_reports" do
-    field :exception_type, Ch, type: "String"
-    field :signal, Ch, type: "String"
-    field :exception_subtype, Ch, type: "String"
+    field :exception_type, Ch, type: "LowCardinality(String)"
+    field :signal, Ch, type: "LowCardinality(String)"
+    field :exception_subtype, Ch, type: "LowCardinality(String)"
     field :triggered_thread_frames, Ch, type: "String"
     field :test_case_run_id, Ecto.UUID
-    field :test_case_run_attachment_id, Ch, type: "Nullable(UUID)"
+    field :test_case_run_attachment_id, Ecto.UUID
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :test_case_run, Tuist.Tests.TestCaseRun,
@@ -38,6 +38,6 @@ defmodule Tuist.Tests.CrashReport do
       :test_case_run_attachment_id,
       :inserted_at
     ])
-    |> validate_required([:id, :test_case_run_id])
+    |> validate_required([:id, :test_case_run_id, :test_case_run_attachment_id])
   end
 end
