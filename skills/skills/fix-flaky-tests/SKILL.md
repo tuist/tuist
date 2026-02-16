@@ -115,9 +115,9 @@ Key fields:
 - **Parallel execution conflicts**: Tests that work in isolation but fail when run concurrently. Fix: use unique resources per test.
 
 ### Crashes (identified via `crash_report`)
-- `EXC_BREAKPOINT` / `SIGTRAP` — force-unwrap of nil, Swift precondition failure. Fix: use safe unwrapping or fix the setup.
-- `EXC_BAD_ACCESS` / `SIGSEGV` — use-after-free or dangling pointer. Fix: ensure proper ownership and synchronization.
-- `EXC_CRASH` / `SIGABRT` — uncaught Objective-C exception. Fix: guard against the condition or catch the exception.
+- `EXC_BREAKPOINT` / `SIGTRAP` — force-unwrap of nil, Swift precondition failure
+- `EXC_BAD_ACCESS` / `SIGSEGV` — use-after-free or dangling pointer
+- `EXC_CRASH` / `SIGABRT` — uncaught Objective-C exception
 
 ## Fix Implementation
 
