@@ -30,8 +30,8 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         let organizationHandle = String(UUID().uuidString.prefix(12).lowercased())
         let projectHandle = String(UUID().uuidString.prefix(12).lowercased())
         let fullHandle = "\(organizationHandle)/\(projectHandle)"
-        let email = ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue]
-        let password = ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue]
+        let email = try #require(ProcessInfo.processInfo.environment[EnvKey.authEmail.rawValue])
+        let password = try #require(ProcessInfo.processInfo.environment[EnvKey.authPassword.rawValue])
 
         try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
             let existingEnvVariables = Environment.current.variables
@@ -62,19 +62,17 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                     options: Set([.overwrite])
                                 )
 
-                                if let email, let password {
-                                    try await TuistTest.run(
-                                        LoginCommand.self,
-                                        [
-                                            "--email",
-                                            email,
-                                            "--password",
-                                            password,
-                                            "--url",
-                                            serverURL,
-                                        ]
-                                    )
-                                }
+                                try await TuistTest.run(
+                                    LoginCommand.self,
+                                    [
+                                        "--email",
+                                        email,
+                                        "--password",
+                                        password,
+                                        "--url",
+                                        serverURL,
+                                    ]
+                                )
                                 try await TuistTest.run(
                                     OrganizationCreateCommand.self,
                                     [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
@@ -94,11 +92,9 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                         OrganizationDeleteCommand.self,
                                         [organizationHandle, "--path", fixtureTemporaryDirectory.pathString]
                                     )
-                                    if email != nil {
-                                        try await TuistTest.run(
-                                            LogoutCommand.self
-                                        )
-                                    }
+                                    try await TuistTest.run(
+                                        LogoutCommand.self
+                                    )
                                 }
 
                                 do {
