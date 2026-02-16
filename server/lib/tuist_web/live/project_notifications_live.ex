@@ -251,7 +251,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_create_alert_form_category", %{"category" => category}, socket) do
-    {:noreply, assign(socket, create_alert_form_category: String.to_existing_atom(category))}
+    category = String.to_existing_atom(category)
+
+    default_metric =
+      case category do
+        :bundle_size -> :install_size
+        _ -> :p99
+      end
+
+    {:noreply,
+     socket
+     |> assign(create_alert_form_category: category)
+     |> assign(create_alert_form_metric: default_metric)}
   end
 
   def handle_event("update_create_alert_form_metric", %{"metric" => metric}, socket) do
@@ -282,7 +293,20 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_edit_alert_form_category", %{"id" => id, "category" => category}, socket) do
-    {:noreply, update_edit_alert_form(socket, id, :category, String.to_existing_atom(category))}
+    category = String.to_existing_atom(category)
+
+    default_metric =
+      case category do
+        :bundle_size -> :install_size
+        _ -> :p99
+      end
+
+    socket =
+      socket
+      |> update_edit_alert_form(id, :category, category)
+      |> update_edit_alert_form(id, :metric, default_metric)
+
+    {:noreply, socket}
   end
 
   def handle_event("update_edit_alert_form_metric", %{"id" => id, "metric" => metric}, socket) do
