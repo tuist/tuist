@@ -28,10 +28,14 @@ enum CacheVersion: String, Equatable, Hashable {
     /// Static frameworks are now copied when generating projects, changing the products structure. We need to invalidate
     /// previously cached artifacts that relied on the old layout.
     case version4 = "4"
+
+    /// Reverted static framework resource embedding (resources go back into separate .bundle targets).
+    /// Existing caches from the embedding approach must be invalidated.
+    case version5 = "5"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version4
+        .version5
     }
 }

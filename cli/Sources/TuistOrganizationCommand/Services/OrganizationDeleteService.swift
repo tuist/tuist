@@ -12,7 +12,7 @@ protocol OrganizationDeleteServicing {
     ) async throws
 }
 
-final class OrganizationDeleteService: OrganizationDeleteServicing {
+struct OrganizationDeleteService: OrganizationDeleteServicing {
     private let deleteAccountService: DeleteAccountServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

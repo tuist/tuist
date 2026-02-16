@@ -8,7 +8,7 @@
     import TuistServer
     import TuistSupport
 
-    final class RegistryLogoutService {
+    struct RegistryLogoutService {
         private let serverEnvironmentService: ServerEnvironmentServicing
         private let configLoader: ConfigLoading
         private let swiftPackageManagerController: SwiftPackageManagerControlling

@@ -9,7 +9,7 @@ import TuistPlugin
 import TuistScaffold
 import TuistSupport
 
-class ListService {
+struct ListService {
     // MARK: - OutputFormat
 
     enum OutputFormat {
@@ -40,7 +40,7 @@ class ListService {
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
         let templates: [PrintableTemplate] = try await templateDirectories.concurrentMap { path in
-            let template = try await self.templateLoader.loadTemplate(at: path, plugins: plugins)
+            let template = try await templateLoader.loadTemplate(at: path, plugins: plugins)
             return PrintableTemplate(name: path.basename, description: template.description)
         }
 

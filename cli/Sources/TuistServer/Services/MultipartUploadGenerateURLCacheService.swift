@@ -36,7 +36,7 @@
         }
     }
 
-    public final class MultipartUploadGenerateURLCacheService: MultipartUploadGenerateURLCacheServicing {
+    public struct MultipartUploadGenerateURLCacheService: MultipartUploadGenerateURLCacheServicing {
         public init() {}
 
         public func uploadCache(

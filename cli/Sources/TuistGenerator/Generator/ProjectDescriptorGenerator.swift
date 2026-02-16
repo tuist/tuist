@@ -5,7 +5,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol ProjectDescriptorGenerating: AnyObject {
+protocol ProjectDescriptorGenerating {
     /// Generates the given project.
     /// - Parameters:
     ///   - project: Project to be generated.
@@ -14,7 +14,7 @@ protocol ProjectDescriptorGenerating: AnyObject {
     func generate(project: Project, graphTraverser: GraphTraversing) async throws -> ProjectDescriptor
 }
 
-final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
+struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     // MARK: - ProjectConstants
 
     struct ProjectConstants {
@@ -231,8 +231,8 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         pbxProject: PBXProject,
         fileElements: ProjectFileElements,
         graphTraverser: GraphTraversing
-    ) async throws -> [String: PBXNativeTarget] {
-        var nativeTargets: [String: PBXNativeTarget] = [:]
+    ) async throws -> [String: PBXTarget] {
+        var nativeTargets: [String: PBXTarget] = [:]
         let sortedTargets = project.targets.values.sorted()
         Logger.current.debug("Generating \(sortedTargets.count) targets for project \(project.name)")
         for target in sortedTargets {

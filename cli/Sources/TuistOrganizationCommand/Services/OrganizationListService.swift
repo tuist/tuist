@@ -12,7 +12,7 @@ protocol OrganizationListServicing {
     ) async throws
 }
 
-final class OrganizationListService: OrganizationListServicing {
+struct OrganizationListService: OrganizationListServicing {
     private let listOrganizationsService: ListOrganizationsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

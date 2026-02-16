@@ -6,13 +6,13 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-public protocol GraphLinting: AnyObject {
+public protocol GraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws
         -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
-public class GraphLinter: GraphLinting {
+public struct GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     private let projectLinter: ProjectLinting
@@ -21,7 +21,7 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - Init
 
-    public convenience init() {
+    public init() {
         let projectLinter = ProjectLinter()
         let staticProductsLinter = StaticProductsGraphLinter()
         self.init(
@@ -49,7 +49,7 @@ public class GraphLinter: GraphLinting {
         var issues: [LintingIssue] = []
         try await issues.append(
             contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
-                try await self.projectLinter.lint(project)
+                try await projectLinter.lint(project)
             }
             .flatMap { $0 }
         )
@@ -349,7 +349,7 @@ public class GraphLinter: GraphLinting {
             }
 
             return try await appClips.concurrentMap { appClip -> [LintingIssue] in
-                try await self.lint(appClip: appClip.graphTarget, parentApp: app)
+                try await lint(appClip: appClip.graphTarget, parentApp: app)
             }
             .flatMap { $0 }
         }
@@ -362,7 +362,7 @@ public class GraphLinter: GraphLinting {
         let frameworks = graphTraverser.precompiledFrameworksPaths()
 
         return try await frameworks
-            .concurrentFilter { try await !self.fileSystem.exists($0) }
+            .concurrentFilter { try await !fileSystem.exists($0) }
             .map { LintingIssue(reason: "Framework not found at path \($0.pathString)", severity: .error) }
     }
 

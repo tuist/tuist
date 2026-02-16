@@ -308,4 +308,28 @@ struct TuistCacheEEAcceptanceTests {
         ]
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
     }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH", "JAVA_HOME", "GRADLE_HOME"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_foreign_build_dependency")
+    ) func generated_ios_app_with_foreign_build_dependency() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "ForeignBuildApp.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "App"]
+        )
+
+        try TuistTest.expectContainsTarget("App", inXcodeProj: xcodeprojPath)
+        try TuistTest.expectLinked("Framework1.xcframework", by: "App", inXcodeProj: xcodeprojPath)
+    }
 }

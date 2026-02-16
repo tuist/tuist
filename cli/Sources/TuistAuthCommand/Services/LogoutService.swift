@@ -7,14 +7,14 @@ import TuistEnvironment
 import TuistLogging
 import TuistServer
 
-public protocol LogoutServicing: AnyObject {
+public protocol LogoutServicing {
     func logout(
         directory: String?,
         serverURL: String?
     ) async throws
 }
 
-public final class LogoutService: LogoutServicing {
+public struct LogoutService: LogoutServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

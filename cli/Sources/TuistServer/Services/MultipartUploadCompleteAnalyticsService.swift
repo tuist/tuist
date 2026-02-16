@@ -32,7 +32,7 @@ public enum MultipartUploadCompleteAnalyticsServiceError: LocalizedError, Equata
     }
 }
 
-public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing {
+public struct MultipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing {
     public init() {}
 
     public func uploadAnalyticsArtifact(

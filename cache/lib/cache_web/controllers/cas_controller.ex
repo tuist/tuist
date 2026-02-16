@@ -146,27 +146,35 @@ defmodule CacheWeb.CASController do
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, id) do
-    case BodyReader.read(conn) do
-      {:ok, data, conn_after} ->
-        size = get_data_size(data)
-        :telemetry.execute([:cache, :cas, :upload, :attempt], %{size: size}, %{})
-        persist_artifact(conn_after, account_handle, project_handle, id, data, size)
+    case CAS.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
+      {:ok, target_dir} ->
+        case BodyReader.read(conn, tmp_dir: target_dir) do
+          {:ok, data, conn_after} ->
+            size = get_data_size(data)
+            :telemetry.execute([:cache, :cas, :upload, :attempt], %{size: size}, %{})
+            persist_artifact(conn_after, account_handle, project_handle, id, data, size)
 
-      {:error, :too_large, conn_after} ->
-        :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :too_large})
-        send_error(conn_after, :request_entity_too_large, "Request body exceeded allowed size")
+          {:error, :too_large, conn_after} ->
+            :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :too_large})
+            send_error(conn_after, :request_entity_too_large, "Request body exceeded allowed size")
 
-      {:error, :timeout, conn_after} ->
-        :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :timeout})
-        send_error(conn_after, :request_timeout, "Request body read timed out")
+          {:error, :timeout, conn_after} ->
+            :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :timeout})
+            send_error(conn_after, :request_timeout, "Request body read timed out")
 
-      {:error, :cancelled, conn_after} ->
-        :telemetry.execute([:cache, :cas, :upload, :cancelled], %{count: 1}, %{})
-        send_resp(conn_after, :no_content, "")
+          {:error, :cancelled, conn_after} ->
+            :telemetry.execute([:cache, :cas, :upload, :cancelled], %{count: 1}, %{})
+            send_resp(conn_after, :no_content, "")
 
-      {:error, _reason, conn_after} ->
-        :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :read_error})
-        send_error(conn_after, :internal_server_error, "Failed to persist artifact")
+          {:error, _reason, conn_after} ->
+            :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :read_error})
+            send_error(conn_after, :internal_server_error, "Failed to persist artifact")
+        end
+
+      {:error, reason} ->
+        Logger.error("Failed to ensure CAS artifact directory: #{inspect(reason)}")
+        :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :persist_error})
+        send_error(conn, :internal_server_error, "Failed to persist artifact")
     end
   end
 

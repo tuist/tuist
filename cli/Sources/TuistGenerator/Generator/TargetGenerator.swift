@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol TargetGenerating: AnyObject {
+protocol TargetGenerating {
     func generateTarget(
         target: Target,
         project: Project,
@@ -16,17 +16,17 @@ protocol TargetGenerating: AnyObject {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXNativeTarget
+    ) async throws -> PBXTarget
 
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
-        nativeTargets: [String: PBXNativeTarget],
+        nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
     ) throws
 }
 
-final class TargetGenerator: TargetGenerating {
+struct TargetGenerator: TargetGenerating {
     // MARK: - Attributes
 
     let configGenerator: ConfigGenerating
@@ -60,25 +60,35 @@ final class TargetGenerator: TargetGenerating {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXNativeTarget {
+    ) async throws -> PBXTarget {
         Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
 
-        // Products reference.
-        let productFileReference = fileElements.products[target.name]!
-
-        // Target
-        Logger.current.debug("TargetGenerator: Creating PBXNativeTarget for \(target.name)")
-        let pbxTarget = PBXNativeTarget(
-            name: target.name,
-            buildConfigurationList: nil,
-            buildPhases: [],
-            buildRules: [],
-            dependencies: [],
-            productInstallPath: nil,
-            productName: target.productName,
-            product: productFileReference,
-            productType: target.product.xcodeValue
-        )
+        let pbxTarget: PBXTarget
+        if target.isAggregate {
+            Logger.current.debug("TargetGenerator: Creating PBXAggregateTarget for \(target.name)")
+            pbxTarget = PBXAggregateTarget(
+                name: target.name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productName: target.productName
+            )
+        } else {
+            let productFileReference = fileElements.products[target.name]!
+            Logger.current.debug("TargetGenerator: Creating PBXNativeTarget for \(target.name)")
+            pbxTarget = PBXNativeTarget(
+                name: target.name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productInstallPath: nil,
+                productName: target.productName,
+                product: productFileReference,
+                productType: target.product.xcodeValue
+            )
+        }
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
@@ -154,7 +164,7 @@ final class TargetGenerator: TargetGenerating {
     private func generateSynchronizedGroups(
         target: Target,
         fileElements: ProjectFileElements,
-        pbxTarget: PBXNativeTarget,
+        pbxTarget: PBXTarget,
         pbxproj: PBXProj
     ) {
         for buildableFolder in target.buildableFolders {
@@ -196,7 +206,7 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
-        nativeTargets: [String: PBXNativeTarget],
+        nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
     ) throws {
         Logger.current.debug("TargetGenerator: Generating dependencies for \(targets.count) targets")
@@ -210,7 +220,14 @@ final class TargetGenerator: TargetGenerating {
             for dependency in dependenciesAndConditions {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
-                let pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
+                let pbxTargetDependency: PBXTargetDependency?
+                if let nativeTarget = nativeTarget as? PBXNativeTarget {
+                    pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
+                } else if let aggregateTarget = nativeTarget as? PBXAggregateTarget {
+                    pbxTargetDependency = try aggregateTarget.addDependency(target: nativeDependency)
+                } else {
+                    pbxTargetDependency = nil
+                }
                 pbxTargetDependency?.applyCondition(dependency.condition, applicableTo: targetSpec)
             }
         }

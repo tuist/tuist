@@ -66,7 +66,7 @@ public protocol GitControlling {
 
 /// An implementation of `GitControlling`.
 /// Uses the system to execute git commands.
-public final class GitController: GitControlling {
+public struct GitController: GitControlling {
     private let system: Systeming
     private let environment: Environmenting
 

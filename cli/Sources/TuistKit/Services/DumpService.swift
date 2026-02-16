@@ -9,11 +9,11 @@ import TuistLogging
 import TuistPlugin
 import TuistSupport
 
-final class DumpService {
+struct DumpService {
     private let manifestLoader: ManifestLoading
     private let configLoader: ConfigLoading
 
-    convenience init() {
+    init() {
         self.init(
             manifestLoader: ManifestLoader.current,
             configLoader: ConfigLoader()

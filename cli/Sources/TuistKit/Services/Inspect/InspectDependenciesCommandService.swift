@@ -7,7 +7,7 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-final class InspectDependenciesCommandService {
+struct InspectDependenciesCommandService {
     private let configLoader: ConfigLoading
     private let generatorFactory: GeneratorFactorying
     private let graphImportsLinter: GraphImportsLinting

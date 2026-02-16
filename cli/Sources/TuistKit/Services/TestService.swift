@@ -81,7 +81,7 @@ public enum TestServiceError: FatalError, Equatable {
     }
 }
 
-public final class TestService { // swiftlint:disable:this type_body_length
+public struct TestService { // swiftlint:disable:this type_body_length
     private let generatorFactory: GeneratorFactorying
     private let cacheStorageFactory: CacheStorageFactorying
     private let xcodebuildController: XcodeBuildControlling
@@ -103,7 +103,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
     private let clock: Clock
     private let listTestCasesService: ListTestCasesServicing
 
-    public convenience init(
+    public init(
         generatorFactory: GeneratorFactorying,
         cacheStorageFactory: CacheStorageFactorying
     ) {
@@ -477,7 +477,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let testSchemes =
             schemes
                 .filter {
-                    !self.testActionTargetReferences(
+                    !testActionTargetReferences(
                         scheme: $0, testPlanConfiguration: testPlanConfiguration,
                         action: action
                     ).isEmpty
@@ -665,7 +665,7 @@ public final class TestService { // swiftlint:disable:this type_body_length
         let testSchemes =
             schemes
                 .filter {
-                    !self.testActionTargetReferences(
+                    !testActionTargetReferences(
                         scheme: $0, testPlanConfiguration: testPlanConfiguration, action: action
                     ).isEmpty
                 }

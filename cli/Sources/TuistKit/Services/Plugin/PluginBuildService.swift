@@ -1,6 +1,6 @@
 import TuistSupport
 
-final class PluginBuildService {
+struct PluginBuildService {
     func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,

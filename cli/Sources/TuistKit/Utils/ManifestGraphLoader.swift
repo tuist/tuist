@@ -30,7 +30,7 @@ public protocol ManifestGraphLoading {
     // swiftlint:disable:previous large_tuple
 }
 
-public final class ManifestGraphLoader: ManifestGraphLoading {
+public struct ManifestGraphLoader: ManifestGraphLoading {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let recursiveManifestLoader: RecursiveManifestLoading
@@ -45,7 +45,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private let packageSettingsLoader: PackageSettingsLoading
     private let manifestFilesLocator: ManifestFilesLocating
 
-    public convenience init(
+    public init(
         manifestLoader: ManifestLoading,
         workspaceMapper: WorkspaceMapping,
         graphMapper: GraphMapping
@@ -209,7 +209,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     ) async throws -> [XcodeGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try await tuples.concurrentMap {
-            try await self.converter.convert(
+            try await converter.convert(
                 manifest: $0.manifest,
                 path: $0.path,
                 plugins: plugins,

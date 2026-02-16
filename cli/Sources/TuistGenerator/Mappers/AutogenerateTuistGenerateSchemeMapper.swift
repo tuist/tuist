@@ -5,7 +5,7 @@ import TuistEnvironment
 import TuistSupport
 import XcodeGraph
 
-public final class AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swiftlint:disable:this type_name
+public struct AutogenerateTuistGenerateSchemeMapper: GraphMapping { // swiftlint:disable:this type_name
     private let includeGenerateScheme: Bool
 
     // MARK: - Init

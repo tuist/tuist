@@ -734,17 +734,21 @@ struct CommandEnvironmentVariableTests {
     @Test(.withMockedEnvironment()) func projectCreateCommandUsesEnvVars() throws {
         setVariable(.projectCreateFullHandle, value: "tuist-org/tuist")
         setVariable(.projectCreatePath, value: "/path/to/create")
+        setVariable(.projectCreateBuildSystem, value: "gradle")
 
         let commandWithEnvVars = try ProjectCreateCommand.parse([])
         #expect(commandWithEnvVars.fullHandle == "tuist-org/tuist")
         #expect(commandWithEnvVars.path == "/path/to/create")
+        #expect(commandWithEnvVars.buildSystem == .gradle)
 
         let commandWithArgs = try ProjectCreateCommand.parse([
             "new-org/new-project",
             "--path", "/new/create/path",
+            "--build-system", "xcode",
         ])
         #expect(commandWithArgs.fullHandle == "new-org/new-project")
         #expect(commandWithArgs.path == "/new/create/path")
+        #expect(commandWithArgs.buildSystem == .xcode)
     }
 
     @Test(.withMockedEnvironment()) func organizationInviteCommandUsesEnvVars() throws {

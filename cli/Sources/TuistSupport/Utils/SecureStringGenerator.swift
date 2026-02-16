@@ -21,7 +21,7 @@ public protocol SecureStringGenerating {
     func generate() throws -> String
 }
 
-public final class SecureStringGenerator: SecureStringGenerating {
+public struct SecureStringGenerator: SecureStringGenerating {
     public init() {}
 
     public func generate() throws -> String {

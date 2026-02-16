@@ -63,6 +63,22 @@ export async function referencesSidebar(locale) {
     {
       text: localizedString(
         locale,
+        "sidebars.references.items.configuration.text",
+      ),
+      collapsed: false,
+      items: [
+        {
+          text: localizedString(
+            locale,
+            "sidebars.references.items.configuration.items.tuist-toml.text",
+          ),
+          link: `/${locale}/references/tuist-toml`,
+        },
+      ],
+    },
+    {
+      text: localizedString(
+        locale,
         "sidebars.references.items.xcode.text",
       ),
       collapsed: false,
@@ -130,7 +146,7 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/structs/project`,
+          link: `/${MANIFEST_REFERENCE_LOCALE}/references/tuist-toml`,
         },
         {
           text: localizedString(

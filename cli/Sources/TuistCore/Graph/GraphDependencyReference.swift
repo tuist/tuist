@@ -7,6 +7,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case let .framework(_, _, _, _, _, _, _, _, condition),
              let .library(_, _, _, _, condition),
              let .xcframework(_, _, _, _, condition),
+             let .foreignBuildOutput(_, _, condition),
              let .bundle(_, condition),
              let .product(_, _, _, condition),
              let .sdk(_, _, _, condition),
@@ -18,6 +19,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     }
 
     case macro(path: AbsolutePath)
+    case foreignBuildOutput(
+        path: AbsolutePath,
+        linking: BinaryLinking,
+        condition: PlatformCondition? = nil
+    )
     case xcframework(
         path: AbsolutePath,
         expectedSignature: String?,
@@ -86,6 +92,12 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 status: xcframework.status,
                 condition: condition
             )
+        case let .foreignBuildOutput(output):
+            self = .foreignBuildOutput(
+                path: output.path,
+                linking: output.linking,
+                condition: condition
+            )
         default:
             preconditionFailure("unsupported dependencies")
         }
@@ -105,6 +117,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return path
         case let .xcframework(path, _, _, _, _):
             return path
+        case let .foreignBuildOutput(path, _, _):
+            return path
         default:
             return nil
         }
@@ -118,6 +132,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     /// where only the required subset of properties are used.
     private enum Synthesized: Comparable, Hashable {
         case macro(path: AbsolutePath)
+        case foreignBuildOutput(path: AbsolutePath, condition: PlatformCondition?)
         case sdk(path: AbsolutePath, condition: PlatformCondition?)
         case product(target: String, productName: String, condition: PlatformCondition?)
         case library(path: AbsolutePath, condition: PlatformCondition?)
@@ -130,6 +145,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             switch dependencyReference {
             case let .macro(path):
                 self = .macro(path: path)
+            case let .foreignBuildOutput(path, _, condition):
+                self = .foreignBuildOutput(path: path, condition: condition)
             case .xcframework(
                 let path,
                 let expectedSignature,

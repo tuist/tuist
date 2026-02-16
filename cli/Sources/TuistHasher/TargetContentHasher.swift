@@ -41,7 +41,7 @@ public struct TargetContentHash: Equatable {
 
 /// `TargetContentHasher`
 /// is responsible for computing a unique hash that identifies a target
-public final class TargetContentHasher: TargetContentHashing {
+public struct TargetContentHasher: TargetContentHashing {
     private let contentHasher: ContentHashing
     private let coreDataModelsContentHasher: CoreDataModelsContentHashing
     private let sourceFilesContentHasher: SourceFilesContentHashing
@@ -53,10 +53,11 @@ public final class TargetContentHasher: TargetContentHashing {
     private let plistContentHasher: PlistContentHashing
     private let settingsContentHasher: SettingsContentHashing
     private let dependenciesContentHasher: DependenciesContentHashing
+    private let foreignBuildHasher: ForeignBuildHashing
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing) {
+    public init(contentHasher: ContentHashing) {
         let platformConditionContentHasher = PlatformConditionContentHasher(
             contentHasher: contentHasher
         )
@@ -82,7 +83,8 @@ public final class TargetContentHasher: TargetContentHashing {
             settingsContentHasher: SettingsContentHasher(
                 contentHasher: contentHasher, xcconfigHasher: xcconfigHasher
             ),
-            dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
+            dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher),
+            foreignBuildHasher: ForeignBuildHasher(contentHasher: contentHasher)
         )
     }
 
@@ -97,7 +99,8 @@ public final class TargetContentHasher: TargetContentHashing {
         deploymentTargetContentHasher: DeploymentTargetsContentHashing,
         plistContentHasher: PlistContentHashing,
         settingsContentHasher: SettingsContentHashing,
-        dependenciesContentHasher: DependenciesContentHashing
+        dependenciesContentHasher: DependenciesContentHashing,
+        foreignBuildHasher: ForeignBuildHashing
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
@@ -110,6 +113,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.plistContentHasher = plistContentHasher
         self.settingsContentHasher = settingsContentHasher
         self.dependenciesContentHasher = dependenciesContentHasher
+        self.foreignBuildHasher = foreignBuildHasher
     }
 
     // MARK: - TargetContentHashing
@@ -225,8 +229,8 @@ public final class TargetContentHasher: TargetContentHashing {
                 let privateHeaders = buildableFolder.exceptions.flatMap(\.privateHeaders)
 
                 return try await buildableFiles.concurrentMap { buildableFile in
-                    let fileHash = try await self.contentHasher.hash(path: buildableFile.path)
-                    let compilerFlagsHash = try self.contentHasher.hash(
+                    let fileHash = try await contentHasher.hash(path: buildableFile.path)
+                    let compilerFlagsHash = try contentHasher.hash(
                         buildableFile.compilerFlags ?? ""
                     )
                     var stringsToHash = [fileHash, compilerFlagsHash]
@@ -238,7 +242,7 @@ public final class TargetContentHasher: TargetContentHashing {
                         stringsToHash.append("private-header")
                     }
 
-                    return try self.contentHasher.hash(stringsToHash)
+                    return try contentHasher.hash(stringsToHash)
                 }
             }
 
@@ -302,6 +306,18 @@ public final class TargetContentHasher: TargetContentHashing {
 
         if let settingsHash {
             stringsToHash.append(settingsHash)
+        }
+
+        if let foreignBuild = graphTarget.target.foreignBuild {
+            let inputsResult = try await foreignBuildHasher.hash(
+                inputs: foreignBuild.inputs,
+                hashedPaths: hashedPaths
+            )
+            hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
+            let foreignBuildHash = try contentHasher.hash(
+                "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.script)-\(inputsResult.hash)"
+            )
+            stringsToHash.append(foreignBuildHash)
         }
 
         let hash = try contentHasher.hash(stringsToHash)

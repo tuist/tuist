@@ -15,7 +15,7 @@ public protocol SwiftPackageManagerInteracting {
     ) async throws
 }
 
-public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
+public struct SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileSystem: FileSysteming
     private let system: Systeming
     public init(

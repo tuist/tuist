@@ -14,7 +14,7 @@ protocol ProjectTokensListServicing {
     ) async throws
 }
 
-final class ProjectTokensListService: ProjectTokensListServicing {
+struct ProjectTokensListService: ProjectTokensListServicing {
     private let listProjectTokensService: ListProjectTokensServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

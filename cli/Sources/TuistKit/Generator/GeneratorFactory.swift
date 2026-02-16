@@ -77,7 +77,7 @@ public protocol GeneratorFactorying {
     ) -> Generating
 }
 
-public class GeneratorFactory: GeneratorFactorying {
+public struct GeneratorFactory: GeneratorFactorying {
     private let contentHasher: ContentHashing
 
     public init(contentHasher: ContentHashing = ContentHasher()) {
@@ -281,7 +281,7 @@ public class GeneratorFactory: GeneratorFactorying {
         }
     }
 
-    class CacheGeneratorFactory: CacheGeneratorFactorying {
+    struct CacheGeneratorFactory: CacheGeneratorFactorying {
         private let contentHasher: ContentHashing
 
         init(contentHasher: ContentHashing = ContentHasher()) {

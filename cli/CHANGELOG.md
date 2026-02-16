@@ -1,7 +1,68 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.143.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.146.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add foreign build system dependencies by [@fortmarek](https://github.com/fortmarek) in [#9400](https://github.com/tuist/tuist/pull/9400)
+### 🐛 Bug Fixes
+
+* fix cache building unnecessary Catalyst scheme for external dependencies by [@fortmarek](https://github.com/fortmarek) in [#9476](https://github.com/tuist/tuist/pull/9476)
+* increase inspect build activity log timeout and make it configurable by [@fortmarek](https://github.com/fortmarek) in [#9465](https://github.com/tuist/tuist/pull/9465)
+* fix CLI release (static linking, Musl imports, Bundle(for:)) by [@fortmarek](https://github.com/fortmarek) in [#9459](https://github.com/tuist/tuist/pull/9459)
+* use canImport(Musl) for Static Linux SDK compatibility by [@fortmarek](https://github.com/fortmarek) in [#9457](https://github.com/tuist/tuist/pull/9457)
+* remove OpenAPIURLSession from cross-platform targets for Linux static SDK by [@fortmarek](https://github.com/fortmarek) in [#9456](https://github.com/tuist/tuist/pull/9456)
+* restore cache run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9451](https://github.com/tuist/tuist/pull/9451)
+* only cache dependency checkouts in Linux CI jobs by [@fortmarek](https://github.com/fortmarek) in [#9447](https://github.com/tuist/tuist/pull/9447)
+* add missing tree-shake after focus targets in automation mapper chain by [@pepicrft](https://github.com/pepicrft) in [#9443](https://github.com/tuist/tuist/pull/9443)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.0
+
+## What's Changed in 4.145.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support build system selection in project create by [@fortmarek](https://github.com/fortmarek) in [#9432](https://github.com/tuist/tuist/pull/9432)
+### 🐛 Bug Fixes
+
+* remove unused CacheBuiltArtifactsFetcher from CacheWarmCommandService by [@fortmarek](https://github.com/fortmarek) in [#9434](https://github.com/tuist/tuist/pull/9434)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.4...4.145.0
+
+## What's Changed in 4.144.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fall back to BUILD_DIR for derived data resolution by [@fortmarek](https://github.com/fortmarek) in [#9429](https://github.com/tuist/tuist/pull/9429)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.3...4.144.4
+
+## What's Changed in 4.144.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* embed cached static xcframeworks with resources transitively by [@pepicrft](https://github.com/pepicrft) in [#9419](https://github.com/tuist/tuist/pull/9419)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.2...4.144.3
+
+## What's Changed in 4.144.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* run StaticXCFrameworkModuleMapGraphMapper after cache replacement by [@pepicrft](https://github.com/pepicrft) in [#9427](https://github.com/tuist/tuist/pull/9427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.1...4.144.2
+
+## What's Changed in 4.144.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix flaky tests caused by Matcher.register race and TOCTOU in CachedManifestLoader by [@fortmarek](https://github.com/fortmarek) in [#9424](https://github.com/tuist/tuist/pull/9424)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.0...4.144.1
+
+## What's Changed in 4.144.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -13,7 +74,7 @@ All notable changes to this project will be documented in this file.
 * use correct TUIST_URL key for env variable lookup in login command by [@fortmarek](https://github.com/fortmarek) in [#9398](https://github.com/tuist/tuist/pull/9398)
 * strip debug symbols (dSYM/DWARF) from cached XCFrameworks by [@pepicrft](https://github.com/pepicrft) in [#9287](https://github.com/tuist/tuist/pull/9287)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.143.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.144.0
 
 ## What's Changed in 4.142.1<!-- RELEASE NOTES START -->
 

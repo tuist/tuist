@@ -2111,7 +2111,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     }
 
     private func generatedProject(targets: [Target], projectPath: String = "/Project.xcodeproj") -> GeneratedProject {
-        var pbxTargets: [String: PBXNativeTarget] = [:]
+        var pbxTargets: [String: PBXTarget] = [:]
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
         let path = try! AbsolutePath(validating: projectPath)
         return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)

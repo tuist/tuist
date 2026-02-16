@@ -4,7 +4,7 @@ import XcodeGraph
 
 /// This mapper takes the `Project` `disableShowEnvironmentVarsInScriptPhases` option and pushes it down into all of the `Target`s
 /// shell script `TargetAction`s
-public final class TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
+public struct TargetActionDisableShowEnvVarsProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {

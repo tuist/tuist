@@ -16,7 +16,7 @@ protocol InfoPlistContentProviding {
     func content(project: Project, target: Target, extendedWith: [String: Plist.Value]) -> [String: Any]?
 }
 
-final class InfoPlistContentProvider: InfoPlistContentProviding {
+struct InfoPlistContentProvider: InfoPlistContentProviding {
     /// It returns the content that should be used to generate an Info.plist file
     /// for the given target. It uses default values that specific to the target's destinations
     /// and product, and extends them with the values provided by the user.

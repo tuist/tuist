@@ -1,6 +1,6 @@
 import Foundation
 import Noora
-import OpenAPIURLSession
+import OpenAPIRuntime
 import Path
 import TuistConfigLoader
 import TuistEnvironment
@@ -27,7 +27,7 @@ enum BundleListCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class BundleListCommandService: BundleListCommandServicing {
+struct BundleListCommandService: BundleListCommandServicing {
     private let listBundlesService: ListBundlesServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

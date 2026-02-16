@@ -332,10 +332,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .target(name: Module.projectDescription.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
                 ]
             case .automation:
                 [
@@ -833,7 +831,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
-                    .target(name: Module.simulator.targetName, condition: .when([.macos])),
+                    .target(name: Module.simulator.targetName),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
@@ -843,7 +841,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIURLSession"),
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "XcodeGraph", condition: .when([.macos])),
+                    .external(name: "XcodeGraph"),
                     .external(name: "Rosalind", condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
                 ]

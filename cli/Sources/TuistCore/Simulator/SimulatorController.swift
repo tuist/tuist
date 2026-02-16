@@ -122,7 +122,7 @@ public enum SimulatorControllerError: Equatable, FatalError {
     }
 }
 
-public final class SimulatorController: SimulatorControlling {
+public struct SimulatorController: SimulatorControlling {
     private let jsonDecoder = JSONDecoder()
     private let userInputReader: UserInputReading
 
@@ -152,7 +152,7 @@ public final class SimulatorController: SimulatorControlling {
                 var deviceJSON = deviceJSON
                 deviceJSON["runtimeIdentifier"] = runtimeIdentifier
                 let deviceJSONData = try JSONSerialization.data(withJSONObject: deviceJSON, options: [])
-                return try self.jsonDecoder.decode(SimulatorDevice.self, from: deviceJSONData)
+                return try jsonDecoder.decode(SimulatorDevice.self, from: deviceJSONData)
             }
         }
         return devices
@@ -369,10 +369,12 @@ public final class SimulatorController: SimulatorControlling {
         case .x8664:
             arch = "x86_64"
         }
+        let destination = "platform=macOS,arch=\(arch)"
         if catalyst {
-            return "generic/platform=macOS,variant=Mac Catalyst"
+            return destination + ",variant=Mac Catalyst"
+        } else {
+            return destination
         }
-        return "platform=macOS,arch=\(arch)"
     }
 }
 

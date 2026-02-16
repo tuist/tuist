@@ -10,12 +10,12 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-final class HashSelectiveTestingCommandService {
+struct HashSelectiveTestingCommandService {
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
     private let selectiveTestingGraphHasher: SelectiveTestingGraphHashing
 
-    convenience init(selectiveTestingGraphHasher: SelectiveTestingGraphHashing) {
+    init(selectiveTestingGraphHasher: SelectiveTestingGraphHashing) {
         self.init(
             generatorFactory: GeneratorFactory(),
             configLoader: ConfigLoader(),

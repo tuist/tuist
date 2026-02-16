@@ -13,23 +13,15 @@ protocol ProjectTokensCreateServicing {
     ) async throws
 }
 
-final class ProjectTokensCreateService: ProjectTokensCreateServicing {
+struct ProjectTokensCreateService: ProjectTokensCreateServicing {
     private let createProjectTokenService: CreateProjectTokenServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
 
-    convenience init() {
-        self.init(
-            createProjectTokenService: CreateProjectTokenService(),
-            serverEnvironmentService: ServerEnvironmentService(),
-            configLoader: ConfigLoader()
-        )
-    }
-
     init(
-        createProjectTokenService: CreateProjectTokenServicing,
-        serverEnvironmentService: ServerEnvironmentServicing,
-        configLoader: ConfigLoading
+        createProjectTokenService: CreateProjectTokenServicing = CreateProjectTokenService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.createProjectTokenService = createProjectTokenService
         self.serverEnvironmentService = serverEnvironmentService

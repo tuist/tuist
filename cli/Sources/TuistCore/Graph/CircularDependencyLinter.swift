@@ -9,7 +9,7 @@ public protocol CircularDependencyLinting {
 
 // MARK: - CircularDependencyLinter
 
-public class CircularDependencyLinter: CircularDependencyLinting {
+public struct CircularDependencyLinter: CircularDependencyLinting {
     public init() {}
 
     public func lintWorkspace(workspace: Workspace, projects: [Project]) throws {

@@ -13,7 +13,7 @@ protocol OrganizationRemoveInviteServicing {
     ) async throws
 }
 
-final class OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
+struct OrganizationRemoveInviteService: OrganizationRemoveInviteServicing {
     private let cancelOrganizationRemoveInviteService: CancelOrganizationInviteServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

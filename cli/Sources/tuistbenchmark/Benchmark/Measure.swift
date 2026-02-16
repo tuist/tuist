@@ -19,7 +19,7 @@ enum MeasureError: LocalizedError {
     }
 }
 
-final class Measure {
+struct Measure {
     private let fileSystem: FileSysteming
     private let binaryPath: AbsolutePath
 

@@ -16,7 +16,7 @@ public protocol SwiftVersionProviding {
     func swiftlangVersion() throws -> String
 }
 
-public final class SwiftVersionProvider: SwiftVersionProviding {
+public struct SwiftVersionProvider: SwiftVersionProviding {
     @TaskLocal public static var current: SwiftVersionProviding = SwiftVersionProvider(System())
 
     // Regex expression used to get the Swift version (for example, 5.9) from the output of the 'swift --version' command.

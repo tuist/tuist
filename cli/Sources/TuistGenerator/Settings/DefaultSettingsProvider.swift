@@ -21,7 +21,7 @@ public protocol DefaultSettingsProviding {
     ) async throws -> SettingsDictionary
 }
 
-public final class DefaultSettingsProvider: DefaultSettingsProviding {
+public struct DefaultSettingsProvider: DefaultSettingsProviding {
     private static let essentialProjectSettings: Set<String> = [
         "ALWAYS_SEARCH_USER_PATHS",
         "DEBUG_INFORMATION_FORMAT",

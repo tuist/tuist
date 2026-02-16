@@ -12,7 +12,7 @@ protocol OrganizationRemoveSSOServicing {
     ) async throws
 }
 
-final class OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
+struct OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
     private let updateOrganizationService: UpdateOrganizationServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

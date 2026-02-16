@@ -16,7 +16,7 @@ struct BenchmarkResult {
     }
 }
 
-final class Benchmark {
+struct Benchmark {
     private let fileSystem: FileSysteming
     private let binaryPath: AbsolutePath
     private let referenceBinaryPath: AbsolutePath

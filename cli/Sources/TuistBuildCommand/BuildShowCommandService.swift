@@ -27,7 +27,7 @@ enum BuildShowCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class BuildShowCommandService: BuildShowCommandServicing {
+struct BuildShowCommandService: BuildShowCommandServicing {
     private let getBuildService: GetBuildServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading

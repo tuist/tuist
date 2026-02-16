@@ -17,7 +17,7 @@
         ) async throws
     }
 
-    public final class AnalyticsArtifactUploadService: AnalyticsArtifactUploadServicing {
+    public struct AnalyticsArtifactUploadService: AnalyticsArtifactUploadServicing {
         private let fileSystem: FileSysteming
         private let xcresultToolController: XCResultToolControlling
         private let fileArchiver: FileArchivingFactorying
@@ -29,7 +29,7 @@
         private let multipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing
         private let completeAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing
 
-        public convenience init() {
+        public init() {
             self.init(
                 fileSystem: FileSystem(),
                 xcresultToolController: XCResultToolController(),
@@ -172,7 +172,7 @@
                 let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
                     artifactPath: artifactPath,
                     generateUploadURL: { part in
-                        try await self.multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
+                        try await multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
                             artifact,
                             accountHandle: accountHandle,
                             projectHandle: projectHandle,

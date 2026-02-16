@@ -111,6 +111,7 @@ struct InitCommandServiceTests {
                 ).willReturn(.test(fullName: "organization/Test"))
                 given(createProjectService).createProject(
                     fullHandle: .value("organization/Test"),
+                    buildSystem: .any,
                     serverURL: .value(Constants.URLs.production)
                 ).willReturn(.test(fullName: "organization/Test"))
                 given(listOrganizationsService).listOrganizations(
@@ -209,6 +210,7 @@ struct InitCommandServiceTests {
                 ).willReturn(.test(fullName: "account/\(projectName)"))
                 given(createProjectService).createProject(
                     fullHandle: .value("account/\(projectName)"),
+                    buildSystem: .any,
                     serverURL: .value(Constants.URLs.production)
                 ).willReturn(.test(fullName: "account/\(projectName)"))
                 given(listOrganizationsService).listOrganizations(
@@ -312,6 +314,7 @@ struct InitCommandServiceTests {
                 ).willReturn(.test(fullName: "\(organizationName)/Test"))
                 given(createProjectService).createProject(
                     fullHandle: .value("\(organizationName)/Test"),
+                    buildSystem: .any,
                     serverURL: .value(Constants.URLs.production)
                 ).willReturn(.test(fullName: "\(organizationName)/Test"))
                 given(listOrganizationsService).listOrganizations(
@@ -379,6 +382,7 @@ struct InitCommandServiceTests {
                     ).willReturn(.test(fullName: "account/\(projectName)"))
                     given(createProjectService).createProject(
                         fullHandle: .value("account/\(projectName)"),
+                        buildSystem: .any,
                         serverURL: .value(Constants.URLs.production)
                     ).willReturn(.test(fullName: "account/\(projectName)"))
                     given(commandRunner).run(

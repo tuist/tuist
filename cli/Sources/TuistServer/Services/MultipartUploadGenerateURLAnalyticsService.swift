@@ -31,7 +31,7 @@ public enum MultipartUploadGenerateURLAnalyticsServiceError: LocalizedError, Equ
     }
 }
 
-public final class MultipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing {
+public struct MultipartUploadGenerateURLAnalyticsService: MultipartUploadGenerateURLAnalyticsServicing {
     public init() {}
 
     public func uploadAnalytics(

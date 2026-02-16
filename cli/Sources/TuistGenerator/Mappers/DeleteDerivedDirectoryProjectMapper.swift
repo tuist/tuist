@@ -7,7 +7,7 @@ import TuistSupport
 import XcodeGraph
 
 /// A project mapper that returns side effects to delete the derived directory.
-public final class DeleteDerivedDirectoryProjectMapper: ProjectMapping {
+public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming

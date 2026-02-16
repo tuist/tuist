@@ -4,11 +4,11 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-protocol PackageLinting: AnyObject {
+protocol PackageLinting {
     func lint(_ package: Package) async throws -> [LintingIssue]
 }
 
-final class PackageLinter: PackageLinting {
+struct PackageLinter: PackageLinting {
     private let fileSystem: FileSysteming
 
     init(

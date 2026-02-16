@@ -305,36 +305,10 @@ public class GraphTraverser: GraphTraversing {
             skip: canDependencyEmbedBundles
         )
 
-        let externalStaticFrameworkBundleResources: Set<GraphDependencyReference> = {
-            guard canEmbedBundles(target: target) else { return [] }
-            let externalStaticFrameworks = filterDependencies(
-                from: .target(name: name, path: path),
-                test: { dependency in
-                    guard let graphTarget = self.target(from: dependency) else { return false }
-                    guard case .external = graphTarget.project.type else { return false }
-                    return graphTarget.target.product == .staticFramework &&
-                        graphTarget.target.containsResources
-                },
-                skip: canDependencyEmbedBundles
-            )
-            var bundleReferences = Set<GraphDependencyReference>()
-            for dependency in externalStaticFrameworks {
-                guard let graphTarget = self.target(from: dependency) else { continue }
-                let condition = combinedCondition(to: dependency, from: .target(name: name, path: path))
-                guard case let .condition(platformCondition) = condition else { continue }
-                for resource in graphTarget.target.resources.resources {
-                    if resource.path.extension == "bundle" {
-                        bundleReferences.insert(.bundle(path: resource.path, condition: platformCondition))
-                    }
-                }
-            }
-            return bundleReferences
-        }()
-
         return Set(
             bundles.union(externalBundles)
                 .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
-        ).union(externalStaticFrameworkBundleResources)
+        )
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
@@ -463,39 +437,6 @@ public class GraphTraverser: GraphTraversing {
 
         references.formUnionPreferringRequiredStatus(
             otherTargetFrameworks.lazy.compactMap {
-                self.dependencyReference(
-                    to: $0,
-                    from: .target(name: name, path: path)
-                )
-            }
-        )
-
-        let directLocalStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
-            .filter { dependency in
-                let target = dependency.graphTarget.target
-                return dependency.graphTarget.project.type == .local &&
-                    target.product == .staticFramework &&
-                    (target.containsResources || target.containsMetalFiles)
-            }
-
-        references.formUnionPreferringRequiredStatus(
-            directLocalStaticFrameworksWithResources.compactMap {
-                self.dependencyReference(
-                    to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
-                    from: .target(name: name, path: path)
-                )
-            }
-        )
-
-        let directStaticXCFrameworksWithResources: [GraphDependency] = (graph.dependencies[.target(name: name, path: path)] ?? [])
-            .filter { dependency in
-                guard case let .xcframework(xcframework) = dependency,
-                      xcframework.linking == .static
-                else { return false }
-                return xcframework.infoPlist.libraries.contains { $0.path.extension == "framework" }
-            }
-        references.formUnionPreferringRequiredStatus(
-            directStaticXCFrameworksWithResources.lazy.compactMap {
                 self.dependencyReference(
                     to: $0,
                     from: .target(name: name, path: path)
@@ -895,6 +836,7 @@ public class GraphTraverser: GraphTraversing {
             switch dependency {
             case let .xcframework(xcframework): return xcframework.path
             case let .framework(path, _, _, _, _, _, _): return path
+            case let .foreignBuildOutput(output): return output.path
             case .macro: return nil
             case .library: return nil
             case .bundle: return nil
@@ -1131,7 +1073,7 @@ public class GraphTraverser: GraphTraversing {
                         return !precompiledMacroDependencies(dependency).isEmpty
                     case .macro:
                         return true
-                    case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
                         return false
                     }
                 },
@@ -1139,7 +1081,7 @@ public class GraphTraverser: GraphTraversing {
                     switch dependency {
                     case .macro:
                         return true
-                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework:
+                    case .bundle, .library, .framework, .sdk, .target, .packageProduct, .xcframework, .foreignBuildOutput:
                         return false
                     }
                 }
@@ -1150,7 +1092,7 @@ public class GraphTraverser: GraphTraversing {
                     return Array(precompiledMacroDependencies(dependency))
                 case let .macro(path):
                     return [path]
-                case .bundle, .library, .framework, .sdk, .target, .packageProduct:
+                case .bundle, .library, .framework, .sdk, .target, .packageProduct, .foreignBuildOutput:
                     return []
                 }
             }
@@ -1449,7 +1391,7 @@ public class GraphTraverser: GraphTraversing {
         filterDependencies(
             from: dependency,
             test: isDependencyStatic,
-            skip: or(or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro), isDependencyMacroTarget)
+            skip: or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro)
         )
     }
 
@@ -1469,18 +1411,15 @@ public class GraphTraverser: GraphTraversing {
         switch dependency {
         case .macro:
             return true
-        case .bundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct:
+        case .bundle, .framework, .xcframework, .library, .sdk, .target, .packageProduct, .foreignBuildOutput:
             return false
         }
-    }
-
-    private func isDependencyMacroTarget(_ dependency: GraphDependency) -> Bool {
-        testTarget(dependency: dependency) { $0.product == .macro }
     }
 
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro: return false
+        case .foreignBuildOutput: return true
         case .xcframework: return true
         case .framework: return true
         case .library: return true
@@ -1494,6 +1433,7 @@ public class GraphTraverser: GraphTraversing {
     func isDependencyPrecompiledFramework(dependency: GraphDependency) -> Bool {
         switch dependency {
         case .macro: return false
+        case .foreignBuildOutput: return true
         case .xcframework: return true
         case .framework: return true
         case .library: return false
@@ -1533,6 +1473,8 @@ public class GraphTraverser: GraphTraversing {
         switch dependency {
         case .macro:
             return false
+        case let .foreignBuildOutput(output):
+            return output.linking == .static
         case let .xcframework(xcframework):
             return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _),
@@ -1542,6 +1484,7 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
+            if target.target.isAggregate { return false }
             return target.target.product.isStatic
         case .sdk: return false
         }
@@ -1556,13 +1499,9 @@ public class GraphTraverser: GraphTraversing {
     }
 
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
-        guard case .target = dependency, let graphTarget = target(from: dependency) else { return false }
-        let target = graphTarget.target
-        if target.product.isDynamic { return true }
-        if target.product == .staticFramework, target.containsResources || target.containsMetalFiles {
-            return true
+        testTarget(dependency: dependency) {
+            $0.product.isDynamic || $0.product == .staticFramework && $0.containsResources
         }
-        return false
     }
 
     private func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
@@ -1583,6 +1522,7 @@ public class GraphTraverser: GraphTraversing {
         case let .target(name, path, _):
             guard let target = target(path: path, name: name) else { return false }
             return target.target.canLinkStaticProducts()
+        case let .foreignBuildOutput(output): return output.linking == .dynamic
         case let .xcframework(xcframework): return xcframework.linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
         case let .library(_, _, linking, _, _): return linking == .dynamic
@@ -1651,6 +1591,12 @@ public class GraphTraverser: GraphTraversing {
         switch toDependency {
         case let .macro(path):
             return .macro(path: path)
+        case let .foreignBuildOutput(output):
+            return .foreignBuildOutput(
+                path: output.path,
+                linking: output.linking,
+                condition: condition
+            )
         case let .framework(
             path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, status
         ):
@@ -1688,6 +1634,7 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .target(name, path, status):
             guard let target = target(path: path, name: name) else { return nil }
+            if target.target.isAggregate { return nil }
             return .product(
                 target: target.target.name,
                 productName: target.target.productNameWithExtension,
@@ -1736,14 +1683,14 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .framework(_, _, _, _, linking: linking, _, _):
                     return linking == .static
-                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk, .macro:
+                case .xcframework, .library, .bundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
                     return false
                 }
             }
 
         let precompiledDependencies =
             precompiledStatic
-                .flatMap { filterDependencies(from: $0, skip: or(isDependencyPrecompiledMacro, isDependencyMacroTarget)) }
+                .flatMap { filterDependencies(from: $0) }
 
         return Set(precompiledStatic + precompiledDependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
@@ -1759,16 +1706,11 @@ public class GraphTraverser: GraphTraversing {
                 switch dependency {
                 case let .xcframework(xcframework):
                     return xcframework.linking == .static
-                case .framework, .library, .bundle, .packageProduct, .target, .sdk, .macro:
+                case .framework, .library, .bundle, .packageProduct, .target, .sdk, .macro, .foreignBuildOutput:
                     return false
                 }
             },
-            skip: {
-                $0.isDynamicPrecompiled ||
-                    !$0.isPrecompiled ||
-                    $0.isPrecompiledMacro ||
-                    self.isDependencyMacroTarget($0)
-            }
+            skip: { $0.isDynamicPrecompiled || !$0.isPrecompiled || $0.isPrecompiledMacro }
         )
         return Set(dependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
@@ -1815,7 +1757,7 @@ extension GraphDependencyReference {
             return status
         case let .sdk(_, status, _, _):
             return status
-        case .library, .bundle, .macro, .packageProduct:
+        case .library, .bundle, .macro, .packageProduct, .foreignBuildOutput:
             return nil
         }
     }

@@ -3,7 +3,7 @@
     import TuistConfig
     import TuistCore
 
-    public final class EmptyCacheStorageFactory: CacheStorageFactorying {
+    public struct EmptyCacheStorageFactory: CacheStorageFactorying {
         public init() {}
 
         public func cacheStorage(config _: Tuist) throws -> any CacheStoring {

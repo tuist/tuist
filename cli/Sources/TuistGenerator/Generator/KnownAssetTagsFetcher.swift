@@ -14,11 +14,11 @@ private struct ContentJson: Decodable {
     let properties: ContentProperties
 }
 
-protocol KnownAssetTagsFetching: AnyObject {
+protocol KnownAssetTagsFetching {
     func fetch(project: Project) throws -> [String]
 }
 
-final class KnownAssetTagsFetcher: KnownAssetTagsFetching {
+struct KnownAssetTagsFetcher: KnownAssetTagsFetching {
     func fetch(project: Project) throws -> [String] {
         var tags = project.targets.values.map { $0.resources.resources.map(\.tags).flatMap { $0 } }.flatMap { $0 }
 

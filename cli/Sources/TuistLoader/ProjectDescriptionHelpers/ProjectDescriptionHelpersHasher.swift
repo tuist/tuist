@@ -5,14 +5,14 @@ import TuistConstants
 import TuistEnvironment
 import TuistSupport
 
-public protocol ProjectDescriptionHelpersHashing: AnyObject {
+public protocol ProjectDescriptionHelpersHashing {
     /// Given the path to the directory that contains the helpers, it returns a hash that includes
     /// the hash of the files, the environment, as well as the versions of Swift and Tuist.
     /// - Parameter helpersDirectory: Path to the helpers directory.
     func hash(helpersDirectory: AbsolutePath) async throws -> String
 }
 
-public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
+public struct ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
     /// Tuist version.
     private let tuistVersion: String
     private let machineEnvironment: MachineEnvironmentRetrieving

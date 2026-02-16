@@ -54,11 +54,10 @@ struct ProjectAcceptanceTests {
             ProjectTokensListCommand.self,
             ["--path", fixtureDirectory.pathString, fullHandle]
         )
+        let nooraOutput = ui()
+        let idPattern = try Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
         let id = try #require(
-            Logger.testingLogHandler.collected[.notice, ==].components(separatedBy: .newlines)
-                .dropLast().last?
-                .components(separatedBy: .whitespaces)
-                .first
+            nooraOutput.firstMatch(of: idPattern).map { String(nooraOutput[$0.range]) }
         )
         try await TuistTest.run(
             ProjectTokensRevokeCommand.self,
