@@ -705,9 +705,9 @@ msgid ""
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
-"تنبيه عندما يزيد حجم الحزمة ( <strong>) %{size_label}</strong> لأحدث حزمة على "
-"الفرع <strong>%{git_branch}</strong> بنسبة <strong>%{deviation}%</strong> "
-"مقارنة بالحزمة السابقة."
+"تنبيه عندما يزيد حجم الحزمة ( <strong>) %{size_label}</strong> لأحدث حزمة "
+"على الفرع <strong>%{git_branch}</strong> بنسبة <strong>%{deviation}%</"
+"strong> مقارنة بالحزمة السابقة."
 
 #, fuzzy
 msgid "Branch"

@@ -703,9 +703,9 @@ msgid ""
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
-"ブランチ<strong>%{git_branch}</strong> の最新バンドルにおける<strong>%"
-"{size_label}</strong> が、前回のバンドルと比較して<strong>%{deviation}%</"
-"strong> 増加したことを警告します。"
+"ブランチ<strong>%{git_branch}</strong> の最新バンドルにおける"
+"<strong>%{size_label}</strong> が、前回のバンドルと比較して"
+"<strong>%{deviation}%</strong> 増加したことを警告します。"
 
 #, fuzzy
 msgid "Branch"
