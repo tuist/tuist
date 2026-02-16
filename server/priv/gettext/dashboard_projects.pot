@@ -43,7 +43,7 @@ msgstr ""
 msgid "Account"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:230
+#: lib/tuist_web/live/projects_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr ""
@@ -174,7 +174,7 @@ msgstr ""
 msgid "Create a Tuist project to continue"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:333
+#: lib/tuist_web/live/projects_live.ex:351
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -189,14 +189,14 @@ msgstr ""
 msgid "Create organization"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:319
+#: lib/tuist_web/live/projects_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:177
-#: lib/tuist_web/live/projects_live.ex:220
-#: lib/tuist_web/live/projects_live.ex:288
+#: lib/tuist_web/live/projects_live.ex:183
+#: lib/tuist_web/live/projects_live.ex:232
+#: lib/tuist_web/live/projects_live.ex:306
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
@@ -266,9 +266,9 @@ msgstr ""
 msgid "Last 40 runs"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:172
-#: lib/tuist_web/live/projects_live.ex:215
-#: lib/tuist_web/live/projects_live.ex:283
+#: lib/tuist_web/live/projects_live.ex:178
+#: lib/tuist_web/live/projects_live.ex:227
+#: lib/tuist_web/live/projects_live.ex:301
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
@@ -289,12 +289,12 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:309
 #: lib/tuist_web/live/project_notifications_live.html.heex:448
 #: lib/tuist_web/live/project_notifications_live.html.heex:527
-#: lib/tuist_web/live/projects_live.ex:342
+#: lib/tuist_web/live/projects_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:326
+#: lib/tuist_web/live/projects_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "New project"
 msgstr ""
@@ -374,7 +374,7 @@ msgstr ""
 msgid "QA"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:187
+#: lib/tuist_web/live/projects_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr ""
@@ -415,7 +415,7 @@ msgstr ""
 msgid "Saved"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:242
+#: lib/tuist_web/live/projects_live.ex:254
 #, elixir-autogen, elixir-format
 msgid "Search projects..."
 msgstr ""
@@ -447,7 +447,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:203
+#: lib/tuist_web/live/projects_live.ex:215
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -777,7 +777,7 @@ msgid "tests"
 msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:431
-#: lib/tuist_web/live/projects_live.ex:373
+#: lib/tuist_web/live/projects_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -893,13 +893,13 @@ msgid "Tests will be marked as flaky after the specified number of flaky occurre
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:86
-#: lib/tuist_web/live/projects_live.ex:352
+#: lib/tuist_web/live/projects_live.ex:370
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:80
-#: lib/tuist_web/live/projects_live.ex:346
+#: lib/tuist_web/live/projects_live.ex:364
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
