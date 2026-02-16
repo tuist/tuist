@@ -362,7 +362,12 @@
                                     "text": "모듈 캐시"
                                 },
                                 "xcode": {
-                                    "text": "Xcode"
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Xcode 캐시"
+                                        }
+                                    }
                                 },
                                 "gradle-cache": {
                                     "text": "Gradle 캐시"
