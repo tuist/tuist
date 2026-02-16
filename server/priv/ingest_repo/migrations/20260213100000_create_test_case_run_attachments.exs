@@ -8,7 +8,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunAttachments do
              options: "PARTITION BY toYYYYMM(inserted_at) ORDER BY (test_case_run_id, id)"
            ) do
       add :id, :uuid, null: false
-      add :test_case_run_id, :string, null: false
+      add :test_case_run_id, :uuid, null: false
       add :file_name, :string, null: false
       add :content_type, :string, default: ""
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
