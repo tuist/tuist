@@ -8,6 +8,7 @@ defmodule Tuist.Alerts do
   alias Tuist.Alerts.AlertRule
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
+  alias Tuist.Bundles.Bundle
   alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -103,40 +104,22 @@ defmodule Tuist.Alerts do
 
   def evaluate(%AlertRule{category: :bundle_size} = alert_rule) do
     project = %Project{id: alert_rule.project_id}
+    bundle_opts = [git_branch: alert_rule.git_branch, fallback: false]
 
-    current_bundle =
-      Bundles.last_project_bundle(project,
-        git_branch: alert_rule.git_branch,
-        fallback: false
+    with %Bundle{} = current_bundle <- Bundles.last_project_bundle(project, bundle_opts),
+         %Bundle{} = previous_bundle <-
+           Bundles.last_project_bundle(project, Keyword.put(bundle_opts, :bundle, current_bundle)) do
+      size_field = bundle_size_field(alert_rule.metric)
+      current_size = Map.get(current_bundle, size_field)
+      previous_size = Map.get(previous_bundle, size_field)
+
+      check_increase_regression(
+        alert_rule,
+        current_size && current_size / 1,
+        previous_size && previous_size / 1
       )
-
-    case current_bundle do
-      nil ->
-        :ok
-
-      current_bundle ->
-        previous_bundle =
-          Bundles.last_project_bundle(project,
-            git_branch: alert_rule.git_branch,
-            bundle: current_bundle,
-            fallback: false
-          )
-
-        case previous_bundle do
-          nil ->
-            :ok
-
-          previous_bundle ->
-            size_field = bundle_size_field(alert_rule.metric)
-            current_size = Map.get(current_bundle, size_field)
-            previous_size = Map.get(previous_bundle, size_field)
-
-            check_increase_regression(
-              alert_rule,
-              current_size && current_size / 1,
-              previous_size && previous_size / 1
-            )
-        end
+    else
+      nil -> :ok
     end
   end
 
