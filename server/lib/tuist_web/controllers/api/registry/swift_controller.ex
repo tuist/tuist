@@ -199,8 +199,10 @@ defmodule TuistWeb.API.Registry.SwiftController do
     requested = normalize_version(requested_version)
 
     manifests
-    |> Enum.filter(&(&1.swift_version && &1.swift_tools_version))
-    |> Enum.filter(&(Version.compare(normalize_version(&1.swift_tools_version), requested) != :gt))
+    |> Enum.filter(
+      &(&1.swift_version && &1.swift_tools_version &&
+          Version.compare(normalize_version(&1.swift_tools_version), requested) != :gt)
+    )
     |> Enum.sort_by(&normalize_version(&1.swift_tools_version), {:desc, Version})
     |> Enum.find_value(fn manifest ->
       object_key =
