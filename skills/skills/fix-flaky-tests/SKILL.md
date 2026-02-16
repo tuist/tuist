@@ -84,7 +84,7 @@ Key fields:
 - `failures[].issue_type` — type of issue (assertion_failure, etc.)
 - `repetitions` — if present, shows retry behavior (pass/fail sequence)
 - `test_run_id` — the broader test run this execution belongs to
-- `crash_report` — crash report data (present when the test runner crashed); contains `exception_type`, `signal`, `exception_subtype`, and `formatted_frames`
+- `crash_report` — crash report data (present when the test runner crashed); contains `exception_type`, `signal`, `exception_subtype`, and `triggered_thread_frames`
 
 ## Code Analysis
 
