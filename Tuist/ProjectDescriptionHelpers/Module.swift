@@ -299,7 +299,7 @@ public enum Module: String, CaseIterable {
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-             .registryCommand, .buildCommand, .generateCommand, .testCommand:
+             .registryCommand, .buildCommand, .generateCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -332,10 +332,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .target(name: Module.projectDescription.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
                 ]
             case .automation:
                 [
@@ -833,7 +831,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
-                    .target(name: Module.simulator.targetName, condition: .when([.macos])),
+                    .target(name: Module.simulator.targetName),
                     .target(name: Module.automation.targetName, condition: .when([.macos])),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
@@ -843,7 +841,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIURLSession"),
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
-                    .external(name: "XcodeGraph", condition: .when([.macos])),
+                    .external(name: "XcodeGraph"),
                     .external(name: "Rosalind", condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
                 ]
@@ -1269,8 +1267,20 @@ public enum Module: String, CaseIterable {
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
-                 .registryCommand, .buildCommand, .generateCommand, .testCommand:
+                 .registryCommand, .buildCommand, .generateCommand:
                 []
+            case .testCommand:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "Noora"),
+                ]
             case .configLoader:
                 [
                     .target(name: Module.config.targetName),

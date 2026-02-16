@@ -28,7 +28,7 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
       Bundles.create_bundle(%{
         id: id,
         name: Keyword.get(opts, :name, "App"),
-        app_bundle_id: "dev.tuist.app",
+        app_bundle_id: Keyword.get(opts, :app_bundle_id, "dev.tuist.app"),
         install_size: Keyword.get(opts, :install_size, 1024),
         download_size: Keyword.get(opts, :download_size, 1024),
         supported_platforms:

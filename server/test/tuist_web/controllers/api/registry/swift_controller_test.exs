@@ -335,7 +335,7 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
     end
 
-    test "redirects to Package.swift when the manifest for a specific Swift version doesn't exist",
+    test "redirects to Package.swift when the manifest for a specific Swift version doesn't exist and no compatible alternate exists",
          %{conn: conn} do
       # Given
       package = PackagesFixtures.package_fixture(scope: "Alamofire", name: "Alamofire")
@@ -360,6 +360,360 @@ defmodule TuistWeb.API.Registry.SwiftControllerTest do
       # Then
       assert redirected_to(conn, 303) ==
                "/api/registry/swift/Alamofire/Alamofire/5.0.0/Package.swift"
+    end
+
+    test "falls back to best compatible manifest when exact swift-version match doesn't exist",
+         %{conn: conn} do
+      # Given: A package with Package.swift (tools 6.2) and Package@swift-6.0.swift (tools 6.0)
+      # When requesting swift-version=6.1, there's no Package@swift-6.1.swift,
+      # but Package@swift-6.0.swift is compatible (6.0 <= 6.1)
+      package = PackagesFixtures.package_fixture(scope: "apple", name: "swift-collections")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "1.3.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.2"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "6.0",
+        swift_tools_version: "6.0"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/apple/swift-collections/1.3.0/Package@swift-6.1.swift", _actor ->
+            false
+
+          "registry/swift/apple/swift-collections/1.3.0/Package@swift-6.0.swift", _actor ->
+            true
+        end
+      )
+
+      package_swift_content = "Package@swift-6.0.swift content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/apple/swift-collections/1.3.0/Package.swift?swift-version=6.1"
+        )
+
+      # Then: should return the 6.0 manifest instead of redirecting to Package.swift (6.2)
+      assert response(conn, 200) =~ package_swift_content
+      assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
+    end
+
+    test "selects the highest compatible manifest when multiple alternates exist",
+         %{conn: conn} do
+      # Given: manifests with tools versions 5.0, 5.5, and 6.2
+      # When requesting swift-version=6.0, should pick 5.5 (highest <= 6.0)
+      package = PackagesFixtures.package_fixture(scope: "example", name: "multi-manifest")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "2.0.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.2"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "5",
+        swift_tools_version: "5.0"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "5.5",
+        swift_tools_version: "5.5"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/example/multi-manifest/2.0.0/Package@swift-6.0.swift", _actor ->
+            false
+
+          "registry/swift/example/multi-manifest/2.0.0/Package@swift-6.swift", _actor ->
+            false
+
+          "registry/swift/example/multi-manifest/2.0.0/Package@swift-5.5.swift", _actor ->
+            true
+
+          "registry/swift/example/multi-manifest/2.0.0/Package@swift-5.swift", _actor ->
+            true
+        end
+      )
+
+      package_swift_content = "Package@swift-5.5 content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/example/multi-manifest/2.0.0/Package.swift?swift-version=6.0"
+        )
+
+      # Then: should return the 5.5 manifest (highest compatible, not 5.0)
+      assert response(conn, 200) =~ package_swift_content
+      assert get_resp_header(conn, "content-type") == ["text/x-swift; charset=utf-8"]
+    end
+
+    test "redirects to Package.swift when requested version is lower than all alternates",
+         %{conn: conn} do
+      # Given: only a manifest with tools version 6.0
+      # When requesting swift-version=5.9, no compatible manifest exists
+      package = PackagesFixtures.package_fixture(scope: "example", name: "too-new")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "1.0.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.2"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "6.0",
+        swift_tools_version: "6.0"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/example/too-new/1.0.0/Package@swift-5.9.swift", _actor ->
+            false
+        end
+      )
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/example/too-new/1.0.0/Package.swift?swift-version=5.9"
+        )
+
+      # Then: no compatible manifest, should redirect
+      assert redirected_to(conn, 303) ==
+               "/api/registry/swift/example/too-new/1.0.0/Package.swift"
+    end
+
+    test "falls back to compatible manifest when requested swift-version has only major component",
+         %{conn: conn} do
+      # Given: request swift-version=6, manifest has swift_tools_version "5.9"
+      package = PackagesFixtures.package_fixture(scope: "example", name: "major-only")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "1.0.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.2"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "5.9",
+        swift_tools_version: "5.9"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/example/major-only/1.0.0/Package@swift-6.swift", _actor ->
+            false
+
+          "registry/swift/example/major-only/1.0.0/Package@swift-5.9.swift", _actor ->
+            true
+        end
+      )
+
+      package_swift_content = "Package@swift-5.9 content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/example/major-only/1.0.0/Package.swift?swift-version=6"
+        )
+
+      # Then
+      assert response(conn, 200) =~ package_swift_content
+    end
+
+    test "falls back to compatible manifest when requested swift-version is a full semver",
+         %{conn: conn} do
+      # Given: request swift-version=6.1.2, manifest has swift_tools_version "6.0"
+      package = PackagesFixtures.package_fixture(scope: "example", name: "full-semver")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "1.0.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.2"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "6.0",
+        swift_tools_version: "6.0"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/example/full-semver/1.0.0/Package@swift-6.1.2.swift", _actor ->
+            false
+
+          "registry/swift/example/full-semver/1.0.0/Package@swift-6.1.swift", _actor ->
+            false
+
+          "registry/swift/example/full-semver/1.0.0/Package@swift-6.0.swift", _actor ->
+            true
+        end
+      )
+
+      package_swift_content = "Package@swift-6.0 content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/example/full-semver/1.0.0/Package.swift?swift-version=6.1.2"
+        )
+
+      # Then
+      assert response(conn, 200) =~ package_swift_content
+    end
+
+    test "falls back to compatible manifest when manifest swift_tools_version has only major component",
+         %{conn: conn} do
+      # Given: manifest has swift_tools_version "5" (single component), request is 5.9
+      package = PackagesFixtures.package_fixture(scope: "example", name: "major-tools")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "1.0.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.0"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "5",
+        swift_tools_version: "5"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/example/major-tools/1.0.0/Package@swift-5.9.swift", _actor ->
+            false
+
+          "registry/swift/example/major-tools/1.0.0/Package@swift-5.swift", _actor ->
+            true
+        end
+      )
+
+      package_swift_content = "Package@swift-5 content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/example/major-tools/1.0.0/Package.swift?swift-version=5.9"
+        )
+
+      # Then
+      assert response(conn, 200) =~ package_swift_content
+    end
+
+    test "falls back to exact-match manifest when swift_tools_version equals requested version",
+         %{conn: conn} do
+      # Given: request swift-version=6.0, manifest has swift_tools_version "6.0"
+      # No exact filename match for Package@swift-6.0.swift via the fast path,
+      # but the fallback should still pick it since 6.0 == 6.0
+      package = PackagesFixtures.package_fixture(scope: "example", name: "exact-tools")
+
+      package_release =
+        PackagesFixtures.package_release_fixture(package_id: package.id, version: "1.0.0")
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_tools_version: "6.2"
+      )
+
+      PackagesFixtures.package_manifest_fixture(
+        package_release_id: package_release.id,
+        swift_version: "5.9",
+        swift_tools_version: "5.9"
+      )
+
+      stub(
+        Storage,
+        :object_exists?,
+        fn
+          "registry/swift/example/exact-tools/1.0.0/Package@swift-6.0.swift", _actor ->
+            false
+
+          "registry/swift/example/exact-tools/1.0.0/Package@swift-6.swift", _actor ->
+            false
+
+          "registry/swift/example/exact-tools/1.0.0/Package@swift-5.9.swift", _actor ->
+            true
+        end
+      )
+
+      package_swift_content = "Package@swift-5.9 content"
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map([package_swift_content], fn chunk -> chunk end)
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/api/registry/swift/example/exact-tools/1.0.0/Package.swift?swift-version=6.0"
+        )
+
+      # Then: 5.9 <= 6.0, should be picked
+      assert response(conn, 200) =~ package_swift_content
     end
 
     test "returns Package.swift with alternate manifests in a Link header", %{

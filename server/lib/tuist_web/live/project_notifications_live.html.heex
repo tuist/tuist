@@ -275,7 +275,8 @@
                 @create_alert_form_category,
                 @create_alert_form_metric,
                 @create_alert_form_deviation,
-                @create_alert_form_rolling_window_size
+                @create_alert_form_rolling_window_size,
+                git_branch: @create_alert_form_git_branch
               )}
             </p>
             <.alert
@@ -327,7 +328,14 @@
                   label={category_label(@create_alert_form_category)}
                 >
                   <.dropdown_item
-                    :for={category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]}
+                    :for={
+                      category <- [
+                        :build_run_duration,
+                        :test_run_duration,
+                        :cache_hit_rate,
+                        :bundle_size
+                      ]
+                    }
                     value={Atom.to_string(category)}
                     label={category_label(category)}
                     phx-click="update_create_alert_form_category"
@@ -340,7 +348,7 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              <div data-part="schedule-row">
+              <div :if={@create_alert_form_category != :bundle_size} data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Metric")}
                 </label>
@@ -362,6 +370,42 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
+              <div :if={@create_alert_form_category == :bundle_size} data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Size metric")}
+                </label>
+                <.dropdown
+                  id="create-alert-bundle-size-metric-dropdown"
+                  label={bundle_size_metric_label(@create_alert_form_metric)}
+                >
+                  <.dropdown_item
+                    :for={metric <- [:install_size, :download_size]}
+                    value={Atom.to_string(metric)}
+                    label={bundle_size_metric_label(metric)}
+                    phx-click="update_create_alert_form_metric"
+                    phx-value-metric={metric}
+                    data-selected={@create_alert_form_metric == metric}
+                  >
+                    <:right_icon :if={@create_alert_form_metric == metric}>
+                      <.icon name="check" />
+                    </:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
+              <div :if={@create_alert_form_category == :bundle_size} data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Branch")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-alert-git-branch"
+                  name="git_branch"
+                  value={@create_alert_form_git_branch}
+                  placeholder={dgettext("dashboard_projects", "e.g. main")}
+                  phx-keyup="update_create_alert_form_git_branch"
+                  phx-debounce="300"
+                />
+              </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Deviation (%)")}
@@ -375,7 +419,7 @@
                   phx-debounce="300"
                 />
               </div>
-              <div data-part="schedule-row">
+              <div :if={@create_alert_form_category != :bundle_size} data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Rolling window")}
                 </label>
@@ -452,13 +496,21 @@
             <.tag_cell label={category_label(rule.category)} />
           </:col>
           <:col :let={rule} label={dgettext("dashboard_projects", "Metric")}>
-            <.text_cell label={metric_label(rule.metric)} />
+            <.text_cell
+              :if={rule.category == :bundle_size}
+              label={bundle_size_metric_label(rule.metric)}
+            />
+            <.text_cell :if={rule.category != :bundle_size} label={metric_label(rule.metric)} />
           </:col>
           <:col :let={rule} label={dgettext("dashboard_projects", "Deviation")}>
             <.text_cell label={"#{rule.deviation_percentage}%"} />
           </:col>
           <:col :let={rule} label={dgettext("dashboard_projects", "Rolling window")}>
-            <.text_cell label={Integer.to_string(rule.rolling_window_size)} />
+            <.text_cell
+              :if={rule.rolling_window_size}
+              label={Integer.to_string(rule.rolling_window_size)}
+            />
+            <.text_cell :if={is_nil(rule.rolling_window_size)} label="1" />
           </:col>
           <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
             <.text_cell
@@ -494,7 +546,8 @@
                       form[:category] || rule.category,
                       form[:metric] || rule.metric,
                       form[:deviation] || rule.deviation_percentage,
-                      form[:rolling_window_size] || rule.rolling_window_size
+                      form[:rolling_window_size] || rule.rolling_window_size,
+                      git_branch: form[:git_branch] || rule.git_branch || ""
                     )}
                   </p>
                   <.alert
@@ -547,7 +600,12 @@
                       >
                         <.dropdown_item
                           :for={
-                            category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]
+                            category <- [
+                              :build_run_duration,
+                              :test_run_duration,
+                              :cache_hit_rate,
+                              :bundle_size
+                            ]
                           }
                           value={Atom.to_string(category)}
                           label={category_label(category)}
@@ -562,7 +620,10 @@
                         </.dropdown_item>
                       </.dropdown>
                     </div>
-                    <div data-part="schedule-row">
+                    <div
+                      :if={(form[:category] || rule.category) != :bundle_size}
+                      data-part="schedule-row"
+                    >
                       <label data-part="schedule-label">
                         {dgettext("dashboard_projects", "Metric")}
                       </label>
@@ -585,6 +646,50 @@
                         </.dropdown_item>
                       </.dropdown>
                     </div>
+                    <div
+                      :if={(form[:category] || rule.category) == :bundle_size}
+                      data-part="schedule-row"
+                    >
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Size metric")}
+                      </label>
+                      <.dropdown
+                        id={"edit-alert-bundle-size-metric-dropdown-#{rule.id}"}
+                        label={bundle_size_metric_label(form[:metric] || rule.metric)}
+                      >
+                        <.dropdown_item
+                          :for={metric <- [:install_size, :download_size]}
+                          value={Atom.to_string(metric)}
+                          label={bundle_size_metric_label(metric)}
+                          phx-click="update_edit_alert_form_metric"
+                          phx-value-id={rule.id}
+                          phx-value-metric={metric}
+                          data-selected={(form[:metric] || rule.metric) == metric}
+                        >
+                          <:right_icon :if={(form[:metric] || rule.metric) == metric}>
+                            <.icon name="check" />
+                          </:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <div
+                      :if={(form[:category] || rule.category) == :bundle_size}
+                      data-part="schedule-row"
+                    >
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Branch")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-alert-git-branch-#{rule.id}"}
+                        name="git_branch"
+                        value={form[:git_branch] || rule.git_branch || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. main")}
+                        phx-keyup="update_edit_alert_form_git_branch"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
                         {dgettext("dashboard_projects", "Deviation (%)")}
@@ -599,7 +704,10 @@
                         phx-debounce="300"
                       />
                     </div>
-                    <div data-part="schedule-row">
+                    <div
+                      :if={(form[:category] || rule.category) != :bundle_size}
+                      data-part="schedule-row"
+                    >
                       <label data-part="schedule-label">
                         {dgettext("dashboard_projects", "Rolling window")}
                       </label>

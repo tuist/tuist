@@ -11,9 +11,6 @@ import XcodeGraph
 @testable import TuistGenerator
 
 private let irrelevantBundleName = ""
-private func supportsResources(for target: Target) -> Bool {
-    target.supportsResources && (target.product != .staticFramework || target.containsResources)
-}
 
 // swiftlint:disable:next type_body_length
 struct ResourcesProjectMapperTests {
@@ -55,13 +52,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: "\(project.name)_\(target.name)",
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -123,10 +114,10 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenExternalObjcTargetHasResourcesAndSupportsThem() async throws {
+    func mapWhenExternalObjcStaticFrameworkHasResources() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
+        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.m"], resources: .init(resources))
         let project = Project.test(targets: [target], type: .external(hash: nil))
         given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
@@ -142,25 +133,6 @@ struct ResourcesProjectMapperTests {
             gotSideEffects: gotSideEffects,
             project: project
         )
-    }
-
-    @Test
-    func mapWhenExternalStaticLibraryHasResourcesGeneratesBundleTarget() async throws {
-        // Given
-        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
-        let project = Project.test(targets: [target], type: .external(hash: nil))
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
-
-        // When
-        let (gotProject, _) = try await subject.map(project: project)
-
-        // Then
-        // External packages often use Bundle.module, so we keep a dedicated resource bundle target.
-        let resourcesTarget = try #require(gotProject.targets.values.first(where: { $0.product == .bundle }))
-        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
-        #expect(gotProject.targets.count == 2)
     }
 
     @Test
@@ -256,13 +228,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: "\(project.name)_\(target.name)",
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -335,13 +301,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: "\(project.name)_\(target.name)",
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -397,10 +357,45 @@ struct ResourcesProjectMapperTests {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        #expect(gotProject.targets.count == 1)
-        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
-        let gotTarget = try #require(gotProject.targets.values.first)
-        #expect(gotTarget.buildableFolders == [buildableFolder])
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(gotTarget.buildableFolders.count == 1)
+        let expectedSourcesFolder = BuildableFolder(
+            path: sharedFolderPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [assetsPath],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+            ]
+        )
+        #expect(gotTarget.buildableFolders.first == expectedSourcesFolder)
+
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.buildableFolders.count == 1)
+        let expectedResourcesFolder = BuildableFolder(
+            path: sharedFolderPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftFilePath],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: assetsPath, compilerFlags: nil),
+            ]
+        )
+        #expect(resourcesTarget.buildableFolders.first == expectedResourcesFolder)
     }
 
     @Test
@@ -453,56 +448,84 @@ struct ResourcesProjectMapperTests {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        #expect(gotProject.targets.count == 1)
-        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
-        let gotTarget = try #require(gotProject.targets.values.first)
-        #expect(gotTarget.buildableFolders == buildableFolders)
-    }
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(gotTarget.buildableFolders.count == 2)
 
-    @Test
-    func mapWhenBuildableFolderContainsMetalFilesAndTargetDoesntSupportResources() async throws {
-        // Given
-        let metalFilePath = try AbsolutePath(validating: "/sources/Shader.metal")
-        let swiftFilePath = try AbsolutePath(validating: "/sources/File.swift")
-        let buildableFolders = [
-            BuildableFolder(
-                path: try AbsolutePath(validating: "/sources"),
-                exceptions: BuildableFolderExceptions(exceptions: []),
-                resolvedFiles: [
-                    BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
-                    BuildableFolderFile(path: metalFilePath, compilerFlags: nil),
+        let expectedRootSources = BuildableFolder(
+            path: rootPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [assetFolder],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
                 ]
             ),
-        ]
-        let target = Target.test(
-            product: .staticLibrary,
-            sources: [],
-            resources: ResourceFileElements([]),
-            buildableFolders: buildableFolders
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+            ]
         )
-        let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(false)
-        given(buildableFolderChecker).containsSources(.any).willReturn(true)
 
-        // When
-        let (gotProject, _) = try await subject.map(project: project)
+        #expect(gotTarget.buildableFolders.contains(expectedRootSources))
+        let expectedSourcesFolderSourcesView = BuildableFolder(
+            path: sourcesPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [assetFolder],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
+            ]
+        )
+        #expect(gotTarget.buildableFolders.contains(expectedSourcesFolderSourcesView))
 
-        // Then: A resource bundle target should be created for the Metal files
-        #expect(gotProject.targets.count == 2)
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.buildableFolders.count == 3)
 
-        let resourcesTarget = try #require(gotProject.targets.values.first(where: { $0.product == .bundle }))
-        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
-        #expect(resourcesTarget.bundleId == "\(target.bundleId).generated.resources")
+        let expectedRootResources = BuildableFolder(
+            path: rootPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftFile],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
+            ]
+        )
 
-        // The resource bundle's buildable folder should contain the Metal file (excluded from sources)
-        let resourceBuildableFolder = try #require(resourcesTarget.buildableFolders.first)
-        #expect(resourceBuildableFolder.resolvedFiles.contains(where: { $0.path.extension == "metal" }))
-
-        // The original target's buildable folder should exclude the Metal file
-        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.product == .staticLibrary }))
-        let sourceBuildableFolder = try #require(gotTarget.buildableFolders.first)
-        #expect(!sourceBuildableFolder.resolvedFiles.contains(where: { $0.path.extension == "metal" }))
-        #expect(sourceBuildableFolder.resolvedFiles.contains(where: { $0.path.extension == "swift" }))
+        #expect(resourcesTarget.buildableFolders.contains(expectedRootResources))
+        let expectedSourcesFolderResourcesView = BuildableFolder(
+            path: sourcesPath,
+            exceptions: BuildableFolderExceptions(
+                exceptions: [
+                    BuildableFolderException(
+                        excluded: [swiftFile],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: []
+                    ),
+                ]
+            ),
+            resolvedFiles: [
+                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
+            ]
+        )
+        #expect(resourcesTarget.buildableFolders.contains(expectedSourcesFolderResourcesView))
+        #expect(resourcesTarget.buildableFolders.contains(buildableFolders[2]))
     }
 
     @Test
@@ -530,13 +553,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: "\(project.name)_\(target.name)",
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -589,59 +606,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: irrelevantBundleName,
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
-        #expect(file.path == expectedPath)
-        #expect(file.contents == expectedContents.data(using: .utf8))
-
-        // Then: Targets
-        #expect(gotProject.targets.count == 1)
-        let gotTarget = try #require(gotProject.targets.values.sorted().first)
-        #expect(gotTarget.name == target.name)
-        #expect(gotTarget.product == target.product)
-        #expect(gotTarget.resources.resources == resources)
-        #expect(gotTarget.sources.count == 2)
-        #expect(gotTarget.sources.last?.path == expectedPath)
-        #expect(gotTarget.sources.last?.contentHash != nil)
-        #expect(gotTarget.dependencies.count == 0)
-    }
-
-    @Test
-    func mapWhenStaticFrameworkHasResourcesAndSupportsThem() async throws {
-        // Given
-        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
-        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.swift"], resources: .init(resources))
-        let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
-
-        // When
-        let (gotProject, gotSideEffects) = try await subject.map(project: project)
-
-        // Then: Side effects
-        #expect(gotSideEffects.count == 1)
-        let sideEffect = try #require(gotSideEffects.first)
-        guard case let SideEffectDescriptor.file(file) = sideEffect else {
-            Issue.record("Expected file descriptor")
-            return
-        }
-        let expectedPath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
-            .appending(component: Constants.DerivedDirectory.sources)
-            .appending(component: "TuistBundle+\(target.name).swift")
-        let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: "\(project.name)_\(target.name)",
-                target: target,
-                in: project,
-                supportsResources: true
-            )
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -684,13 +649,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: irrelevantBundleName,
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -730,13 +689,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: irrelevantBundleName,
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -818,13 +771,7 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(
-                targetName: target.name,
-                bundleName: "\(project.name)_test_tuist",
-                target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
-            )
+            .fileContent(targetName: target.name, bundleName: "\(project.name)_test_tuist", target: target, in: project)
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
     }
@@ -888,73 +835,6 @@ struct ResourcesProjectMapperTests {
 
         // Then: Side effects
         try verifySideEffects(gotSideEffects, for: target, in: project, bundleName: "\(project.name)_\(target.name)")
-    }
-
-    @Test
-    func mapWhenProjectIsExternalStaticFrameworkHasResourcesKeepsResourcesInFramework() async throws {
-        // Given
-        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(product: .staticFramework, sources: ["/ViewController.swift"], resources: .init(resources))
-        let project = Project.test(
-            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
-            targets: [target],
-            type: .external(hash: nil)
-        )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
-
-        // When
-        let (gotProject, gotSideEffects) = try await subject.map(project: project)
-
-        // Then: Static frameworks keep resources in the framework (no separate bundle target)
-        // so that Xcode can run GenerateAssetSymbols correctly.
-        #expect(gotProject.targets.count == 1)
-        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
-
-        let sideEffect = try #require(gotSideEffects.first)
-        guard case let SideEffectDescriptor.file(file) = sideEffect else {
-            Issue.record("Expected file descriptor")
-            return
-        }
-        let contents = String(data: file.contents ?? Data(), encoding: .utf8) ?? ""
-        #expect(contents.contains("Swift Bundle Accessor for Static Frameworks"))
-        #expect(contents.contains("static let module"))
-        #expect(!contents.contains("public final class"))
-    }
-
-    @Test
-    func mapWhenProjectIsExternalDynamicFrameworkHasResourcesUsesFrameworkBundleAccessor() async throws {
-        // Given
-        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
-        let target = Target.test(product: .framework, sources: ["/ViewController.swift"], resources: .init(resources))
-        let project = Project.test(
-            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
-            targets: [target],
-            type: .external(hash: nil)
-        )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
-
-        // When
-        let (gotProject, gotSideEffects) = try await subject.map(project: project)
-
-        // Then: External dynamic frameworks do NOT generate a separate resource bundle
-        // because resources are stored inside the framework bundle itself
-        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
-        #expect(gotProject.targets.count == 1)
-
-        let sideEffect = try #require(gotSideEffects.first)
-        guard case let SideEffectDescriptor.file(file) = sideEffect else {
-            Issue.record("Expected file descriptor")
-            return
-        }
-        let contents = String(data: file.contents ?? Data(), encoding: .utf8) ?? ""
-        // External dynamic frameworks use the framework bundle accessor (Bundle(for: BundleFinder.self))
-        // since resources live inside the framework bundle itself.
-        #expect(contents.contains("Swift Bundle Accessor for Frameworks"))
-        #expect(contents.contains("static let module = Bundle(for: BundleFinder.self)"))
-        #expect(!contents.contains("fatalError"))
-        #expect(!contents.contains(".bundle"))
     }
 
     @Test
@@ -1097,8 +977,7 @@ struct ResourcesProjectMapperTests {
                 targetName: target.name,
                 bundleName: bundleName,
                 target: target,
-                in: project,
-                supportsResources: supportsResources(for: target)
+                in: project
             )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
@@ -1144,8 +1023,7 @@ struct ResourcesProjectMapperTests {
                     contents: ResourcesProjectMapper
                         .objcImplementationFileContent(
                             targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)",
-                            target: target
+                            bundleName: "\(project.name)_\(target.name)"
                         )
                         .data(using: .utf8)
                 ),

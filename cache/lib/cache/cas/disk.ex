@@ -79,6 +79,20 @@ defmodule Cache.CAS.Disk do
   end
 
   @doc """
+  Ensures the parent directory for a CAS artifact exists and returns its path.
+
+  Returns `{:ok, dir_path}` on success, or `{:error, reason}` if directory creation fails.
+  """
+  def ensure_artifact_directory(account_handle, project_handle, id) do
+    path = account_handle |> key(project_handle, id) |> Disk.artifact_path()
+    dir = Path.dirname(path)
+
+    with :ok <- Disk.ensure_directory(path) do
+      {:ok, dir}
+    end
+  end
+
+  @doc """
   Returns file stat information for a Xcode compilation cache (CAS) artifact.
 
   ## Examples

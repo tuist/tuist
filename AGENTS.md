@@ -67,6 +67,11 @@ Examples:
   ```
 - Do not modify CHANGELOG.md as it is auto-generated
 
+## OpenAPI Code Generation
+- The server's OpenAPI spec and CLI Swift client code are regenerated with: `mise run generate-api-cli-code` (run from the `server/` directory)
+- This exports the spec to `cli/Sources/TuistServer/OpenAPI/server.yml` and regenerates `Types.swift` and `Client.swift`
+- Do not edit `server.yml`, `Types.swift`, or `Client.swift` manually — update the controller schemas in the server and regenerate
+
 ## Linting
 - To check for linting issues: `mise run lint`
 - To automatically fix fixable linting issues: `mise run lint --fix`
@@ -187,7 +192,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 - **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
 - **Modules Aliases:** Always declare module aliases at the module level in files, not within individual functions. This improves readability and avoids repetition.
 - **Mocking:** Copy the modules for mocking in @server/test/test_helper.exs not in the individual functions.
-- **Types:** Utilize typespecs (`@spec`) for public functions.
+- **Types:** Do not add typespecs (`@spec`, `@type`, etc.) to functions or modules.
 - **Naming Conventions:**
     - Modules: PascalCase (e.g., `MyModule`)
     - Functions: snake_case (e.g., `my_function`)

@@ -68,7 +68,7 @@ extension GraphDependency {
             } else {
                 return false
             }
-        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .macro:
+        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .macro, .foreignBuildOutput:
             return true
         }
     }

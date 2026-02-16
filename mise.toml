@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.145.0"
+    tuist = "4.146.2"
     swiftlint = "0.59.1"
     swiftformat = "0.58.7"
     git-cliff = "2.6.0"
@@ -8,6 +8,8 @@
     protoc = "32.1"
     "1password-cli" = "2.32.0"
     bats = "1.11.1"
+    java = "21"
+    gradle = "8.12"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"

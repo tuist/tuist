@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 public typealias ServerTestCaseRun = Operations.getTestCaseRun.Output.Ok.Body.jsonPayload
@@ -94,12 +94,14 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
             ranAt: Date? = Date(timeIntervalSince1970: 1_700_000_000),
             repetitions: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.repetitionsPayloadPayload] = [],
             scheme: String? = "App",
+            crashReport: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.crash_reportPayload? = nil,
             status: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.statusPayload = .success,
             suiteName: String? = "ExampleTests",
             testCaseId: String? = "test-case-id",
             testRunId: String? = "test-run-id"
         ) -> Self {
             .init(
+                crash_report: crashReport,
                 duration: duration,
                 failures: failures,
                 git_branch: gitBranch,

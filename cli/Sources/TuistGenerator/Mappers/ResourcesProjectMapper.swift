@@ -39,20 +39,10 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
-        let containsResourcesInBuildableFolders = try await buildableFolderChecker.containsResources(target.buildableFolders)
-        let containsSynthesizedResourcesInBuildableFolders = containsSynthesizedFilesInBuildableFolders(
-            target: target,
-            project: project
-        )
-        let supportsResources = target.supportsResources
-        let containsMetalInBuildableFolders = target.buildableFolders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
-        })
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
-           !containsMetalInBuildableFolders,
-           !containsResourcesInBuildableFolders,
-           !containsSynthesizedResourcesInBuildableFolders
+           !(try await buildableFolderChecker.containsResources(target.buildableFolders)),
+           !containsSynthesizedFilesInBuildableFolders(target: target, project: project)
         { return (
             [target],
             []
@@ -65,12 +55,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        // Static frameworks keep resources in the framework (not a separate bundle) so Xcode can
-        // generate asset symbols. The bundle accessors include search paths for app extensions.
-        let shouldGenerateResourceBundle = !supportsResources && target.product != .staticFramework
-
-        if shouldGenerateResourceBundle {
-            // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
+        if !target.supportsResources || target.product == .staticFramework {
             let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
@@ -115,12 +100,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
         let containSourcesInBuildableFolders = try await buildableFolderChecker.containsSources(target.buildableFolders)
         if target.sources.containsSwiftFiles || containSourcesInBuildableFolders {
-            let (filePath, data) = synthesizedSwiftFile(
-                bundleName: bundleName,
-                target: target,
-                project: project,
-                supportsResources: supportsResources
-            )
+            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -131,7 +111,8 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
         if case .external = project.type,
            target.sources.containsObjcFiles,
-           target.resources.containsBundleAccessedResources || containsResourcesInBuildableFolders
+           target.resources.containsBundleAccessedResources,
+           !target.supportsResources || target.product == .staticFramework
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -178,12 +159,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         })
     }
 
-    private func synthesizedSwiftFile(
-        bundleName: String,
-        target: Target,
-        project: Project,
-        supportsResources: Bool
-    ) -> (AbsolutePath, Data?) {
+    private func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
@@ -192,8 +168,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             targetName: target.name,
             bundleName: bundleName,
             target: target,
-            in: project,
-            supportsResources: supportsResources
+            in: project
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -214,8 +189,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
 
         let content: String = ResourcesProjectMapper.objcImplementationFileContent(
             targetName: target.name,
-            bundleName: bundleName,
-            target: target
+            bundleName: bundleName
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -248,25 +222,14 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         }
     }
 
-    static func fileContent(
-        targetName _: String,
-        bundleName: String,
-        target: Target,
-        in project: Project,
-        supportsResources: Bool
-    ) -> String {
-        let isExternalProject = if case .external = project.type { true } else { false }
-        let bundleAccessor = if target.product == .staticFramework {
-            swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
-        } else if supportsResources, target.product == .framework {
-            swiftFrameworkBundleAccessorString(for: target)
-        } else if supportsResources, !isExternalProject {
+    // swiftlint:disable:next function_body_length
+    static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
+        let bundleAccessor = if target.supportsResources, target.product != .staticFramework {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
 
-        // External projects ship their own public API, so we only mirror SwiftPM's Bundle.module accessors here.
         let (imports, publicBundleAccessor): (String, String) = switch project.type {
         case .external,
              .local where target.sourcesContainsPublicResourceClassName:
@@ -323,13 +286,9 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         """
     }
 
-    /// Generates an Objective-C resource bundle accessor that mirrors SwiftPM's approach,
-    /// extended for Tuist's static framework handling where resources live inside the framework.
-    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/ClangModuleBuildDescription.swift
     static func objcImplementationFileContent(
         targetName: String,
-        bundleName: String,
-        target: Target
+        bundleName: String
     ) -> String {
         return """
         #import <Foundation/Foundation.h>
@@ -345,38 +304,17 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             NSString *bundleName = @"\(bundleName)";
 
             NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
-            NSMutableArray<NSURL *> *candidates = [NSMutableArray arrayWithObjects:
+            NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
                                           [[NSBundle mainBundle] resourceURL],
                                           bundleURL,
                                           [[NSBundle mainBundle] bundleURL],
                                           nil];
 
-            // Tuist: For static frameworks, resources are inside the embedded framework bundle.
-            // Search both the host bundle (bundleForClass:) and the main bundle so the framework
-            // is found regardless of whether the static framework is linked into the app or into
-            // an intermediate dynamic framework.
-            NSString *frameworkName = @"\(target.productNameWithExtension)";
-            NSBundle *hostBundle = [NSBundle bundleForClass:\(targetName)BundleFinder.self];
-            if (hostBundle.privateFrameworksURL) {
-                [candidates addObject:[hostBundle.privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
-            }
-            [candidates addObject:[[hostBundle bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
-            [candidates addObject:[[hostBundle bundleURL] URLByAppendingPathComponent:frameworkName]];
-            [candidates addObject:[hostBundle.bundleURL URLByDeletingLastPathComponent]];
-            if ([NSBundle mainBundle].privateFrameworksURL) {
-                [candidates addObject:[[NSBundle mainBundle].privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
-            }
-            [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
-            [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:frameworkName]];
-            // App extensions are placed under PlugIns/ in the host app bundle.
-            // Navigate up from the extension to the containing app's Frameworks directory.
-            [candidates addObject:[[[[hostBundle bundleURL] URLByDeletingLastPathComponent] URLByDeletingLastPathComponent] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
-
             NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
             if (override) {
-                [candidates addObject:[NSURL fileURLWithPath:override]];
+                [candidates addObject:override];
 
-                NSArray<NSString *> *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
+                NSString *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
                 if (subpaths) {
                     for (NSString *subpath in subpaths) {
                         if ([subpath hasSuffix:@".framework"]) {
@@ -390,18 +328,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
             #endif
 
-            // Static frameworks keep resources inside the framework bundle itself.
-            // Try loading each candidate that ends with .framework directly.
-            for (NSURL *candidate in candidates) {
-                if ([[candidate pathExtension] isEqualToString:@"framework"]) {
-                    NSBundle *bundle = [NSBundle bundleWithURL:candidate];
-                    if (bundle) {
-                        return bundle;
-                    }
-                }
-            }
-
-            // Fallback: look for a separate .bundle in each candidate location
             for (NSURL *candidate in candidates) {
                 NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
                 NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
@@ -411,8 +337,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 }
             }
 
-            [NSException raise:@"BundleNotFound" format:@"Unable to find bundle named %@", bundleName];
-            return nil;
+            [NSException raise:@"BundleNotFound" format:nil];
         }
         """
     }
@@ -429,8 +354,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         """
     }
 
-    /// Mirrors SwiftPM's generated resource bundle accessor with Tuist-specific search paths.
-    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor - for SPM
@@ -442,19 +365,11 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
         ), the bundle containing the resources is copied into the final product.
             static let module: Bundle = {
                 let bundleName = "\(bundleName)"
-                let hostBundle = Bundle(for: BundleFinder.self)
+                let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
                 var candidates = [
-                    hostBundle.privateFrameworksURL,
-                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
-                    hostBundle.bundleURL,
-                    hostBundle.resourceURL,
-                    Bundle.main.privateFrameworksURL,
-                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
-                    Bundle.main.bundleURL,
                     Bundle.main.resourceURL,
-                    // App extensions are placed under PlugIns/ in the host app bundle.
-                    // Navigate up from the extension to the containing app's Frameworks directory.
-                    hostBundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Frameworks"),
+                    bundleFinderResourceURL,
+                    Bundle.main.bundleURL,
                 ]
                 // This is a fix to make Previews work with bundled resources.
                 // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
@@ -476,11 +391,9 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 // This is a fix to make unit tests work with bundled resources.
                 // Making this change allows unit tests to search one directory up for a bundle.
                 // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-                if ProcessInfo.processInfo.processName == "xctest"
-                    || ProcessInfo.processInfo.processName == "swift-testing"
-                {
-                    candidates.append(hostBundle.bundleURL.appendingPathComponent(".."))
-                }
+                #if canImport(XCTest)
+                candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+                #endif
 
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
@@ -504,69 +417,6 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 .product
         ), the bundle for classes within this module can be used directly.
             static let module = Bundle(for: BundleFinder.self)
-        }
-        """
-    }
-
-    /// Adapted from SwiftPM's resource bundle accessor logic to handle static frameworks.
-    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
-    private static func swiftStaticFrameworkBundleAccessorString(for target: Target, bundleName: String) -> String {
-        """
-        // MARK: - Swift Bundle Accessor for Static Frameworks
-        extension Foundation.Bundle {
-        /// Since \(target.name) is a \(target
-            .product), a cut down framework is embedded, with all the resources but only a stub Mach-O image.
-            static let module: Bundle = {
-                class BundleFinder {}
-                let hostBundle = Bundle(for: BundleFinder.self)
-                var candidates: [URL?] = [
-                    hostBundle.privateFrameworksURL,
-                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
-                    hostBundle.bundleURL,
-                    hostBundle.bundleURL.deletingLastPathComponent(),
-                    hostBundle.resourceURL,
-                    Bundle.main.privateFrameworksURL,
-                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
-                    Bundle.main.bundleURL,
-                    Bundle.main.resourceURL,
-                    // App extensions are placed under PlugIns/ in the host app bundle.
-                    // Navigate up from the extension to the containing app's Frameworks directory.
-                    hostBundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Frameworks"),
-                ].map({ $0?.appendingPathComponent("\(target.productNameWithExtension)") })
-
-                for candidate in candidates {
-                    if let bundle = candidate.flatMap(Bundle.init(url:)) {
-                        return bundle
-                    }
-                }
-
-                var bundleCandidates: [URL?] = [
-                    hostBundle.resourceURL,
-                    hostBundle.bundleURL,
-                    hostBundle.privateFrameworksURL,
-                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
-                    hostBundle.bundleURL.deletingLastPathComponent(),
-                    Bundle.main.resourceURL,
-                    Bundle.main.bundleURL,
-                    Bundle.main.privateFrameworksURL,
-                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
-                    hostBundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Frameworks"),
-                ]
-                if ProcessInfo.processInfo.processName == "xctest"
-                    || ProcessInfo.processInfo.processName == "swift-testing"
-                {
-                    bundleCandidates.append(hostBundle.bundleURL.appendingPathComponent(".."))
-                }
-
-                for candidate in bundleCandidates {
-                    let bundlePath = candidate?.appendingPathComponent("\(bundleName).bundle")
-                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-                        return bundle
-                    }
-                }
-
-                return Bundle.main
-            }()
         }
         """
     }
@@ -620,11 +470,9 @@ extension BuildableFolder {
     }
 
     /// Splits the folder contents into source-like and resource-like entries.
-    /// Metal files (.metal) are classified as resource-like here because their compilation produces
-    /// `default.metallib`, a resource that must live in a dedicated bundle to avoid duplicate library conflicts.
     private func splitFilesByKind() -> (sources: [BuildableFolderFile], resources: [BuildableFolderFile]) {
-        let sources = resolvedFiles.filter { $0.path.isSourceLike && $0.path.extension != "metal" }
-        let resources = resolvedFiles.filter { !$0.path.isSourceLike || $0.path.extension == "metal" }
+        let sources = resolvedFiles.filter(\.path.isSourceLike)
+        let resources = resolvedFiles.filter { !$0.path.isSourceLike }
         return (sources, resources)
     }
 

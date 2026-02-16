@@ -320,6 +320,14 @@ class ProjectFileElements {
                     groups: groups,
                     pbxproj: pbxproj
                 )
+            case let .foreignBuildOutput(path, _, _):
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case .packageProduct:
                 break
             }

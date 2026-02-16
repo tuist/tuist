@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 public protocol DeletePreviewServicing: Sendable {

@@ -102,6 +102,8 @@ extension GraphDependency {
             return String(name.split(separator: ".").first ?? "")
         case let .macro(path):
             return path.basename
+        case let .foreignBuildOutput(output):
+            return output.name
         }
     }
 }

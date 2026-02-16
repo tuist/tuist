@@ -57,7 +57,9 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 

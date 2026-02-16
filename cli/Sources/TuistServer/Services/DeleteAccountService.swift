@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 public protocol DeleteAccountServicing: Sendable {
     func deleteAccount(

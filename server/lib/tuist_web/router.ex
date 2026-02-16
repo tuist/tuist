@@ -370,15 +370,21 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           scope "/test-cases" do
             get "/", TestCasesController, :index
-            get "/:test_case_id", TestCasesController, :show
-            get "/:test_case_id/runs", TestCaseRunsController, :index
 
             scope "/runs" do
+              get "/", TestCaseRunsController, :index
               get "/:test_case_run_id", TestCaseRunsController, :show
             end
+
+            get "/:test_case_id", TestCasesController, :show
+            get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
+          get "/:test_run_id", TestsController, :show
+          get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
+          post "/crash-reports", CrashReportsController, :create
+          post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
         scope "/builds" do
@@ -801,6 +807,11 @@ defmodule TuistWeb.Router do
       live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+
+      get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
+          TestCaseRunAttachmentsController,
+          :download
+
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/notifications", ProjectNotificationsLive

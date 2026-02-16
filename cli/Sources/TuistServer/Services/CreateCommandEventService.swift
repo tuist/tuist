@@ -1,7 +1,7 @@
 #if canImport(TuistCore)
     import Foundation
     import Mockable
-    import OpenAPIURLSession
+    import OpenAPIRuntime
     import TuistCore
     import XcodeGraph
 

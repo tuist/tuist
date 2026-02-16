@@ -80,6 +80,7 @@ private enum KnownGraphDependencyReference: CaseIterable {
     case sdk
     case macro
     case packageProduct
+    case foreignBuildOutput
 
     func sampleReferences(name: String) -> [GraphDependencyReference] {
         switch self {
@@ -119,6 +120,12 @@ private enum KnownGraphDependencyReference: CaseIterable {
             ]
         case .packageProduct:
             return [.testPackageProduct(product: "\(name)", condition: nil)]
+        case .foreignBuildOutput:
+            return [.foreignBuildOutput(
+                path: try! AbsolutePath(validating: "/dependencies/\(name).xcframework"),
+                linking: .dynamic,
+                condition: nil
+            )]
         }
     }
 }
@@ -144,6 +151,8 @@ extension GraphDependencyReference {
             return .macro
         case .packageProduct:
             return .packageProduct
+        case .foreignBuildOutput:
+            return .foreignBuildOutput
         }
     }
 }
