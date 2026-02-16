@@ -944,7 +944,6 @@ defmodule Tuist.TestsTest do
       assert failure.test_case_name == "testThatFails"
       assert failure.test_module_name == "FailingTestModule"
     end
-
   end
 
   describe "upload_crash_report/1" do
@@ -4946,6 +4945,215 @@ defmodule Tuist.TestsTest do
 
       actors2 = Tests.get_quarantine_actors(project2.id)
       assert actors2 == []
+    end
+  end
+
+  describe "get_crash_report_by_test_case_run_id/1" do
+    test "returns crash report when it exists" do
+      # Given
+      test_case_run_id = UUIDv7.generate()
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: test_case_run_id,
+          exception_type: "EXC_BAD_ACCESS",
+          signal: "SIGSEGV"
+        )
+
+      # When
+      result = Tests.get_crash_report_by_test_case_run_id(test_case_run_id)
+
+      # Then
+      assert {:ok, cr} = result
+      assert cr.id == crash_report.id
+      assert cr.test_case_run_id == test_case_run_id
+      assert cr.exception_type == "EXC_BAD_ACCESS"
+      assert cr.signal == "SIGSEGV"
+    end
+
+    test "returns error when crash report does not exist" do
+      # When
+      result = Tests.get_crash_report_by_test_case_run_id(UUIDv7.generate())
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_crash_reports_by_test_case_run_ids/1" do
+    test "returns empty map for empty list" do
+      assert Tests.get_crash_reports_by_test_case_run_ids([]) == %{}
+    end
+
+    test "returns crash reports keyed by test case run id" do
+      # Given
+      run_id_1 = UUIDv7.generate()
+      run_id_2 = UUIDv7.generate()
+
+      cr1 = RunsFixtures.crash_report_fixture(test_case_run_id: run_id_1, exception_type: "EXC_CRASH")
+      cr2 = RunsFixtures.crash_report_fixture(test_case_run_id: run_id_2, exception_type: "EXC_BAD_ACCESS")
+
+      # When
+      result = Tests.get_crash_reports_by_test_case_run_ids([run_id_1, run_id_2])
+
+      # Then
+      assert map_size(result) == 2
+      assert result[run_id_1].id == cr1.id
+      assert result[run_id_2].id == cr2.id
+    end
+
+    test "returns only matching crash reports" do
+      # Given
+      run_id = UUIDv7.generate()
+      RunsFixtures.crash_report_fixture(test_case_run_id: run_id)
+
+      # When
+      result = Tests.get_crash_reports_by_test_case_run_ids([run_id, UUIDv7.generate()])
+
+      # Then
+      assert map_size(result) == 1
+      assert Map.has_key?(result, run_id)
+    end
+  end
+
+  describe "create_test_case_run_attachment/1" do
+    test "creates an attachment successfully" do
+      # Given
+      attachment_id = UUIDv7.generate()
+      test_case_run_id = UUIDv7.generate()
+
+      attrs = %{
+        id: attachment_id,
+        test_case_run_id: test_case_run_id,
+        file_name: "crash-report.ips",
+        content_type: "application/x-ips",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      # When
+      result = Tests.create_test_case_run_attachment(attrs)
+
+      # Then
+      assert {:ok, attachment} = result
+      assert attachment.id == attachment_id
+      assert attachment.test_case_run_id == test_case_run_id
+      assert attachment.file_name == "crash-report.ips"
+    end
+
+    test "returns error for missing required fields" do
+      # Given
+      attrs = %{id: UUIDv7.generate()}
+
+      # When
+      result = Tests.create_test_case_run_attachment(attrs)
+
+      # Then
+      assert {:error, _changeset} = result
+    end
+  end
+
+  describe "get_attachment_by_id/1" do
+    test "returns attachment when it exists" do
+      # Given
+      test_case_run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run_id,
+          file_name: "crash.ips"
+        )
+
+      # When
+      result = Tests.get_attachment_by_id(attachment.id)
+
+      # Then
+      assert {:ok, a} = result
+      assert a.id == attachment.id
+      assert a.file_name == "crash.ips"
+    end
+
+    test "returns error when attachment does not exist" do
+      # When
+      result = Tests.get_attachment_by_id(UUIDv7.generate())
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_attachments_by_ids/1" do
+    test "returns empty map for empty list" do
+      assert Tests.get_attachments_by_ids([]) == %{}
+    end
+
+    test "returns attachments keyed by id" do
+      # Given
+      run_id = UUIDv7.generate()
+
+      a1 =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run_id,
+          file_name: "crash1.ips"
+        )
+
+      a2 =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run_id,
+          file_name: "crash2.ips"
+        )
+
+      # When
+      result = Tests.get_attachments_by_ids([a1.id, a2.id])
+
+      # Then
+      assert map_size(result) == 2
+      assert result[a1.id].file_name == "crash1.ips"
+      assert result[a2.id].file_name == "crash2.ips"
+    end
+  end
+
+  describe "get_attachment/2" do
+    test "returns attachment matching test_case_run_id and file_name" do
+      # Given
+      run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run_id,
+          file_name: "crash-report.ips"
+        )
+
+      # When
+      result = Tests.get_attachment(run_id, "crash-report.ips")
+
+      # Then
+      assert {:ok, a} = result
+      assert a.id == attachment.id
+    end
+
+    test "returns error when no matching attachment exists" do
+      # When
+      result = Tests.get_attachment(UUIDv7.generate(), "nonexistent.ips")
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "attachment_storage_key/1" do
+    test "builds the correct S3 key with downcased handles" do
+      # When
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_case_run_id: "run-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      # Then
+      assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
     end
   end
 end

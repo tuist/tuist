@@ -287,7 +287,8 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
         run_with_preloads = %{
           run_struct
           | failures: [struct(Tuist.Tests.TestCaseFailure, failure)],
-            repetitions: [struct(Tuist.Tests.TestCaseRunRepetition, repetition)]
+            repetitions: [struct(Tuist.Tests.TestCaseRunRepetition, repetition)],
+            crash_report: nil
         }
 
         {:ok, run_with_preloads}
@@ -311,6 +312,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc1234"
       assert response["test_run_id"] == test_case_run.test_run_id
+      assert response["crash_report"] == nil
 
       assert length(response["failures"]) == 1
       failure_response = hd(response["failures"])
@@ -374,6 +376,96 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
 
       # Then
       assert json_response(conn, :not_found)
+    end
+
+    test "returns test case run with crash report", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          name: "testCrashing",
+          module_name: "CrashTests",
+          suite_name: "CrashSuite",
+          status: 1
+        )
+
+      run_struct = %{
+        struct(TestCaseRun, test_case_run)
+        | status: :failure,
+          failures: [],
+          repetitions: []
+      }
+
+      crash_report = %Tuist.Tests.CrashReport{
+        id: UUIDv7.generate(),
+        exception_type: "EXC_BAD_ACCESS",
+        signal: "SIGSEGV",
+        exception_subtype: "KERN_INVALID_ADDRESS",
+        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
+        test_case_run_id: test_case_run.id,
+        test_case_run_attachment: %Tuist.Tests.TestCaseRunAttachment{
+          id: UUIDv7.generate(),
+          file_name: "crash-report.ips",
+          test_case_run_id: test_case_run.id
+        }
+      }
+
+      stub(Tests, :get_test_case_run_by_id, fn _id, _opts ->
+        {:ok, %{run_struct | crash_report: crash_report}}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case_run.id
+
+      cr = response["crash_report"]
+      assert cr["exception_type"] == "EXC_BAD_ACCESS"
+      assert cr["signal"] == "SIGSEGV"
+      assert cr["exception_subtype"] == "KERN_INVALID_ADDRESS"
+      assert cr["triggered_thread_frames"] == "0  libswiftCore.dylib  _assertionFailure + 156"
+      assert cr["attachment_url"] =~ "/tests/test-case-runs/#{test_case_run.id}/attachments/crash-report.ips"
+    end
+
+    test "returns null crash_report when none exists", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id, status: 0)
+
+      run_struct = %{
+        struct(TestCaseRun, test_case_run)
+        | status: :success,
+          failures: [],
+          repetitions: [],
+          crash_report: nil
+      }
+
+      stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:ok, run_struct} end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["crash_report"] == nil
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

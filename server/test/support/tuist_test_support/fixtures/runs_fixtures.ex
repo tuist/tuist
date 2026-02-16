@@ -6,10 +6,12 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias Tuist.Builds
   alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -229,6 +231,44 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     IngestRepo.insert_all(TestCaseRunRepetition, [test_case_run_repetition])
 
     test_case_run_repetition
+  end
+
+  def crash_report_fixture(attrs \\ []) do
+    test_case_run_id = Keyword.fetch!(attrs, :test_case_run_id)
+
+    crash_report = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: test_case_run_id,
+      exception_type: Keyword.get(attrs, :exception_type, "EXC_CRASH"),
+      signal: Keyword.get(attrs, :signal, "SIGABRT"),
+      exception_subtype: Keyword.get(attrs, :exception_subtype, "KERN_INVALID_ADDRESS"),
+      triggered_thread_frames:
+        Keyword.get(attrs, :triggered_thread_frames, "0  libswiftCore.dylib  _assertionFailure + 156"),
+      test_case_run_attachment_id:
+        Keyword.get_lazy(attrs, :test_case_run_attachment_id, fn ->
+          attachment = test_case_run_attachment_fixture(test_case_run_id: test_case_run_id)
+          attachment.id
+        end),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    IngestRepo.insert_all(CrashReport, [crash_report])
+
+    crash_report
+  end
+
+  def test_case_run_attachment_fixture(attrs \\ []) do
+    attachment = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
+      content_type: Keyword.get(attrs, :content_type, "application/x-ips"),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    IngestRepo.insert_all(TestCaseRunAttachment, [attachment])
+
+    attachment
   end
 
   def test_case_event_fixture(attrs \\ []) do
