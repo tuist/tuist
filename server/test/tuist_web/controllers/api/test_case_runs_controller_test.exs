@@ -434,7 +434,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert cr["signal"] == "SIGSEGV"
       assert cr["exception_subtype"] == "KERN_INVALID_ADDRESS"
       assert cr["triggered_thread_frames"] == "0  libswiftCore.dylib  _assertionFailure + 156"
-      assert cr["attachment_url"] =~ "/tests/test-case-runs/#{test_case_run.id}/attachments/crash-report.ips"
+      assert cr["attachment_url"] =~ "/tests/test-cases/runs/#{test_case_run.id}/attachments/crash-report.ips"
     end
 
     test "returns null crash_report when none exists", %{

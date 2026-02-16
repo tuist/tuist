@@ -7,7 +7,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
-  describe "GET /:account_handle/:project_handle/tests/test-case-runs/:test_case_run_id/attachments/:file_name" do
+  describe "GET /:account_handle/:project_handle/tests/test-cases/runs/:test_case_run_id/attachments/:file_name" do
     test "redirects to the presigned download URL when user has permission", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -29,7 +29,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsControllerTest do
       conn =
         get(
           conn,
-          ~p"/#{user.account.name}/#{project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+          ~p"/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
         )
 
       # Then
@@ -47,7 +47,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsControllerTest do
       conn =
         get(
           conn,
-          ~p"/#{user.account.name}/#{project.name}/tests/test-case-runs/#{test_case_run_id}/attachments/nonexistent.ips"
+          ~p"/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run_id}/attachments/nonexistent.ips"
         )
 
       # Then
@@ -73,7 +73,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsControllerTest do
       assert_error_sent 404, fn ->
         get(
           conn,
-          ~p"/#{owner.account.name}/#{project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+          ~p"/#{owner.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
         )
       end
     end

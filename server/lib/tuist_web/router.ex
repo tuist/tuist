@@ -808,7 +808,7 @@ defmodule TuistWeb.Router do
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
 
-      get "/tests/test-case-runs/:test_case_run_id/attachments/:file_name",
+      get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
           :download
 

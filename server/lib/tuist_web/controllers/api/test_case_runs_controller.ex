@@ -498,7 +498,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
       triggered_thread_frames: cr.triggered_thread_frames,
       attachment_url:
         TuistWeb.Endpoint.url() <>
-          "/#{account_handle}/#{project_handle}/tests/test-case-runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
+          "/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
     }
   end
 

@@ -385,7 +385,7 @@
                     <.neutral_button
                       :if={test_case_run.crash_report.test_case_run_attachment.file_name}
                       href={
-                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                       }
                       target="_blank"
                       size="medium"
@@ -1484,7 +1484,7 @@
                   <.neutral_button
                     :if={test_case_run.crash_report.test_case_run_attachment.file_name}
                     href={
-                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-case-runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
                     }
                     target="_blank"
                     size="medium"
