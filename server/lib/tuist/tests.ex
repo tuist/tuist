@@ -40,13 +40,9 @@ defmodule Tuist.Tests do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def upload_crash_report(attrs) do
-    changeset = CrashReport.create_changeset(%CrashReport{}, attrs)
-
-    if changeset.valid? do
-      IngestRepo.insert(changeset)
-    else
-      {:error, changeset}
-    end
+    %CrashReport{}
+    |> CrashReport.create_changeset(attrs)
+    |> IngestRepo.insert()
   end
 
   def get_crash_reports_by_test_case_run_ids([]), do: %{}
@@ -1687,13 +1683,9 @@ defmodule Tuist.Tests do
   end
 
   def create_test_case_run_attachment(attrs) do
-    changeset = TestCaseRunAttachment.create_changeset(%TestCaseRunAttachment{}, attrs)
-
-    if changeset.valid? do
-      IngestRepo.insert(changeset)
-    else
-      {:error, changeset}
-    end
+    %TestCaseRunAttachment{}
+    |> TestCaseRunAttachment.create_changeset(attrs)
+    |> IngestRepo.insert()
   end
 
   def get_attachment_by_id(id) do
