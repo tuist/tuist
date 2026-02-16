@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-11 17:31+0000\n"
+"PO-Revision-Date: 2026-02-16 18:02+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ru/>\n"
@@ -706,26 +706,34 @@ msgstr "Система сборки"
 msgid "Select build system"
 msgstr "Выберите систему сборки"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
+"Предупреждение, когда <strong>%{size_label}</strong> последнего пакета в "
+"ветке <strong>%{git_branch}</strong> увеличился на <strong>%{deviation}%</"
+"strong> по сравнению с предыдущим пакетом."
 
+#, fuzzy
 msgid "Branch"
-msgstr ""
+msgstr "Ветвь"
 
 msgid "Bundle size"
 msgstr ""
 
+#, fuzzy
 msgid "Download size"
-msgstr ""
+msgstr "Размер загрузки"
 
+#, fuzzy
 msgid "Size metric"
-msgstr ""
+msgstr "Показатель размера"
 
+#, fuzzy
 msgid "e.g. main"
-msgstr ""
+msgstr "Например: main"
 
 #, fuzzy
 #~ msgid "Only people with access"
