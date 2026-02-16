@@ -360,6 +360,12 @@
                                 },
                                 "module-cache": {
                                     "text": "模块缓存"
+                                },
+                                "xcode": {
+                                    "text": "Xcode"
+                                },
+                                "gradle-cache": {
+                                    "text": "Gradle 缓存"
                                 }
                             }
                         },
