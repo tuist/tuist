@@ -1,3 +1,6 @@
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 import FileSystem
 import Foundation
 import Mockable
