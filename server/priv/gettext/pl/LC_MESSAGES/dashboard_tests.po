@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-29 18:44+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-02-16 17:40+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
 "Language: pl\n"
@@ -824,17 +824,21 @@ msgstr "Testy poddane kwarantannie"
 msgid "Tuist"
 msgstr "Tuist"
 
+#, fuzzy
 msgid "Crash Report"
-msgstr ""
+msgstr "Raport o awarii"
 
+#, fuzzy
 msgid "Exception"
-msgstr ""
+msgstr "Wyjątek"
 
+#, fuzzy
 msgid "Signal"
-msgstr ""
+msgstr "Sygnał"
 
+#, fuzzy
 msgid "Subtype"
-msgstr ""
+msgstr "Podtyp"
 
 #, fuzzy
 #~ msgid "Binary Cache"
