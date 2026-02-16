@@ -24,6 +24,7 @@ defmodule Tuist.Tests do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Repo
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
@@ -31,11 +32,18 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
+  def upload_crash_report(attrs) do
+    %CrashReport{}
+    |> CrashReport.create_changeset(attrs)
+    |> IngestRepo.insert()
+  end
 
   def get_test(id, opts \\ []) do
     case Ecto.UUID.cast(id) do
@@ -91,10 +99,6 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  def list_test_case_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
-  end
-
   def get_test_run_failures_count(test_run_id) do
     query =
       from f in TestCaseFailure,
@@ -104,28 +108,6 @@ defmodule Tuist.Tests do
         select: count(f.id)
 
     ClickHouseRepo.one(query) || 0
-  end
-
-  def list_test_run_failures(test_run_id, attrs) do
-    query =
-      from f in TestCaseFailure,
-        join: tcr in TestCaseRun,
-        on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id,
-        select: %{
-          id: f.id,
-          test_case_run_id: f.test_case_run_id,
-          message: f.message,
-          path: f.path,
-          line_number: f.line_number,
-          issue_type: f.issue_type,
-          inserted_at: f.inserted_at,
-          test_case_name: tcr.name,
-          test_module_name: tcr.module_name,
-          test_suite_name: tcr.suite_name
-        }
-
-    Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)
   end
 
   def list_test_suite_runs(attrs) do
@@ -176,7 +158,7 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        test_case_ids_with_flaky_run = create_test_modules(test, test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
 
         schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
@@ -188,7 +170,7 @@ defmodule Tuist.Tests do
           :test_created
         )
 
-        {:ok, test}
+        {:ok, %{test | test_case_runs: test_case_runs}}
 
       {:error, changeset} ->
         {:error, changeset}
@@ -433,18 +415,19 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Lists test case runs for a specific test case by its UUID.
+  Lists test case runs with optional filters (e.g. test_case_id, test_run_id).
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
-  def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
-    base_query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_case_id == ^test_case_id
-      )
+  def list_test_case_runs(attrs, opts \\ []) do
+    base_query = from(tcr in TestCaseRun)
+    preloads = Keyword.get(opts, :preload, [])
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
-    results = Repo.preload(results, :ran_by_account)
+    results =
+      results
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
 
     {results, meta}
   end
@@ -474,7 +457,7 @@ defmodule Tuist.Tests do
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
-    Enum.flat_map(test_modules, fn module_attrs ->
+    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -513,14 +496,17 @@ defmodule Tuist.Tests do
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
-      create_test_cases_for_module(
-        test,
-        module_id,
-        test_cases,
-        suite_name_to_id,
-        module_name,
-        module_test_case_run_data
-      )
+      {flaky_ids, test_case_runs} =
+        create_test_cases_for_module(
+          test,
+          module_id,
+          test_cases,
+          suite_name_to_id,
+          module_name,
+          module_test_case_run_data
+        )
+
+      {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
   end
 
@@ -795,7 +781,7 @@ defmodule Tuist.Tests do
 
     create_first_run_events(test_case_runs)
 
-    test_case_ids_with_flaky_run
+    {test_case_ids_with_flaky_run, test_case_runs}
   end
 
   defp create_first_run_events(test_case_runs) do
@@ -1349,7 +1335,7 @@ defmodule Tuist.Tests do
       Enum.map(existing_runs, fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions])
+        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions, :crash_report])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 
@@ -1660,5 +1646,47 @@ defmodule Tuist.Tests do
     end
 
     {:ok, length(test_cases_to_update)}
+  end
+
+  def create_test_case_run_attachment(attrs) do
+    %TestCaseRunAttachment{}
+    |> TestCaseRunAttachment.create_changeset(attrs)
+    |> IngestRepo.insert()
+  end
+
+  def get_attachment_by_id(id) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def get_attachment(test_case_run_id, file_name) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.test_case_run_id == ^test_case_run_id and a.file_name == ^file_name,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def attachment_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        test_case_run_id: test_case_run_id,
+        attachment_id: attachment_id,
+        file_name: file_name
+      }) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/test-case-runs/#{test_case_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 end
