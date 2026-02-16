@@ -52,28 +52,6 @@ defmodule TuistWeb.API.CrashReportsControllerTest do
       assert json_response(conn, :ok) == %{}
     end
 
-    test "returns bad request when upload fails", %{conn: conn, user: user, project: project} do
-      # Given
-      stub(Tests, :upload_crash_report, fn _attrs ->
-        {:error, %Ecto.Changeset{}}
-      end)
-
-      # When
-      conn =
-        post(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/crash-reports",
-          %{
-            test_case_run_id: UUIDv7.generate(),
-            test_case_run_attachment_id: UUIDv7.generate()
-          }
-        )
-
-      # Then
-      response = json_response(conn, :bad_request)
-      assert response["message"] == "The request parameters are invalid"
-    end
-
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
       # Given
       other_user = AccountsFixtures.user_fixture(preload: [:account])

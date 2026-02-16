@@ -80,35 +80,29 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       inserted_at: NaiveDateTime.utc_now()
     }
 
-    case Tests.create_test_case_run_attachment(attrs) do
-      {:ok, _attachment} ->
-        expires_in = 3600
+    {:ok, _attachment} = Tests.create_test_case_run_attachment(attrs)
 
-        s3_object_key =
-          Tests.attachment_storage_key(%{
-            account_handle: project.account.name,
-            project_handle: project.name,
-            test_case_run_id: body_params.test_case_run_id,
-            attachment_id: attachment_id,
-            file_name: body_params.file_name
-          })
+    expires_in = 3600
 
-        upload_url =
-          Storage.generate_upload_url(s3_object_key, project.account, expires_in: expires_in)
+    s3_object_key =
+      Tests.attachment_storage_key(%{
+        account_handle: project.account.name,
+        project_handle: project.name,
+        test_case_run_id: body_params.test_case_run_id,
+        attachment_id: attachment_id,
+        file_name: body_params.file_name
+      })
 
-        conn
-        |> put_status(:created)
-        |> json(%{
-          id: attachment_id,
-          upload_url: upload_url,
-          expires_at: System.system_time(:second) + expires_in
-        })
+    upload_url =
+      Storage.generate_upload_url(s3_object_key, project.account, expires_in: expires_in)
 
-      {:error, _changeset} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "The request parameters are invalid"})
-    end
+    conn
+    |> put_status(:created)
+    |> json(%{
+      id: attachment_id,
+      upload_url: upload_url,
+      expires_at: System.system_time(:second) + expires_in
+    })
   end
 
   operation(:download,

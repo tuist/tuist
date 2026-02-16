@@ -57,31 +57,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["expires_at"]
     end
 
-    test "returns bad request when attachment creation fails", %{
-      conn: conn,
-      user: user,
-      project: project
-    } do
-      # Given
-      stub(Tests, :create_test_case_run_attachment, fn _attrs ->
-        {:error, %Ecto.Changeset{}}
-      end)
-
-      # When
-      conn =
-        post(
-          conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
-          %{
-            test_case_run_id: UUIDv7.generate(),
-            file_name: "crash-report.ips"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :bad_request)
-      assert response["message"] == "The request parameters are invalid"
-    end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
       # Given

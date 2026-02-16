@@ -89,16 +89,10 @@ defmodule TuistWeb.API.CrashReportsController do
       inserted_at: NaiveDateTime.utc_now()
     }
 
-    case Tests.upload_crash_report(crash_report_params) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{})
+    {:ok, _} = Tests.upload_crash_report(crash_report_params)
 
-      {:error, _changeset} ->
-        conn
-        |> put_status(:bad_request)
-        |> json(%{message: "The request parameters are invalid"})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{})
   end
 end
