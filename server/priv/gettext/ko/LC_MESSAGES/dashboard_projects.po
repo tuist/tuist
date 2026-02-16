@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-11 17:31+0000\n"
+"PO-Revision-Date: 2026-02-16 18:02+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
@@ -602,11 +602,14 @@ msgstr "빌드 시스템"
 msgid "Select build system"
 msgstr "빌드 시스템 선택"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
+"<strong></strong> 의 %{size_label} 가 이전 번들에 비해 %{deviation}% "
+"증가했습니다. %{size_label}의 최신 번들</strong> <strong> <strong></strong>"
 
 msgid "Branch"
 msgstr ""
@@ -617,11 +620,13 @@ msgstr ""
 msgid "Download size"
 msgstr ""
 
+#, fuzzy
 msgid "Size metric"
-msgstr ""
+msgstr "크기 측정 기준"
 
+#, fuzzy
 msgid "e.g. main"
-msgstr ""
+msgstr "예시: main"
 
 #~ msgid "Only people with access"
 #~ msgstr "접근 권한이 있는 사람만 볼 수 있음"
