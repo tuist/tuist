@@ -1,0 +1,50 @@
+Implement the following plan:
+
+# Plan: Reproduce GRDB SchedulingWatchdog Crash
+
+## Context
+
+A Depop customer reported a crash in their `ATEventsTests` where GRDB's `SchedulingWatchdog.preconditionValidQueue` fails with `EXC_BREAKPOINT`. The root cause: calling synchronous GRDB `DatabasePool` migration methods from a Swift async context. GRDB relies on `DispatchQueue.getSpecific` to verify queue identity, which breaks when the caller is on Swift's cooperative thread pool rather than a traditional GCD queue.
+
+The goal is to create a minimal reproduction project at `~/Downloads/GRDBCrashRepro` that demonstrates the crash and shows the fix.
+
+## Plan
+
+### 1. Create a Swift package at `~/Downloads/GRDBCrashRepro`
+
+**`Package.swift`** - A simple executable + test target with GRDB dependency.
+
+**`Sources/GRDBCrashRepro/Database.swift`** - Minimal reproduction of the pattern:
+- A `DatabaseSetup` struct with a `DatabasePool`
+- A `setup()` method that creates a `DatabaseMigrator`, registers a simple migration, and calls `migrator.migrate(dbPool)` synchronously
+- A static `live` factory that creates an in-memory `DatabasePool`
+
+**`Tests/GRDBCrashReproTests/CrashReproTests.swift`** - Two tests:
+- `test_crash_sync_migrate_from_async_context()` - Calls `setup()` from an async test, reproducing the crash
+- `test_fix_async_migrate()` - Shows the fix: wrapping the migrate call so it doesn't run directly on the cooperative thread pool (either using GRDB's async write methods or wrapping in a DispatchQueue continuation)
+
+### 2. Files to create
+
+| File | Purpose |
+|------|---------|
+| `~/Downloads/GRDBCrashRepro/Package.swift` | Package manifest with GRDB ~> 7.0 dependency |
+| `~/Downloads/GRDBCrashRepro/Sources/GRDBCrashRepro/Database.swift` | DatabasePool setup + migration code mimicking CoordinatorImpl |
+| `~/Downloads/GRDBCrashRepro/Tests/GRDBCrashReproTests/CrashReproTests.swift` | Async test that triggers the crash + fixed version |
+
+## Verification
+
+1. `cd ~/Downloads/GRDBCrashRepro && swift test --filter test_crash` should crash with the GRDB precondition failure
+2. `cd ~/Downloads/GRDBCrashRepro && swift test --filter test_fix` should pass
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+<task-notification>
+<task-id>b1cd8c5</task-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b1cd8c5.output</output-file>
+<status>completed</status>
+<summary>Background command "Build the repro project" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b1cd8c5.output
