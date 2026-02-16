@@ -363,6 +363,9 @@
                                     "items": {
                                         "xcode-cache": {
                                             "text": "Xcode 快取"
+                                        },
+                                        "module-cache": {
+                                            "text": "模組快取"
                                         }
                                     }
                                 },
