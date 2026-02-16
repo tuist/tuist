@@ -7,7 +7,7 @@ author: fortmarek
 highlighted: true
 ---
 
-Tuist has started as a macOS-only tool. That made sense when its scope was Xcode project generation and building your projects for Apple platforms. But Tuist has grown well beyond that. We now offer build and test insights, flaky test detection, build caching, and more. And we're adding [Gradle support](https://community.tuist.dev/t/tuist-is-coming-to-android/838) for Android projects. Restricting the CLI to macOS no longer reflects what Tuist does or where developers need it.
+Tuist has started as a macOS-only tool. That made sense when its scope was Xcode project generation and building your projects for Apple platforms. But Tuist has grown well beyond that. We now offer build and test insights, flaky test detection, build caching, and more. And we're adding [Gradle support](https://community.tuist.dev/t/tuist-is-coming-to-android/838), for example, for Android projects. Restricting the CLI to macOS no longer reflects what Tuist does or where developers need it.
 
 That's why we're very excited to announce that the Tuist CLI runs on Linux.
 
