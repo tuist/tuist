@@ -117,12 +117,15 @@ defmodule TuistWeb.API.Registry.SwiftController do
 
     swift_version = opts["swift-version"]
 
+    manifests = if package_release, do: package_release.manifests, else: []
+
     object_key =
       package_manifest_object_key(%{
         swift_version: swift_version,
         scope: scope,
         name: name,
-        version: version
+        version: version,
+        manifests: manifests
       })
 
     if not is_nil(package_release) and not is_nil(object_key) do
@@ -155,7 +158,13 @@ defmodule TuistWeb.API.Registry.SwiftController do
     end
   end
 
-  defp package_manifest_object_key(%{swift_version: swift_version, scope: scope, name: name, version: version}) do
+  defp package_manifest_object_key(%{
+         swift_version: swift_version,
+         scope: scope,
+         name: name,
+         version: version,
+         manifests: manifests
+       }) do
     if is_nil(swift_version) do
       object_key =
         Packages.package_object_key(%{scope: scope, name: name},
@@ -167,20 +176,47 @@ defmodule TuistWeb.API.Registry.SwiftController do
         object_key
       end
     else
-      [
-        String.replace_trailing(swift_version, ".0.0", ""),
-        String.replace_trailing(swift_version, ".0", ""),
-        swift_version
-      ]
-      |> MapSet.new()
-      |> Enum.map(
-        &Packages.package_object_key(%{scope: scope, name: name},
-          version: version,
-          path: "Package@swift-#{&1}.swift"
+      exact_match =
+        [
+          String.replace_trailing(swift_version, ".0.0", ""),
+          String.replace_trailing(swift_version, ".0", ""),
+          swift_version
+        ]
+        |> MapSet.new()
+        |> Enum.map(
+          &Packages.package_object_key(%{scope: scope, name: name},
+            version: version,
+            path: "Package@swift-#{&1}.swift"
+          )
         )
-      )
-      |> Enum.find(&Storage.object_exists?(&1, :registry))
+        |> Enum.find(&Storage.object_exists?(&1, :registry))
+
+      exact_match || best_compatible_manifest_object_key(swift_version, manifests, scope, name, version)
     end
+  end
+
+  defp best_compatible_manifest_object_key(requested_version, manifests, scope, name, version) do
+    requested = normalize_version(requested_version)
+
+    manifests
+    |> Enum.filter(&(&1.swift_version && &1.swift_tools_version))
+    |> Enum.filter(&(Version.compare(normalize_version(&1.swift_tools_version), requested) != :gt))
+    |> Enum.sort_by(&normalize_version(&1.swift_tools_version), {:desc, Version})
+    |> Enum.find_value(fn manifest ->
+      object_key =
+        Packages.package_object_key(%{scope: scope, name: name},
+          version: version,
+          path: "Package@swift-#{manifest.swift_version}.swift"
+        )
+
+      if Storage.object_exists?(object_key, :registry), do: object_key
+    end)
+  end
+
+  defp normalize_version(version_string) do
+    parts = String.split(version_string, ".")
+    padded = (parts ++ List.duplicate("0", 3 - length(parts))) |> Enum.take(3) |> Enum.join(".")
+    Version.parse!(padded)
   end
 
   defp alternate_manifests_link(%Package{scope: scope, name: name}, %PackageRelease{

@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.146.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.146.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* enable HTTP logging and server warnings on Linux by [@fortmarek](https://github.com/fortmarek) in [#9479](https://github.com/tuist/tuist/pull/9479)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.1...4.146.2
+
+## What's Changed in 4.146.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -17,7 +25,7 @@ All notable changes to this project will be documented in this file.
 * only cache dependency checkouts in Linux CI jobs by [@fortmarek](https://github.com/fortmarek) in [#9447](https://github.com/tuist/tuist/pull/9447)
 * add missing tree-shake after focus targets in automation mapper chain by [@pepicrft](https://github.com/pepicrft) in [#9443](https://github.com/tuist/tuist/pull/9443)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.1
 
 ## What's Changed in 4.145.0<!-- RELEASE NOTES START -->
 

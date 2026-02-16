@@ -13,6 +13,11 @@ defmodule TuistCommon.SentryEventFilterTest do
   end
 
   describe "before_send/1" do
+    test "excludes Bandit.HTTPError" do
+      event = event(%{original_exception: %Bandit.HTTPError{message: "Body read timeout"}})
+      assert SentryEventFilter.before_send(event) == false
+    end
+
     test "excludes Bandit.TransportError" do
       event = event(%{original_exception: %Bandit.TransportError{message: "test"}})
       assert SentryEventFilter.before_send(event) == false

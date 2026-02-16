@@ -20,6 +20,7 @@ defmodule TuistCommon.SentryEventFilter do
   """
 
   @default_ignored_exceptions [
+    Bandit.HTTPError,
     Bandit.TransportError,
     Phoenix.Router.NoRouteError
   ]
