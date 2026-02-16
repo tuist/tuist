@@ -610,3 +610,15 @@ msgstr ""
 
 msgid "Tuist"
 msgstr ""
+
+msgid "Crash Report"
+msgstr ""
+
+msgid "Exception"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Subtype"
+msgstr ""

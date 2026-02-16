@@ -826,6 +826,18 @@ msgstr "Тесты в карантине"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Crash Report"
+msgstr ""
+
+msgid "Exception"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Subtype"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Binary Cache"
 #~ msgstr "Двоичный кэш"
