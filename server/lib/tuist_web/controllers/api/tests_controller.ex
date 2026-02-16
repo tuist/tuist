@@ -369,13 +369,12 @@ defmodule TuistWeb.API.TestsController do
             duration: run.duration,
             is_ci: run.is_ci,
             is_flaky: run.is_flaky,
-            scheme: nullable_string(run.scheme),
-            macos_version: nullable_string(run.macos_version),
-            xcode_version: nullable_string(run.xcode_version),
-            model_identifier: nullable_string(run.model_identifier),
-            device_name: resolve_device_name(run.model_identifier),
-            git_branch: nullable_string(run.git_branch),
-            git_commit_sha: nullable_string(run.git_commit_sha),
+            scheme: run.scheme,
+            macos_version: run.macos_version,
+            xcode_version: run.xcode_version,
+            model_identifier: run.model_identifier,
+            git_branch: run.git_branch,
+            git_commit_sha: run.git_commit_sha,
             ran_at: format_ran_at(run.ran_at),
             total_test_count: test_metrics.total_count,
             failed_test_count: test_metrics.failed_count,
@@ -393,16 +392,6 @@ defmodule TuistWeb.API.TestsController do
         |> put_status(:not_found)
         |> json(%{message: "Test run not found."})
     end
-  end
-
-  defp nullable_string(""), do: nil
-  defp nullable_string(value), do: value
-
-  defp resolve_device_name(nil), do: nil
-  defp resolve_device_name(""), do: nil
-
-  defp resolve_device_name(model_identifier) do
-    Tuist.Apple.devices()[model_identifier] || model_identifier
   end
 
   defp format_ran_at(nil), do: nil
