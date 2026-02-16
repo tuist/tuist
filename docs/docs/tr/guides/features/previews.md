@@ -167,11 +167,11 @@ platformuyla</LocalizedLink> entegre edin.
 :::
 
 Yeni işlevlerin test edilmesi, her kod incelemesinin bir parçası olmalıdır.
-Ancak uygulamayı yerel olarak derlemek zorunda kalmak, gereksiz bir zorluk
+Ancak uygulamayı yerel olarak derlemek zorunda kalmak, gereksiz zorluklar
 yaratır ve genellikle geliştiricilerin cihazlarında test işlevlerini tamamen
 atlamasına neden olur. Peki, her pull isteği, Tuist macOS uygulamasında
-seçtiğiniz bir cihazda uygulamayı otomatik olarak çalıştıracak derleme
-bağlantısı içerse ne olurl *?*
+seçtiğiniz cihazda uygulamayı otomatik olarak çalıştıracak derleme bağlantısı
+içerse ne olurl *?*
 
 Tuist projeniz [GitHub](https://github.com) gibi Git platformunuzla bağlandıktan
 sonra, CI iş akışınıza <LocalizedLink href="/cli/share">`tuist share
@@ -195,7 +195,7 @@ oluşturulan bir önizleme, yalnızca `ana` dalından da oluşturulan daha yeni
 
 ### Kurulum {#sdk-installation}
 
-Tuist SDK'yı Swift paketi bağımlılığı olarak ekleyin:
+Tuist SDK'yı Swift package bağımlılığı olarak ekleyin:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
