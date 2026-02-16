@@ -5,28 +5,28 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# Swift paketi taşıma {#migrate-a-swift-package}
+# Swift package'i taşıma {#migrate-a-swift-package}
 
-Swift paketi, Swift kodu için bir bağımlılık yöneticisi olarak ortaya çıktı ve
+Swift package, Swift kodu için bir bağımlılık yöneticisi olarak ortaya çıktı ve
 istemeden de olsa projelerin yönetilmesi ve Objective-C gibi diğer programlama
 dillerinin desteklenmesi sorununu çözdü. Bu araç farklı bir amaçla
 tasarlandığından, Tuist'in sağladığı esneklik, performans ve güce sahip olmadığı
 için büyük ölçekli projeleri yönetmek için kullanmak zor olabilir. Bu durum,
-Swift paketi ve yerel Xcode projelerinin performansını karşılaştıran aşağıdaki
+Swift package ve yerel Xcode projelerinin performansını karşılaştıran aşağıdaki
 tabloyu içeren [Scaling iOS at
 Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)
 makalesinde iyi bir şekilde ele alınmıştır:
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
-Swift paketi'nin benzer bir proje yönetimi rolü üstlenebileceğini düşünerek
-Tuist'in gerekliliğini sorgulayan geliştiriciler ve kuruluşlarla sık sık
-karşılaşıyoruz. Bazıları geçiş yapmaya karar veriyor, ancak daha sonra
+Swift package Manager'ın benzer bir proje yönetimi rolü üstlenebileceğini
+düşünerek Tuist'in gerekliliğini sorgulayan geliştiriciler ve kuruluşlarla sık
+sık karşılaşıyoruz. Bazıları geçiş yapmaya karar veriyor, ancak daha sonra
 geliştirici deneyimlerinin önemli ölçüde kötüleştiğini fark ediyor. Örneğin, bir
 dosyanın yeniden adlandırılması için yeniden indeksleme işlemi 15 saniye kadar
 sürebilir. 15 saniye!
 
-**Apple'ın Swift paketi yöneticisini ölçeklenebilir bir proje yöneticisi haline
+**Apple'ın Swift package Manager'ı ölçeklenebilir bir proje yöneticisi haline
 getirip getirmeyeceği belirsizdir.** Ancak, bunun olacağına dair herhangi bir
 işaret görmüyoruz. Aslında, tam tersini görüyoruz. Xcode'dan esinlenen kararlar
 alıyorlar, örneğin örtük yapılandırmalarla kolaylık sağlama gibi, ki
@@ -39,17 +39,17 @@ derlenmiş bir dilin kullanılması gibi.
 
 ::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
-Tuist, Swift paketi yöneticisini bir bağımlılık yöneticisi olarak görür ve bu
+Tuist, Swift package Manager'ı bir bağımlılık yöneticisi olarak görür ve bu
 harika bir şeydir. Bağımlılıkları çözmek ve bunları oluşturmak için kullanırız.
 Projeleri tanımlamak için kullanmayız çünkü bunun için tasarlanmamıştır.
 <!-- -->
 :::
 
-## Swift paket yöneticisinden Tuist'e geçiş {#migrating-from-swift-package-manager-to-tuist}
+## Swift Paket Yöneticisinden Tuist'e geçiş {#migrating-from-swift-package-manager-to-tuist}
 
-Swift paketi ile Tuist arasındaki benzerlikler, geçiş sürecini kolaylaştırır.
-Temel fark, projelerinizi `Package.swift` yerine Tuist'in DSL'sini kullanarak
-tanımlayacak olmanızdır.
+Swift package Manager ile Tuist arasındaki benzerlikler, geçiş sürecini
+kolaylaştırır. Temel fark, projelerinizi `Package.swift` yerine Tuist'in
+DSL'sini kullanarak tanımlayacak olmanızdır.
 
 İlk olarak, `Project.swift` dosyasını `Package.swift` dosyasının yanına
 oluşturun. `Project.swift` dosyası projenizin tanımını içerecektir. Aşağıda, tek
