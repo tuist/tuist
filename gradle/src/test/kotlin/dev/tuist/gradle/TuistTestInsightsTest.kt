@@ -1,6 +1,7 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import org.gradle.api.tasks.testing.TestResult
 import org.junit.jupiter.api.Test
 import java.net.URI
 import kotlin.test.assertEquals
@@ -24,6 +25,8 @@ private class TestCIDetectorForTests(private val isCi: Boolean = false) : CIDete
 class TuistTestInsightsTest {
 
     private val gson = Gson()
+
+    // --- Data class serialization tests ---
 
     @Test
     fun `TestReportRequest serializes with snake_case field names`() {
@@ -172,5 +175,507 @@ class TuistTestInsightsTest {
 
         assertEquals(300, suite.durationMs)
         assertEquals("failure", suite.status)
+    }
+
+    // --- mapTestResultType tests ---
+
+    @Test
+    fun `mapTestResultType maps SUCCESS to success`() {
+        assertEquals("success", mapTestResultType(TestResult.ResultType.SUCCESS))
+    }
+
+    @Test
+    fun `mapTestResultType maps FAILURE to failure`() {
+        assertEquals("failure", mapTestResultType(TestResult.ResultType.FAILURE))
+    }
+
+    @Test
+    fun `mapTestResultType maps SKIPPED to skipped`() {
+        assertEquals("skipped", mapTestResultType(TestResult.ResultType.SKIPPED))
+    }
+
+    // --- isFrameworkFrame tests ---
+
+    @Test
+    fun `isFrameworkFrame filters JUnit frames`() {
+        assertTrue(isFrameworkFrame(StackTraceElement("org.junit.jupiter.api.Test", "run", "Test.java", 10)))
+        assertTrue(isFrameworkFrame(StackTraceElement("junit.framework.TestCase", "run", "TestCase.java", 5)))
+    }
+
+    @Test
+    fun `isFrameworkFrame filters Gradle frames`() {
+        assertTrue(isFrameworkFrame(StackTraceElement("org.gradle.api.internal.tasks.Test", "execute", "Test.java", 1)))
+    }
+
+    @Test
+    fun `isFrameworkFrame filters reflection frames`() {
+        assertTrue(isFrameworkFrame(StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 1)))
+        assertTrue(isFrameworkFrame(StackTraceElement("sun.reflect.NativeMethodAccessorImpl", "invoke", "NativeMethodAccessorImpl.java", 1)))
+        assertTrue(isFrameworkFrame(StackTraceElement("jdk.internal.reflect.NativeMethodAccessorImpl", "invoke", "NativeMethodAccessorImpl.java", 1)))
+    }
+
+    @Test
+    fun `isFrameworkFrame filters opentest4j frames`() {
+        assertTrue(isFrameworkFrame(StackTraceElement("org.opentest4j.AssertionFailedError", "<init>", "AssertionFailedError.java", 1)))
+    }
+
+    @Test
+    fun `isFrameworkFrame allows user code frames`() {
+        assertTrue(!isFrameworkFrame(StackTraceElement("com.example.MyTest", "testSomething", "MyTest.kt", 42)))
+        assertTrue(!isFrameworkFrame(StackTraceElement("dev.tuist.app.LoginTest", "testLogin", "LoginTest.kt", 10)))
+    }
+
+    // --- mapTestFailures tests ---
+
+    @Test
+    fun `mapTestFailures returns empty list for success`() {
+        val result = mapTestFailures(TestResult.ResultType.SUCCESS, null)
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `mapTestFailures returns empty list for skipped`() {
+        val result = mapTestFailures(TestResult.ResultType.SKIPPED, null)
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `mapTestFailures returns default failure when no exception`() {
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, null)
+
+        assertEquals(1, result.size)
+        assertEquals("Test failed", result[0].message)
+        assertNull(result[0].path)
+        assertEquals(0, result[0].lineNumber)
+        assertEquals("error_thrown", result[0].issueType)
+    }
+
+    @Test
+    fun `mapTestFailures classifies AssertionError as assertion_failure`() {
+        val exception = AssertionError("expected true but was false")
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
+
+        assertEquals(1, result.size)
+        assertEquals("assertion_failure", result[0].issueType)
+        assertEquals("expected true but was false", result[0].message)
+    }
+
+    @Test
+    fun `mapTestFailures classifies RuntimeException as error_thrown`() {
+        val exception = RuntimeException("something went wrong")
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
+
+        assertEquals(1, result.size)
+        assertEquals("error_thrown", result[0].issueType)
+        assertEquals("something went wrong", result[0].message)
+    }
+
+    @Test
+    fun `mapTestFailures classifies NullPointerException as error_thrown`() {
+        val exception = NullPointerException("null reference")
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
+
+        assertEquals(1, result.size)
+        assertEquals("error_thrown", result[0].issueType)
+    }
+
+    @Test
+    fun `mapTestFailures extracts user frame from stack trace`() {
+        val exception = RuntimeException("fail")
+        exception.stackTrace = arrayOf(
+            StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
+            StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 566),
+            StackTraceElement("com.example.MyTest", "testLogin", "MyTest.kt", 42),
+            StackTraceElement("com.example.MyTest", "setup", "MyTest.kt", 10)
+        )
+
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
+
+        assertEquals(1, result.size)
+        assertEquals("MyTest.kt", result[0].path)
+        assertEquals(42, result[0].lineNumber)
+    }
+
+    @Test
+    fun `mapTestFailures returns zero line number when no user frame found`() {
+        val exception = RuntimeException("fail")
+        exception.stackTrace = arrayOf(
+            StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
+            StackTraceElement("org.gradle.api.internal.Runner", "run", "Runner.java", 100)
+        )
+
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
+
+        assertEquals(1, result.size)
+        assertNull(result[0].path)
+        assertEquals(0, result[0].lineNumber)
+    }
+
+    @Test
+    fun `mapTestFailures handles exception with empty stack trace`() {
+        val exception = RuntimeException("fail")
+        exception.stackTrace = emptyArray()
+
+        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
+
+        assertEquals(1, result.size)
+        assertNull(result[0].path)
+        assertEquals(0, result[0].lineNumber)
+        assertEquals("error_thrown", result[0].issueType)
+    }
+
+    // --- collectTestResult tests ---
+
+    @Test
+    fun `collectTestResult adds passing test to module`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testLogin", "com.example.LoginTest",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+
+        assertEquals(1, modules.size)
+        val module = modules[":app"]!!
+        assertEquals(":app", module.name)
+        assertEquals("success", module.status)
+        assertEquals(100, module.durationMs)
+        assertEquals(1, module.testCases.size)
+        assertEquals("testLogin", module.testCases[0].name)
+        assertEquals("com.example.LoginTest", module.testCases[0].suiteName)
+        assertEquals("success", module.testCases[0].status)
+        assertEquals(100, module.testCases[0].durationMs)
+        assertTrue(module.testCases[0].failures.isEmpty())
+    }
+
+    @Test
+    fun `collectTestResult tracks suite duration and status`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testA", "com.example.SuiteA",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":app", "testB", "com.example.SuiteA",
+            TestResult.ResultType.SUCCESS, 100, 350, null
+        )
+
+        val suite = modules[":app"]!!.suites["com.example.SuiteA"]!!
+        assertEquals(350, suite.durationMs)
+        assertEquals("success", suite.status)
+    }
+
+    @Test
+    fun `collectTestResult marks suite as failure when test fails`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testA", "com.example.SuiteA",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":app", "testB", "com.example.SuiteA",
+            TestResult.ResultType.FAILURE, 100, 200, RuntimeException("fail")
+        )
+
+        val suite = modules[":app"]!!.suites["com.example.SuiteA"]!!
+        assertEquals("failure", suite.status)
+    }
+
+    @Test
+    fun `collectTestResult marks module as failure when test fails`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testA", "com.example.SuiteA",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":app", "testB", "com.example.SuiteA",
+            TestResult.ResultType.FAILURE, 100, 200, null
+        )
+
+        assertEquals("failure", modules[":app"]!!.status)
+    }
+
+    @Test
+    fun `collectTestResult handles multiple modules`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testA", "com.example.AppTest",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":lib", "testB", "com.example.LibTest",
+            TestResult.ResultType.SUCCESS, 0, 200, null
+        )
+
+        assertEquals(2, modules.size)
+        assertEquals(1, modules[":app"]!!.testCases.size)
+        assertEquals(1, modules[":lib"]!!.testCases.size)
+        assertEquals(100, modules[":app"]!!.durationMs)
+        assertEquals(200, modules[":lib"]!!.durationMs)
+    }
+
+    @Test
+    fun `collectTestResult handles test with null className`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testDynamic", null,
+            TestResult.ResultType.SUCCESS, 0, 50, null
+        )
+
+        val module = modules[":app"]!!
+        assertEquals(1, module.testCases.size)
+        assertNull(module.testCases[0].suiteName)
+        assertTrue(module.suites.isEmpty())
+    }
+
+    @Test
+    fun `collectTestResult handles skipped test`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testSkipped", "com.example.Test",
+            TestResult.ResultType.SKIPPED, 0, 0, null
+        )
+
+        val module = modules[":app"]!!
+        assertEquals("skipped", module.testCases[0].status)
+        assertEquals("success", module.status)
+    }
+
+    @Test
+    fun `collectTestResult accumulates module duration`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "test1", "com.example.Test",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":app", "test2", "com.example.Test",
+            TestResult.ResultType.SUCCESS, 100, 350, null
+        )
+
+        assertEquals(350, modules[":app"]!!.durationMs)
+    }
+
+    @Test
+    fun `collectTestResult attaches failures to test case`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+        val exception = AssertionError("expected 1 but got 2")
+        exception.stackTrace = arrayOf(
+            StackTraceElement("com.example.MathTest", "testAdd", "MathTest.kt", 15)
+        )
+
+        collectTestResult(
+            modules, ":app", "testAdd", "com.example.MathTest",
+            TestResult.ResultType.FAILURE, 0, 50, exception
+        )
+
+        val testCase = modules[":app"]!!.testCases[0]
+        assertEquals(1, testCase.failures.size)
+        assertEquals("assertion_failure", testCase.failures[0].issueType)
+        assertEquals("MathTest.kt", testCase.failures[0].path)
+        assertEquals(15, testCase.failures[0].lineNumber)
+    }
+
+    // --- buildTestReportFromModules tests ---
+
+    @Test
+    fun `buildTestReportFromModules builds report from empty modules`() {
+        val report = buildTestReportFromModules(
+            modules = emptyMap(),
+            totalDurationMs = 5000,
+            isCi = false,
+            scheme = "my-app",
+            gitBranch = "main",
+            gitCommitSha = "abc123",
+            gitRef = "v1.0",
+            gradleBuildId = null
+        )
+
+        assertEquals(5000, report.duration)
+        assertEquals("success", report.status)
+        assertEquals(false, report.isCi)
+        assertEquals("my-app", report.scheme)
+        assertEquals("gradle", report.buildSystem)
+        assertEquals("main", report.gitBranch)
+        assertEquals("abc123", report.gitCommitSha)
+        assertEquals("v1.0", report.gitRef)
+        assertNull(report.gradleBuildId)
+        assertTrue(report.testModules.isEmpty())
+    }
+
+    @Test
+    fun `buildTestReportFromModules sets status to failure when any module failed`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+        collectTestResult(
+            modules, ":app", "testA", "com.example.Test",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":lib", "testB", "com.example.Test",
+            TestResult.ResultType.FAILURE, 0, 200, null
+        )
+
+        val report = buildTestReportFromModules(
+            modules, 5000, false, null, null, null, null, null
+        )
+
+        assertEquals("failure", report.status)
+    }
+
+    @Test
+    fun `buildTestReportFromModules sets status to success when all pass`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+        collectTestResult(
+            modules, ":app", "testA", "com.example.Test",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":lib", "testB", "com.example.Test",
+            TestResult.ResultType.SUCCESS, 0, 200, null
+        )
+
+        val report = buildTestReportFromModules(
+            modules, 5000, false, null, null, null, null, null
+        )
+
+        assertEquals("success", report.status)
+    }
+
+    @Test
+    fun `buildTestReportFromModules maps module data to report`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+        collectTestResult(
+            modules, ":app", "testLogin", "com.example.LoginTest",
+            TestResult.ResultType.SUCCESS, 0, 150, null
+        )
+        collectTestResult(
+            modules, ":app", "testLogout", "com.example.LoginTest",
+            TestResult.ResultType.FAILURE, 150, 300, RuntimeException("timeout")
+        )
+
+        val report = buildTestReportFromModules(
+            modules, 5000, true, "my-app", "feature/auth", "def456", null, "build-123"
+        )
+
+        assertEquals(1, report.testModules.size)
+        val appModule = report.testModules[0]
+        assertEquals(":app", appModule.name)
+        assertEquals("failure", appModule.status)
+        assertEquals(300, appModule.duration)
+
+        assertEquals(1, appModule.testSuites.size)
+        assertEquals("com.example.LoginTest", appModule.testSuites[0].name)
+        assertEquals("failure", appModule.testSuites[0].status)
+        assertEquals(300, appModule.testSuites[0].duration)
+
+        assertEquals(2, appModule.testCases.size)
+        assertEquals("testLogin", appModule.testCases[0].name)
+        assertEquals("com.example.LoginTest", appModule.testCases[0].testSuiteName)
+        assertEquals("success", appModule.testCases[0].status)
+        assertTrue(appModule.testCases[0].failures.isEmpty())
+
+        assertEquals("testLogout", appModule.testCases[1].name)
+        assertEquals("failure", appModule.testCases[1].status)
+        assertEquals(1, appModule.testCases[1].failures.size)
+
+        assertEquals(true, report.isCi)
+        assertEquals("my-app", report.scheme)
+        assertEquals("feature/auth", report.gitBranch)
+        assertEquals("def456", report.gitCommitSha)
+        assertEquals("build-123", report.gradleBuildId)
+    }
+
+    @Test
+    fun `buildTestReportFromModules handles multiple suites within a module`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+        collectTestResult(
+            modules, ":app", "testA", "com.example.SuiteA",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":app", "testB", "com.example.SuiteB",
+            TestResult.ResultType.SUCCESS, 0, 200, null
+        )
+
+        val report = buildTestReportFromModules(
+            modules, 5000, false, null, null, null, null, null
+        )
+
+        val appModule = report.testModules[0]
+        assertEquals(2, appModule.testSuites.size)
+        val suiteNames = appModule.testSuites.map { it.name }.toSet()
+        assertTrue(suiteNames.contains("com.example.SuiteA"))
+        assertTrue(suiteNames.contains("com.example.SuiteB"))
+    }
+
+    // --- End-to-end collection + report flow ---
+
+    @Test
+    fun `end-to-end collection and report for multi-module project`() {
+        val modules = mutableMapOf<String, CollectedTestModule>()
+
+        collectTestResult(
+            modules, ":app", "testLogin", "com.example.LoginTest",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collectTestResult(
+            modules, ":app", "testRegister", "com.example.RegisterTest",
+            TestResult.ResultType.SUCCESS, 100, 250, null
+        )
+        collectTestResult(
+            modules, ":lib", "testParse", "com.example.ParserTest",
+            TestResult.ResultType.FAILURE, 0, 50,
+            AssertionError("expected 42 but was 0").apply {
+                stackTrace = arrayOf(
+                    StackTraceElement("org.junit.jupiter.api.Assertions", "assertEquals", "Assertions.java", 150),
+                    StackTraceElement("com.example.ParserTest", "testParse", "ParserTest.kt", 28)
+                )
+            }
+        )
+
+        val report = buildTestReportFromModules(
+            modules = modules,
+            totalDurationMs = 10000,
+            isCi = true,
+            scheme = "android-app",
+            gitBranch = "main",
+            gitCommitSha = "abc123",
+            gitRef = "v2.0",
+            gradleBuildId = "build-456"
+        )
+
+        assertEquals("failure", report.status)
+        assertEquals(10000, report.duration)
+        assertEquals(true, report.isCi)
+        assertEquals("android-app", report.scheme)
+        assertEquals("build-456", report.gradleBuildId)
+        assertEquals(2, report.testModules.size)
+
+        val appModule = report.testModules.first { it.name == ":app" }
+        assertEquals("success", appModule.status)
+        assertEquals(250, appModule.duration)
+        assertEquals(2, appModule.testSuites.size)
+        assertEquals(2, appModule.testCases.size)
+
+        val libModule = report.testModules.first { it.name == ":lib" }
+        assertEquals("failure", libModule.status)
+        assertEquals(50, libModule.duration)
+        assertEquals(1, libModule.testCases.size)
+
+        val failedCase = libModule.testCases[0]
+        assertEquals("testParse", failedCase.name)
+        assertEquals("failure", failedCase.status)
+        assertEquals(1, failedCase.failures.size)
+        assertEquals("assertion_failure", failedCase.failures[0].issueType)
+        assertEquals("ParserTest.kt", failedCase.failures[0].path)
+        assertEquals(28, failedCase.failures[0].lineNumber)
     }
 }
