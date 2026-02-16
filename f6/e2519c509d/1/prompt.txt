@@ -1,0 +1,9 @@
+What does it take to publish a new version of the Gradle plugin?
+
+---
+
+Can you create an empty commit with that convention to force a release?
+
+---
+
+[Request interrupted by user]

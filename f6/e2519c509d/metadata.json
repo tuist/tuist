@@ -3,7 +3,7 @@
   "checkpoint_id": "f6e2519c509d",
   "strategy": "manual-commit",
   "branch": "main",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     "cache/lib/cache/body_reader.ex",
     "examples/xcode/generated_tuist_plugin/.gitignore",
@@ -26,13 +26,20 @@
       "context": "/f6/e2519c509d/0/context.md",
       "content_hash": "/f6/e2519c509d/0/content_hash.txt",
       "prompt": "/f6/e2519c509d/0/prompt.txt"
+    },
+    {
+      "metadata": "/f6/e2519c509d/1/metadata.json",
+      "transcript": "/f6/e2519c509d/1/full.jsonl",
+      "context": "/f6/e2519c509d/1/context.md",
+      "content_hash": "/f6/e2519c509d/1/content_hash.txt",
+      "prompt": "/f6/e2519c509d/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 23,
-    "cache_creation_tokens": 111176,
-    "cache_read_tokens": 1337245,
-    "output_tokens": 987,
-    "api_call_count": 15
+    "input_tokens": 30,
+    "cache_creation_tokens": 126895,
+    "cache_read_tokens": 1419637,
+    "output_tokens": 1096,
+    "api_call_count": 18
   }
 }
