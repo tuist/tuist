@@ -5,7 +5,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
   alias OpenApiSpex.Schema
   alias Tuist.Tests
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.API.Schemas.PaginationMetadata
+  alias TuistWeb.API.Schemas.Tests.TestCaseRunsList
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -16,46 +16,6 @@ defmodule TuistWeb.API.TestCaseRunsController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
 
   tags ["Test Case Runs"]
-
-  @test_case_run_list_item_schema %Schema{
-    type: :object,
-    properties: %{
-      id: %Schema{type: :string, format: :uuid, description: "The test case run ID."},
-      name: %Schema{type: :string, description: "Name of the test case."},
-      module_name: %Schema{type: :string, description: "Module name."},
-      suite_name: %Schema{type: :string, nullable: true, description: "Suite name."},
-      status: %Schema{
-        type: :string,
-        enum: ["success", "failure", "skipped"],
-        description: "Run status."
-      },
-      duration: %Schema{type: :integer, description: "Duration in milliseconds."},
-      is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
-      is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
-      is_new: %Schema{type: :boolean, description: "Whether this was a new test case."},
-      scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
-      git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
-      git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
-      ran_at: %Schema{
-        type: :string,
-        format: :"date-time",
-        nullable: true,
-        description: "ISO 8601 timestamp when the run executed."
-      }
-    },
-    required: [:id, :name, :module_name, :status, :duration, :is_ci, :is_flaky, :is_new]
-  }
-
-  @test_case_runs_list_response %Schema{
-    type: :object,
-    properties: %{
-      test_case_runs: %Schema{type: :array, items: @test_case_run_list_item_schema},
-      pagination_metadata: PaginationMetadata
-    },
-    required: [:test_case_runs, :pagination_metadata]
-  }
-
-  # --- New consolidated endpoint ---
 
   operation(:index,
     summary: "List test case runs.",
@@ -111,7 +71,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
       ]
     ],
     responses: %{
-      ok: {"List of test case runs", "application/json", @test_case_runs_list_response},
+      ok: {"List of test case runs", "application/json", TestCaseRunsList},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
@@ -182,7 +142,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
       ]
     ],
     responses: %{
-      ok: {"List of test case runs", "application/json", @test_case_runs_list_response},
+      ok: {"List of test case runs", "application/json", TestCaseRunsList},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
@@ -246,7 +206,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
       ]
     ],
     responses: %{
-      ok: {"List of test case runs for a test run", "application/json", @test_case_runs_list_response},
+      ok: {"List of test case runs for a test run", "application/json", TestCaseRunsList},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
