@@ -4,6 +4,7 @@ defmodule Tuist.AlertsTest do
   alias Tuist.Alerts
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AlertsFixtures
+  alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -290,6 +291,138 @@ defmodule Tuist.AlertsTest do
           metric: :average,
           deviation_percentage: 10.0,
           rolling_window_size: 5
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+  end
+
+  describe "evaluate/1 for bundle_size" do
+    test "returns {:triggered, ...} when install size increased beyond threshold" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          bundle_size_metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 1_500_000.0
+      assert data.previous == 1_000_000.0
+      assert data.deviation == 50.0
+    end
+
+    test "returns :ok when deviation is below threshold" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_050_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          bundle_size_metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "returns :ok when no bundles exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          bundle_size_metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "returns :ok when only one bundle exists" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_500_000
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          bundle_size_metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
         )
 
       # When
