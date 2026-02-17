@@ -509,14 +509,6 @@ msgid "Test runs"
 msgstr "Testy"
 
 #, fuzzy
-msgid "Test suite"
-msgstr "Zestaw testów"
-
-#, fuzzy
-msgid "Test suites"
-msgstr "Zestawy testowe"
-
-#, fuzzy
 msgid "Tests"
 msgstr "Testy"
 
@@ -824,6 +816,12 @@ msgstr "Testy poddane kwarantannie"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Build: %{name}"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
 #, fuzzy
 msgid "Crash Report"
 msgstr "Raport o awarii"
@@ -832,6 +830,9 @@ msgstr "Raport o awarii"
 msgid "Exception"
 msgstr "Wyjątek"
 
+msgid "Project"
+msgstr ""
+
 #, fuzzy
 msgid "Signal"
 msgstr "Sygnał"
@@ -839,6 +840,23 @@ msgstr "Sygnał"
 #, fuzzy
 msgid "Subtype"
 msgstr "Podtyp"
+
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
+msgid "Test Suite"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Test suite"
+#~ msgstr "Zestaw testów"
+
+#, fuzzy
+#~ msgid "Test suites"
+#~ msgstr "Zestawy testowe"
 
 #, fuzzy
 #~ msgid "Binary Cache"

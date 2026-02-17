@@ -496,14 +496,6 @@ msgid "Test runs"
 msgstr "測試執行"
 
 #, fuzzy
-msgid "Test suite"
-msgstr "測試套件"
-
-#, fuzzy
-msgid "Test suites"
-msgstr "測試套件"
-
-#, fuzzy
 msgid "Tests"
 msgstr "測試"
 
@@ -807,6 +799,12 @@ msgstr "隔離測試"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Build: %{name}"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
 #, fuzzy
 msgid "Crash Report"
 msgstr "崩潰報告"
@@ -815,6 +813,9 @@ msgstr "崩潰報告"
 msgid "Exception"
 msgstr "例外情況"
 
+msgid "Project"
+msgstr ""
+
 #, fuzzy
 msgid "Signal"
 msgstr "Signal"
@@ -822,6 +823,23 @@ msgstr "Signal"
 #, fuzzy
 msgid "Subtype"
 msgstr "子類型"
+
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
+msgid "Test Suite"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Test suite"
+#~ msgstr "測試套件"
+
+#, fuzzy
+#~ msgid "Test suites"
+#~ msgstr "測試套件"
 
 #, fuzzy
 #~ msgid "Binary Cache"

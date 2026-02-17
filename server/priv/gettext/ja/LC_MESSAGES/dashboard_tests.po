@@ -504,14 +504,6 @@ msgid "Test runs"
 msgstr "テスト実行"
 
 #, fuzzy
-msgid "Test suite"
-msgstr "テストスイート"
-
-#, fuzzy
-msgid "Test suites"
-msgstr "テストスイート"
-
-#, fuzzy
 msgid "Tests"
 msgstr "テスト"
 
@@ -815,6 +807,12 @@ msgstr "隔離されたテスト"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Build: %{name}"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
 #, fuzzy
 msgid "Crash Report"
 msgstr "クラッシュレポート"
@@ -823,6 +821,9 @@ msgstr "クラッシュレポート"
 msgid "Exception"
 msgstr "例外"
 
+msgid "Project"
+msgstr ""
+
 #, fuzzy
 msgid "Signal"
 msgstr "シグナル"
@@ -830,6 +831,23 @@ msgstr "シグナル"
 #, fuzzy
 msgid "Subtype"
 msgstr "サブタイプ"
+
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
+msgid "Test Suite"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Test suite"
+#~ msgstr "テストスイート"
+
+#, fuzzy
+#~ msgid "Test suites"
+#~ msgstr "テストスイート"
 
 #, fuzzy
 #~ msgid "Binary Cache"

@@ -507,14 +507,6 @@ msgid "Test runs"
 msgstr "Test çalıştırmaları"
 
 #, fuzzy
-msgid "Test suite"
-msgstr "Test paketi"
-
-#, fuzzy
-msgid "Test suites"
-msgstr "Test takımları"
-
-#, fuzzy
 msgid "Tests"
 msgstr "Testler"
 
@@ -819,6 +811,12 @@ msgstr "Karantinaya alınan testler"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Build: %{name}"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
 #, fuzzy
 msgid "Crash Report"
 msgstr "Çökme Raporu"
@@ -827,6 +825,9 @@ msgstr "Çökme Raporu"
 msgid "Exception"
 msgstr "İstisna"
 
+msgid "Project"
+msgstr ""
+
 #, fuzzy
 msgid "Signal"
 msgstr "Sinyal"
@@ -834,6 +835,23 @@ msgstr "Sinyal"
 #, fuzzy
 msgid "Subtype"
 msgstr "Alt tür"
+
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
+msgid "Test Suite"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Test suite"
+#~ msgstr "Test paketi"
+
+#, fuzzy
+#~ msgid "Test suites"
+#~ msgstr "Test takımları"
 
 #, fuzzy
 #~ msgid "Binary Cache"
