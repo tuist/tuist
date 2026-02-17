@@ -11,6 +11,7 @@
 MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with external services and data sources.
 
 Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting your MCP client to it, AI agents can access your Tuist project data, including test insights, flaky test analysis, and more.
+The endpoint is implemented on top of the [Hermes MCP](https://github.com/cloudwalk/hermes-mcp) Elixir package.
 
 ## MCP vs Skills
 
