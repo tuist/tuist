@@ -37,7 +37,8 @@ data class TuistGradleConfig(
     val url: String,
     val project: String?,
     val executablePath: String,
-    val uploadInBackground: Boolean? = null
+    val uploadInBackground: Boolean? = null,
+    val testQuarantineEnabled: Boolean? = null
 ) {
     companion object {
         internal const val EXTRA_PROPERTY_KEY = "tuist.config"
@@ -83,7 +84,8 @@ class TuistPlugin : Plugin<Settings> {
                 url = extension.url,
                 project = project,
                 executablePath = extension.executablePath ?: "tuist",
-                uploadInBackground = extension.uploadInBackground
+                uploadInBackground = extension.uploadInBackground,
+                testQuarantineEnabled = extension.testQuarantine.enabled
             ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
             val projectLabel = project ?: "(from tuist.toml)"
@@ -165,6 +167,18 @@ open class TuistExtension {
     fun buildCache(configure: BuildCacheExtension.() -> Unit) {
         buildCache.configure()
     }
+
+    /**
+     * Test quarantine configuration.
+     */
+    val testQuarantine: TestQuarantineExtension = TestQuarantineExtension()
+
+    /**
+     * Configure test quarantine settings.
+     */
+    fun testQuarantine(configure: TestQuarantineExtension.() -> Unit) {
+        testQuarantine.configure()
+    }
 }
 
 /**
@@ -185,5 +199,17 @@ open class BuildCacheExtension {
      * Whether to allow insecure HTTP connections. Defaults to false.
      */
     var allowInsecureProtocol: Boolean = false
+}
+
+/**
+ * Configuration for test quarantine feature.
+ * When enabled, quarantined (flaky) tests are automatically excluded from test runs.
+ */
+open class TestQuarantineExtension {
+    /**
+     * Whether test quarantine is enabled. When null (default), quarantine is
+     * automatically enabled on CI and disabled for local builds.
+     */
+    var enabled: Boolean? = null
 }
 

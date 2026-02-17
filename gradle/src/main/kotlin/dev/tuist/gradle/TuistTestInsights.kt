@@ -347,6 +347,11 @@ abstract class TuistTestInsightsService :
 // --- Plugin ---
 
 internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<Project> {
+
+    private val logger = Logging.getLogger(TuistTestInsightsPlugin::class.java)
+
+    internal var ciDetector: CIDetector = EnvironmentCIDetector()
+
     override fun apply(project: Project) {
         if (project !== project.rootProject) return
 
@@ -360,6 +365,24 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             config.project?.let { parameters.project.set(it) }
             parameters.executablePath.set(config.executablePath)
             parameters.rootProjectName.set(project.rootProject.name)
+        }
+
+        val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
+        val quarantineService = if (quarantineEnabled) {
+            val configProvider = TuistCommandConfigurationProvider(
+                project = config.project,
+                command = listOf(config.executablePath),
+                url = config.url,
+                projectDir = java.io.File(System.getProperty("user.dir"))
+            )
+            val httpClient = TuistHttpClient(
+                configurationProvider = configProvider,
+                connectTimeoutMs = 10_000,
+                readTimeoutMs = 10_000
+            )
+            TuistTestQuarantineService(httpClient = httpClient, baseUrl = config.url)
+        } else {
+            null
         }
 
         project.allprojects {
@@ -376,6 +399,17 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                         serviceProvider.get().onTestFinished(moduleName, testDescriptor, result)
                     }
                 })
+
+                if (quarantineService != null) {
+                    testTask.doFirst {
+                        val exclusions = quarantineService.getQuarantinedTests()
+                        val moduleExclusions = exclusions[moduleName] ?: return@doFirst
+                        for (pattern in moduleExclusions) {
+                            testTask.filter.excludeTestsMatching(pattern)
+                        }
+                        logger.lifecycle("Tuist: Quarantined ${moduleExclusions.size} test(s) in module $moduleName")
+                    }
+                }
             }
         }
 
