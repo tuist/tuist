@@ -85,7 +85,7 @@ internal data class TestAttempt(
 )
 
 internal class TestReportCollector {
-    private val rawResultsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
+    private val attemptsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
 
     fun collectTestResult(
         moduleName: String,
@@ -96,7 +96,7 @@ internal class TestReportCollector {
         endTime: Long,
         exception: Throwable?
     ) {
-        rawResultsByModule.getOrPut(moduleName) { mutableListOf() }.add(
+        attemptsByModule.getOrPut(moduleName) { mutableListOf() }.add(
             TestAttempt(testName, className, resultType, startTime, endTime, exception)
         )
     }
@@ -110,8 +110,8 @@ internal class TestReportCollector {
         gitRef: String?,
         gradleBuildId: String?
     ): TestReport {
-        val testModules = rawResultsByModule.map { (moduleName, rawResults) ->
-            val testCases = buildTestCases(rawResults)
+        val testModules = attemptsByModule.map { (moduleName, attempts) ->
+            val testCases = buildTestCases(attempts)
             val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
             val moduleDuration = testCases.sumOf { it.duration }
 
@@ -152,8 +152,8 @@ internal class TestReportCollector {
         )
     }
 
-    private fun buildTestCases(rawResults: List<TestAttempt>): List<TestCase> {
-        return rawResults
+    private fun buildTestCases(attempts: List<TestAttempt>): List<TestCase> {
+        return attempts
             .groupBy { Pair(it.testName, it.className) }
             .map { (key, attempts) ->
                 val (testName, className) = key
