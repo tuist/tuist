@@ -65,9 +65,7 @@ data class TestFailure(
 
 data class TestResponse(val id: String, val url: String?)
 
-// --- Standalone testable functions ---
-
-internal fun mapTestResultType(resultType: TestResult.ResultType): String {
+private fun mapTestResultType(resultType: TestResult.ResultType): String {
     return when (resultType) {
         TestResult.ResultType.SUCCESS -> "success"
         TestResult.ResultType.FAILURE -> "failure"
@@ -76,7 +74,7 @@ internal fun mapTestResultType(resultType: TestResult.ResultType): String {
     }
 }
 
-internal fun isFrameworkFrame(frame: StackTraceElement): Boolean {
+private fun isFrameworkFrame(frame: StackTraceElement): Boolean {
     val className = frame.className
     return className.startsWith("org.junit.") ||
         className.startsWith("junit.") ||
@@ -87,7 +85,7 @@ internal fun isFrameworkFrame(frame: StackTraceElement): Boolean {
         className.startsWith("org.opentest4j.")
 }
 
-internal fun mapTestFailures(
+private fun mapTestFailures(
     resultType: TestResult.ResultType,
     exception: Throwable?
 ): List<TestFailure> {

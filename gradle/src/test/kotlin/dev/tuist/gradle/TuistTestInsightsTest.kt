@@ -143,153 +143,6 @@ class TuistTestInsightsTest {
         assertEquals("/api/my-org/my-project/tests", url.path)
     }
 
-    // --- mapTestResultType tests ---
-
-    @Test
-    fun `mapTestResultType maps SUCCESS to success`() {
-        assertEquals("success", mapTestResultType(TestResult.ResultType.SUCCESS))
-    }
-
-    @Test
-    fun `mapTestResultType maps FAILURE to failure`() {
-        assertEquals("failure", mapTestResultType(TestResult.ResultType.FAILURE))
-    }
-
-    @Test
-    fun `mapTestResultType maps SKIPPED to skipped`() {
-        assertEquals("skipped", mapTestResultType(TestResult.ResultType.SKIPPED))
-    }
-
-    // --- isFrameworkFrame tests ---
-
-    @Test
-    fun `isFrameworkFrame filters JUnit frames`() {
-        assertTrue(isFrameworkFrame(StackTraceElement("org.junit.jupiter.api.Test", "run", "Test.java", 10)))
-        assertTrue(isFrameworkFrame(StackTraceElement("junit.framework.TestCase", "run", "TestCase.java", 5)))
-    }
-
-    @Test
-    fun `isFrameworkFrame filters Gradle frames`() {
-        assertTrue(isFrameworkFrame(StackTraceElement("org.gradle.api.internal.tasks.Test", "execute", "Test.java", 1)))
-    }
-
-    @Test
-    fun `isFrameworkFrame filters reflection frames`() {
-        assertTrue(isFrameworkFrame(StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 1)))
-        assertTrue(isFrameworkFrame(StackTraceElement("sun.reflect.NativeMethodAccessorImpl", "invoke", "NativeMethodAccessorImpl.java", 1)))
-        assertTrue(isFrameworkFrame(StackTraceElement("jdk.internal.reflect.NativeMethodAccessorImpl", "invoke", "NativeMethodAccessorImpl.java", 1)))
-    }
-
-    @Test
-    fun `isFrameworkFrame filters opentest4j frames`() {
-        assertTrue(isFrameworkFrame(StackTraceElement("org.opentest4j.AssertionFailedError", "<init>", "AssertionFailedError.java", 1)))
-    }
-
-    @Test
-    fun `isFrameworkFrame allows user code frames`() {
-        assertTrue(!isFrameworkFrame(StackTraceElement("com.example.MyTest", "testSomething", "MyTest.kt", 42)))
-        assertTrue(!isFrameworkFrame(StackTraceElement("dev.tuist.app.LoginTest", "testLogin", "LoginTest.kt", 10)))
-    }
-
-    // --- mapTestFailures tests ---
-
-    @Test
-    fun `mapTestFailures returns empty list for success`() {
-        val result = mapTestFailures(TestResult.ResultType.SUCCESS, null)
-        assertTrue(result.isEmpty())
-    }
-
-    @Test
-    fun `mapTestFailures returns empty list for skipped`() {
-        val result = mapTestFailures(TestResult.ResultType.SKIPPED, null)
-        assertTrue(result.isEmpty())
-    }
-
-    @Test
-    fun `mapTestFailures returns default failure when no exception`() {
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, null)
-
-        assertEquals(1, result.size)
-        assertEquals("Test failed", result[0].message)
-        assertNull(result[0].path)
-        assertEquals(0, result[0].lineNumber)
-        assertEquals("error_thrown", result[0].issueType)
-    }
-
-    @Test
-    fun `mapTestFailures classifies AssertionError as assertion_failure`() {
-        val exception = AssertionError("expected true but was false")
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
-
-        assertEquals(1, result.size)
-        assertEquals("assertion_failure", result[0].issueType)
-        assertEquals("expected true but was false", result[0].message)
-    }
-
-    @Test
-    fun `mapTestFailures classifies RuntimeException as error_thrown`() {
-        val exception = RuntimeException("something went wrong")
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
-
-        assertEquals(1, result.size)
-        assertEquals("error_thrown", result[0].issueType)
-        assertEquals("something went wrong", result[0].message)
-    }
-
-    @Test
-    fun `mapTestFailures classifies NullPointerException as error_thrown`() {
-        val exception = NullPointerException("null reference")
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
-
-        assertEquals(1, result.size)
-        assertEquals("error_thrown", result[0].issueType)
-    }
-
-    @Test
-    fun `mapTestFailures extracts user frame from stack trace`() {
-        val exception = RuntimeException("fail")
-        exception.stackTrace = arrayOf(
-            StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
-            StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 566),
-            StackTraceElement("com.example.MyTest", "testLogin", "MyTest.kt", 42),
-            StackTraceElement("com.example.MyTest", "setup", "MyTest.kt", 10)
-        )
-
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
-
-        assertEquals(1, result.size)
-        assertEquals("MyTest.kt", result[0].path)
-        assertEquals(42, result[0].lineNumber)
-    }
-
-    @Test
-    fun `mapTestFailures returns zero line number when no user frame found`() {
-        val exception = RuntimeException("fail")
-        exception.stackTrace = arrayOf(
-            StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
-            StackTraceElement("org.gradle.api.internal.Runner", "run", "Runner.java", 100)
-        )
-
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
-
-        assertEquals(1, result.size)
-        assertNull(result[0].path)
-        assertEquals(0, result[0].lineNumber)
-    }
-
-    @Test
-    fun `mapTestFailures handles exception with empty stack trace`() {
-        val exception = RuntimeException("fail")
-        exception.stackTrace = emptyArray()
-
-        val result = mapTestFailures(TestResult.ResultType.FAILURE, exception)
-
-        assertEquals(1, result.size)
-        assertNull(result[0].path)
-        assertEquals(0, result[0].lineNumber)
-        assertEquals("error_thrown", result[0].issueType)
-    }
-
     // --- collectTestResult tests ---
 
     @Test
@@ -394,11 +247,14 @@ class TuistTestInsightsTest {
     }
 
     @Test
-    fun `collectTestResult attaches failures to test case`() {
+    fun `collectTestResult attaches assertion failure with user frame from stack trace`() {
         val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
         val exception = AssertionError("expected 1 but got 2")
         exception.stackTrace = arrayOf(
-            StackTraceElement("com.example.MathTest", "testAdd", "MathTest.kt", 15)
+            StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
+            StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 566),
+            StackTraceElement("com.example.MathTest", "testAdd", "MathTest.kt", 15),
+            StackTraceElement("com.example.MathTest", "setup", "MathTest.kt", 5)
         )
 
         collectTestResult(
@@ -411,6 +267,41 @@ class TuistTestInsightsTest {
         assertEquals("assertion_failure", testCase.failures[0].issueType)
         assertEquals("MathTest.kt", testCase.failures[0].path)
         assertEquals(15, testCase.failures[0].lineNumber)
+    }
+
+    @Test
+    fun `collectTestResult classifies runtime exception as error_thrown`() {
+        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val exception = RuntimeException("something went wrong")
+        exception.stackTrace = arrayOf(
+            StackTraceElement("com.example.MyTest", "testSomething", "MyTest.kt", 42)
+        )
+
+        collectTestResult(
+            testCasesByModule, ":app", "testSomething", "com.example.MyTest",
+            TestResult.ResultType.FAILURE, 0, 100, exception
+        )
+
+        val testCase = testCasesByModule[":app"]!![0]
+        assertEquals("error_thrown", testCase.failures[0].issueType)
+        assertEquals("something went wrong", testCase.failures[0].message)
+    }
+
+    @Test
+    fun `collectTestResult produces default failure when exception is null`() {
+        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+
+        collectTestResult(
+            testCasesByModule, ":app", "testFail", "com.example.Test",
+            TestResult.ResultType.FAILURE, 0, 100, null
+        )
+
+        val testCase = testCasesByModule[":app"]!![0]
+        assertEquals(1, testCase.failures.size)
+        assertEquals("Test failed", testCase.failures[0].message)
+        assertNull(testCase.failures[0].path)
+        assertEquals(0, testCase.failures[0].lineNumber)
+        assertEquals("error_thrown", testCase.failures[0].issueType)
     }
 
     // --- buildTestReport tests ---
