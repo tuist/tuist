@@ -3,7 +3,7 @@ defmodule Tuist.MCP.Server do
 
   use Hermes.Server,
     name: "tuist",
-    version: "1.3.0",
+    version: "1.4.0",
     capabilities: [
       {:tools, list_changed?: false},
       {:prompts, list_changed?: false}
