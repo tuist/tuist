@@ -1,0 +1,17 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+I created a feature commit for Gradle, but then CI skipped the release:
+Run # Get the latest gradle version tag
+  
+Latest Gradle version: gradle@0.1.0
+Next Gradle version: gradle@0.1.0
+No Gradle version change detected
+
+### Prompt 2
+
+Do 2 and commit and push to main
+
