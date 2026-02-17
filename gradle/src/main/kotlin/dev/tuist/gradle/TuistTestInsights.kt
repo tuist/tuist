@@ -144,7 +144,6 @@ internal class TestReportCollector {
             TestResult.ResultType.SUCCESS -> "success"
             TestResult.ResultType.FAILURE -> "failure"
             TestResult.ResultType.SKIPPED -> "skipped"
-            else -> "failure"
         }
     }
 
