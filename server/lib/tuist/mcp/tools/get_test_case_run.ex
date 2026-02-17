@@ -2,6 +2,8 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
   @moduledoc false
 
   alias Tuist.MCP.Authorization
+  alias Tuist.MCP.Content
+  alias Tuist.MCP.Errors
   alias Tuist.Tests
 
   def name, do: "get_test_case_run"
@@ -58,15 +60,15 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
           end)
       }
 
-      {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
+      Content.ok_json(data)
     else
-      {:error, :not_found} -> {:error, -32_602, "Test case run not found: #{test_case_run_id}"}
+      {:error, :not_found} -> Errors.invalid_params("Test case run not found: #{test_case_run_id}")
       {:error, code, message} -> {:error, code, message}
     end
   end
 
   def call(_arguments, _subject) do
-    {:error, -32_602, "Missing required parameter: test_case_run_id."}
+    Errors.invalid_params("Missing required parameter: test_case_run_id.")
   end
 
   defp format_ran_at(nil), do: nil

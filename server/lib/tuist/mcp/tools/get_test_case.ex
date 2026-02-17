@@ -2,6 +2,8 @@ defmodule Tuist.MCP.Tools.GetTestCase do
   @moduledoc false
 
   alias Tuist.MCP.Authorization
+  alias Tuist.MCP.Content
+  alias Tuist.MCP.Errors
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
 
@@ -44,14 +46,14 @@ defmodule Tuist.MCP.Tools.GetTestCase do
         failed_runs: analytics.failed_count
       }
 
-      {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
+      Content.ok_json(data)
     else
-      {:error, :not_found} -> {:error, -32_602, "Test case not found: #{test_case_id}"}
+      {:error, :not_found} -> Errors.invalid_params("Test case not found: #{test_case_id}")
       {:error, code, message} -> {:error, code, message}
     end
   end
 
   def call(_arguments, _subject) do
-    {:error, -32_602, "Missing required parameter: test_case_id."}
+    Errors.invalid_params("Missing required parameter: test_case_id.")
   end
 end

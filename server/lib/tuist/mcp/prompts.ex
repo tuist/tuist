@@ -1,6 +1,7 @@
 defmodule Tuist.MCP.Prompts do
   @moduledoc false
 
+  alias Tuist.MCP.Errors
   alias Tuist.MCP.Prompts.FixFlakyTest
 
   @prompts [FixFlakyTest]
@@ -14,7 +15,7 @@ defmodule Tuist.MCP.Prompts do
   def get(name, arguments) do
     case Map.fetch(@prompt_map, name) do
       {:ok, mod} -> mod.get(arguments)
-      :error -> {:error, -32_602, "Unknown prompt: #{name}"}
+      :error -> Errors.invalid_params("Unknown prompt: #{name}")
     end
   end
 end
