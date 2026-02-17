@@ -1,5 +1,11 @@
 defmodule TuistWeb.Helpers.TestLabels do
-  @moduledoc false
+  @moduledoc """
+  Provides build system-specific label helpers for test-related pages.
+
+  Different build systems use different terminology (e.g. Gradle calls suites
+  "classes" and schemes "projects"). This module centralises those translations
+  so the naming stays consistent across all dashboard pages.
+  """
 
   use Gettext, backend: TuistWeb.Gettext
 

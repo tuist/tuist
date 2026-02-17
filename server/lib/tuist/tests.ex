@@ -1520,7 +1520,7 @@ defmodule Tuist.Tests do
     current_flaky_runs = ClickHouseRepo.all(flaky_runs_query)
 
     cross_run_counterparts =
-      get_cross_run_counterparts(test_run_id, current_flaky_runs)
+      get_cross_run_flaky_runs(test_run_id, current_flaky_runs)
 
     flaky_runs = current_flaky_runs ++ cross_run_counterparts
 
@@ -1567,9 +1567,9 @@ defmodule Tuist.Tests do
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
   end
 
-  defp get_cross_run_counterparts(_test_run_id, []), do: []
+  defp get_cross_run_flaky_runs(_test_run_id, []), do: []
 
-  defp get_cross_run_counterparts(test_run_id, current_flaky_runs) do
+  defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
     test_case_ids = current_flaky_runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
 
     commit_shas =
