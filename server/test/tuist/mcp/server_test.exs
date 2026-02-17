@@ -35,7 +35,7 @@ defmodule Tuist.MCP.ServerTest do
       assert response.id == 2
       tools = response.result.tools
       assert is_list(tools)
-      assert length(tools) == 4
+      assert length(tools) == 5
     end
 
     test "returns prompts list" do

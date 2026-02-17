@@ -42,6 +42,7 @@ The following tools are available through the Tuist MCP server:
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
 | `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` |
+| `get_test_run` | Get aggregate metrics and crash summaries for a test run. | `test_run_id` |
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 
 #### `list_projects`
@@ -55,6 +56,10 @@ Returns test cases for a given project. Supports pagination through `page` and `
 #### `get_test_case`
 
 Returns detailed metrics for a specific test case: reliability rate (success percentage), flakiness rate (over the last 30 days), total and failed run counts, last status, and average duration.
+
+#### `get_test_run`
+
+Returns test run-level context: status, duration, CI metadata, aggregate counts (total/failed/flaky), and crash summaries (`crashed_test_count` and `crashes[]`).
 
 #### `get_test_case_run`
 

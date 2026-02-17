@@ -7,7 +7,7 @@ defmodule Tuist.MCP.Server do
 
   @server_info %{
     name: "tuist",
-    version: "1.1.0"
+    version: "1.2.0"
   }
 
   @capabilities %{
