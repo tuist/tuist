@@ -23,9 +23,9 @@ Tuist detects flaky tests in two ways:
 
 ### Test retries {#test-retries}
 
-When you run tests with Xcode's retry functionality (using `-retry-tests-on-failure` or `-test-iterations`), Tuist analyzes the results of each attempt. If a test fails on some attempts but passes on others, it's marked as flaky.
+When you run tests with retry functionality, Tuist analyzes the results of each attempt. If a test fails on some attempts but passes on others, it's marked as flaky.
 
-For example, if a test fails on the first attempt but passes on the retry, Tuist records this as a flaky test.
+For **Xcode** projects, use `-retry-tests-on-failure` or `-test-iterations`:
 
 ```sh
 tuist xcodebuild test \
@@ -34,13 +34,15 @@ tuist xcodebuild test \
   -test-iterations 3
 ```
 
+For **Gradle** projects, you can use the [Test Retry plugin](https://github.com/gradle/test-retry-gradle-plugin) or a similar mechanism to re-run failed tests. Tuist will detect tests that pass on some attempts but fail on others.
+
 ![Flaky test case detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
 ### Cross-run detection {#cross-run-detection}
 
 Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit. If a test passes in one CI run but fails in another run for the same commit, both runs are marked as flaky.
 
-This is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
+This works for both Xcode and Gradle projects, and is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
 
 ## Managing flaky tests {#managing-flaky-tests}
 
@@ -55,6 +57,12 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 - A test was incorrectly flagged due to infrastructure issues
 
 ## Quarantining flaky tests {#quarantining}
+
+::: info XCODE ONLY
+<!-- -->
+Quarantining is currently only available for Xcode projects.
+<!-- -->
+:::
 
 Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. Quarantined tests can be skipped during test runs, preventing false failures from disrupting your team's workflow.
 

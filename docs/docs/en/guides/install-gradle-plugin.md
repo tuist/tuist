@@ -59,6 +59,7 @@ The following options are available in the `tuist` extension block in `settings.
 | `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml` through the Tuist CLI. |
 | `executablePath` | `String?` | `null` (uses `tuist` from PATH) | Path to the Tuist CLI executable. |
 | `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
+| `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on CI. |
 
 ::: info TUIST.TOML
 <!-- -->
@@ -72,3 +73,4 @@ Once the plugin is installed and configured, you can enable:
 
 - <LocalizedLink href="/guides/features/cache/gradle-cache">Gradle remote build cache</LocalizedLink> to share build artifacts across your team and CI.
 - <LocalizedLink href="/guides/features/insights/gradle-cache">Gradle build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
+- <LocalizedLink href="/guides/features/test-insights/gradle">Gradle test insights</LocalizedLink> to track test performance and detect flaky tests.
