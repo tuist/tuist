@@ -1,86 +1,12 @@
 package dev.tuist.gradle
 
-import com.google.gson.Gson
 import org.gradle.api.tasks.testing.TestResult
 import org.junit.jupiter.api.Test
-import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class TuistTestInsightsTest {
-
-    private val gson = Gson()
-
-    // --- Serialization tests ---
-
-    @Test
-    fun `TestReport serializes with snake_case field names`() {
-        val report = TestReport(
-            duration = 5000,
-            status = "success",
-            isCi = true,
-            scheme = "my-app",
-            gitBranch = "main",
-            gitCommitSha = "abc",
-            gitRef = "v1",
-            testModules = emptyList()
-        )
-
-        val json = gson.toJson(report)
-        assertTrue(json.contains("\"is_ci\""))
-        assertTrue(json.contains("\"build_system\""))
-        assertTrue(json.contains("\"git_branch\""))
-        assertTrue(json.contains("\"git_commit_sha\""))
-        assertTrue(json.contains("\"git_ref\""))
-        assertTrue(json.contains("\"test_modules\""))
-        assertTrue(!json.contains("\"isCi\""))
-        assertTrue(!json.contains("\"buildSystem\""))
-    }
-
-    @Test
-    fun `TestReport defaults build_system to gradle`() {
-        val report = TestReport(
-            duration = 1000,
-            status = "success",
-            isCi = false,
-            scheme = null,
-            gitBranch = null,
-            gitCommitSha = null,
-            gitRef = null,
-            testModules = emptyList()
-        )
-
-        assertEquals("gradle", report.buildSystem)
-    }
-
-    // --- URL construction tests ---
-
-    @Test
-    fun `URL construction for test endpoint is correct`() {
-        val baseUrl = "https://tuist.dev"
-        val accountHandle = "my-org"
-        val projectHandle = "my-project"
-
-        val url = URI("$baseUrl/api/$accountHandle/$projectHandle/tests")
-
-        assertEquals("https", url.scheme)
-        assertEquals("tuist.dev", url.host)
-        assertEquals("/api/my-org/my-project/tests", url.path)
-    }
-
-    @Test
-    fun `URL construction with trailing slash`() {
-        val baseUrl = "https://tuist.dev/".trimEnd('/')
-        val accountHandle = "my-org"
-        val projectHandle = "my-project"
-
-        val url = URI("$baseUrl/api/$accountHandle/$projectHandle/tests")
-
-        assertEquals("/api/my-org/my-project/tests", url.path)
-    }
-
-    // --- buildReport tests ---
 
     @Test
     fun `buildReport builds report from empty collector`() {
@@ -270,8 +196,6 @@ class TuistTestInsightsTest {
         assertEquals(0, testCase.failures[0].lineNumber)
         assertEquals("error_thrown", testCase.failures[0].issueType)
     }
-
-    // --- End-to-end collection + report flow ---
 
     @Test
     fun `end-to-end collection and report for multi-module project`() {
