@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-16 17:40+0000\n"
+"PO-Revision-Date: 2026-02-17 16:30+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -818,11 +818,13 @@ msgstr "Тесты в карантине"
 msgid "Tuist"
 msgstr "Tuist"
 
+#, fuzzy
 msgid "Build: %{name}"
-msgstr ""
+msgstr "Сборка: %{name}"
 
+#, fuzzy
 msgid "Class"
-msgstr ""
+msgstr "Класс"
 
 #, fuzzy
 msgid "Crash Report"
@@ -832,8 +834,9 @@ msgstr "Отчет о сбоях"
 msgid "Exception"
 msgstr "Исключение"
 
+#, fuzzy
 msgid "Project"
-msgstr ""
+msgstr "Проект"
 
 #, fuzzy
 msgid "Signal"
@@ -843,14 +846,17 @@ msgstr "Сигнал"
 msgid "Subtype"
 msgstr "Подтип"
 
+#, fuzzy
 msgid "Test Class"
-msgstr ""
+msgstr "Тестовый класс"
 
+#, fuzzy
 msgid "Test Classes"
-msgstr ""
+msgstr "Тестовые классы"
 
+#, fuzzy
 msgid "Test Suite"
-msgstr ""
+msgstr "Набор тестов"
 
 #, fuzzy
 #~ msgid "Test suite"
