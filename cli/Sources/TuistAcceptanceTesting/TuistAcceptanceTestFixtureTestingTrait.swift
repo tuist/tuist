@@ -79,7 +79,7 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                 )
                                 try await TuistTest.run(
                                     ProjectCreateCommand.self,
-                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
+                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString, "--build-system", "xcode"]
                                 )
                                 resetUI()
 
