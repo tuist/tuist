@@ -16,7 +16,6 @@ defmodule TuistWeb.OpsCacheLiveTest do
 
     conn = log_in_user(conn, user)
 
-    Mimic.stub(Environment, :env, fn -> "test" end)
     Mimic.stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
 
     %{conn: conn, user: user}
@@ -27,8 +26,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
     {:ok, _endpoint} =
       CacheEndpoints.create_cache_endpoint(%{
         url: "https://cache-test.tuist.dev",
-        display_name: "Test Node",
-        environment: "test"
+        display_name: "Test Node"
       })
 
     # When
@@ -38,26 +36,25 @@ defmodule TuistWeb.OpsCacheLiveTest do
     assert html =~ "Cache Endpoints"
     assert html =~ "Test Node"
     assert html =~ "https://cache-test.tuist.dev"
-    assert html =~ "Active"
+    assert html =~ "Enabled"
   end
 
-  test "toggles maintenance mode", %{conn: conn} do
+  test "toggles enabled state", %{conn: conn} do
     # Given
     {:ok, endpoint} =
       CacheEndpoints.create_cache_endpoint(%{
         url: "https://cache-test.tuist.dev",
-        display_name: "Test Node",
-        environment: "test"
+        display_name: "Test Node"
       })
 
     {:ok, lv, _html} = live(conn, ~p"/ops/cache")
 
     # When
-    lv |> element("button", "Maintenance") |> render_click()
+    lv |> element("button", "Disable") |> render_click()
 
     # Then
     {:ok, updated_endpoint} = CacheEndpoints.get_cache_endpoint(endpoint.id)
-    assert updated_endpoint.maintenance == true
+    assert updated_endpoint.enabled == false
   end
 
   test "deletes an endpoint", %{conn: conn} do
@@ -65,8 +62,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
     {:ok, endpoint} =
       CacheEndpoints.create_cache_endpoint(%{
         url: "https://cache-test.tuist.dev",
-        display_name: "Test Node",
-        environment: "test"
+        display_name: "Test Node"
       })
 
     {:ok, lv, _html} = live(conn, ~p"/ops/cache")
@@ -91,7 +87,7 @@ defmodule TuistWeb.OpsCacheLiveTest do
     |> render_submit()
 
     # Then
-    endpoints = CacheEndpoints.list_cache_endpoints("test")
+    endpoints = CacheEndpoints.list_cache_endpoints()
     assert Enum.any?(endpoints, fn e -> e.display_name == "New Node" end)
   end
 

@@ -4,11 +4,10 @@ defmodule TuistWeb.OpsCacheLive do
   use Noora
 
   alias Tuist.CacheEndpoints
-  alias Tuist.Environment
 
   @impl true
   def mount(_params, _session, socket) do
-    endpoints = CacheEndpoints.list_cache_endpoints(Environment.env())
+    endpoints = CacheEndpoints.list_cache_endpoints()
 
     {:ok,
      socket
@@ -17,11 +16,11 @@ defmodule TuistWeb.OpsCacheLive do
   end
 
   @impl true
-  def handle_event("toggle_maintenance", %{"id" => id}, socket) do
+  def handle_event("toggle_enabled", %{"id" => id}, socket) do
     case CacheEndpoints.get_cache_endpoint(id) do
       {:ok, endpoint} ->
-        {:ok, _endpoint} = CacheEndpoints.toggle_maintenance(endpoint)
-        endpoints = CacheEndpoints.list_cache_endpoints(Environment.env())
+        {:ok, _endpoint} = CacheEndpoints.toggle_enabled(endpoint)
+        endpoints = CacheEndpoints.list_cache_endpoints()
         {:noreply, assign(socket, :endpoints, endpoints)}
 
       {:error, :not_found} ->
@@ -34,7 +33,7 @@ defmodule TuistWeb.OpsCacheLive do
     case CacheEndpoints.get_cache_endpoint(id) do
       {:ok, endpoint} ->
         {:ok, _endpoint} = CacheEndpoints.delete_cache_endpoint(endpoint)
-        endpoints = CacheEndpoints.list_cache_endpoints(Environment.env())
+        endpoints = CacheEndpoints.list_cache_endpoints()
         {:noreply, assign(socket, :endpoints, endpoints)}
 
       {:error, :not_found} ->
@@ -46,15 +45,19 @@ defmodule TuistWeb.OpsCacheLive do
   def handle_event("add", %{"url" => url, "display_name" => display_name}, socket) do
     case CacheEndpoints.create_cache_endpoint(%{
            url: url,
-           display_name: display_name,
-           environment: to_string(Environment.env())
+           display_name: display_name
          }) do
       {:ok, _endpoint} ->
-        endpoints = CacheEndpoints.list_cache_endpoints(Environment.env())
+        endpoints = CacheEndpoints.list_cache_endpoints()
         {:noreply, assign(socket, :endpoints, endpoints)}
 
-      {:error, _changeset} ->
-        {:noreply, socket}
+      {:error, changeset} ->
+        message =
+          changeset
+          |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+          |> Enum.map_join(", ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
+
+        {:noreply, put_flash(socket, :error, "Failed to add endpoint: #{message}")}
     end
   end
 end

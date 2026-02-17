@@ -7,44 +7,46 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
       add :id, :uuid, primary_key: true
       add :url, :string, null: false
       add :display_name, :string, null: false
-      add :environment, :string, null: false
-      add :maintenance, :boolean, null: false, default: false
+      add :enabled, :boolean, null: false, default: true
 
       timestamps(type: :timestamptz)
     end
 
-    create unique_index(:cache_endpoints, [:url, :environment])
-    create index(:cache_endpoints, [:environment])
+    create unique_index(:cache_endpoints, [:url])
 
-    # Seed current hard-coded endpoints
-    # Production (6 nodes)
-    execute seed_sql("https://cache-eu-central.tuist.dev", "EU Central", "prod")
-    execute seed_sql("https://cache-eu-north.tuist.dev", "EU North", "prod")
-    execute seed_sql("https://cache-us-east.tuist.dev", "US East", "prod")
-    execute seed_sql("https://cache-us-west.tuist.dev", "US West", "prod")
-    execute seed_sql("https://cache-ap-southeast.tuist.dev", "Asia Pacific Southeast", "prod")
-    execute seed_sql("https://cache-sa-west.tuist.dev", "South America West", "prod")
-
-    # Staging (2 nodes)
-    execute seed_sql("https://cache-eu-central-staging.tuist.dev", "EU Central Staging", "stag")
-    execute seed_sql("https://cache-us-east-staging.tuist.dev", "US East Staging", "stag")
-
-    # Canary (1 node)
-    execute seed_sql("https://cache-eu-central-canary.tuist.dev", "EU Central Canary", "can")
-
-    # Dev (1 node)
-    execute seed_sql("http://localhost:8087", "Local Dev", "dev")
-
-    # Test (2 nodes)
-    execute seed_sql("https://cache-eu-central-test.tuist.dev", "EU Central Test", "test")
-    execute seed_sql("https://cache-us-east-test.tuist.dev", "US East Test", "test")
+    seed_endpoints_for_environment(Tuist.Environment.env())
   end
 
   def down do
     drop table(:cache_endpoints)
   end
 
-  defp seed_sql(url, display_name, environment) do
+  defp seed_endpoints_for_environment(:prod) do
+    execute seed_sql("https://cache-eu-central.tuist.dev", "EU Central")
+    execute seed_sql("https://cache-eu-north.tuist.dev", "EU North")
+    execute seed_sql("https://cache-us-east.tuist.dev", "US East")
+    execute seed_sql("https://cache-us-west.tuist.dev", "US West")
+    execute seed_sql("https://cache-ap-southeast.tuist.dev", "Asia Pacific Southeast")
+    execute seed_sql("https://cache-sa-west.tuist.dev", "South America West")
+  end
+
+  defp seed_endpoints_for_environment(:stag) do
+    execute seed_sql("https://cache-eu-central-staging.tuist.dev", "EU Central Staging")
+    execute seed_sql("https://cache-us-east-staging.tuist.dev", "US East Staging")
+  end
+
+  defp seed_endpoints_for_environment(:can) do
+    execute seed_sql("https://cache-eu-central-canary.tuist.dev", "EU Central Canary")
+  end
+
+  defp seed_endpoints_for_environment(:test) do
+    execute seed_sql("https://cache-eu-central-test.tuist.dev", "EU Central Test")
+    execute seed_sql("https://cache-us-east-test.tuist.dev", "US East Test")
+  end
+
+  defp seed_endpoints_for_environment(_), do: :ok
+
+  defp seed_sql(url, display_name) do
     now =
       DateTime.utc_now()
       |> DateTime.truncate(:second)
@@ -52,8 +54,8 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
       |> NaiveDateTime.to_iso8601()
 
     """
-    INSERT INTO cache_endpoints (id, url, display_name, environment, maintenance, inserted_at, updated_at)
-    VALUES (gen_random_uuid(), '#{url}', '#{display_name}', '#{environment}', false, '#{now}', '#{now}')
+    INSERT INTO cache_endpoints (id, url, display_name, enabled, inserted_at, updated_at)
+    VALUES (gen_random_uuid(), '#{url}', '#{display_name}', true, '#{now}', '#{now}')
     """
   end
 end

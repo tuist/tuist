@@ -9,14 +9,14 @@
           <.text_cell label={endpoint.url} />
         </:col>
         <:col :let={endpoint} label="Status">
-          <.text_cell label={if endpoint.maintenance, do: "Maintenance", else: "Active"} />
+          <.text_cell label={if endpoint.enabled, do: "Enabled", else: "Disabled"} />
         </:col>
         <:col :let={endpoint} label="Actions">
           <div data-part="actions">
             <.button
               variant="secondary"
-              label={if endpoint.maintenance, do: "Activate", else: "Maintenance"}
-              phx-click="toggle_maintenance"
+              label={if endpoint.enabled, do: "Disable", else: "Enable"}
+              phx-click="toggle_enabled"
               phx-value-id={endpoint.id}
             />
             <.button

@@ -13,75 +13,52 @@ defmodule Tuist.CacheEndpointsTest do
   defp create_endpoint(attrs \\ %{}) do
     default_attrs = %{
       url: "https://cache-test-#{System.unique_integer([:positive])}.tuist.dev",
-      display_name: "Test Node",
-      environment: "test"
+      display_name: "Test Node"
     }
 
     {:ok, endpoint} = CacheEndpoints.create_cache_endpoint(Map.merge(default_attrs, attrs))
     endpoint
   end
 
-  describe "list_cache_endpoints/1" do
-    test "returns endpoints for the given environment ordered by display_name" do
+  describe "list_cache_endpoints/0" do
+    test "returns all endpoints ordered by display_name" do
       endpoint1 = create_endpoint(%{display_name: "Zebra"})
       endpoint2 = create_endpoint(%{display_name: "Alpha"})
       endpoint3 = create_endpoint(%{display_name: "Beta"})
 
-      result = CacheEndpoints.list_cache_endpoints("test")
+      result = CacheEndpoints.list_cache_endpoints()
 
       assert length(result) == 3
       assert Enum.map(result, & &1.id) == [endpoint2.id, endpoint3.id, endpoint1.id]
     end
 
-    test "returns empty list for environment with no endpoints" do
-      create_endpoint(%{environment: "prod"})
-
-      result = CacheEndpoints.list_cache_endpoints("stag")
+    test "returns empty list when no endpoints exist" do
+      result = CacheEndpoints.list_cache_endpoints()
 
       assert result == []
     end
-
-    test "filters by environment" do
-      create_endpoint(%{environment: "prod"})
-      create_endpoint(%{environment: "test"})
-
-      result = CacheEndpoints.list_cache_endpoints("prod")
-
-      assert length(result) == 1
-      assert hd(result).environment == "prod"
-    end
   end
 
-  describe "list_active_cache_endpoints/1" do
-    test "excludes maintenance endpoints" do
-      endpoint1 = create_endpoint(%{maintenance: false})
-      create_endpoint(%{maintenance: true})
+  describe "list_active_cache_endpoints/0" do
+    test "excludes disabled endpoints" do
+      endpoint1 = create_endpoint(%{enabled: true})
+      create_endpoint(%{enabled: false})
 
-      result = CacheEndpoints.list_active_cache_endpoints("test")
+      result = CacheEndpoints.list_active_cache_endpoints()
 
       assert length(result) == 1
       assert hd(result).id == endpoint1.id
     end
 
-    test "returns active endpoints ordered by display_name" do
-      create_endpoint(%{display_name: "Zebra", maintenance: false})
-      create_endpoint(%{display_name: "Alpha", maintenance: false})
-      create_endpoint(%{display_name: "Beta", maintenance: true})
+    test "returns enabled endpoints ordered by display_name" do
+      create_endpoint(%{display_name: "Zebra", enabled: true})
+      create_endpoint(%{display_name: "Alpha", enabled: true})
+      create_endpoint(%{display_name: "Beta", enabled: false})
 
-      result = CacheEndpoints.list_active_cache_endpoints("test")
+      result = CacheEndpoints.list_active_cache_endpoints()
 
       assert length(result) == 2
       assert Enum.map(result, & &1.display_name) == ["Alpha", "Zebra"]
-    end
-
-    test "filters by environment" do
-      create_endpoint(%{environment: "prod", maintenance: false})
-      create_endpoint(%{environment: "test", maintenance: false})
-
-      result = CacheEndpoints.list_active_cache_endpoints("prod")
-
-      assert length(result) == 1
-      assert hd(result).environment == "prod"
     end
   end
 
@@ -103,16 +80,14 @@ defmodule Tuist.CacheEndpointsTest do
     test "creates with valid attributes" do
       attrs = %{
         url: "https://cache.example.com",
-        display_name: "Example Cache",
-        environment: "prod"
+        display_name: "Example Cache"
       }
 
       {:ok, endpoint} = CacheEndpoints.create_cache_endpoint(attrs)
 
       assert endpoint.url == "https://cache.example.com"
       assert endpoint.display_name == "Example Cache"
-      assert endpoint.environment == "prod"
-      assert endpoint.maintenance == false
+      assert endpoint.enabled == true
     end
 
     test "fails with missing required fields" do
@@ -120,66 +95,80 @@ defmodule Tuist.CacheEndpointsTest do
 
       assert "can't be blank" in errors_on(changeset).url
       assert "can't be blank" in errors_on(changeset).display_name
-      assert "can't be blank" in errors_on(changeset).environment
     end
 
-    test "fails with invalid URL" do
+    test "fails with duplicate url" do
+      create_endpoint(%{url: "https://duplicate.example.com"})
+
       {:error, changeset} =
         CacheEndpoints.create_cache_endpoint(%{
-          url: "not-a-url",
-          display_name: "Test",
-          environment: "test"
+          url: "https://duplicate.example.com",
+          display_name: "Another"
+        })
+
+      assert "has already been taken" in errors_on(changeset).url
+    end
+  end
+
+  describe "validate_url" do
+    test "accepts valid HTTPS URL" do
+      {:ok, endpoint} =
+        CacheEndpoints.create_cache_endpoint(%{
+          url: "https://cache.example.com",
+          display_name: "Test"
+        })
+
+      assert endpoint.url == "https://cache.example.com"
+    end
+
+    test "accepts valid HTTP URL" do
+      {:ok, endpoint} =
+        CacheEndpoints.create_cache_endpoint(%{
+          url: "http://localhost:8087",
+          display_name: "Test"
+        })
+
+      assert endpoint.url == "http://localhost:8087"
+    end
+
+    test "rejects URL without scheme" do
+      {:error, changeset} =
+        CacheEndpoints.create_cache_endpoint(%{
+          url: "cache.example.com",
+          display_name: "Test"
         })
 
       assert "must be a valid HTTP or HTTPS URL" in errors_on(changeset).url
     end
 
-    test "fails with invalid environment" do
+    test "rejects URL with unsupported scheme" do
       {:error, changeset} =
         CacheEndpoints.create_cache_endpoint(%{
-          url: "https://cache.example.com",
-          display_name: "Test",
-          environment: "invalid"
+          url: "ftp://cache.example.com",
+          display_name: "Test"
         })
 
-      assert "is invalid" in errors_on(changeset).environment
+      assert "must be a valid HTTP or HTTPS URL" in errors_on(changeset).url
     end
 
-    test "fails with duplicate url + environment" do
-      create_endpoint(%{
-        url: "https://duplicate.example.com",
-        environment: "prod"
-      })
-
+    test "rejects non-URL string" do
       {:error, changeset} =
         CacheEndpoints.create_cache_endpoint(%{
-          url: "https://duplicate.example.com",
-          display_name: "Another",
-          environment: "prod"
+          url: "not-a-url",
+          display_name: "Test"
         })
 
-      assert "has already been taken" in errors_on(changeset).url
+      assert "must be a valid HTTP or HTTPS URL" in errors_on(changeset).url
     end
 
-    test "allows same URL in different environments" do
-      url = "https://cache.example.com"
-
-      {:ok, endpoint1} =
+    test "rejects URL with empty host" do
+      {:error, changeset} =
         CacheEndpoints.create_cache_endpoint(%{
-          url: url,
-          display_name: "Test 1",
-          environment: "prod"
+          url: "https://",
+          display_name: "Test"
         })
 
-      {:ok, endpoint2} =
-        CacheEndpoints.create_cache_endpoint(%{
-          url: url,
-          display_name: "Test 2",
-          environment: "stag"
-        })
-
-      assert endpoint1.url == endpoint2.url
-      assert endpoint1.environment != endpoint2.environment
+      assert "must be a valid HTTP or HTTPS URL" in errors_on(changeset).url
     end
   end
 
@@ -194,32 +183,32 @@ defmodule Tuist.CacheEndpointsTest do
     end
   end
 
-  describe "toggle_maintenance/1" do
-    test "toggles from false to true" do
-      endpoint = create_endpoint(%{maintenance: false})
+  describe "toggle_enabled/1" do
+    test "toggles from true to false" do
+      endpoint = create_endpoint(%{enabled: true})
 
-      {:ok, updated} = CacheEndpoints.toggle_maintenance(endpoint)
+      {:ok, updated} = CacheEndpoints.toggle_enabled(endpoint)
 
-      assert updated.maintenance == true
+      assert updated.enabled == false
       assert updated.id == endpoint.id
     end
 
-    test "toggles from true to false" do
-      endpoint = create_endpoint(%{maintenance: true})
+    test "toggles from false to true" do
+      endpoint = create_endpoint(%{enabled: false})
 
-      {:ok, updated} = CacheEndpoints.toggle_maintenance(endpoint)
+      {:ok, updated} = CacheEndpoints.toggle_enabled(endpoint)
 
-      assert updated.maintenance == false
+      assert updated.enabled == true
       assert updated.id == endpoint.id
     end
 
     test "persists the change to database" do
-      endpoint = create_endpoint(%{maintenance: false})
+      endpoint = create_endpoint(%{enabled: true})
 
-      {:ok, _updated} = CacheEndpoints.toggle_maintenance(endpoint)
+      {:ok, _updated} = CacheEndpoints.toggle_enabled(endpoint)
 
       assert {:ok, reloaded} = CacheEndpoints.get_cache_endpoint(endpoint.id)
-      assert reloaded.maintenance == true
+      assert reloaded.enabled == false
     end
   end
 end
