@@ -25,44 +25,13 @@ Tuist provides a Gradle plugin that integrates with your Gradle project to enabl
 
 ## 1. Apply the plugin {#apply-the-plugin}
 
-By default, install the plugin from the Gradle Plugin Portal:
+Add the Tuist plugin to your `settings.gradle.kts`:
 
 ```kotlin
 plugins {
     id("dev.tuist") version "0.1.0"
 }
 ```
-
-## Optional: Resolve from GitHub Packages {#resolve-from-github-packages}
-
-If you prefer GitHub Packages, configure `settings.gradle.kts` as follows:
-
-```kotlin
-pluginManagement {
-    repositories {
-        maven {
-            url = uri("https://maven.pkg.github.com/tuist/tuist")
-            credentials {
-                username = providers.gradleProperty("gpr.user").orNull
-                    ?: System.getenv("GITHUB_ACTOR")
-                password = providers.gradleProperty("gpr.key").orNull
-                    ?: System.getenv("GITHUB_TOKEN")
-            }
-        }
-        gradlePluginPortal()
-    }
-}
-```
-
-Then define credentials in `~/.gradle/gradle.properties` (token requires `read:packages`):
-
-```properties
-gpr.user=YOUR_GITHUB_USERNAME
-gpr.key=YOUR_GITHUB_TOKEN
-```
-
-> [!NOTE]
-> The Tuist Gradle package is public, but GitHub Packages Maven resolution still requires authentication.
 
 ## 2. Configure the project {#configure-the-project}
 
