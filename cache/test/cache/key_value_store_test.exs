@@ -275,7 +275,7 @@ defmodule Cache.KeyValueStoreTest do
       :ok = KeyValueBuffer.flush()
 
       record = Repo.get_by!(KeyValueEntry, key: key)
-      assert DateTime.compare(record.last_accessed_at, old_time) == :gt
+      assert DateTime.after?(record.last_accessed_at, old_time)
     end
 
     test "Cachex hit does not update last_accessed_at" do
@@ -297,6 +297,7 @@ defmodule Cache.KeyValueStoreTest do
       :ok = KeyValueBuffer.flush()
 
       record = Repo.get_by!(KeyValueEntry, key: key)
+
       assert DateTime.truncate(record.last_accessed_at, :second) ==
                DateTime.truncate(old_time, :second)
     end
@@ -308,7 +309,7 @@ defmodule Cache.KeyValueStoreTest do
 
       key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
       record = Repo.get_by!(KeyValueEntry, key: key)
-      assert record.last_accessed_at != nil
+      assert record.last_accessed_at
 
       Cachex.clear(:cache_keyvalue_store)
 

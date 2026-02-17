@@ -44,7 +44,7 @@ defmodule Cache.SQLiteBufferTest do
 
     record = Repo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload_two
-    assert record.last_accessed_at != nil
+    assert record.last_accessed_at
   end
 
   test "write then access for same key keeps pending write" do
@@ -60,7 +60,7 @@ defmodule Cache.SQLiteBufferTest do
 
     record = Repo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
-    assert record.last_accessed_at != nil
+    assert record.last_accessed_at
   end
 
   test "access-only entry updates last_accessed_at without changing payload" do
@@ -83,7 +83,7 @@ defmodule Cache.SQLiteBufferTest do
 
     record = Repo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
-    assert DateTime.compare(record.last_accessed_at, initial_time) == :gt
+    assert DateTime.after?(record.last_accessed_at, initial_time)
   end
 
   test "multiple accesses for same key are de-duplicated in queue" do
