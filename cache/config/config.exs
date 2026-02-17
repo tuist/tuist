@@ -49,6 +49,7 @@ config :cache, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
+       {"0 */6 * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"0 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
@@ -66,7 +67,8 @@ config :cache,
   disk_usage_high_watermark_percent: 85.0,
   disk_usage_target_percent: 70.0,
   events_batch_size: 100,
-  events_batch_timeout: 5_000
+  events_batch_timeout: 5_000,
+  key_value_eviction_max_age_days: 30
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
 
