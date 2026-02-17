@@ -251,7 +251,7 @@ Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak bunu
 <!-- -->
 :::
 
-### Hedef geçişi doğrulayın {#validate-the-target-migration}
+### Hedef geçişi doğrula {#validate-the-target-migration}
 
 `komutunu çalıştırın. tuist generate` komutunu çalıştırın. Ardından `xcodebuild
 build` komutunu çalıştırarak projenin derlendiğinden emin olun ve `tuist test`
