@@ -10,8 +10,8 @@
 
   & [data-part="add-form"] {
     display: flex;
-    gap: var(--noora-spacing-5);
     align-items: flex-end;
+    gap: var(--noora-spacing-5);
 
     & [data-part="field"] {
       display: flex;
