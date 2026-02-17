@@ -21,19 +21,6 @@ MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</Loc
 
 You can use either one on its own, but they work best together. For example, a skill can define how to investigate and fix a flaky test, while MCP tools provide the live test insights and run details needed to execute that workflow.
 
-## Authentication
-
-The MCP endpoint is protected by OAuth 2.0. MCP clients that support the OAuth-based authentication flow will handle the handshake automatically. The discovery endpoints are:
-
-- **Authorization server metadata:** `https://tuist.dev/.well-known/oauth-authorization-server`
-- **Protected resource metadata:** `https://tuist.dev/.well-known/oauth-protected-resource/mcp`
-
-When your MCP client connects, it will:
-
-1. Discover the authorization server via the metadata endpoints.
-2. Redirect you to sign in through Tuist's OAuth flow.
-3. Obtain an access token and use it for subsequent MCP requests.
-
 ## Configuration
 
 Point your MCP client at the Tuist server endpoint. The exact configuration depends on your client, but it typically involves setting the MCP server URL to:
