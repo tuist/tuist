@@ -116,7 +116,7 @@ defmodule TuistWeb.API.GradleController do
       end)
 
     attrs = %{
-      id: body[:id],
+      id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
       account_id: account.id,
       duration_ms: body.duration_ms,

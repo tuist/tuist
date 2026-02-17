@@ -22,6 +22,7 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
 
     {:ok, build_id} =
       Gradle.create_build(%{
+        id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
         project_id: project_id,
         account_id: account_id,
         duration_ms: Keyword.get(attrs, :duration_ms, 10_000),
