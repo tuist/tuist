@@ -75,7 +75,7 @@ data class TestResponse(val id: String, val url: String?)
 
 // --- Test report collector ---
 
-internal data class RawTestResult(
+internal data class TestAttempt(
     val testName: String,
     val className: String?,
     val resultType: TestResult.ResultType,
@@ -85,7 +85,7 @@ internal data class RawTestResult(
 )
 
 internal class TestReportCollector {
-    private val rawResultsByModule = mutableMapOf<String, MutableList<RawTestResult>>()
+    private val rawResultsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
 
     fun collectTestResult(
         moduleName: String,
@@ -97,7 +97,7 @@ internal class TestReportCollector {
         exception: Throwable?
     ) {
         rawResultsByModule.getOrPut(moduleName) { mutableListOf() }.add(
-            RawTestResult(testName, className, resultType, startTime, endTime, exception)
+            TestAttempt(testName, className, resultType, startTime, endTime, exception)
         )
     }
 
@@ -152,7 +152,7 @@ internal class TestReportCollector {
         )
     }
 
-    private fun buildTestCases(rawResults: List<RawTestResult>): List<TestCase> {
+    private fun buildTestCases(rawResults: List<TestAttempt>): List<TestCase> {
         return rawResults
             .groupBy { Pair(it.testName, it.className) }
             .map { (key, attempts) ->
