@@ -3,6 +3,8 @@ defmodule Cache.KeyValueBuffer do
 
   @behaviour Cache.SQLiteBufferable
 
+  import Ecto.Query
+
   alias Cache.KeyValueEntry
   alias Cache.Repo
   alias Cache.SQLiteBuffer
@@ -16,7 +18,14 @@ defmodule Cache.KeyValueBuffer do
   end
 
   def enqueue(key, json_payload) do
-    true = :ets.insert(__MODULE__, {key, %{key: key, json_payload: json_payload}})
+    entry = %{key: key, json_payload: json_payload}
+    true = :ets.insert(__MODULE__, {key, {:write, entry}})
+    :ok
+  end
+
+  def enqueue_access(key) do
+    entry = %{key: key}
+    _inserted? = :ets.insert_new(__MODULE__, {key, {:access, entry}})
     :ok
   end
 
@@ -38,16 +47,36 @@ defmodule Cache.KeyValueBuffer do
 
   @impl true
   def flush_entries(table, max_batch_size) do
-    match_spec = [{{:"$1", :"$2"}, [], [{{:"$1", :"$2"}}]}]
+    write_spec = [{{:"$1", {:write, :"$2"}}, [], [:"$_"]}]
+    access_spec = [{{:"$1", {:access, :"$2"}}, [], [:"$_"]}]
 
-    case :ets.select(table, match_spec, max_batch_size) do
-      {entries, _continuation} ->
-        Enum.each(entries, &:ets.delete_object(table, &1))
-        [{:key_values, Map.new(entries)}]
+    writes =
+      case :ets.select(table, write_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.each(entries, &:ets.delete_object(table, &1))
+          Enum.map(entries, fn {key, {:write, entry}} -> {key, entry} end)
 
-      :"$end_of_table" ->
-        []
-    end
+        :"$end_of_table" ->
+          []
+      end
+
+    accesses =
+      case :ets.select(table, access_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.each(entries, &:ets.delete_object(table, &1))
+          Enum.map(entries, fn {key, {:access, entry}} -> {key, entry} end)
+
+        :"$end_of_table" ->
+          []
+      end
+
+    Enum.reject(
+      [
+        if(writes != [], do: {:key_values, Map.new(writes)}),
+        if(accesses != [], do: {:key_value_accesses, Map.new(accesses)})
+      ],
+      &is_nil/1
+    )
   end
 
   @impl true
@@ -62,12 +91,14 @@ defmodule Cache.KeyValueBuffer do
   @impl true
   def write_batch(:key_values, entries) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
+    last_accessed_at = DateTime.utc_now()
 
     rows =
       Enum.map(entries, fn {_key, entry} ->
         %{
           key: entry.key,
           json_payload: entry.json_payload,
+          last_accessed_at: last_accessed_at,
           inserted_at: now,
           updated_at: now
         }
@@ -75,7 +106,19 @@ defmodule Cache.KeyValueBuffer do
 
     Repo.insert_all(KeyValueEntry, rows,
       conflict_target: :key,
-      on_conflict: {:replace, [:json_payload, :updated_at]}
+      on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
+    )
+  end
+
+  @impl true
+  def write_batch(:key_value_accesses, entries) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    last_accessed_at = DateTime.utc_now()
+    keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
+
+    Repo.update_all(
+      from(e in KeyValueEntry, where: e.key in ^keys),
+      set: [last_accessed_at: last_accessed_at, updated_at: now]
     )
   end
 end
