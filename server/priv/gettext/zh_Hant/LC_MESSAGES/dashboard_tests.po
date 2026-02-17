@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-16 17:40+0000\n"
+"PO-Revision-Date: 2026-02-17 16:30+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hant/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -799,11 +799,13 @@ msgstr "隔離測試"
 msgid "Tuist"
 msgstr "Tuist"
 
+#, fuzzy
 msgid "Build: %{name}"
-msgstr ""
+msgstr "建置：%{name}"
 
+#, fuzzy
 msgid "Class"
-msgstr ""
+msgstr "類別"
 
 #, fuzzy
 msgid "Crash Report"
@@ -813,8 +815,9 @@ msgstr "崩潰報告"
 msgid "Exception"
 msgstr "例外情況"
 
+#, fuzzy
 msgid "Project"
-msgstr ""
+msgstr "專案"
 
 #, fuzzy
 msgid "Signal"
@@ -824,14 +827,17 @@ msgstr "Signal"
 msgid "Subtype"
 msgstr "子類型"
 
+#, fuzzy
 msgid "Test Class"
-msgstr ""
+msgstr "測試類別"
 
+#, fuzzy
 msgid "Test Classes"
-msgstr ""
+msgstr "測試類別"
 
+#, fuzzy
 msgid "Test Suite"
-msgstr ""
+msgstr "測試套件"
 
 #, fuzzy
 #~ msgid "Test suite"
