@@ -118,7 +118,7 @@ defmodule Tuist.Tests do
       from f in TestCaseFailure,
         join: tcr in TestCaseRun,
         on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id,
+        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
         select: count(f.id)
 
     ClickHouseRepo.one(query) || 0
