@@ -8,8 +8,6 @@ defmodule Tuist.IngestRepo.Migrations.MakeTestRunsBuildRunIdNullable do
   end
 
   def down do
-    execute(
-      "ALTER TABLE test_runs MODIFY COLUMN build_run_id UUID SETTINGS mutations_sync = 1"
-    )
+    execute("ALTER TABLE test_runs MODIFY COLUMN build_run_id UUID SETTINGS mutations_sync = 1")
   end
 end

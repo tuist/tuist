@@ -885,12 +885,19 @@ jobs:
           # Get the latest gradle version tag
           LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "gradle/**/*" --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
           else
-            git cliff --include-path "gradle/**/*" --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
           fi
+
+          if [ -z "$(echo "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
+            echo "Gradle release notes are empty. Refusing to publish a release without notes." >&2
+            exit 1
+          fi
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$RELEASE_NOTES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update CHANGELOG.md

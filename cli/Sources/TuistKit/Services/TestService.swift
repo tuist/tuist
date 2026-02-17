@@ -170,67 +170,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if !targetsIntersection.isEmpty {
             throw TestServiceError.duplicatedTestTargets(targetsIntersection)
         }
-        if !testTargets.isEmpty {
-            // --test-targets Test --skip-test-targets AnotherTest
-            let skipTestTargetsOnly = try Set(
-                skipTestTargets.map { try TestIdentifier(target: $0.target) }
-            )
-            let testTargetsOnly = try testTargets.map { try TestIdentifier(target: $0.target) }
-            let targetsOnlyIntersection = skipTestTargetsOnly.intersection(testTargetsOnly)
-            if !skipTestTargets.isEmpty, targetsOnlyIntersection.isEmpty {
-                throw TestServiceError.nothingToSkip(
-                    skipped:
-                    try skipTestTargets
-                        .filter { skipTarget in
-                            try !testTargetsOnly.contains(TestIdentifier(target: skipTarget.target))
-                        },
-                    included: testTargets
-                )
-            }
-
-            // --test-targets Test/MyClass --skip-test-targets Test/AnotherClass
-            let skipTestTargetsClasses = try Set(
-                skipTestTargets.map { try TestIdentifier(target: $0.target, class: $0.class) }
-            )
-            let testTargetsClasses = try testTargets.lazy.filter { $0.class != nil }
-                .map { try TestIdentifier(target: $0.target, class: $0.class) }
-            let targetsClassesIntersection = skipTestTargetsClasses.intersection(testTargetsClasses)
-            if !testTargetsClasses.isEmpty, !skipTestTargetsClasses.isEmpty,
-               targetsClassesIntersection.isEmpty
-            {
-                throw TestServiceError.nothingToSkip(
-                    skipped:
-                    try skipTestTargets
-                        .filter { skipTarget in
-                            try
-                                !testTargetsClasses
-                                .contains {
-                                    try $0
-                                        == TestIdentifier(
-                                            target: skipTarget.target, class: skipTarget.class
-                                        )
-                                }
-                        },
-                    included: testTargets
-                )
-            }
-
-            // --test-targets Test/MyClass/MyMethod --skip-test-targets Test/MyClass/AnotherMethod
-            let skipTestTargetsClassesMethods = Set(skipTestTargets)
-            let testTargetsClassesMethods = testTargets.lazy.filter {
-                $0.class != nil && $0.method != nil
-            }
-            let targetsClassesMethodsIntersection = skipTestTargetsClassesMethods.intersection(
-                testTargetsClasses
-            )
-            if !testTargetsClassesMethods.isEmpty, targetsClassesMethodsIntersection.isEmpty,
-               !skipTestTargetsClassesMethods.isEmpty
-            {
-                throw TestServiceError.nothingToSkip(
-                    skipped: skipTestTargets, included: testTargets
-                )
-            }
-        }
     }
 
     // swiftlint:disable:next function_body_length

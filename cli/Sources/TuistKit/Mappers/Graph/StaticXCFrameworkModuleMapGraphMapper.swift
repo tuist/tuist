@@ -29,17 +29,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        guard let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path)
-        else { return (graph, [], environment) }
-        let derivedDirectory = packageManifest
-            .parentDirectory
-            .appending(
-                components: [
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
-                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                ]
-            )
-
+        let derivedDirectory = try await derivedDirectory(for: graph)
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -136,6 +126,25 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             sideEffects,
             environment
         )
+    }
+
+    private func derivedDirectory(for graph: Graph) async throws -> AbsolutePath {
+        if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
+            return packageManifest.parentDirectory.appending(
+                components: [
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        } else {
+            return graph.path.appending(
+                components: [
+                    Constants.tuistDirectoryName,
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        }
     }
 
     private func moduleMapFlag(

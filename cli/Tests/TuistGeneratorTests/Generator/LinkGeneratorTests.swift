@@ -705,8 +705,14 @@ final class LinkGeneratorTests: XCTestCase {
 
         // Then
         let config = xcodeprojElements.config
-        let expected = ["$(inherited)", "$(SRCROOT)/to/libraries", "$(SRCROOT)/to/other/libraries"]
-        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue, expected)
+        let expectedSearchPaths = [
+            "$(inherited)",
+            "$(SRCROOT)/to/libraries",
+            "$(SRCROOT)/to/other/libraries",
+        ]
+        XCTAssertEqual(config.buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue, expectedSearchPaths)
+        let expectedLdFlags = ["$(inherited)", "-L$(DT_TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)"]
+        XCTAssertEqual(config.buildSettings["OTHER_LDFLAGS"]?.arrayValue, expectedLdFlags)
     }
 
     func test_setupLibrarySearchPaths_noPaths() throws {
@@ -714,7 +720,7 @@ final class LinkGeneratorTests: XCTestCase {
         let searchPaths: [AbsolutePath] = []
         let sourceRootPath = try AbsolutePath(validating: "/path")
         let xcodeprojElements = createXcodeprojElements()
-        let target = Target.test()
+        let target = Target.test(product: .staticLibrary)
         let path = try AbsolutePath(validating: "/path/")
         let graphTraverser = MockGraphTraversing()
         given(graphTraverser)
@@ -733,6 +739,37 @@ final class LinkGeneratorTests: XCTestCase {
         // Then
         let config = xcodeprojElements.config
         XCTAssertNil(config.buildSettings["LIBRARY_SEARCH_PATHS"])
+        XCTAssertNil(config.buildSettings["OTHER_LDFLAGS"])
+    }
+
+    func test_setupLibrarySearchPaths_noLibraryPaths_withSwiftToolchainLdFlag() throws {
+        // Given: A dynamic framework with no library search paths gets the Swift toolchain
+        // path added to OTHER_LDFLAGS so that auto-linked Swift compatibility libraries
+        // can be found when linking with clang (ObjC-only targets)
+        let searchPaths: [AbsolutePath] = []
+        let sourceRootPath = try AbsolutePath(validating: "/path")
+        let xcodeprojElements = createXcodeprojElements()
+        let target = Target.test(product: .framework)
+        let path = try AbsolutePath(validating: "/path/")
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .librariesSearchPaths(path: .any, name: .any)
+            .willReturn(Set(searchPaths))
+
+        // When
+        try subject.setupLibrarySearchPaths(
+            target: target,
+            pbxTarget: xcodeprojElements.pbxTarget,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let config = xcodeprojElements.config
+        XCTAssertNil(config.buildSettings["LIBRARY_SEARCH_PATHS"])
+        let expectedLdFlags = ["$(inherited)", "-L$(DT_TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)"]
+        XCTAssertEqual(config.buildSettings["OTHER_LDFLAGS"]?.arrayValue, expectedLdFlags)
     }
 
     func test_setupSwiftIncludePaths_multiplePaths() throws {

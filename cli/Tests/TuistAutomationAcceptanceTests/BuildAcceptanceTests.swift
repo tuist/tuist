@@ -306,7 +306,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildBuildCommand.self,
             [
-                "build",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -332,7 +331,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildTestCommand.self,
             [
-                "test",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -358,7 +356,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
-                "build-for-testing",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -385,7 +382,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
-                "build-for-testing",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -401,7 +397,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildTestWithoutBuildingCommand.self,
             [
-                "test-without-building",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -427,7 +422,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildArchiveCommand.self,
             [
-                "archive",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",

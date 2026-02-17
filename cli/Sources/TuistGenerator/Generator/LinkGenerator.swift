@@ -345,12 +345,40 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         graphTraverser: GraphTraversing
     ) throws {
         let librarySearchPaths = try graphTraverser.librariesSearchPaths(path: path, name: target.name).sorted()
+        let paths: [LinkGeneratorPath] = librarySearchPaths.map(LinkGeneratorPath.absolutePath)
         try setup(
             setting: "LIBRARY_SEARCH_PATHS",
-            paths: librarySearchPaths.map(LinkGeneratorPath.absolutePath),
+            paths: paths,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath
         )
+
+        if target.canLinkStaticProducts() {
+            try setupSwiftToolchainLinkerSearchPath(pbxTarget: pbxTarget)
+        }
+    }
+
+    private func setupSwiftToolchainLinkerSearchPath(pbxTarget: PBXTarget) throws {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
+            throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
+        }
+        let swiftToolchainSearchPath = "-L$(DT_TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)"
+        for configuration in configurationList.buildConfigurations {
+            let existingFlags = configuration.buildSettings["OTHER_LDFLAGS"]
+            var flags: [String]
+            switch existingFlags {
+            case let .array(existing):
+                flags = existing
+            case let .string(existing):
+                flags = [existing]
+            case .none:
+                flags = ["$(inherited)"]
+            }
+            if !flags.contains(swiftToolchainSearchPath) {
+                flags.append(swiftToolchainSearchPath)
+            }
+            configuration.buildSettings["OTHER_LDFLAGS"] = .array(flags)
+        }
     }
 
     func setupSwiftIncludePaths(
