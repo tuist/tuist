@@ -14,12 +14,12 @@ Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting
 
 ## MCP vs Skills
 
-MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> solve different parts of agentic workflows:
+MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> are complementary layers:
 
-- **MCP** gives your agent a live interface to Tuist data and actions through tools and prompts.
-- **Skills** give your agent reusable workflow instructions for multi-step tasks.
+- **MCP** exposes live capabilities and context from external systems through tools, resources, and prompts.
+- **Skills** provide reusable workflow instructions for multi-step tasks.
 
-You can use either one on its own, but they work best together. For example, a skill can define how to investigate and fix a flaky test, while MCP tools provide the live test insights and run details needed to execute that workflow.
+In practice, skills guide how work should be done, and MCP provides the live data and actions to execute it. A skill can call MCP tools, and MCP prompts can be used alongside skills in the same workflow.
 
 ## Configuration
 
