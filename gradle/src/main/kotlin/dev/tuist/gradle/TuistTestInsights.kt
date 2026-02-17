@@ -226,7 +226,8 @@ abstract class TuistTestInsightsService :
     internal var buildInsightsService: TuistBuildInsightsService? = null
 
     private val collector = TestReportCollector()
-    private var buildStartTime: Long = System.currentTimeMillis()
+    private var earliestStartTime: Long = Long.MAX_VALUE
+    private var latestEndTime: Long = Long.MIN_VALUE
     @Volatile private var hasTests = false
 
     @Synchronized
@@ -236,6 +237,8 @@ abstract class TuistTestInsightsService :
         result: TestResult
     ) {
         hasTests = true
+        if (result.startTime < earliestStartTime) earliestStartTime = result.startTime
+        if (result.endTime > latestEndTime) latestEndTime = result.endTime
         collector.collectTestResult(
             moduleName, descriptor.name, descriptor.className,
             result.resultType, result.startTime, result.endTime, result.exception
@@ -287,7 +290,7 @@ abstract class TuistTestInsightsService :
             readTimeoutMs = 10_000
         )
 
-        val totalDurationMs = System.currentTimeMillis() - buildStartTime
+        val totalDurationMs = latestEndTime - earliestStartTime
         val gradleBuildId = buildInsightsService?.buildId
 
         val report = collector.buildReport(
