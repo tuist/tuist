@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
   alias Tuist.MCP.Authorization
   alias Tuist.MCP.Content
   alias Tuist.MCP.Errors
+  alias Tuist.MCP.Formatter
   alias Tuist.Tests
 
   def name, do: "get_test_case_run"
@@ -24,7 +25,7 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
 
   def call(%{"test_case_run_id" => test_case_run_id}, subject) do
     with {:ok, run} <- Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]),
-         :ok <- Authorization.authorize_project_id(run.project_id, subject) do
+         :ok <- Authorization.authorize_project_id(:test_read, run.project_id, subject) do
       data = %{
         id: run.id,
         test_case_id: run.test_case_id,
@@ -40,7 +41,7 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
         scheme: run.scheme,
         git_branch: run.git_branch,
         git_commit_sha: run.git_commit_sha,
-        ran_at: format_ran_at(run.ran_at),
+        ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
         failures:
           Enum.map(run.failures, fn f ->
             %{
@@ -70,12 +71,4 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
   def call(_arguments, _subject) do
     Errors.invalid_params("Missing required parameter: test_case_run_id.")
   end
-
-  defp format_ran_at(nil), do: nil
-
-  defp format_ran_at(%NaiveDateTime{} = ran_at) do
-    ran_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_iso8601()
-  end
-
-  defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
 end

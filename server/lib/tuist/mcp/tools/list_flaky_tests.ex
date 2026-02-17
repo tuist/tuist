@@ -4,6 +4,7 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
   alias Tuist.MCP.Authorization
   alias Tuist.MCP.Content
   alias Tuist.MCP.Errors
+  alias Tuist.MCP.Formatter
   alias Tuist.Tests
 
   def name, do: "list_flaky_tests"
@@ -26,7 +27,7 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
   end
 
   def call(%{"account_handle" => account_handle, "project_handle" => project_handle} = arguments, subject) do
-    case Authorization.get_authorized_project(account_handle, project_handle, subject) do
+    case Authorization.get_authorized_project(:test_read, account_handle, project_handle, subject) do
       {:ok, project} ->
         page = Map.get(arguments, "page", 1)
         page_size = min(Map.get(arguments, "page_size", 20), 100)
@@ -46,7 +47,7 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
                 module_name: tc.module_name,
                 suite_name: tc.suite_name,
                 flaky_runs_count: tc.flaky_runs_count,
-                last_flaky_at: format_datetime(tc.last_flaky_at)
+                last_flaky_at: Formatter.iso8601(tc.last_flaky_at)
               }
             end),
           pagination: %{
@@ -67,13 +68,4 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
   def call(_arguments, _subject) do
     Errors.invalid_params("Missing required parameters: account_handle, project_handle.")
   end
-
-  defp format_datetime(nil), do: nil
-
-  defp format_datetime(%NaiveDateTime{} = dt) do
-    dt |> NaiveDateTime.truncate(:second) |> NaiveDateTime.to_iso8601()
-  end
-
-  defp format_datetime(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-  defp format_datetime(other), do: to_string(other)
 end
