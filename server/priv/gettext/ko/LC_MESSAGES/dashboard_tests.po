@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-16 17:40+0000\n"
+"PO-Revision-Date: 2026-02-17 16:30+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -660,11 +660,13 @@ msgstr "격리된 테스트"
 msgid "Tuist"
 msgstr "Tuist"
 
+#, fuzzy
 msgid "Build: %{name}"
-msgstr ""
+msgstr "빌드: %{name}"
 
+#, fuzzy
 msgid "Class"
-msgstr ""
+msgstr "Class"
 
 #, fuzzy
 msgid "Crash Report"
@@ -685,11 +687,13 @@ msgstr "신호"
 msgid "Subtype"
 msgstr "하위 유형"
 
+#, fuzzy
 msgid "Test Class"
-msgstr ""
+msgstr "테스트 클래스"
 
+#, fuzzy
 msgid "Test Classes"
-msgstr ""
+msgstr "테스트 클래스"
 
 msgid "Test Suite"
 msgstr ""
