@@ -95,6 +95,28 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
     end
   end
 
+  describe "render" do
+    test "renders page when a bundle_size alert rule has a non-bundle-size metric", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: a bundle_size alert rule with an invalid metric (e.g. :p99 instead of :install_size)
+      AlertsFixtures.alert_rule_fixture(
+        project: project,
+        category: :bundle_size,
+        metric: :p99,
+        git_branch: "main"
+      )
+
+      # When/Then: the page should render without crashing
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      assert html =~ "Metrics"
+    end
+  end
+
   describe "create_alert_rule" do
     test "does not allow creating an alert rule when user lacks project_update permission", %{
       conn: conn,
