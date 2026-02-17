@@ -57,6 +57,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
@@ -207,6 +208,70 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
+            )
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        :if={Project.gradle_project?(@selected_project)}
+        id="sidebar-gradle-tests"
+        label={dgettext("dashboard", "Tests")}
+        icon="subtask"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
+        }
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
+          )
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Test Runs")}
+          icon="dashboard"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Test Cases")}
+          icon="exchange"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Flaky Tests")}
+          icon="progress_x"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Quarantined Tests")}
+          icon="lock"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"
             )
           }
         />
