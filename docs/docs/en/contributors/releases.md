@@ -11,12 +11,15 @@ Tuist uses a continuous release system that automatically publishes new versions
 
 ## Overview
 
-We continuously release three main components:
+We continuously release six components:
 - **Tuist CLI** - The command-line tool
 - **Tuist Server** - The backend services
-- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release)
+- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release))
+- **Tuist Cache** - The cache Docker image
+- **Tuist Gradle plugin** - The Gradle integration, published to the Gradle Plugin Portal and GitHub Packages
+- **Tuist Skills** - The published skills package
 
-Each component has its own release pipeline that runs automatically on every push to the main branch.
+Releases are orchestrated by a unified pipeline that runs on every push to `main`.
 
 ## How it works
 
@@ -55,7 +58,7 @@ Users will need to clear their old cache directory.
 
 Each component uses [git cliff](https://git-cliff.org/) to:
 - Analyze commits since the last release
-- Filter commits by scope (cli, app, server)
+- Filter commits by scope (cli, app, server, cache, gradle, skills)
 - Determine if there are releasable changes
 - Generate changelogs automatically
 
@@ -67,7 +70,7 @@ When releasable changes are detected:
 2. **Changelog generation**: git cliff creates a changelog from commit messages
 3. **Build process**: The component is built and tested
 4. **Release creation**: A GitHub release is created with artifacts
-5. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for CLI)
+5. **Distribution**: Updates are pushed to their delivery channels (Homebrew, Docker registries, GitHub Packages, and GitHub Releases)
 
 ### 4. Scope filtering
 
@@ -76,6 +79,9 @@ Each component only releases when it has relevant changes:
 - **CLI**: Commits with `(cli)` scope or no scope
 - **App**: Commits with `(app)` scope
 - **Server**: Commits with `(server)` scope
+- **Cache**: Commits with `(cache)` scope
+- **Gradle**: Commits with `(gradle)` scope
+- **Skills**: Commits with `(skills)` scope
 
 ## Writing good commit messages
 
@@ -105,16 +111,13 @@ Users need to clear their cache after updating.
 
 ## Release workflows
 
-The release workflows are defined in:
-- `.github/workflows/cli-release.yml` - CLI releases
-- `.github/workflows/app-release.yml` - App releases
-- `.github/workflows/server-release.yml` - Server releases
+The release workflow is defined in:
+- `.github/workflows/release.yml` - Unified release workflow for all releasable components
 
-Each workflow:
+The workflow:
 - Runs on pushes to main
-- Can be triggered manually
 - Uses git cliff for change detection
-- Handles the entire release process
+- Handles component-specific build, publish, release notes, tags, and changelog updates
 
 ## Monitoring releases
 
@@ -149,7 +152,7 @@ For urgent fixes that need immediate release:
 
 ## App Store release
 
-While the CLI and Server follow the continuous release process described above, the **iOS app** is an exception due to Apple's App Store review process:
+While the releasable components above follow the continuous release process described above, the **iOS app** is an exception due to Apple's App Store review process:
 
 - **Manual releases**: iOS app releases require manual submission to the App Store
 - **Review delays**: Each release must go through Apple's review process, which can take 1-7 days
