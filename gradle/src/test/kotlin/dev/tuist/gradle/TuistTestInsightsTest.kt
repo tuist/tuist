@@ -12,7 +12,7 @@ class TuistTestInsightsTest {
 
     private val gson = Gson()
 
-    // --- Data class serialization tests ---
+    // --- Serialization tests ---
 
     @Test
     fun `TestReport serializes with snake_case field names`() {
@@ -54,56 +54,7 @@ class TuistTestInsightsTest {
         assertEquals("gradle", report.buildSystem)
     }
 
-    @Test
-    fun `TestModule serializes correctly`() {
-        val module = TestModule(
-            name = ":app",
-            status = "failure",
-            duration = 3000,
-            testSuites = listOf(
-                TestSuite(name = "com.example.LoginTest", status = "failure", duration = 2000)
-            ),
-            testCases = listOf(
-                TestCase(
-                    name = "testLogin",
-                    testSuiteName = "com.example.LoginTest",
-                    status = "failure",
-                    duration = 1500,
-                    failures = listOf(
-                        TestFailure(
-                            message = "Expected true but was false",
-                            path = "LoginTest.kt",
-                            lineNumber = 42,
-                            issueType = "assertion_failure"
-                        )
-                    )
-                )
-            )
-        )
-
-        val json = gson.toJson(module)
-        assertTrue(json.contains("\"test_suites\""))
-        assertTrue(json.contains("\"test_cases\""))
-        assertTrue(json.contains("\"test_suite_name\""))
-        assertTrue(json.contains("\"line_number\""))
-        assertTrue(json.contains("\"issue_type\""))
-    }
-
-    @Test
-    fun `TestFailure serializes with snake_case`() {
-        val failure = TestFailure(
-            message = "Something went wrong",
-            path = "MyTest.kt",
-            lineNumber = 10,
-            issueType = "error_thrown"
-        )
-
-        val json = gson.toJson(failure)
-        assertTrue(json.contains("\"line_number\""))
-        assertTrue(json.contains("\"issue_type\""))
-        assertTrue(!json.contains("\"lineNumber\""))
-        assertTrue(!json.contains("\"issueType\""))
-    }
+    // --- URL construction tests ---
 
     @Test
     fun `URL construction for test endpoint is correct`() {
@@ -127,177 +78,6 @@ class TuistTestInsightsTest {
         val url = URI("$baseUrl/api/$accountHandle/$projectHandle/tests")
 
         assertEquals("/api/my-org/my-project/tests", url.path)
-    }
-
-    // --- TestReportCollector tests ---
-
-    @Test
-    fun `collectTestResult adds passing test`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testLogin", "com.example.LoginTest",
-            TestResult.ResultType.SUCCESS, 0, 100, null
-        )
-
-        val report = collector.buildReport(100, false, null, null, null, null, null)
-        assertEquals(1, report.testModules.size)
-        val appModule = report.testModules[0]
-        assertEquals(":app", appModule.name)
-        assertEquals("success", appModule.status)
-        assertEquals(100, appModule.duration)
-        assertEquals(1, appModule.testCases.size)
-        assertEquals("testLogin", appModule.testCases[0].name)
-        assertEquals("com.example.LoginTest", appModule.testCases[0].testSuiteName)
-        assertEquals("success", appModule.testCases[0].status)
-        assertEquals(100, appModule.testCases[0].duration)
-        assertTrue(appModule.testCases[0].failures.isEmpty())
-    }
-
-    @Test
-    fun `collectTestResult accumulates test cases in same module`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testA", "com.example.SuiteA",
-            TestResult.ResultType.SUCCESS, 0, 100, null
-        )
-        collector.collectTestResult(
-            ":app", "testB", "com.example.SuiteA",
-            TestResult.ResultType.SUCCESS, 100, 350, null
-        )
-
-        val report = collector.buildReport(350, false, null, null, null, null, null)
-        val appModule = report.testModules[0]
-        assertEquals(2, appModule.testCases.size)
-        assertEquals(100, appModule.testCases[0].duration)
-        assertEquals(250, appModule.testCases[1].duration)
-    }
-
-    @Test
-    fun `collectTestResult records failure status on test case`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testA", "com.example.SuiteA",
-            TestResult.ResultType.SUCCESS, 0, 100, null
-        )
-        collector.collectTestResult(
-            ":app", "testB", "com.example.SuiteA",
-            TestResult.ResultType.FAILURE, 100, 200, RuntimeException("fail")
-        )
-
-        val report = collector.buildReport(200, false, null, null, null, null, null)
-        val cases = report.testModules[0].testCases
-        assertEquals("success", cases[0].status)
-        assertEquals("failure", cases[1].status)
-    }
-
-    @Test
-    fun `collectTestResult handles multiple modules`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testA", "com.example.AppTest",
-            TestResult.ResultType.SUCCESS, 0, 100, null
-        )
-        collector.collectTestResult(
-            ":lib", "testB", "com.example.LibTest",
-            TestResult.ResultType.SUCCESS, 0, 200, null
-        )
-
-        val report = collector.buildReport(200, false, null, null, null, null, null)
-        assertEquals(2, report.testModules.size)
-    }
-
-    @Test
-    fun `collectTestResult handles test with null className`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testDynamic", null,
-            TestResult.ResultType.SUCCESS, 0, 50, null
-        )
-
-        val report = collector.buildReport(50, false, null, null, null, null, null)
-        val appModule = report.testModules[0]
-        assertEquals(1, appModule.testCases.size)
-        assertNull(appModule.testCases[0].testSuiteName)
-        assertTrue(appModule.testSuites.isEmpty())
-    }
-
-    @Test
-    fun `collectTestResult handles skipped test`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testSkipped", "com.example.Test",
-            TestResult.ResultType.SKIPPED, 0, 0, null
-        )
-
-        val report = collector.buildReport(0, false, null, null, null, null, null)
-        assertEquals("skipped", report.testModules[0].testCases[0].status)
-    }
-
-    @Test
-    fun `collectTestResult attaches assertion failure with user frame from stack trace`() {
-        val collector = TestReportCollector()
-        val exception = AssertionError("expected 1 but got 2")
-        exception.stackTrace = arrayOf(
-            StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
-            StackTraceElement("java.lang.reflect.Method", "invoke", "Method.java", 566),
-            StackTraceElement("com.example.MathTest", "testAdd", "MathTest.kt", 15),
-            StackTraceElement("com.example.MathTest", "setup", "MathTest.kt", 5)
-        )
-
-        collector.collectTestResult(
-            ":app", "testAdd", "com.example.MathTest",
-            TestResult.ResultType.FAILURE, 0, 50, exception
-        )
-
-        val report = collector.buildReport(50, false, null, null, null, null, null)
-        val testCase = report.testModules[0].testCases[0]
-        assertEquals(1, testCase.failures.size)
-        assertEquals("assertion_failure", testCase.failures[0].issueType)
-        assertEquals("MathTest.kt", testCase.failures[0].path)
-        assertEquals(15, testCase.failures[0].lineNumber)
-    }
-
-    @Test
-    fun `collectTestResult classifies runtime exception as error_thrown`() {
-        val collector = TestReportCollector()
-        val exception = RuntimeException("something went wrong")
-        exception.stackTrace = arrayOf(
-            StackTraceElement("com.example.MyTest", "testSomething", "MyTest.kt", 42)
-        )
-
-        collector.collectTestResult(
-            ":app", "testSomething", "com.example.MyTest",
-            TestResult.ResultType.FAILURE, 0, 100, exception
-        )
-
-        val report = collector.buildReport(100, false, null, null, null, null, null)
-        val testCase = report.testModules[0].testCases[0]
-        assertEquals("error_thrown", testCase.failures[0].issueType)
-        assertEquals("something went wrong", testCase.failures[0].message)
-    }
-
-    @Test
-    fun `collectTestResult produces default failure when exception is null`() {
-        val collector = TestReportCollector()
-
-        collector.collectTestResult(
-            ":app", "testFail", "com.example.Test",
-            TestResult.ResultType.FAILURE, 0, 100, null
-        )
-
-        val report = collector.buildReport(100, false, null, null, null, null, null)
-        val testCase = report.testModules[0].testCases[0]
-        assertEquals(1, testCase.failures.size)
-        assertEquals("Test failed", testCase.failures[0].message)
-        assertNull(testCase.failures[0].path)
-        assertEquals(0, testCase.failures[0].lineNumber)
-        assertEquals("error_thrown", testCase.failures[0].issueType)
     }
 
     // --- buildReport tests ---
@@ -423,6 +203,72 @@ class TuistTestInsightsTest {
         val suiteNames = appModule.testSuites.map { it.name }.toSet()
         assertTrue(suiteNames.contains("com.example.SuiteA"))
         assertTrue(suiteNames.contains("com.example.SuiteB"))
+    }
+
+    @Test
+    fun `buildReport excludes suites for tests with null className`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            ":app", "testDynamic", null,
+            TestResult.ResultType.SUCCESS, 0, 50, null
+        )
+
+        val report = collector.buildReport(50, false, null, null, null, null, null)
+
+        val appModule = report.testModules[0]
+        assertEquals(1, appModule.testCases.size)
+        assertNull(appModule.testCases[0].testSuiteName)
+        assertTrue(appModule.testSuites.isEmpty())
+    }
+
+    @Test
+    fun `buildReport maps skipped tests correctly`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            ":app", "testSkipped", "com.example.Test",
+            TestResult.ResultType.SKIPPED, 0, 0, null
+        )
+
+        val report = collector.buildReport(0, false, null, null, null, null, null)
+
+        assertEquals("skipped", report.testModules[0].testCases[0].status)
+    }
+
+    @Test
+    fun `buildReport classifies runtime exception as error_thrown`() {
+        val collector = TestReportCollector()
+        val exception = RuntimeException("something went wrong")
+        exception.stackTrace = arrayOf(
+            StackTraceElement("com.example.MyTest", "testSomething", "MyTest.kt", 42)
+        )
+
+        collector.collectTestResult(
+            ":app", "testSomething", "com.example.MyTest",
+            TestResult.ResultType.FAILURE, 0, 100, exception
+        )
+
+        val report = collector.buildReport(100, false, null, null, null, null, null)
+        val testCase = report.testModules[0].testCases[0]
+        assertEquals("error_thrown", testCase.failures[0].issueType)
+        assertEquals("something went wrong", testCase.failures[0].message)
+    }
+
+    @Test
+    fun `buildReport produces default failure when exception is null`() {
+        val collector = TestReportCollector()
+
+        collector.collectTestResult(
+            ":app", "testFail", "com.example.Test",
+            TestResult.ResultType.FAILURE, 0, 100, null
+        )
+
+        val report = collector.buildReport(100, false, null, null, null, null, null)
+        val testCase = report.testModules[0].testCases[0]
+        assertEquals(1, testCase.failures.size)
+        assertEquals("Test failed", testCase.failures[0].message)
+        assertNull(testCase.failures[0].path)
+        assertEquals(0, testCase.failures[0].lineNumber)
+        assertEquals("error_thrown", testCase.failures[0].issueType)
     }
 
     // --- End-to-end collection + report flow ---
