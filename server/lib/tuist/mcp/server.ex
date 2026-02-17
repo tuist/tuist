@@ -1,6 +1,7 @@
 defmodule Tuist.MCP.Server do
   @moduledoc false
 
+  alias Tuist.MCP.Errors
   alias Tuist.MCP.Prompts
   alias Tuist.MCP.Tools
 
@@ -21,17 +22,14 @@ defmodule Tuist.MCP.Server do
     if is_nil(id) do
       handle_notification(method, params)
     else
-      result = dispatch(method, params, subject)
-      build_response(id, result)
+      method
+      |> dispatch(params, subject)
+      |> build_response(id)
     end
   end
 
   def handle_request(_request, _subject) do
-    %{
-      jsonrpc: "2.0",
-      id: nil,
-      error: %{code: -32_600, message: "Invalid request."}
-    }
+    build_response(Errors.invalid_request("Invalid request."), nil)
   end
 
   defp handle_notification("notifications/initialized", _params), do: nil
@@ -51,7 +49,9 @@ defmodule Tuist.MCP.Server do
     {:ok, %{tools: Tools.list()}}
   end
 
-  defp dispatch("tools/call", %{"name" => name, "arguments" => arguments}, subject) do
+  defp dispatch("tools/call", %{"name" => name} = params, subject) do
+    arguments = Map.get(params, "arguments", %{})
+
     case Tools.call(name, arguments, subject) do
       {:ok, content} ->
         {:ok, content}
@@ -62,7 +62,7 @@ defmodule Tuist.MCP.Server do
   end
 
   defp dispatch("tools/call", _params, _subject) do
-    {:error, -32_602, "Missing required parameters: name, arguments."}
+    Errors.invalid_params("Missing required parameter: name.")
   end
 
   defp dispatch("prompts/list", _params, _subject) do
@@ -79,18 +79,18 @@ defmodule Tuist.MCP.Server do
   end
 
   defp dispatch("prompts/get", _params, _subject) do
-    {:error, -32_602, "Missing required parameter: name."}
+    Errors.invalid_params("Missing required parameter: name.")
   end
 
   defp dispatch(_method, _params, _subject) do
-    {:error, -32_601, "Method not found."}
+    Errors.method_not_found()
   end
 
-  defp build_response(id, {:ok, result}) do
+  defp build_response({:ok, result}, id) do
     %{jsonrpc: "2.0", id: id, result: result}
   end
 
-  defp build_response(id, {:error, code, message}) do
+  defp build_response({:error, code, message}, id) do
     %{jsonrpc: "2.0", id: id, error: %{code: code, message: message}}
   end
 end

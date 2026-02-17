@@ -1,6 +1,7 @@
 defmodule Tuist.MCP.Tools.ListProjects do
   @moduledoc false
 
+  alias Tuist.MCP.Content
   alias Tuist.Projects
 
   def name, do: "list_projects"
@@ -29,6 +30,6 @@ defmodule Tuist.MCP.Tools.ListProjects do
         }
       end)
 
-    {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
+    Content.ok_json(data)
   end
 end

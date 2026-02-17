@@ -2,6 +2,8 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
   @moduledoc false
 
   alias Tuist.MCP.Authorization
+  alias Tuist.MCP.Content
+  alias Tuist.MCP.Errors
   alias Tuist.Tests
 
   def name, do: "list_flaky_tests"
@@ -55,7 +57,7 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
           }
         }
 
-        {:ok, %{content: [%{type: "text", text: JSON.encode!(data)}]}}
+        Content.ok_json(data)
 
       {:error, code, message} ->
         {:error, code, message}
@@ -63,7 +65,7 @@ defmodule Tuist.MCP.Tools.ListFlakyTests do
   end
 
   def call(_arguments, _subject) do
-    {:error, -32_602, "Missing required parameters: account_handle, project_handle."}
+    Errors.invalid_params("Missing required parameters: account_handle, project_handle.")
   end
 
   defp format_datetime(nil), do: nil
