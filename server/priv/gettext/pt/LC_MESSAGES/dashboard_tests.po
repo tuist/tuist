@@ -383,12 +383,6 @@ msgstr ""
 msgid "Test runs"
 msgstr ""
 
-msgid "Test suite"
-msgstr ""
-
-msgid "Test suites"
-msgstr ""
-
 msgid "Tests"
 msgstr ""
 
@@ -619,14 +613,32 @@ msgstr ""
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Build: %{name}"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
 msgid "Crash Report"
 msgstr ""
 
 msgid "Exception"
 msgstr ""
 
+msgid "Project"
+msgstr ""
+
 msgid "Signal"
 msgstr ""
 
 msgid "Subtype"
+msgstr ""
+
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
+msgid "Test Suite"
 msgstr ""

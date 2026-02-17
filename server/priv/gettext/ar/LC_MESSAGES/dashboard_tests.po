@@ -506,14 +506,6 @@ msgid "Test runs"
 msgstr "تجارب التشغيل"
 
 #, fuzzy
-msgid "Test suite"
-msgstr "مجموعة الاختبارات"
-
-#, fuzzy
-msgid "Test suites"
-msgstr "مجموعات الاختبارات"
-
-#, fuzzy
 msgid "Tests"
 msgstr "الاختبارات"
 
@@ -818,6 +810,12 @@ msgstr "الاختبارات المعزولة"
 msgid "Tuist"
 msgstr "Tuist"
 
+msgid "Build: %{name}"
+msgstr ""
+
+msgid "Class"
+msgstr ""
+
 #, fuzzy
 msgid "Crash Report"
 msgstr "تقرير الأعطال"
@@ -826,6 +824,9 @@ msgstr "تقرير الأعطال"
 msgid "Exception"
 msgstr "استثناء"
 
+msgid "Project"
+msgstr ""
+
 #, fuzzy
 msgid "Signal"
 msgstr "إشارة"
@@ -833,6 +834,23 @@ msgstr "إشارة"
 #, fuzzy
 msgid "Subtype"
 msgstr "النوع الفرعي"
+
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
+msgid "Test Suite"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Test suite"
+#~ msgstr "مجموعة الاختبارات"
+
+#, fuzzy
+#~ msgid "Test suites"
+#~ msgstr "مجموعات الاختبارات"
 
 #, fuzzy
 #~ msgid "Binary Cache"
