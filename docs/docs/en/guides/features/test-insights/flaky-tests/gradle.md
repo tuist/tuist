@@ -9,7 +9,7 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> must be configured
+- The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
 <!-- -->
 :::
 
