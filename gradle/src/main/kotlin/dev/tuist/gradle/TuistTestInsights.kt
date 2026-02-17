@@ -21,7 +21,7 @@ import javax.inject.Inject
 
 // --- Data classes ---
 
-data class TestReportRequest(
+data class TestReport(
     val duration: Long,
     val status: String,
     @SerializedName("is_ci") val isCi: Boolean,
@@ -31,63 +31,39 @@ data class TestReportRequest(
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
-    @SerializedName("test_modules") val testModules: List<TestModuleReport>
+    @SerializedName("test_modules") val testModules: List<TestModule>
 )
 
-data class TestModuleReport(
+data class TestModule(
     val name: String,
     val status: String,
     val duration: Long,
-    @SerializedName("test_suites") val testSuites: List<TestSuiteReport>,
-    @SerializedName("test_cases") val testCases: List<TestCaseReport>
+    @SerializedName("test_suites") val testSuites: List<TestSuite>,
+    @SerializedName("test_cases") val testCases: List<TestCase>
 )
 
-data class TestSuiteReport(
+data class TestSuite(
     val name: String,
     val status: String,
     val duration: Long
 )
 
-data class TestCaseReport(
+data class TestCase(
     val name: String,
     @SerializedName("test_suite_name") val testSuiteName: String?,
     val status: String,
     val duration: Long,
-    val failures: List<TestFailureReport>
+    val failures: List<TestFailure>
 )
 
-data class TestFailureReport(
+data class TestFailure(
     val message: String?,
     val path: String?,
     @SerializedName("line_number") val lineNumber: Int,
     @SerializedName("issue_type") val issueType: String
 )
 
-data class TestReportResponse(val id: String, val url: String?)
-
-// --- Internal data for collection ---
-
-internal data class CollectedTestCase(
-    val name: String,
-    val suiteName: String?,
-    val status: String,
-    val durationMs: Long,
-    val failures: List<TestFailureReport>
-)
-
-internal data class CollectedTestSuite(
-    val name: String,
-    var status: String = "success",
-    var durationMs: Long = 0
-)
-
-internal data class CollectedTestModule(
-    val name: String,
-    var status: String = "success",
-    var durationMs: Long = 0,
-    val suites: MutableMap<String, CollectedTestSuite> = mutableMapOf(),
-    val testCases: MutableList<CollectedTestCase> = mutableListOf()
-)
+data class TestResponse(val id: String, val url: String?)
 
 // --- Standalone testable functions ---
 
@@ -114,11 +90,11 @@ internal fun isFrameworkFrame(frame: StackTraceElement): Boolean {
 internal fun mapTestFailures(
     resultType: TestResult.ResultType,
     exception: Throwable?
-): List<TestFailureReport> {
+): List<TestFailure> {
     if (resultType != TestResult.ResultType.FAILURE) return emptyList()
 
     if (exception == null) return listOf(
-        TestFailureReport(
+        TestFailure(
             message = "Test failed",
             path = null,
             lineNumber = 0,
@@ -143,7 +119,7 @@ internal fun mapTestFailures(
     }
 
     return listOf(
-        TestFailureReport(
+        TestFailure(
             message = exception.message,
             path = userFrame?.fileName,
             lineNumber = userFrame?.lineNumber ?: 0,
@@ -153,7 +129,7 @@ internal fun mapTestFailures(
 }
 
 internal fun collectTestResult(
-    modules: MutableMap<String, CollectedTestModule>,
+    testCasesByModule: MutableMap<String, MutableList<TestCase>>,
     moduleName: String,
     testName: String,
     className: String?,
@@ -162,38 +138,18 @@ internal fun collectTestResult(
     endTime: Long,
     exception: Throwable?
 ) {
-    val module = modules.getOrPut(moduleName) { CollectedTestModule(name = moduleName) }
-    val durationMs = endTime - startTime
-
-    if (className != null) {
-        val suite = module.suites.getOrPut(className) { CollectedTestSuite(name = className) }
-        suite.durationMs += durationMs
-        if (resultType == TestResult.ResultType.FAILURE) {
-            suite.status = "failure"
-        }
-    }
-
-    val status = mapTestResultType(resultType)
-    val failures = mapTestFailures(resultType, exception)
-
-    module.testCases.add(
-        CollectedTestCase(
-            name = testName,
-            suiteName = className,
-            status = status,
-            durationMs = durationMs,
-            failures = failures
-        )
+    val testCase = TestCase(
+        name = testName,
+        testSuiteName = className,
+        status = mapTestResultType(resultType),
+        duration = endTime - startTime,
+        failures = mapTestFailures(resultType, exception)
     )
-
-    if (resultType == TestResult.ResultType.FAILURE) {
-        module.status = "failure"
-    }
-    module.durationMs += durationMs
+    testCasesByModule.getOrPut(moduleName) { mutableListOf() }.add(testCase)
 }
 
-internal fun buildTestReportFromModules(
-    modules: Map<String, CollectedTestModule>,
+internal fun buildTestReport(
+    testCasesByModule: Map<String, List<TestCase>>,
     totalDurationMs: Long,
     isCi: Boolean,
     scheme: String?,
@@ -201,35 +157,35 @@ internal fun buildTestReportFromModules(
     gitCommitSha: String?,
     gitRef: String?,
     gradleBuildId: String?
-): TestReportRequest {
-    val hasFailure = modules.values.any { it.status == "failure" }
-    val overallStatus = if (hasFailure) "failure" else "success"
+): TestReport {
+    val testModules = testCasesByModule.map { (moduleName, testCases) ->
+        val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
+        val moduleDuration = testCases.sumOf { it.duration }
 
-    val testModules = modules.values.map { module ->
-        TestModuleReport(
-            name = module.name,
-            status = module.status,
-            duration = module.durationMs,
-            testSuites = module.suites.values.map { suite ->
-                TestSuiteReport(
-                    name = suite.name,
-                    status = suite.status,
-                    duration = suite.durationMs
-                )
-            },
-            testCases = module.testCases.map { tc ->
-                TestCaseReport(
-                    name = tc.name,
-                    testSuiteName = tc.suiteName,
-                    status = tc.status,
-                    duration = tc.durationMs,
-                    failures = tc.failures
+        val testSuites = testCases
+            .filter { it.testSuiteName != null }
+            .groupBy { it.testSuiteName!! }
+            .map { (suiteName, cases) ->
+                TestSuite(
+                    name = suiteName,
+                    status = if (cases.any { it.status == "failure" }) "failure" else "success",
+                    duration = cases.sumOf { it.duration }
                 )
             }
+
+        TestModule(
+            name = moduleName,
+            status = moduleStatus,
+            duration = moduleDuration,
+            testSuites = testSuites,
+            testCases = testCases
         )
     }
 
-    return TestReportRequest(
+    val hasFailure = testModules.any { it.status == "failure" }
+    val overallStatus = if (hasFailure) "failure" else "success"
+
+    return TestReport(
         duration = totalDurationMs,
         status = overallStatus,
         isCi = isCi,
@@ -263,7 +219,7 @@ abstract class TuistTestInsightsService :
     internal var uploadInBackground: Boolean? = null
     internal var buildInsightsService: TuistBuildInsightsService? = null
 
-    private val modules = mutableMapOf<String, CollectedTestModule>()
+    private val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
     private var buildStartTime: Long = System.currentTimeMillis()
     @Volatile private var hasTests = false
 
@@ -275,7 +231,7 @@ abstract class TuistTestInsightsService :
     ) {
         hasTests = true
         collectTestResult(
-            modules, moduleName, descriptor.name, descriptor.className,
+            testCasesByModule, moduleName, descriptor.name, descriptor.className,
             result.resultType, result.startTime, result.endTime, result.exception
         )
     }
@@ -309,12 +265,12 @@ abstract class TuistTestInsightsService :
         }
     }
 
-    internal fun buildTestReport(): TestReportRequest {
+    internal fun buildReport(): TestReport {
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
         val gradleBuildId = buildInsightsService?.buildId
 
-        return buildTestReportFromModules(
-            modules = modules,
+        return buildTestReport(
+            testCasesByModule = testCasesByModule,
             totalDurationMs = totalDurationMs,
             isCi = ciDetector.isCi(),
             scheme = parameters.rootProjectName.orNull,
@@ -346,7 +302,7 @@ abstract class TuistTestInsightsService :
             readTimeoutMs = 10_000
         )
 
-        val report = buildTestReport()
+        val report = buildReport()
 
         val baseUrl = parameters.url.get().trimEnd('/')
 
@@ -365,7 +321,7 @@ abstract class TuistTestInsightsService :
                 when (connection.responseCode) {
                     HttpURLConnection.HTTP_OK -> {
                         BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, TestReportResponse::class.java)
+                            Gson().fromJson(reader, TestResponse::class.java)
                         }
                     }
                     HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
