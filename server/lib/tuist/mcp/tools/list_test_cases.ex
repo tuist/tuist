@@ -1,11 +1,12 @@
 defmodule Tuist.MCP.Tools.ListTestCases do
   @moduledoc false
 
-  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Content
   alias Tuist.MCP.Errors
   alias Tuist.MCP.Formatter
+  alias Tuist.Projects
   alias Tuist.Tests
+  alias TuistWeb.API.Authorization.AuthorizationPlug
 
   def name, do: "list_test_cases"
 
@@ -32,8 +33,16 @@ defmodule Tuist.MCP.Tools.ListTestCases do
   end
 
   def call(%{"account_handle" => account_handle, "project_handle" => project_handle} = arguments, subject) do
-    case Authorization.get_authorized_project(:test_read, account_handle, project_handle, subject) do
-      {:ok, project} ->
+    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
+
+    cond do
+      is_nil(project) ->
+        Errors.invalid_params("Project not found: #{account_handle}/#{project_handle}")
+
+      not AuthorizationPlug.authorize(subject, :read, project, :test) ->
+        Errors.invalid_params("You do not have access to project: #{account_handle}/#{project_handle}")
+
+      true ->
         page = integer_argument(arguments, "page", 1)
         page_size = arguments |> integer_argument("page_size", 20) |> min(100)
         filters = build_filters(arguments)
@@ -74,9 +83,6 @@ defmodule Tuist.MCP.Tools.ListTestCases do
         }
 
         Content.ok_json(data)
-
-      {:error, code, message} ->
-        {:error, code, message}
     end
   end
 

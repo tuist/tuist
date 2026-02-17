@@ -4,14 +4,15 @@ defmodule Tuist.MCP.Tools.GetTestRun do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Content
   alias Tuist.MCP.Errors
   alias Tuist.MCP.Formatter
+  alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.TestCaseRun
+  alias TuistWeb.API.Authorization.AuthorizationPlug
 
   def name, do: "get_test_run"
 
@@ -31,7 +32,8 @@ defmodule Tuist.MCP.Tools.GetTestRun do
 
   def call(%{"test_run_id" => test_run_id}, subject) do
     with {:ok, run} <- Tests.get_test(test_run_id),
-         :ok <- Authorization.authorize_project_id(:test_read, run.project_id, subject) do
+         project when not is_nil(project) <- Projects.get_project_by_id(run.project_id),
+         true <- AuthorizationPlug.authorize(subject, :read, project, :test) do
       metrics = Analytics.get_test_run_metrics(run.id)
       {crashed_test_count, crashes} = get_crash_summaries(run.id)
 
@@ -69,6 +71,8 @@ defmodule Tuist.MCP.Tools.GetTestRun do
       Content.ok_json(data)
     else
       {:error, :not_found} -> Errors.invalid_params("Test run not found: #{test_run_id}")
+      nil -> Errors.invalid_params("Project not found.")
+      false -> Errors.invalid_params("You do not have access to this resource.")
       {:error, code, message} -> {:error, code, message}
     end
   end

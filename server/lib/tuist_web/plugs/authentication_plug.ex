@@ -8,10 +8,13 @@ defmodule TuistWeb.AuthenticationPlug do
 
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias TuistWeb.Headers
   alias TuistWeb.WarningsHeaderPlug
+
+  @mcp_resource_metadata_path "/.well-known/oauth-protected-resource/mcp"
 
   def init(:load_authenticated_subject = opts), do: opts
   def init({:require_authentication, _} = opts), do: opts
@@ -32,12 +35,26 @@ defmodule TuistWeb.AuthenticationPlug do
     if TuistWeb.Authentication.authenticated?(conn) do
       conn
     else
-      :open_api = response_type
+      case response_type do
+        :open_api ->
+          conn
+          |> put_status(:unauthorized)
+          |> json(%{message: "You need to be authenticated to access this resource."})
+          |> halt()
 
-      conn
-      |> put_status(:unauthorized)
-      |> json(%{message: "You need to be authenticated to access this resource."})
-      |> halt()
+        :mcp ->
+          conn
+          |> put_resp_header(
+            "www-authenticate",
+            ~s(Bearer realm="tuist-mcp", resource_metadata="#{Environment.app_url()}#{@mcp_resource_metadata_path}")
+          )
+          |> put_status(:unauthorized)
+          |> json(%{
+            error: "invalid_token",
+            error_description: "Missing or invalid access token."
+          })
+          |> halt()
+      end
     end
   end
 
