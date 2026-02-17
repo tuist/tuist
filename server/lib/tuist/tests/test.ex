@@ -39,7 +39,7 @@ defmodule Tuist.Tests.Test do
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
-    field :build_run_id, Ecto.UUID
+    field :build_run_id, Ch, type: "Nullable(UUID)"
     field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :ci_run_id, Ch, type: "String", default: ""
     field :ci_project_handle, Ch, type: "String", default: ""
