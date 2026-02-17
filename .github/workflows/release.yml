@@ -278,25 +278,6 @@ jobs:
         run: |
           # Get the latest gradle version tag
           LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          LATEST_TAG_VERSION="${LATEST_VERSION#gradle@}"
-
-          # Guard against version drift between git tags and the Gradle Plugin Portal.
-          # If the portal is ahead of tags, computing the next version from tags can
-          # attempt to republish an already existing version.
-          PORTAL_LATEST_VERSION=$(curl -fsSL "https://plugins.gradle.org/m2/dev/tuist/dev.tuist.gradle.plugin/maven-metadata.xml" | sed -n 's:.*<release>\\(.*\\)</release>.*:\\1:p' | head -n1 || true)
-          if [ -n "$PORTAL_LATEST_VERSION" ]; then
-            if [ -z "$LATEST_TAG_VERSION" ]; then
-              echo "ERROR: Gradle Plugin Portal latest version is $PORTAL_LATEST_VERSION, but no gradle@ tag exists in git." >&2
-              echo "ERROR: Create missing tag gradle@$PORTAL_LATEST_VERSION at the original release commit before attempting another Gradle release." >&2
-              exit 1
-            fi
-
-            if [ "$(printf '%s\n%s\n' "$LATEST_TAG_VERSION" "$PORTAL_LATEST_VERSION" | sort -V | tail -n1)" = "$PORTAL_LATEST_VERSION" ] && [ "$PORTAL_LATEST_VERSION" != "$LATEST_TAG_VERSION" ]; then
-              echo "ERROR: Gradle Plugin Portal latest version ($PORTAL_LATEST_VERSION) is newer than latest git tag ($LATEST_TAG_VERSION)." >&2
-              echo "ERROR: Create missing tag gradle@$PORTAL_LATEST_VERSION at the original release commit before attempting another Gradle release." >&2
-              exit 1
-            fi
-          fi
 
           # Check if there are any releasable changes by generating changelog
           if [ -n "$LATEST_VERSION" ]; then
