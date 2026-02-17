@@ -954,6 +954,20 @@ jobs:
           git tag "$TAG"
           git push origin "refs/tags/$TAG"
 
+      - name: Create Gradle GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          name: Gradle Plugin ${{ needs.check-releases.outputs.gradle-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.gradle-next-version }}
+          body: |
+            Gradle Plugin Portal: `dev.tuist:${{ needs.check-releases.outputs.gradle-next-version-number }}`
+
+            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+
       - name: Upload Gradle artifacts
         id: upload
         uses: actions/upload-artifact@v4
@@ -1204,19 +1218,6 @@ jobs:
             Docker image: `ghcr.io/tuist/cache:${{ needs.check-releases.outputs.cache-next-version-number }}`
 
             ${{ needs.release-cache.outputs.release-notes }}
-
-      - name: Create Gradle GitHub Release
-        if: needs.check-releases.outputs.gradle-should-release == 'true' && needs.release-gradle.result == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          name: Gradle Plugin ${{ needs.check-releases.outputs.gradle-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.gradle-next-version }}
-          body: |
-            Gradle Plugin Portal: `dev.tuist:${{ needs.check-releases.outputs.gradle-next-version-number }}`
-
-            ${{ needs.release-gradle.outputs.release-notes }}
 
       - name: Create Skills GitHub Release
         if: needs.check-releases.outputs.skills-should-release == 'true' && needs.release-skills.result == 'success'
