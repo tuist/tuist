@@ -36,6 +36,7 @@ class TuistTestQuarantineService(
 
     private var cachedExclusions: Map<String, List<String>>? = null
 
+    @Synchronized
     fun getQuarantinedTests(): Map<String, List<String>> {
         cachedExclusions?.let { return it }
 
