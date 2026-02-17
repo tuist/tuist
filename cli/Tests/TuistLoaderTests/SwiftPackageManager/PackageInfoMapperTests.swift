@@ -1008,7 +1008,7 @@ struct PackageInfoMapperTests {
                         .test(
                             "Target_1",
                             basePath: basePath,
-                            customBundleID: "dev.tuist.Target.1",
+                            customBundleID: "Target.1",
                             customSources: .custom(.sourceFilesList(globs: [
                                 basePath
                                     .appending(try RelativePath(validating: "Package/Sources/Target+1/**"))
