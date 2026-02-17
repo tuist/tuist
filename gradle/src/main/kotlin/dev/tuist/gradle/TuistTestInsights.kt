@@ -173,6 +173,11 @@ internal class TestReportCollector {
             )
         )
 
+        // Test failures fall into two categories:
+        // - "assertion_failure": the test explicitly checked a condition that was wrong
+        //   (AssertionError, ComparisonFailure, etc.)
+        // - "error_thrown": the test threw an unexpected exception (RuntimeException,
+        //   NullPointerException, IOException, etc.) — any non-assertion exception
         val issueType = if (exception is AssertionError ||
             exception.javaClass.name.contains("AssertionError") ||
             exception.javaClass.name.contains("AssertError") ||
