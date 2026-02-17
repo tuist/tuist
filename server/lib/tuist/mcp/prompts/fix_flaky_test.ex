@@ -62,7 +62,7 @@ defmodule Tuist.MCP.Prompts.FixFlakyTest do
     - **list_projects**: List all accessible projects.
     - **list_flaky_tests**: List flaky test cases for a project (requires account_handle and project_handle).
     - **get_test_case**: Get detailed metrics for a test case (requires test_case_id).
-    - **get_test_case_run**: Get failure details for a specific run (requires test_case_run_id).
+    - **get_test_case_run**: Get failure details for a specific test case run (requires test_case_run_id).
 
     ## Workflow
 
