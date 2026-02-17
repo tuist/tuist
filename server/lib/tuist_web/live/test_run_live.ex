@@ -567,6 +567,7 @@ defmodule TuistWeb.TestRunLive do
 
   defp load_test_modules_data(run, params, available_filters \\ nil) do
     available_filters = available_filters || define_test_modules_filters(run.project)
+
     flop_params = %{
       filters: test_modules_filters(run, params, available_filters, params["test-modules-filter"]),
       page: String.to_integer(params["test-modules-page"] || "1"),

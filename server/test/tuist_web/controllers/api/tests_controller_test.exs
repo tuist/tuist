@@ -30,7 +30,7 @@ defmodule TuistWeb.API.TestsControllerTest do
         assert attrs.is_ci == false
 
         {:ok,
-         %Tests.Test{
+         %Test{
            id: attrs.id,
            duration: attrs.duration,
            project_id: project.id,
@@ -79,7 +79,7 @@ defmodule TuistWeb.API.TestsControllerTest do
         assert attrs.is_ci == true
 
         {:ok,
-         %Tests.Test{
+         %Test{
            id: attrs.id,
            duration: attrs.duration,
            project_id: project.id,
@@ -149,7 +149,7 @@ defmodule TuistWeb.API.TestsControllerTest do
         assert is_nil(attrs.macos_version)
 
         {:ok,
-         %Tests.Test{
+         %Test{
            id: attrs.id,
            duration: attrs.duration,
            project_id: project.id,
