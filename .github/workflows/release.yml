@@ -913,11 +913,6 @@ jobs:
             git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Update minimum Tuist CLI version
-        if: needs.check-releases.outputs.cli-should-release == 'true'
-        run: |
-          sed -i 's/const val MINIMUM_REQUIRED = ".*"/const val MINIMUM_REQUIRED = "${{ needs.check-releases.outputs.cli-next-version-number }}"/' gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt
-
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
         run: |
