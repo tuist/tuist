@@ -8,20 +8,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-private class TestGitInfoProviderForTests(
-    private val branch: String? = null,
-    private val commitSha: String? = null,
-    private val ref: String? = null
-) : GitInfoProvider {
-    override fun branch(): String? = branch
-    override fun commitSha(): String? = commitSha
-    override fun ref(): String? = ref
-}
-
-private class TestCIDetectorForTests(private val isCi: Boolean = false) : CIDetector {
-    override fun isCi(): Boolean = isCi
-}
-
 class TuistTestInsightsTest {
 
     private val gson = Gson()
@@ -143,112 +129,119 @@ class TuistTestInsightsTest {
         assertEquals("/api/my-org/my-project/tests", url.path)
     }
 
-    // --- collectTestResult tests ---
+    // --- TestReportCollector tests ---
 
     @Test
-    fun `collectTestResult adds passing test to module`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+    fun `collectTestResult adds passing test`() {
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testLogin", "com.example.LoginTest",
+        collector.collectTestResult(
+            ":app", "testLogin", "com.example.LoginTest",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
 
-        assertEquals(1, testCasesByModule.size)
-        val cases = testCasesByModule[":app"]!!
-        assertEquals(1, cases.size)
-        assertEquals("testLogin", cases[0].name)
-        assertEquals("com.example.LoginTest", cases[0].testSuiteName)
-        assertEquals("success", cases[0].status)
-        assertEquals(100, cases[0].duration)
-        assertTrue(cases[0].failures.isEmpty())
+        val report = collector.buildReport(100, false, null, null, null, null, null)
+        assertEquals(1, report.testModules.size)
+        val appModule = report.testModules[0]
+        assertEquals(":app", appModule.name)
+        assertEquals("success", appModule.status)
+        assertEquals(100, appModule.duration)
+        assertEquals(1, appModule.testCases.size)
+        assertEquals("testLogin", appModule.testCases[0].name)
+        assertEquals("com.example.LoginTest", appModule.testCases[0].testSuiteName)
+        assertEquals("success", appModule.testCases[0].status)
+        assertEquals(100, appModule.testCases[0].duration)
+        assertTrue(appModule.testCases[0].failures.isEmpty())
     }
 
     @Test
     fun `collectTestResult accumulates test cases in same module`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testA", "com.example.SuiteA",
+        collector.collectTestResult(
+            ":app", "testA", "com.example.SuiteA",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":app", "testB", "com.example.SuiteA",
+        collector.collectTestResult(
+            ":app", "testB", "com.example.SuiteA",
             TestResult.ResultType.SUCCESS, 100, 350, null
         )
 
-        val cases = testCasesByModule[":app"]!!
-        assertEquals(2, cases.size)
-        assertEquals(100, cases[0].duration)
-        assertEquals(250, cases[1].duration)
+        val report = collector.buildReport(350, false, null, null, null, null, null)
+        val appModule = report.testModules[0]
+        assertEquals(2, appModule.testCases.size)
+        assertEquals(100, appModule.testCases[0].duration)
+        assertEquals(250, appModule.testCases[1].duration)
     }
 
     @Test
     fun `collectTestResult records failure status on test case`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testA", "com.example.SuiteA",
+        collector.collectTestResult(
+            ":app", "testA", "com.example.SuiteA",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":app", "testB", "com.example.SuiteA",
+        collector.collectTestResult(
+            ":app", "testB", "com.example.SuiteA",
             TestResult.ResultType.FAILURE, 100, 200, RuntimeException("fail")
         )
 
-        val cases = testCasesByModule[":app"]!!
+        val report = collector.buildReport(200, false, null, null, null, null, null)
+        val cases = report.testModules[0].testCases
         assertEquals("success", cases[0].status)
         assertEquals("failure", cases[1].status)
     }
 
     @Test
     fun `collectTestResult handles multiple modules`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testA", "com.example.AppTest",
+        collector.collectTestResult(
+            ":app", "testA", "com.example.AppTest",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":lib", "testB", "com.example.LibTest",
+        collector.collectTestResult(
+            ":lib", "testB", "com.example.LibTest",
             TestResult.ResultType.SUCCESS, 0, 200, null
         )
 
-        assertEquals(2, testCasesByModule.size)
-        assertEquals(1, testCasesByModule[":app"]!!.size)
-        assertEquals(1, testCasesByModule[":lib"]!!.size)
+        val report = collector.buildReport(200, false, null, null, null, null, null)
+        assertEquals(2, report.testModules.size)
     }
 
     @Test
     fun `collectTestResult handles test with null className`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testDynamic", null,
+        collector.collectTestResult(
+            ":app", "testDynamic", null,
             TestResult.ResultType.SUCCESS, 0, 50, null
         )
 
-        val cases = testCasesByModule[":app"]!!
-        assertEquals(1, cases.size)
-        assertNull(cases[0].testSuiteName)
+        val report = collector.buildReport(50, false, null, null, null, null, null)
+        val appModule = report.testModules[0]
+        assertEquals(1, appModule.testCases.size)
+        assertNull(appModule.testCases[0].testSuiteName)
+        assertTrue(appModule.testSuites.isEmpty())
     }
 
     @Test
     fun `collectTestResult handles skipped test`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testSkipped", "com.example.Test",
+        collector.collectTestResult(
+            ":app", "testSkipped", "com.example.Test",
             TestResult.ResultType.SKIPPED, 0, 0, null
         )
 
-        val cases = testCasesByModule[":app"]!!
-        assertEquals("skipped", cases[0].status)
+        val report = collector.buildReport(0, false, null, null, null, null, null)
+        assertEquals("skipped", report.testModules[0].testCases[0].status)
     }
 
     @Test
     fun `collectTestResult attaches assertion failure with user frame from stack trace`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
         val exception = AssertionError("expected 1 but got 2")
         exception.stackTrace = arrayOf(
             StackTraceElement("org.junit.jupiter.api.AssertionUtils", "fail", "AssertionUtils.java", 55),
@@ -257,12 +250,13 @@ class TuistTestInsightsTest {
             StackTraceElement("com.example.MathTest", "setup", "MathTest.kt", 5)
         )
 
-        collectTestResult(
-            testCasesByModule, ":app", "testAdd", "com.example.MathTest",
+        collector.collectTestResult(
+            ":app", "testAdd", "com.example.MathTest",
             TestResult.ResultType.FAILURE, 0, 50, exception
         )
 
-        val testCase = testCasesByModule[":app"]!![0]
+        val report = collector.buildReport(50, false, null, null, null, null, null)
+        val testCase = report.testModules[0].testCases[0]
         assertEquals(1, testCase.failures.size)
         assertEquals("assertion_failure", testCase.failures[0].issueType)
         assertEquals("MathTest.kt", testCase.failures[0].path)
@@ -271,32 +265,34 @@ class TuistTestInsightsTest {
 
     @Test
     fun `collectTestResult classifies runtime exception as error_thrown`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
         val exception = RuntimeException("something went wrong")
         exception.stackTrace = arrayOf(
             StackTraceElement("com.example.MyTest", "testSomething", "MyTest.kt", 42)
         )
 
-        collectTestResult(
-            testCasesByModule, ":app", "testSomething", "com.example.MyTest",
+        collector.collectTestResult(
+            ":app", "testSomething", "com.example.MyTest",
             TestResult.ResultType.FAILURE, 0, 100, exception
         )
 
-        val testCase = testCasesByModule[":app"]!![0]
+        val report = collector.buildReport(100, false, null, null, null, null, null)
+        val testCase = report.testModules[0].testCases[0]
         assertEquals("error_thrown", testCase.failures[0].issueType)
         assertEquals("something went wrong", testCase.failures[0].message)
     }
 
     @Test
     fun `collectTestResult produces default failure when exception is null`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testFail", "com.example.Test",
+        collector.collectTestResult(
+            ":app", "testFail", "com.example.Test",
             TestResult.ResultType.FAILURE, 0, 100, null
         )
 
-        val testCase = testCasesByModule[":app"]!![0]
+        val report = collector.buildReport(100, false, null, null, null, null, null)
+        val testCase = report.testModules[0].testCases[0]
         assertEquals(1, testCase.failures.size)
         assertEquals("Test failed", testCase.failures[0].message)
         assertNull(testCase.failures[0].path)
@@ -304,12 +300,13 @@ class TuistTestInsightsTest {
         assertEquals("error_thrown", testCase.failures[0].issueType)
     }
 
-    // --- buildTestReport tests ---
+    // --- buildReport tests ---
 
     @Test
-    fun `buildTestReport builds report from empty modules`() {
-        val report = buildTestReport(
-            testCasesByModule = emptyMap(),
+    fun `buildReport builds report from empty collector`() {
+        val collector = TestReportCollector()
+
+        val report = collector.buildReport(
             totalDurationMs = 5000,
             isCi = false,
             scheme = "my-app",
@@ -332,58 +329,52 @@ class TuistTestInsightsTest {
     }
 
     @Test
-    fun `buildTestReport sets status to failure when any module failed`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
-        collectTestResult(
-            testCasesByModule, ":app", "testA", "com.example.Test",
+    fun `buildReport sets status to failure when any module failed`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            ":app", "testA", "com.example.Test",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":lib", "testB", "com.example.Test",
+        collector.collectTestResult(
+            ":lib", "testB", "com.example.Test",
             TestResult.ResultType.FAILURE, 0, 200, null
         )
 
-        val report = buildTestReport(
-            testCasesByModule, 5000, false, null, null, null, null, null
-        )
+        val report = collector.buildReport(5000, false, null, null, null, null, null)
 
         assertEquals("failure", report.status)
     }
 
     @Test
-    fun `buildTestReport sets status to success when all pass`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
-        collectTestResult(
-            testCasesByModule, ":app", "testA", "com.example.Test",
+    fun `buildReport sets status to success when all pass`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            ":app", "testA", "com.example.Test",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":lib", "testB", "com.example.Test",
+        collector.collectTestResult(
+            ":lib", "testB", "com.example.Test",
             TestResult.ResultType.SUCCESS, 0, 200, null
         )
 
-        val report = buildTestReport(
-            testCasesByModule, 5000, false, null, null, null, null, null
-        )
+        val report = collector.buildReport(5000, false, null, null, null, null, null)
 
         assertEquals("success", report.status)
     }
 
     @Test
-    fun `buildTestReport maps module data to report`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
-        collectTestResult(
-            testCasesByModule, ":app", "testLogin", "com.example.LoginTest",
+    fun `buildReport maps module data to report`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            ":app", "testLogin", "com.example.LoginTest",
             TestResult.ResultType.SUCCESS, 0, 150, null
         )
-        collectTestResult(
-            testCasesByModule, ":app", "testLogout", "com.example.LoginTest",
+        collector.collectTestResult(
+            ":app", "testLogout", "com.example.LoginTest",
             TestResult.ResultType.FAILURE, 150, 300, RuntimeException("timeout")
         )
 
-        val report = buildTestReport(
-            testCasesByModule, 5000, true, "my-app", "feature/auth", "def456", null, "build-123"
-        )
+        val report = collector.buildReport(5000, true, "my-app", "feature/auth", "def456", null, "build-123")
 
         assertEquals(1, report.testModules.size)
         val appModule = report.testModules[0]
@@ -414,20 +405,18 @@ class TuistTestInsightsTest {
     }
 
     @Test
-    fun `buildTestReport handles multiple suites within a module`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
-        collectTestResult(
-            testCasesByModule, ":app", "testA", "com.example.SuiteA",
+    fun `buildReport handles multiple suites within a module`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            ":app", "testA", "com.example.SuiteA",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":app", "testB", "com.example.SuiteB",
+        collector.collectTestResult(
+            ":app", "testB", "com.example.SuiteB",
             TestResult.ResultType.SUCCESS, 0, 200, null
         )
 
-        val report = buildTestReport(
-            testCasesByModule, 5000, false, null, null, null, null, null
-        )
+        val report = collector.buildReport(5000, false, null, null, null, null, null)
 
         val appModule = report.testModules[0]
         assertEquals(2, appModule.testSuites.size)
@@ -440,18 +429,18 @@ class TuistTestInsightsTest {
 
     @Test
     fun `end-to-end collection and report for multi-module project`() {
-        val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+        val collector = TestReportCollector()
 
-        collectTestResult(
-            testCasesByModule, ":app", "testLogin", "com.example.LoginTest",
+        collector.collectTestResult(
+            ":app", "testLogin", "com.example.LoginTest",
             TestResult.ResultType.SUCCESS, 0, 100, null
         )
-        collectTestResult(
-            testCasesByModule, ":app", "testRegister", "com.example.RegisterTest",
+        collector.collectTestResult(
+            ":app", "testRegister", "com.example.RegisterTest",
             TestResult.ResultType.SUCCESS, 100, 250, null
         )
-        collectTestResult(
-            testCasesByModule, ":lib", "testParse", "com.example.ParserTest",
+        collector.collectTestResult(
+            ":lib", "testParse", "com.example.ParserTest",
             TestResult.ResultType.FAILURE, 0, 50,
             AssertionError("expected 42 but was 0").apply {
                 stackTrace = arrayOf(
@@ -461,8 +450,7 @@ class TuistTestInsightsTest {
             }
         )
 
-        val report = buildTestReport(
-            testCasesByModule = testCasesByModule,
+        val report = collector.buildReport(
             totalDurationMs = 10000,
             isCi = true,
             scheme = "android-app",

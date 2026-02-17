@@ -65,136 +65,140 @@ data class TestFailure(
 
 data class TestResponse(val id: String, val url: String?)
 
-private fun mapTestResultType(resultType: TestResult.ResultType): String {
-    return when (resultType) {
-        TestResult.ResultType.SUCCESS -> "success"
-        TestResult.ResultType.FAILURE -> "failure"
-        TestResult.ResultType.SKIPPED -> "skipped"
-        else -> "failure"
-    }
-}
+// --- Test report collector ---
 
-private fun isFrameworkFrame(frame: StackTraceElement): Boolean {
-    val className = frame.className
-    return className.startsWith("org.junit.") ||
-        className.startsWith("junit.") ||
-        className.startsWith("org.gradle.") ||
-        className.startsWith("java.lang.reflect.") ||
-        className.startsWith("sun.reflect.") ||
-        className.startsWith("jdk.internal.reflect.") ||
-        className.startsWith("org.opentest4j.")
-}
+internal class TestReportCollector {
+    private val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
 
-private fun mapTestFailures(
-    resultType: TestResult.ResultType,
-    exception: Throwable?
-): List<TestFailure> {
-    if (resultType != TestResult.ResultType.FAILURE) return emptyList()
-
-    if (exception == null) return listOf(
-        TestFailure(
-            message = "Test failed",
-            path = null,
-            lineNumber = 0,
-            issueType = "error_thrown"
-        )
-    )
-
-    val issueType = if (exception is AssertionError ||
-        exception.javaClass.name.contains("AssertionError") ||
-        exception.javaClass.name.contains("AssertError") ||
-        exception.javaClass.name.contains("ComparisonFailure") ||
-        exception is java.lang.AssertionError
+    fun collectTestResult(
+        moduleName: String,
+        testName: String,
+        className: String?,
+        resultType: TestResult.ResultType,
+        startTime: Long,
+        endTime: Long,
+        exception: Throwable?
     ) {
-        "assertion_failure"
-    } else {
-        "error_thrown"
-    }
-
-    val stackTrace = exception.stackTrace ?: emptyArray()
-    val userFrame = stackTrace.firstOrNull { frame ->
-        !isFrameworkFrame(frame)
-    }
-
-    return listOf(
-        TestFailure(
-            message = exception.message,
-            path = userFrame?.fileName,
-            lineNumber = userFrame?.lineNumber ?: 0,
-            issueType = issueType
+        val testCase = TestCase(
+            name = testName,
+            testSuiteName = className,
+            status = mapTestResultType(resultType),
+            duration = endTime - startTime,
+            failures = mapTestFailures(resultType, exception)
         )
-    )
-}
+        testCasesByModule.getOrPut(moduleName) { mutableListOf() }.add(testCase)
+    }
 
-internal fun collectTestResult(
-    testCasesByModule: MutableMap<String, MutableList<TestCase>>,
-    moduleName: String,
-    testName: String,
-    className: String?,
-    resultType: TestResult.ResultType,
-    startTime: Long,
-    endTime: Long,
-    exception: Throwable?
-) {
-    val testCase = TestCase(
-        name = testName,
-        testSuiteName = className,
-        status = mapTestResultType(resultType),
-        duration = endTime - startTime,
-        failures = mapTestFailures(resultType, exception)
-    )
-    testCasesByModule.getOrPut(moduleName) { mutableListOf() }.add(testCase)
-}
+    fun buildReport(
+        totalDurationMs: Long,
+        isCi: Boolean,
+        scheme: String?,
+        gitBranch: String?,
+        gitCommitSha: String?,
+        gitRef: String?,
+        gradleBuildId: String?
+    ): TestReport {
+        val testModules = testCasesByModule.map { (moduleName, testCases) ->
+            val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
+            val moduleDuration = testCases.sumOf { it.duration }
 
-internal fun buildTestReport(
-    testCasesByModule: Map<String, List<TestCase>>,
-    totalDurationMs: Long,
-    isCi: Boolean,
-    scheme: String?,
-    gitBranch: String?,
-    gitCommitSha: String?,
-    gitRef: String?,
-    gradleBuildId: String?
-): TestReport {
-    val testModules = testCasesByModule.map { (moduleName, testCases) ->
-        val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
-        val moduleDuration = testCases.sumOf { it.duration }
+            val testSuites = testCases
+                .filter { it.testSuiteName != null }
+                .groupBy { it.testSuiteName!! }
+                .map { (suiteName, cases) ->
+                    TestSuite(
+                        name = suiteName,
+                        status = if (cases.any { it.status == "failure" }) "failure" else "success",
+                        duration = cases.sumOf { it.duration }
+                    )
+                }
 
-        val testSuites = testCases
-            .filter { it.testSuiteName != null }
-            .groupBy { it.testSuiteName!! }
-            .map { (suiteName, cases) ->
-                TestSuite(
-                    name = suiteName,
-                    status = if (cases.any { it.status == "failure" }) "failure" else "success",
-                    duration = cases.sumOf { it.duration }
-                )
-            }
+            TestModule(
+                name = moduleName,
+                status = moduleStatus,
+                duration = moduleDuration,
+                testSuites = testSuites,
+                testCases = testCases
+            )
+        }
 
-        TestModule(
-            name = moduleName,
-            status = moduleStatus,
-            duration = moduleDuration,
-            testSuites = testSuites,
-            testCases = testCases
+        val hasFailure = testModules.any { it.status == "failure" }
+        val overallStatus = if (hasFailure) "failure" else "success"
+
+        return TestReport(
+            duration = totalDurationMs,
+            status = overallStatus,
+            isCi = isCi,
+            scheme = scheme,
+            buildSystem = "gradle",
+            gitBranch = gitBranch,
+            gitCommitSha = gitCommitSha,
+            gitRef = gitRef,
+            gradleBuildId = gradleBuildId,
+            testModules = testModules
         )
     }
 
-    val hasFailure = testModules.any { it.status == "failure" }
-    val overallStatus = if (hasFailure) "failure" else "success"
+    private fun mapTestResultType(resultType: TestResult.ResultType): String {
+        return when (resultType) {
+            TestResult.ResultType.SUCCESS -> "success"
+            TestResult.ResultType.FAILURE -> "failure"
+            TestResult.ResultType.SKIPPED -> "skipped"
+            else -> "failure"
+        }
+    }
 
-    return TestReport(
-        duration = totalDurationMs,
-        status = overallStatus,
-        isCi = isCi,
-        scheme = scheme,
-        buildSystem = "gradle",
-        gitBranch = gitBranch,
-        gitCommitSha = gitCommitSha,
-        gitRef = gitRef,
-        gradleBuildId = gradleBuildId,
-        testModules = testModules
-    )
+    private fun isFrameworkFrame(frame: StackTraceElement): Boolean {
+        val className = frame.className
+        return className.startsWith("org.junit.") ||
+            className.startsWith("junit.") ||
+            className.startsWith("org.gradle.") ||
+            className.startsWith("java.lang.reflect.") ||
+            className.startsWith("sun.reflect.") ||
+            className.startsWith("jdk.internal.reflect.") ||
+            className.startsWith("org.opentest4j.")
+    }
+
+    private fun mapTestFailures(
+        resultType: TestResult.ResultType,
+        exception: Throwable?
+    ): List<TestFailure> {
+        if (resultType != TestResult.ResultType.FAILURE) return emptyList()
+
+        if (exception == null) return listOf(
+            TestFailure(
+                message = "Test failed",
+                path = null,
+                lineNumber = 0,
+                issueType = "error_thrown"
+            )
+        )
+
+        val issueType = if (exception is AssertionError ||
+            exception.javaClass.name.contains("AssertionError") ||
+            exception.javaClass.name.contains("AssertError") ||
+            exception.javaClass.name.contains("ComparisonFailure") ||
+            exception is java.lang.AssertionError
+        ) {
+            "assertion_failure"
+        } else {
+            "error_thrown"
+        }
+
+        val stackTrace = exception.stackTrace ?: emptyArray()
+        val userFrame = stackTrace.firstOrNull { frame ->
+            !isFrameworkFrame(frame)
+        }
+
+        return listOf(
+            TestFailure(
+                message = exception.message,
+                path = userFrame?.fileName,
+                lineNumber = userFrame?.lineNumber ?: 0,
+                issueType = issueType
+            )
+        )
+    }
 }
 
 // --- Build Service ---
@@ -217,7 +221,7 @@ abstract class TuistTestInsightsService :
     internal var uploadInBackground: Boolean? = null
     internal var buildInsightsService: TuistBuildInsightsService? = null
 
-    private val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+    private val collector = TestReportCollector()
     private var buildStartTime: Long = System.currentTimeMillis()
     @Volatile private var hasTests = false
 
@@ -228,8 +232,8 @@ abstract class TuistTestInsightsService :
         result: TestResult
     ) {
         hasTests = true
-        collectTestResult(
-            testCasesByModule, moduleName, descriptor.name, descriptor.className,
+        collector.collectTestResult(
+            moduleName, descriptor.name, descriptor.className,
             result.resultType, result.startTime, result.endTime, result.exception
         )
     }
@@ -263,22 +267,6 @@ abstract class TuistTestInsightsService :
         }
     }
 
-    internal fun buildReport(): TestReport {
-        val totalDurationMs = System.currentTimeMillis() - buildStartTime
-        val gradleBuildId = buildInsightsService?.buildId
-
-        return buildTestReport(
-            testCasesByModule = testCasesByModule,
-            totalDurationMs = totalDurationMs,
-            isCi = ciDetector.isCi(),
-            scheme = parameters.rootProjectName.orNull,
-            gitBranch = gitInfoProvider.branch(),
-            gitCommitSha = gitInfoProvider.commitSha(),
-            gitRef = gitInfoProvider.ref(),
-            gradleBuildId = gradleBuildId
-        )
-    }
-
     private fun sendReport() {
         val projectValue = parameters.project.get()
         val parts = projectValue.split("/")
@@ -300,7 +288,18 @@ abstract class TuistTestInsightsService :
             readTimeoutMs = 10_000
         )
 
-        val report = buildReport()
+        val totalDurationMs = System.currentTimeMillis() - buildStartTime
+        val gradleBuildId = buildInsightsService?.buildId
+
+        val report = collector.buildReport(
+            totalDurationMs = totalDurationMs,
+            isCi = ciDetector.isCi(),
+            scheme = parameters.rootProjectName.orNull,
+            gitBranch = gitInfoProvider.branch(),
+            gitCommitSha = gitInfoProvider.commitSha(),
+            gitRef = gitInfoProvider.ref(),
+            gradleBuildId = gradleBuildId
+        )
 
         val baseUrl = parameters.url.get().trimEnd('/')
 
