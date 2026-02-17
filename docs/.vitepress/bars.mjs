@@ -647,6 +647,17 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.test-insights.items.flaky-tests.text",
           )}</span>`,
           link: `/${locale}/guides/features/test-insights/flaky-tests`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
+              link: `/${locale}/guides/features/test-insights/flaky-tests/xcode`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
+              link: `/${locale}/guides/features/test-insights/flaky-tests/gradle`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${bundleSizeIcon()} ${localizedString(
