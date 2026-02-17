@@ -50,7 +50,8 @@ config :cache, Oban,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
-       {"0 * * * *", Cache.Registry.SyncWorker}
+       {"0 * * * *", Cache.Registry.SyncWorker},
+       {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]
 
