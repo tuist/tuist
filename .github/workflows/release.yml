@@ -915,7 +915,19 @@ jobs:
         run: |
           PUBLISH_KEY=$(op read "op://tuist/GRADLE_PUBLISH_KEY/password")
           PUBLISH_SECRET=$(op read "op://tuist/GRADLE_PUBLISH_SECRET/password")
-          ./gradlew publishPlugins -Pversion=${{ needs.check-releases.outputs.gradle-next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
+          set +e
+          PUBLISH_OUTPUT=$(./gradlew publishPlugins -Pversion=${{ needs.check-releases.outputs.gradle-next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET" 2>&1)
+          PUBLISH_EXIT_CODE=$?
+          set -e
+          echo "$PUBLISH_OUTPUT"
+
+          if [ "$PUBLISH_EXIT_CODE" -ne 0 ]; then
+            if echo "$PUBLISH_OUTPUT" | grep -q "version: '${{ needs.check-releases.outputs.gradle-next-version-number }}' exists already"; then
+              echo "Gradle Plugin Portal version already exists. Continuing release."
+              exit 0
+            fi
+            exit "$PUBLISH_EXIT_CODE"
+          fi
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 

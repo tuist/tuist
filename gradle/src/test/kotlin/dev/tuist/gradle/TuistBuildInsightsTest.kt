@@ -2,7 +2,6 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import org.junit.jupiter.api.Test
-import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -28,11 +27,11 @@ class TuistBuildInsightsTest {
 
     @Test
     fun `URL construction is correct`() {
-        val baseUrl = "https://tuist.dev"
+        val serverUrl = "https://tuist.dev"
         val accountHandle = "my-org"
         val projectHandle = "my-project"
 
-        val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
+        val url = buildInsightsBuildsUrl(serverUrl, accountHandle, projectHandle)
 
         assertEquals("https", url.scheme)
         assertEquals("tuist.dev", url.host)
@@ -41,11 +40,11 @@ class TuistBuildInsightsTest {
 
     @Test
     fun `URL construction with trailing slash on server URL`() {
-        val baseUrl = "https://tuist.dev/".trimEnd('/')
+        val serverUrl = "https://tuist.dev/"
         val accountHandle = "my-org"
         val projectHandle = "my-project"
 
-        val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
+        val url = buildInsightsBuildsUrl(serverUrl, accountHandle, projectHandle)
 
         assertEquals("/api/projects/my-org/my-project/gradle/builds", url.path)
     }
