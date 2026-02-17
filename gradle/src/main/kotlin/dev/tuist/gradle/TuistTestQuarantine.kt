@@ -87,7 +87,7 @@ class TuistTestQuarantineService(
         }
     }
 
-    internal fun buildExclusionMap(testCases: List<QuarantinedTestCase>): Map<String, List<String>> {
+    private fun buildExclusionMap(testCases: List<QuarantinedTestCase>): Map<String, List<String>> {
         return testCases.groupBy(
             keySelector = { it.module.name },
             valueTransform = { testCase ->

@@ -42,28 +42,33 @@ class TuistTestQuarantineTest {
     }
 
     @Test
-    fun `buildExclusionMap groups tests by module`() {
+    fun `getQuarantinedTests groups tests by module`() {
         val service = createService()
 
-        val testCases = listOf(
-            QuarantinedTestCase(
-                name = "testLogin",
-                module = QuarantinedModule(id = "1", name = ":app"),
-                suite = QuarantinedSuite(id = "1", name = "com.example.LoginTest")
-            ),
-            QuarantinedTestCase(
-                name = "testLogout",
-                module = QuarantinedModule(id = "1", name = ":app"),
-                suite = QuarantinedSuite(id = "2", name = "com.example.LogoutTest")
-            ),
-            QuarantinedTestCase(
-                name = "testParse",
-                module = QuarantinedModule(id = "2", name = ":lib"),
-                suite = QuarantinedSuite(id = "3", name = "com.example.ParserTest")
+        val responseBody = Gson().toJson(
+            QuarantinedTestCasesResponse(
+                testCases = listOf(
+                    QuarantinedTestCase(
+                        name = "testLogin",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = QuarantinedSuite(id = "1", name = "com.example.LoginTest")
+                    ),
+                    QuarantinedTestCase(
+                        name = "testLogout",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = QuarantinedSuite(id = "2", name = "com.example.LogoutTest")
+                    ),
+                    QuarantinedTestCase(
+                        name = "testParse",
+                        module = QuarantinedModule(id = "2", name = ":lib"),
+                        suite = QuarantinedSuite(id = "3", name = "com.example.ParserTest")
+                    )
+                )
             )
         )
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.buildExclusionMap(testCases)
+        val exclusions = service.getQuarantinedTests()
 
         assertEquals(2, exclusions.size)
         assertEquals(
@@ -77,35 +82,45 @@ class TuistTestQuarantineTest {
     }
 
     @Test
-    fun `buildExclusionMap uses wildcard for null suite`() {
+    fun `getQuarantinedTests uses wildcard for null suite`() {
         val service = createService()
 
-        val testCases = listOf(
-            QuarantinedTestCase(
-                name = "testDynamic",
-                module = QuarantinedModule(id = "1", name = ":app"),
-                suite = null
+        val responseBody = Gson().toJson(
+            QuarantinedTestCasesResponse(
+                testCases = listOf(
+                    QuarantinedTestCase(
+                        name = "testDynamic",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = null
+                    )
+                )
             )
         )
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.buildExclusionMap(testCases)
+        val exclusions = service.getQuarantinedTests()
 
         assertEquals(listOf("*.testDynamic"), exclusions[":app"])
     }
 
     @Test
-    fun `buildExclusionMap uses wildcard for blank suite name`() {
+    fun `getQuarantinedTests uses wildcard for blank suite name`() {
         val service = createService()
 
-        val testCases = listOf(
-            QuarantinedTestCase(
-                name = "testBlank",
-                module = QuarantinedModule(id = "1", name = ":app"),
-                suite = QuarantinedSuite(id = "1", name = "  ")
+        val responseBody = Gson().toJson(
+            QuarantinedTestCasesResponse(
+                testCases = listOf(
+                    QuarantinedTestCase(
+                        name = "testBlank",
+                        module = QuarantinedModule(id = "1", name = ":app"),
+                        suite = QuarantinedSuite(id = "1", name = "  ")
+                    )
+                )
             )
         )
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody(responseBody))
 
-        val exclusions = service.buildExclusionMap(testCases)
+        val exclusions = service.getQuarantinedTests()
 
         assertEquals(listOf("*.testBlank"), exclusions[":app"])
     }
