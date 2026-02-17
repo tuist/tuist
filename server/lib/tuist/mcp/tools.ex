@@ -4,10 +4,10 @@ defmodule Tuist.MCP.Tools do
   alias Tuist.MCP.Errors
   alias Tuist.MCP.Tools.GetTestCase
   alias Tuist.MCP.Tools.GetTestCaseRun
-  alias Tuist.MCP.Tools.ListFlakyTests
   alias Tuist.MCP.Tools.ListProjects
+  alias Tuist.MCP.Tools.ListTestCases
 
-  @tools [ListProjects, ListFlakyTests, GetTestCase, GetTestCaseRun]
+  @tools [ListProjects, ListTestCases, GetTestCase, GetTestCaseRun]
 
   @tool_map Map.new(@tools, fn mod -> {mod.name(), mod} end)
 

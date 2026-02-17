@@ -60,7 +60,7 @@ defmodule Tuist.MCP.Prompts.FixFlakyTest do
     ## Available MCP tools
 
     - **list_projects**: List all accessible projects.
-    - **list_flaky_tests**: List flaky test cases for a project (requires account_handle and project_handle).
+    - **list_test_cases**: List test cases for a project (requires account_handle and project_handle; use flaky=true to focus on flaky tests).
     - **get_test_case**: Get detailed metrics for a test case (requires test_case_id).
     - **get_test_case_run**: Get failure details for a specific test case run (requires test_case_run_id).
 
@@ -161,7 +161,7 @@ defmodule Tuist.MCP.Prompts.FixFlakyTest do
     ### 1. Discover flaky tests
 
     1. Use `list_projects` to find available projects.
-    2. Use `list_flaky_tests` with account_handle and project_handle.
+    2. Use `list_test_cases` with account_handle and project_handle and set flaky=true.
     3. Pick a flaky test case and call `get_test_case` with its ID.
     """
   end
@@ -171,7 +171,7 @@ defmodule Tuist.MCP.Prompts.FixFlakyTest do
     """
     ### 1. Discover flaky tests
 
-    1. Use `list_flaky_tests` with account_handle="#{account_handle}" and project_handle="#{project_handle}".
+    1. Use `list_test_cases` with account_handle="#{account_handle}" and project_handle="#{project_handle}" and set flaky=true.
     2. Pick a flaky test case and call `get_test_case` with its ID.
     """
   end

@@ -70,7 +70,7 @@ defmodule TuistWeb.MCPControllerTest do
       assert is_list(tools)
       tool_names = Enum.map(tools, & &1["name"])
       assert "list_projects" in tool_names
-      assert "list_flaky_tests" in tool_names
+      assert "list_test_cases" in tool_names
       assert "get_test_case" in tool_names
       assert "get_test_case_run" in tool_names
     end

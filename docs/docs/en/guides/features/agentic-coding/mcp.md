@@ -40,7 +40,7 @@ The following tools are available through the Tuist MCP server:
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `list_projects` | List all projects accessible to the authenticated user. | None |
-| `list_flaky_tests` | List flaky test cases for a project. | `account_handle`, `project_handle` |
+| `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
 | `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` |
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 
@@ -48,9 +48,9 @@ The following tools are available through the Tuist MCP server:
 
 Returns all projects the authenticated user has access to, including each project's `id`, `name`, `account_handle`, and `full_handle`.
 
-#### `list_flaky_tests`
+#### `list_test_cases`
 
-Returns flaky test cases for a given project. Each result includes the test case name, module, suite, flaky run count, and when it was last flaky. Supports pagination through `page` and `page_size` parameters.
+Returns test cases for a given project. Supports pagination through `page` and `page_size`, and optional filters such as `flaky=true`, `quarantined=true`, `module_name`, `suite_name`, and `name`.
 
 #### `get_test_case`
 
