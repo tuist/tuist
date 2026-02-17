@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
@@ -112,12 +113,7 @@ defmodule TuistWeb.API.TestsController do
              type: :string,
              description: "The UUID of an associated Gradle build."
            },
-           build_system: %Schema{
-             type: :string,
-             description: "The build system used for the test run.",
-             enum: ["xcode", "gradle"],
-             default: "xcode"
-           },
+           build_system: BuildSystem.schema(),
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",

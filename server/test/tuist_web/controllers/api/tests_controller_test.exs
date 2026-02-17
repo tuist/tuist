@@ -34,7 +34,8 @@ defmodule TuistWeb.API.TestsControllerTest do
            id: attrs.id,
            duration: attrs.duration,
            project_id: project.id,
-           build_system: "xcode"
+           build_system: "xcode",
+           test_case_runs: []
          }}
       end)
 
@@ -82,7 +83,8 @@ defmodule TuistWeb.API.TestsControllerTest do
            id: attrs.id,
            duration: attrs.duration,
            project_id: project.id,
-           build_system: "gradle"
+           build_system: "gradle",
+           test_case_runs: []
          }}
       end)
 
@@ -151,7 +153,8 @@ defmodule TuistWeb.API.TestsControllerTest do
            id: attrs.id,
            duration: attrs.duration,
            project_id: project.id,
-           build_system: "gradle"
+           build_system: "gradle",
+           test_case_runs: []
          }}
       end)
 
