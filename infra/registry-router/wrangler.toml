@@ -1,0 +1,14 @@
+name = "registry-router"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+routes = [
+  { pattern = "registry.tuist.dev/*", zone_name = "tuist.dev" }
+]
+
+[[kv_namespaces]]
+binding = "HEALTH"
+id = "84f962fcf0a04a499f3f78d2dd7f4994"
+
+[triggers]
+crons = ["* * * * *"]
