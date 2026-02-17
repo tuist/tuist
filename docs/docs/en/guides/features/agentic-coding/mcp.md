@@ -12,6 +12,15 @@ MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude
 
 Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting your MCP client to it, AI agents can access your Tuist project data, including test insights, flaky test analysis, and more.
 
+## MCP vs Skills
+
+MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> solve different parts of agentic workflows:
+
+- **MCP** gives your agent a live interface to Tuist data and actions through tools and prompts.
+- **Skills** give your agent reusable workflow instructions for multi-step tasks.
+
+You can use either one on its own, but they work best together. For example, a skill can define how to investigate and fix a flaky test, while MCP tools provide the live test insights and run details needed to execute that workflow.
+
 ## Authentication
 
 The MCP endpoint is protected by OAuth 2.0. MCP clients that support the OAuth-based authentication flow will handle the handshake automatically. The discovery endpoints are:
