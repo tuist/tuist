@@ -326,10 +326,8 @@ abstract class TuistBuildInsightsService :
         )
 
         val response = httpClient.execute { config ->
-            // Build insights are posted to the Tuist server URL configured in the plugin extension.
-            // Cache config may point to a dedicated cache host, which does not expose insights APIs.
-            val serverUrl = parameters.url.orNull ?: config.url
-            val url = buildInsightsBuildsUrl(serverUrl, config.accountHandle, config.projectHandle)
+            val baseUrl = config.url.trimEnd('/')
+            val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
             val connection = httpClient.openConnection(url, config)
             try {
                 connection.requestMethod = "POST"
@@ -407,11 +405,6 @@ internal fun buildReport(
     )
 }
 
-internal fun buildInsightsBuildsUrl(serverUrl: String, accountHandle: String, projectHandle: String): URI {
-    val baseUrl = serverUrl.trimEnd('/')
-    return URI(baseUrl).resolve("/api/projects/$accountHandle/$projectHandle/gradle/builds")
-}
-
 internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     private val eventsListenerRegistry: BuildEventsListenerRegistry
 ) : Plugin<Project> {
@@ -458,3 +451,4 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         }
     }
 }
+
