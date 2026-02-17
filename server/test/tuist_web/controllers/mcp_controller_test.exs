@@ -33,7 +33,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "id" => 1,
@@ -56,7 +56,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "id" => 2,
@@ -92,7 +92,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "id" => 3,
@@ -119,7 +119,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "id" => 4,
@@ -139,7 +139,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "method" => "notifications/initialized",
@@ -174,7 +174,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "id" => 6,
@@ -196,7 +196,7 @@ defmodule TuistWeb.MCPControllerTest do
 
       conn =
         conn
-        |> put_req_header("authorization", "Bearer #{user.token}")
+        |> authenticated_mcp_conn(user.token)
         |> post("/mcp", %{
           "jsonrpc" => "2.0",
           "id" => 7,
@@ -216,5 +216,11 @@ defmodule TuistWeb.MCPControllerTest do
       assert hd(messages)["role"] == "user"
       assert hd(messages)["content"]["text"] =~ "Fix Flaky Test"
     end
+  end
+
+  defp authenticated_mcp_conn(conn, token) do
+    conn
+    |> put_req_header("authorization", "Bearer #{token}")
+    |> put_req_header("accept", "application/json, text/event-stream")
   end
 end

@@ -124,6 +124,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :mcp do
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
+    plug TuistWeb.Plugs.MCPRateLimitPlug
+  end
+
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -302,12 +308,10 @@ defmodule TuistWeb.Router do
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
   end
 
-  scope "/", TuistWeb do
-    pipe_through [:open_api, :non_authenticated_api]
+  scope "/" do
+    pipe_through [:mcp]
 
-    post "/mcp", MCPController, :request
-    get "/mcp", MCPController, :request
-    delete "/mcp", MCPController, :request
+    forward "/mcp", Hermes.Server.Transport.StreamableHTTP.Plug, server: Tuist.MCP.Server
   end
 
   scope path: "/api",

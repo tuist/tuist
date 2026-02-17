@@ -30,6 +30,11 @@ Point your MCP client at the Tuist server endpoint. The exact configuration depe
 https://tuist.dev/mcp
 ```
 
+Tuist uses the MCP Streamable HTTP transport. Clients should support:
+
+- `Accept: application/json, text/event-stream` on HTTP requests.
+- Session handling via the `mcp-session-id` header.
+
 Refer to your MCP client's documentation for how to add a remote (HTTP-based) MCP server.
 
 ## Capabilities
