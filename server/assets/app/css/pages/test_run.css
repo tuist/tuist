@@ -456,16 +456,16 @@
             display: none;
           }
 
+          & [data-part="flaky-run-item-wrapper"]:first-child [data-part="flaky-run-item"] {
+            padding-top: var(--noora-spacing-3);
+          }
+
           & [data-part="flaky-run-item"] {
             display: flex;
             flex-direction: column;
             gap: var(--noora-spacing-6);
             border-top: 1px solid var(--noora-surface-border-secondary);
             padding: var(--noora-spacing-6) var(--noora-spacing-5);
-
-            &:first-child {
-              padding-top: var(--noora-spacing-3);
-            }
 
             & [data-part="run-header"] {
               display: flex;

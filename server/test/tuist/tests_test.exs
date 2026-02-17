@@ -3734,8 +3734,9 @@ defmodule Tuist.TestsTest do
 
       assert length(result) == 1
       group = hd(result)
-      assert group.passed_count == 0
+      assert group.passed_count == 1
       assert group.failed_count == 1
+      assert length(group.runs) == 2
     end
 
     test "groups multiple test cases separately" do
