@@ -38,6 +38,14 @@
 
       access_log /var/log/nginx/access.log timed_combined;
 
+      # Swift Package Registry requires a Content-Version response header.
+      # X-Accel-Redirect to proxy_pass locations replaces upstream headers,
+      # so we re-inject it only for registry requests.
+      map $request_uri $registry_content_version {
+        "~^/api/registry/swift/" "1";
+        default "";
+      }
+
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
         keepalive 128;
@@ -143,6 +151,7 @@
             default_type application/octet-stream;
             gzip off;
             add_header Cache-Control "public, max-age=31536000, immutable";
+            add_header Content-Version $registry_content_version;
           '';
         };
 
@@ -158,6 +167,7 @@
             set $download_url $1://$2/$3;
             proxy_set_header Host $2;
             proxy_pass $download_url$is_args$args;
+            add_header Content-Version $registry_content_version;
             proxy_request_buffering off;
             proxy_buffering off;
             proxy_intercept_errors on;
@@ -183,6 +193,7 @@
             proxy_hide_header Content-Type;
             default_type application/octet-stream;
             proxy_pass $saved_redirect_location;
+            add_header Content-Version $registry_content_version;
           '';
         };
       };
