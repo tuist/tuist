@@ -44,9 +44,6 @@ class TuistTestInsightsTest {
         val json = gson.toJson(report)
         assertTrue(json.contains("\"is_ci\""))
         assertTrue(json.contains("\"build_system\""))
-        assertTrue(json.contains("\"macos_version\""))
-        assertTrue(json.contains("\"xcode_version\""))
-        assertTrue(json.contains("\"model_identifier\""))
         assertTrue(json.contains("\"git_branch\""))
         assertTrue(json.contains("\"git_commit_sha\""))
         assertTrue(json.contains("\"git_ref\""))
@@ -69,9 +66,6 @@ class TuistTestInsightsTest {
         )
 
         assertEquals("gradle", report.buildSystem)
-        assertEquals("", report.macosVersion)
-        assertEquals("", report.xcodeVersion)
-        assertEquals("", report.modelIdentifier)
     }
 
     @Test
