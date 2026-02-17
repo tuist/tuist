@@ -13,9 +13,9 @@ diğer paket yöneticileri merkeziyken, Swift Package Manager merkezi değildir.
 nedenle SwiftPM, her bir deponun derin bir klonunu yaparak bağımlılıkları
 çözmelidir, bu da zaman alıcı olabilir ve merkezi bir yaklaşıma göre daha fazla
 bellek kaplar. Bu sorunu çözmek için Tuist, [Package
-Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md)
+Kayıtı](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md)
 uygulamasını sunar, böylece yalnızca gerçekten ihtiyacınız olan commit'leri
-indirebilirsiniz __ . Kayıt defterindeki paketler [Swift paketi
+indirebilirsiniz __ . Kayıt defterindeki paketler [Swift Package
 Index](https://swiftpackageindex.com/) temel alınarak oluşturulmuştur. Bu
 indeksde bir paket bulabilirseniz, o paket Tuist Registry'de de mevcuttur.
 Ayrıca, paketler, çözülürken gecikmeyi en aza indirmek için bir kenar depolama
@@ -84,6 +84,6 @@ defterini kullanmak için paket kayıt defteri tanımlayıcısı
 <!-- -->
 Tanımlayıcı birden fazla nokta içermemelidir. Depo adı nokta içeriyorsa, nokta
 alt çizgi ile değiştirilir. Örneğin, `https://github.com/groue/GRDB.swift`
-paketi, `groue.GRDB_swift` Kayıt tanımlayıcısına sahip olacaktır.
+paketi, `groue.GRDB_swift` kayıt tanımlayıcısına sahip olacaktır.
 <!-- -->
 :::
