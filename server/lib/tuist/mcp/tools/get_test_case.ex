@@ -25,7 +25,7 @@ defmodule Tuist.MCP.Tools.GetTestCase do
 
   def call(%{"test_case_id" => test_case_id}, subject) do
     with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
-         :ok <- Authorization.authorize_project_id(test_case.project_id, subject) do
+         :ok <- Authorization.authorize_project_id(:test_read, test_case.project_id, subject) do
       analytics = Analytics.test_case_analytics_by_id(test_case_id)
       reliability_rate = Analytics.test_case_reliability_by_id(test_case_id, "main")
       flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
