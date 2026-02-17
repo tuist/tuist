@@ -165,13 +165,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier]
     ) throws {
-        let warnNothingToSkip = { (skippedTargets: [TestIdentifier]) in
-            guard !skippedTargets.isEmpty else { return }
-            Logger.current.warning(
-                "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(testTargets.map(\.description).joined(separator: ", ")))"
-            )
-        }
-
         let targetsIntersection = Set(testTargets)
             .intersection(skipTestTargets)
         if !targetsIntersection.isEmpty {
@@ -185,11 +178,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let testTargetsOnly = try testTargets.map { try TestIdentifier(target: $0.target) }
             let targetsOnlyIntersection = skipTestTargetsOnly.intersection(testTargetsOnly)
             if !skipTestTargets.isEmpty, targetsOnlyIntersection.isEmpty {
-                warnNothingToSkip(
+                Self.warnNothingToSkip(
                     try skipTestTargets
                         .filter { skipTarget in
                             try !testTargetsOnly.contains(TestIdentifier(target: skipTarget.target))
-                        }
+                        },
+                    testTargets: testTargets
                 )
             }
 
@@ -203,7 +197,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             if !testTargetsClasses.isEmpty, !skipTestTargetsClasses.isEmpty,
                targetsClassesIntersection.isEmpty
             {
-                warnNothingToSkip(
+                Self.warnNothingToSkip(
                     try skipTestTargets
                         .filter { skipTarget in
                             try
@@ -214,7 +208,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
                                             target: skipTarget.target, class: skipTarget.class
                                         )
                                 }
-                        }
+                        },
+                    testTargets: testTargets
                 )
             }
 
@@ -229,9 +224,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
             if !testTargetsClassesMethods.isEmpty, targetsClassesMethodsIntersection.isEmpty,
                !skipTestTargetsClassesMethods.isEmpty
             {
-                warnNothingToSkip(skipTestTargets)
+                Self.warnNothingToSkip(skipTestTargets, testTargets: testTargets)
             }
         }
+    }
+
+    private static func warnNothingToSkip(
+        _ skippedTargets: [TestIdentifier],
+        testTargets: [TestIdentifier]
+    ) {
+        guard !skippedTargets.isEmpty else { return }
+        Logger.current.warning(
+            "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(testTargets.map(\.description).joined(separator: ", ")))"
+        )
     }
 
     // swiftlint:disable:next function_body_length
