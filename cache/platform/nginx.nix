@@ -21,7 +21,7 @@
       ssl_session_timeout 1h;
       ssl_session_tickets on;
       ssl_prefer_server_ciphers off;
-      keepalive_requests 10000;
+      keepalive_requests 50000;
       http2_max_concurrent_streams 512;
 
       log_format timed_combined '$remote_addr - $remote_user [$time_local] '
@@ -48,7 +48,9 @@
 
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
-        keepalive 128;
+        keepalive 512;
+        keepalive_timeout 120s;
+        keepalive_requests 50000;
       }
     '';
 
@@ -169,7 +171,9 @@
             proxy_pass $download_url$is_args$args;
             add_header Content-Version $registry_content_version;
             proxy_request_buffering off;
-            proxy_buffering off;
+            proxy_buffering on;
+            proxy_buffer_size 128k;
+            proxy_buffers 16 128k;
             proxy_intercept_errors on;
             error_page 301 302 307 = @handle_remote_redirect;
             error_page 403 404 = @handle_remote_not_found;
