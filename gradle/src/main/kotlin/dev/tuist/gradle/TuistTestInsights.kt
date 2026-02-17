@@ -103,8 +103,8 @@ internal class TestReportCollector {
             val moduleDuration = testCases.sumOf { it.duration }
 
             val testSuites = testCases
-                .filter { it.testSuiteName != null }
-                .groupBy { it.testSuiteName!! }
+                .mapNotNull { case -> case.testSuiteName?.let { it to case } }
+                .groupBy({ it.first }, { it.second })
                 .map { (suiteName, cases) ->
                     TestSuite(
                         name = suiteName,
