@@ -1,4 +1,5 @@
 defmodule Cache.SQLiteMaintenanceWorker do
+  @moduledoc false
   use Oban.Worker, queue: :maintenance, max_attempts: 1
 
   @impl Oban.Worker
