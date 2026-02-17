@@ -1,11 +1,12 @@
 defmodule Tuist.MCP.Tools.GetTestCaseRun do
   @moduledoc false
 
-  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Content
   alias Tuist.MCP.Errors
   alias Tuist.MCP.Formatter
+  alias Tuist.Projects
   alias Tuist.Tests
+  alias TuistWeb.API.Authorization.AuthorizationPlug
 
   def name, do: "get_test_case_run"
 
@@ -25,7 +26,8 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
 
   def call(%{"test_case_run_id" => test_case_run_id}, subject) do
     with {:ok, run} <- Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]),
-         :ok <- Authorization.authorize_project_id(:test_read, run.project_id, subject) do
+         project when not is_nil(project) <- Projects.get_project_by_id(run.project_id),
+         true <- AuthorizationPlug.authorize(subject, :read, project, :test) do
       data = %{
         id: run.id,
         test_case_id: run.test_case_id,
@@ -64,6 +66,8 @@ defmodule Tuist.MCP.Tools.GetTestCaseRun do
       Content.ok_json(data)
     else
       {:error, :not_found} -> Errors.invalid_params("Test case run not found: #{test_case_run_id}")
+      nil -> Errors.invalid_params("Project not found.")
+      false -> Errors.invalid_params("You do not have access to this resource.")
       {:error, code, message} -> {:error, code, message}
     end
   end
