@@ -17,6 +17,7 @@ on:
       - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
   pull_request:
@@ -34,6 +35,7 @@ on:
       - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
 
