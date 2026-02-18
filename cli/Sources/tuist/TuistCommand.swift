@@ -132,6 +132,7 @@ public struct TuistCommand: AsyncParsableCommand {
         #endif
     }
 
+    // swiftlint:disable:next function_body_length
     public static func main(
         logFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
