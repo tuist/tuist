@@ -22,6 +22,7 @@
 @import "./pages/preview.css";
 @import "./pages/previews.css";
 @import "./pages/qa.css";
+@import "./pages/ops/cache.css";
 @import "./pages/ops/qa.css";
 @import "./pages/ops/qa_logs.css";
 @import "./pages/project_automations.css";

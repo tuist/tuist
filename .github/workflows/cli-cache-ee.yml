@@ -18,6 +18,7 @@ on:
       - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -34,6 +35,7 @@ on:
       - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
   workflow_dispatch:
     inputs:
       commit_sha:

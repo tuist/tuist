@@ -132,7 +132,7 @@ defmodule Cache.SQLiteBufferTest do
 
     Task.await_many(tasks)
 
-    assert %{cas_artifacts: 1} = CacheArtifactsBuffer.queue_stats()
+    assert %{cache_artifacts: 1} = CacheArtifactsBuffer.queue_stats()
 
     :ok = CacheArtifactsBuffer.flush()
 
