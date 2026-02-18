@@ -101,7 +101,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
     .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
-    .product(name: "Rosalind", package: "tuist.Rosalind"),
+    .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS, .linux])),
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
     "TuistConstants",

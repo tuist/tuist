@@ -1,3 +1,4 @@
+#if canImport(Rosalind)
 import Foundation
 import Mockable
 import OpenAPIRuntime
@@ -132,7 +133,7 @@ public struct CreateBundleService: CreateBundleServicing {
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {
             case let .json(error):
-                throw CreateBuildServiceError.forbidden(error.message)
+                throw CreateBundleServiceError.forbidden(error.message)
             }
         }
     }
@@ -159,3 +160,4 @@ extension Components.Schemas.BundleArtifact {
         )
     }
 }
+#endif
