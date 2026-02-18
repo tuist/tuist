@@ -382,21 +382,36 @@ public struct PackageInfoMapper: PackageInfoMapping {
         guard products.count == 1,
               let singleProduct = products.first,
               singleProduct.targets.count == 1,
+              singleProduct.targets.first == targetName,
               singleProduct.name != targetName,
               targetName.hasPrefix(singleProduct.name)
         else { return targetName }
 
-        let target = packageTargets.first { $0.name == targetName }
-        let dependsOnBinaryWithProductName = target?.dependencies.contains { dependency in
-            switch dependency {
-            case let .target(name, _), let .byName(name, _):
-                return name == singleProduct.name
-                    && packageTargets.contains(where: { $0.name == name && $0.type == .binary })
-            case .product:
-                return false
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageTargets.map { ($0.name, $0) })
+        var visited = Set<String>()
+        var queue = [targetName]
+
+        while let currentTargetName = queue.popLast() {
+            guard visited.insert(currentTargetName).inserted,
+                  let currentTarget = targetsByName[currentTargetName]
+            else { continue }
+
+            for dependency in currentTarget.dependencies {
+                let dependencyName: String
+                switch dependency {
+                case let .target(name, _), let .byName(name, _), let .product(name, _, _, _):
+                    dependencyName = name
+                }
+
+                if dependencyName == singleProduct.name {
+                    return targetName
+                }
+
+                if targetsByName[dependencyName] != nil {
+                    queue.append(dependencyName)
+                }
             }
-        } ?? false
-        if dependsOnBinaryWithProductName { return targetName }
+        }
 
         return singleProduct.name
     }

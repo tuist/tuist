@@ -5895,6 +5895,91 @@ struct PackageInfoMapperTests {
 
     @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetDependsTransitivelyOnBinaryTarget_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/FirebaseAnalyticsTarget"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/FirebaseAnalyticsWrapper"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "FirebaseAnalytics", type: .library(.automatic), targets: ["FirebaseAnalyticsTarget"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "FirebaseAnalyticsTarget",
+                            dependencies: [
+                                .target(name: "FirebaseAnalyticsWrapper", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "FirebaseAnalyticsWrapper",
+                            dependencies: [.target(name: "FirebaseAnalytics", condition: nil)]
+                        ),
+                        .test(name: "FirebaseAnalytics", type: .binary),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "FirebaseAnalyticsTarget" }))
+        #expect(mappedTarget.productName == "FirebaseAnalyticsTarget")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTransitiveTargetMatchesProductPrefix_keepsOwnTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Sharing")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Sharing1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Sharing2")))
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Sharing", type: .library(.automatic), targets: ["Sharing"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Sharing",
+                            dependencies: [
+                                .target(name: "Sharing1", condition: nil),
+                                .target(name: "Sharing2", condition: nil),
+                            ]
+                        ),
+                        .test(name: "Sharing1"),
+                        .test(name: "Sharing2"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        let sharing1Target = try #require(project?.targets.first(where: { $0.name == "Sharing1" }))
+        let sharing2Target = try #require(project?.targets.first(where: { $0.name == "Sharing2" }))
+        #expect(sharing1Target.productName == "Sharing1")
+        #expect(sharing2Target.productName == "Sharing2")
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func map_whenMultiTargetProduct_keepsOwnTargetNameAsProductName() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/FooCore")))
