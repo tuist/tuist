@@ -655,28 +655,20 @@ jobs:
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
-      - name: Start main server
-        working-directory: server
+      - name: Start main and cache servers
         run: |
-          MIX_ENV=dev mix phx.server &
+          cd server && MIX_ENV=dev mix phx.server &
+          cd cache && MIX_ENV=dev mix phx.server &
+          # Wait for both servers in parallel
           for i in {1..30}; do
-            if curl -sf http://localhost:8080 >/dev/null 2>&1; then
-              echo "Main server is ready"
+            main_ready=false; cache_ready=false
+            curl -sf http://localhost:8080 >/dev/null 2>&1 && main_ready=true
+            nc -z localhost 8087 2>/dev/null && cache_ready=true
+            if $main_ready && $cache_ready; then
+              echo "Both servers are ready"
               break
             fi
-            echo "Waiting for main server... ($i/30)"
-            sleep 2
-          done
-      - name: Start cache server
-        working-directory: cache
-        run: |
-          MIX_ENV=dev mix phx.server &
-          for i in {1..30}; do
-            if nc -z localhost 8087 2>/dev/null; then
-              echo "Cache server is ready"
-              break
-            fi
-            echo "Waiting for cache server... ($i/30)"
+            echo "Waiting for servers... main=$main_ready cache=$cache_ready ($i/30)"
             sleep 2
           done
       - name: Setup tuist wrapper for Linux
