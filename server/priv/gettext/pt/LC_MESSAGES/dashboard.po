@@ -300,3 +300,6 @@ msgstr ""
 #, fuzzy
 msgid "Create project"
 msgstr "Create a new project"
+
+msgid "Cache"
+msgstr ""

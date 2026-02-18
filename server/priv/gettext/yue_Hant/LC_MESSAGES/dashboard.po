@@ -296,3 +296,6 @@ msgstr ""
 
 msgid "Create project"
 msgstr ""
+
+msgid "Cache"
+msgstr ""
