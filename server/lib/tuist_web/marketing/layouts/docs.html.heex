@@ -1,0 +1,14 @@
+<main id="docs-page">
+  <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+  <div data-part="docs-layout">
+    <TuistWeb.Marketing.DocsComponents.docs_sidebar
+      sections={@sidebar}
+      current_slug={@current_slug}
+    />
+    <article data-part="docs-content" data-prose>
+      {render_slot(@inner_block)}
+    </article>
+    <TuistWeb.Marketing.DocsComponents.docs_toc headings={@headings} />
+  </div>
+</main>
+<TuistWeb.Marketing.MarketingComponents.footer />

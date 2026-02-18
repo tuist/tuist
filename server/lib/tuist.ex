@@ -13,6 +13,8 @@ defmodule Tuist do
       # -----
       # These modules contain utilities that are used for the marketing-related
       # routes and features.
+      Docs,
+      Docs.Sidebar,
       Marketing.Blog,
       Marketing.Content,
       Marketing.Pages,

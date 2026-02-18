@@ -141,6 +141,7 @@ defmodule Tuist.MixProject do
       {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
+      {:mdex, "~> 0.11"},
       {:html_sanitize_ex, "~> 1.4"},
       {:posthog, "~> 1.0", runtime: false},
       {:opentelemetry_api, "~> 1.4"},

@@ -8,6 +8,7 @@ defmodule TuistWeb.Router do
   import TuistWeb.Authorization
   import TuistWeb.RateLimit.InMemory
 
+  alias TuistWeb.Marketing.DocsLive
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
   alias TuistWeb.Plugs.SentryContextPlug
@@ -203,6 +204,16 @@ defmodule TuistWeb.Router do
 
         live Path.join(locale_path_prefix, "/qa"),
              TuistWeb.Marketing.MarketingQALive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/docs"),
+             DocsLive,
+             metadata: %{type: :marketing},
+             private: private
+
+        live Path.join(locale_path_prefix, "/docs/*slug"),
+             DocsLive,
              metadata: %{type: :marketing},
              private: private
       end
