@@ -1,6 +1,7 @@
 import Command
 import FileSystem
 import Foundation
+import TuistEnvironment
 import Noora
 import Path
 import TuistAlert
@@ -42,7 +43,7 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
         case .fullHandleNotFound:
             return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
         case .aapt2NotFound:
-            return "aapt2 is required to share APK files. Install it via the Android SDK (build-tools) and ensure it is in your PATH."
+            return "aapt2 is required to share APK files. Install it via the Android SDK (build-tools) and ensure ANDROID_HOME or ANDROID_SDK_ROOT is set, or that aapt2 is in your PATH."
         case let .aapt2ParsingFailed(path):
             return "Failed to parse APK metadata from \(path). Ensure the file is a valid APK."
         }
@@ -322,13 +323,46 @@ struct ShareCommandService {
         )
     }
 
+    private func resolveAapt2Path() async throws -> String {
+        var candidateRoots: [String] = []
+
+        let variables = Environment.current.variables
+        for envVar in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
+            if let value = variables[envVar], !value.isEmpty {
+                candidateRoots.append(value)
+            }
+        }
+
+        let home = FileHandler.shared.homeDirectory.pathString
+        candidateRoots.append(contentsOf: [
+            "\(home)/.local/share/mise/installs/android-sdk/1.0",
+            "\(home)/Library/Android/sdk",
+            "/opt/homebrew/share/android-commandlinetools",
+            "/usr/local/share/android-commandlinetools",
+        ])
+
+        for root in candidateRoots {
+            let buildToolsDir: AbsolutePath
+            do {
+                buildToolsDir = try AbsolutePath(validating: root).appending(component: "build-tools")
+            } catch { continue }
+            guard await (try? fileSystem.exists(buildToolsDir)) == true else { continue }
+            let aapt2Paths = try await fileSystem.glob(directory: buildToolsDir, include: ["*/aapt2"]).collect()
+            if let aapt2 = aapt2Paths.sorted(by: { $0.pathString > $1.pathString }).first {
+                return aapt2.pathString
+            }
+        }
+        return "aapt2"
+    }
+
     private func parseAPKMetadata(at apkPath: AbsolutePath) async throws -> APKMetadata {
         let commandRunner = CommandRunner()
+        let aapt2 = try await resolveAapt2Path()
 
         let output: String
         do {
             output = try await commandRunner
-                .run(arguments: ["aapt2", "dump", "badging", apkPath.pathString])
+                .run(arguments: [aapt2, "dump", "badging", apkPath.pathString])
                 .concatenatedString()
         } catch {
             throw ShareCommandServiceError.aapt2NotFound
