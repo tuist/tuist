@@ -88,7 +88,7 @@ extension DestinationDevice: CustomStringConvertible {
     var description: String {
         switch self {
         case let .android(device):
-            return "\(device.name) (Android\(device.isEmulator ? " Emulator" : ""))"
+            return "\(device.name) (Android\(device.type == .emulator ? " Emulator" : ""))"
         #if os(macOS)
             case let .physical(physicalDevice):
                 return physicalDevice.name

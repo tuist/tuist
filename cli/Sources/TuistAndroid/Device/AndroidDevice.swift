@@ -1,20 +1,26 @@
 import Foundation
 
 public struct AndroidDevice: Equatable, Sendable, CustomStringConvertible {
+    public enum DeviceType: Equatable, Sendable {
+        case emulator
+        case device
+    }
+
     public let id: String
     public let name: String
-    public let isEmulator: Bool
+    public let type: DeviceType
 
-    public init(id: String, name: String, isEmulator: Bool) {
+    public init(id: String, name: String, type: DeviceType) {
         self.id = id
         self.name = name
-        self.isEmulator = isEmulator
+        self.type = type
     }
 
     public var description: String {
-        if isEmulator {
+        switch type {
+        case .emulator:
             return "\(name) (emulator: \(id))"
-        } else {
+        case .device:
             return "\(name) (device: \(id))"
         }
     }

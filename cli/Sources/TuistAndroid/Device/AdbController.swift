@@ -74,9 +74,9 @@ public struct AdbController: AdbControlling {
 
             let modelTag = parts.first(where: { $0.hasPrefix("model:") })
             let name = modelTag?.replacingOccurrences(of: "model:", with: "") ?? serial
-            let isEmulator = serial.hasPrefix("emulator-")
+            let type: AndroidDevice.DeviceType = serial.hasPrefix("emulator-") ? .emulator : .device
 
-            devices.append(AndroidDevice(id: serial, name: name, isEmulator: isEmulator))
+            devices.append(AndroidDevice(id: serial, name: name, type: type))
         }
 
         return devices
