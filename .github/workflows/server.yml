@@ -592,6 +592,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:24
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       MIX_ENV: dev
       DATABASE_HOST: localhost
@@ -608,22 +617,11 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: .
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: cache
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
-      - name: Start ClickHouse
-        working-directory: server
-        run: mise run clickhouse:start
       - name: Restore server deps
         uses: actions/cache@v4
         with:
@@ -684,18 +682,31 @@ jobs:
             sleep 2
           done
       - name: Debug tuist cache config
-        working-directory: .
+        working-directory: examples/gradle/simple_android_app
         env:
           TUIST_URL: http://localhost:8080
         run: |
+          echo "=== tuist binary ==="
+          which tuist
+          file "$(which tuist)"
           echo "=== tuist version ==="
-          tuist version || true
+          tuist version
           echo "=== tuist auth login ==="
           tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
-          echo "=== tuist cache config (stdout) ==="
-          tuist cache config tuist/android-app --json --url http://localhost:8080 2>/tmp/tuist-stderr.log || true
-          echo "=== tuist cache config (stderr) ==="
-          cat /tmp/tuist-stderr.log || true
+          echo "=== tuist cache config (exit code + output) ==="
+          set +e
+          tuist cache config tuist/android-app --json --url http://localhost:8080 > /tmp/tuist-stdout.log 2> /tmp/tuist-stderr.log
+          EXIT_CODE=$?
+          set -e
+          echo "Exit code: $EXIT_CODE"
+          echo "=== stdout ==="
+          cat /tmp/tuist-stdout.log
+          echo "=== stderr ==="
+          cat /tmp/tuist-stderr.log
+          echo "=== tuist credentials ==="
+          ls -la ~/.config/tuist/ 2>/dev/null || ls -la ~/.local/share/tuist/ 2>/dev/null || echo "No tuist config found"
+          echo "=== retry cache config ==="
+          tuist cache config tuist/android-app --json --url http://localhost:8080 2>&1 || true
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
