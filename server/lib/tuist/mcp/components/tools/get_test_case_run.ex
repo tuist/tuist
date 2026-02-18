@@ -4,12 +4,10 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   """
 
   use Hermes.Server.Component, type: :tool
+  use Tuist.MCP.Components.ToolPlug, action: :read, category: :test
 
-  alias Hermes.MCP.Error
   alias Hermes.Server.Response
-  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Formatter
-  alias Tuist.Projects
   alias Tuist.Tests
 
   schema do
@@ -20,11 +18,13 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
 
   @impl true
   def execute(%{test_case_run_id: test_case_run_id}, frame) do
-    subject = Authorization.authenticated_subject(frame.assigns)
-
-    with {:ok, run} <- Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]),
-         project when not is_nil(project) <- Projects.get_project_by_id(run.project_id),
-         true <- Authorization.authorize(subject, :read, project, :test) do
+    with {:ok, run} <-
+           load_resource(
+             Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]),
+             "Test case run not found: #{test_case_run_id}",
+             frame
+           ),
+         {:ok, _project} <- authorize_project_by_id(frame, run.project_id) do
       data = %{
         id: run.id,
         test_case_id: run.test_case_id,
@@ -61,19 +61,6 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
       }
 
       {:reply, Response.json(Response.tool(), data), frame}
-    else
-      {:error, :not_found} ->
-        invalid_params("Test case run not found: #{test_case_run_id}", frame)
-
-      nil ->
-        invalid_params("Project not found.", frame)
-
-      false ->
-        invalid_params("You do not have access to this resource.", frame)
     end
-  end
-
-  defp invalid_params(message, frame) do
-    {:error, Error.protocol(:invalid_params, %{message: message}), frame}
   end
 end

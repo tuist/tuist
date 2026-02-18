@@ -4,15 +4,13 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   """
 
   use Hermes.Server.Component, type: :tool
+  use Tuist.MCP.Components.ToolPlug, action: :read, category: :test
 
   import Ecto.Query
 
-  alias Hermes.MCP.Error
   alias Hermes.Server.Response
   alias Tuist.ClickHouseRepo
-  alias Tuist.MCP.Authorization
   alias Tuist.MCP.Formatter
-  alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.CrashReport
@@ -24,11 +22,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
 
   @impl true
   def execute(%{test_run_id: test_run_id}, frame) do
-    subject = Authorization.authenticated_subject(frame.assigns)
-
-    with {:ok, run} <- Tests.get_test(test_run_id),
-         project when not is_nil(project) <- Projects.get_project_by_id(run.project_id),
-         true <- Authorization.authorize(subject, :read, project, :test) do
+    with {:ok, run} <- load_resource(Tests.get_test(test_run_id), "Test run not found: #{test_run_id}", frame),
+         {:ok, _project} <- authorize_project_by_id(frame, run.project_id) do
       metrics = Analytics.get_test_run_metrics(run.id)
       {crashed_test_count, crashes} = get_crash_summaries(run.id)
 
@@ -64,15 +59,6 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       }
 
       {:reply, Response.json(Response.tool(), data), frame}
-    else
-      {:error, :not_found} ->
-        invalid_params("Test run not found: #{test_run_id}", frame)
-
-      nil ->
-        invalid_params("Project not found.", frame)
-
-      false ->
-        invalid_params("You do not have access to this resource.", frame)
     end
   end
 
@@ -107,9 +93,5 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
       )
 
     {ClickHouseRepo.one(crash_count_query) || 0, ClickHouseRepo.all(crashes_query)}
-  end
-
-  defp invalid_params(message, frame) do
-    {:error, Error.protocol(:invalid_params, %{message: message}), frame}
   end
 end
