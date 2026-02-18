@@ -1,0 +1,162 @@
+Implement the following plan:
+
+# Plan: Real-time Gradle Build Visualization via OpenTelemetry
+
+## Context
+
+We want to visualize Gradle builds in real-time using OpenTelemetry as the standard protocol, so it can be reused for other build systems in the future. The approach: use the third-party `com.atkinsondev.opentelemetry-build` Gradle plugin (v4.6.2) to export build traces via OTLP HTTP, receive them on the Tuist server, and display a live waterfall/Gantt chart in a new LiveView tab.
+
+This is a prototype to see how it feels.
+
+## Architecture
+
+```
+Gradle Build
+  └─ com.atkinsondev.opentelemetry-build plugin (exports OTLP/HTTP)
+       └─ POST /api/projects/:account/:project/gradle/traces/v1/traces
+            └─ Tuist Server (receives, parses, broadcasts via PubSub)
+                 └─ LiveView (real-time waterfall chart using Noora ECharts)
+```
+
+Key insight: The existing `opentelemetry_exporter` dep already includes the Erlang protobuf decoder (`:opentelemetry_exporter_trace_service_pb.decode_msg/2`) for `export_trace_service_request`, so no new Elixir deps are needed.
+
+## Implementation Steps
+
+### Step 1: OTLP Parser Module (Server)
+
+**New file:** `server/lib/tuist/gradle/otlp_parser.ex`
+
+- `parse_protobuf(binary)` - decodes using `:opentelemetry_exporter_trace_service_pb.decode_msg(binary, :export_trace_service_request)`
+- `parse_json(body)` - decodes OTLP JSON format as fallback
+- Returns normalized span maps: `%{trace_id, span_id, parent_span_id, name, start_time_unix_nano, end_time_unix_nano, status, attributes, resource_attributes}`
+- Extracts `tuist.build.id` from resource attributes to correlate with Gradle builds
+
+### Step 2: In-Memory Span Storage (Server)
+
+**New file:** `server/lib/tuist/gradle/live_traces.ex`
+
+- ETS-backed GenServer holding spans per `build_id`
+- `add_spans(build_id, project_id, spans)` - appends spans and broadcasts via PubSub on `"gradle_traces:#{project_id}:#{build_id}"`
+- `get_spans(build_id)` - returns all spans for a build
+- Periodic cleanup (every 5 min) removes entries older than 30 minutes
+- Cap at 10,000 spans per build
+- Add to application supervisor in `server/lib/tuist/application.ex`
+
+### Step 3: OTLP HTTP Receiver Endpoint (Server)
+
+**New file:** `server/lib/tuist_web/controllers/api/gradle_traces_controller.ex`
+
+- Accepts `POST` with `Content-Type: application/x-protobuf` (primary) and `application/json` (fallback)
+- Uses `LoaderPlug` and `AuthorizationPlug` for auth (same as existing Gradle controller)
+- Does NOT use `OpenApiSpex.Plug.CastAndValidate` (body is protobuf, not JSON)
+- Parses body via `OTLPParser`, extracts `build_id` from resource attributes
+- Stores spans in `LiveTraces`, which broadcasts to PubSub
+- Returns OTLP-compliant empty response (`{}`)
+
+**Modified file:** `server/lib/tuist_web/router.ex`
+
+- Add route inside existing `/gradle` scope:
+  ```elixir
+  post "/traces/v1/traces", GradleTracesController, :receive_traces
+  ```
+
+### Step 4: Waterfall Chart Data Builder (Server)
+
+**New file:** `server/lib/tuist/gradle/waterfall.ex`
+
+- Converts flat span list into ECharts horizontal bar chart data
+- Finds root span (no parent), calculates time offsets relative to root start
+- Builds category list (task names sorted by start time) and stacked bar data (transparent spacer + colored duration bar)
+- Color-codes by status: blue for running (end_time=0), green for success, red for error/failure
+- For spans still running (end_time=0), uses current wall-clock as end time
+
+### Step 5: LiveView Real-Time Tab (Server)
+
+**Modified file:** `server/lib/tuist_web/live/build_run_live.ex`
+
+- In `mount_gradle/3`: subscribe to `"gradle_traces:#{project.id}:#{build_id}"` when connected
+- Add `handle_info({:gradle_trace_spans, _build_id, new_spans}, socket)` to handle incoming spans
+- When on live-traces tab: update `live_spans` and `waterfall_data` assigns
+
+**Modified file:** `server/lib/tuist_web/live/gradle_build_live.ex`
+
+- Add `"live-traces"` tab handling in `assign_handle_params/2`
+- New `assign_tab_data(socket, "live-traces", _params)` that loads spans from `LiveTraces.get_spans/1`
+- `build_waterfall_data/1` helper that calls `Waterfall.build/1`
+
+**Modified file:** `server/lib/tuist_web/live/gradle_build_live.html.heex`
+
+- Add "Live Traces" tab in the horizontal tab menu
+- New conditional block for `live-traces` tab showing:
+  - Empty state when no spans received yet
+  - Noora `.chart` component with horizontal stacked bar (Gantt) visualization
+  - Task list showing: name, status badge (running/success/failed), duration
+
+### Step 6: Gradle Plugin Auto-Configuration (Kotlin)
+
+**Modified file:** `gradle/build.gradle.kts`
+
+- Add `compileOnly("com.atkinsondev:opentelemetry-build:4.6.2")` dependency so the Tuist plugin can reference the OTel plugin's extension class without forcing users to always include it
+
+**Modified file:** `gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildInsights.kt`
+
+- In `TuistBuildInsightsPlugin.apply()`, after registering the build insights service:
+  - Check if `com.atkinsondev.opentelemetry-build` plugin is applied via `project.plugins.withId("com.atkinsondev.opentelemetry-build")`
+  - Auto-configure it with:
+    - `endpoint` = `${config.url}/api/projects/${accountHandle}/${projectHandle}/gradle/traces` (plugin appends `/v1/traces`)
+    - `exporterMode` = HTTP
+    - `headers` = `{"Authorization": "Bearer <token>"}` (from `TuistHttpClient` config)
+    - `customTags` = `{"tuist.build.id": buildId}`
+    - `serviceName` = rootProjectName or "gradle-builds"
+
+This way users just add both plugins and the Tuist plugin handles all OTel config automatically.
+
+## Files Summary
+
+| Action | File |
+|--------|------|
+| New | `server/lib/tuist/gradle/otlp_parser.ex` |
+| New | `server/lib/tuist/gradle/live_traces.ex` |
+| New | `server/lib/tuist/gradle/waterfall.ex` |
+| New | `server/lib/tuist_web/controllers/api/gradle_traces_controller.ex` |
+| Modify | `server/lib/tuist_web/router.ex` (add route) |
+| Modify | `server/lib/tuist/application.ex` (add LiveTraces to supervisor) |
+| Modify | `server/lib/tuist_web/live/build_run_live.ex` (PubSub subscription + handle_info) |
+| Modify | `server/lib/tuist_web/live/gradle_build_live.ex` (live-traces tab) |
+| Modify | `server/lib/tuist_web/live/gradle_build_live.html.heex` (waterfall UI) |
+| Modify | `gradle/build.gradle.kts` (compileOnly OTel dep) |
+| Modify | `gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildInsights.kt` (auto-configure OTel plugin) |
+
+## Verification
+
+1. **Server compiles:** `cd server && mix compile`
+2. **Server tests pass:** `cd server && mix test` (existing tests should not break)
+3. **Gradle plugin compiles:** `cd gradle && ./gradlew build`
+4. **End-to-end test:** Start the dev server, configure a sample Gradle project with both plugins, run a build, and observe traces appearing in the Live Traces tab in real-time
+5. **Manual OTLP test:** Use `curl` to POST a sample OTLP protobuf/JSON payload to the traces endpoint and verify spans appear in the LiveView
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+How can I test this?
+
+---
+
+why isn't tuist auth login in the simple android app directory authenticating with localhost:8080?
+
+---
+
+In which page should I see the otel data?
+
+---
+
+I get:
+* What went wrong:
+An exception occurred applying plugin request [id: 'com.atkinsondev.opentelemetry-build', version: '4.6.2']
+> Failed to apply plugin 'com.atkinsondev.opentelemetry-build'.
+   > Unexpected plugin type
+       The plugin must be applied in a build script (or to the Project object), but was applied in a settings script (or to the Settings object)
+
+* Try:

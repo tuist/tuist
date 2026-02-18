@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "36c782cb716e",
+  "strategy": "manual-commit",
+  "branch": "codex/acceptance-swift-testing",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
+    "gradle/build.gradle.kts",
+    "gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildInsights.kt",
+    "server/lib/tuist.ex",
+    "server/lib/tuist/application.ex",
+    "server/lib/tuist/gradle/live_traces.ex",
+    "server/lib/tuist/gradle/otlp_parser.ex",
+    "server/lib/tuist/gradle/waterfall.ex",
+    "server/lib/tuist_web/controllers/api/gradle_traces_controller.ex",
+    "server/lib/tuist_web/live/build_run_live.ex",
+    "server/lib/tuist_web/live/gradle_build_live.ex",
+    "server/lib/tuist_web/live/gradle_build_live.html.heex",
+    "server/lib/tuist_web/router.ex"
+  ],
+  "sessions": [
+    {
+      "metadata": "/36/c782cb716e/0/metadata.json",
+      "transcript": "/36/c782cb716e/0/full.jsonl",
+      "context": "/36/c782cb716e/0/context.md",
+      "content_hash": "/36/c782cb716e/0/content_hash.txt",
+      "prompt": "/36/c782cb716e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 96,
+    "cache_creation_tokens": 215965,
+    "cache_read_tokens": 8765780,
+    "output_tokens": 3352,
+    "api_call_count": 87
+  }
+}
