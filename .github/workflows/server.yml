@@ -683,6 +683,19 @@ jobs:
             echo "Waiting for cache server... ($i/30)"
             sleep 2
           done
+      - name: Debug tuist cache config
+        working-directory: .
+        env:
+          TUIST_URL: http://localhost:8080
+        run: |
+          echo "=== tuist version ==="
+          tuist version || true
+          echo "=== tuist auth login ==="
+          tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
+          echo "=== tuist cache config (stdout) ==="
+          tuist cache config tuist/android-app --json --url http://localhost:8080 2>/tmp/tuist-stderr.log || true
+          echo "=== tuist cache config (stderr) ==="
+          cat /tmp/tuist-stderr.log || true
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
