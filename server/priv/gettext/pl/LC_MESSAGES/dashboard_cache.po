@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-23 07:32+0000\n"
+"PO-Revision-Date: 2026-02-18 13:43+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/pl/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -619,11 +619,14 @@ msgstr "Rozmiar (KB)"
 msgid "Space usage (%)"
 msgstr "Wykorzystanie spacji (%)"
 
+#, fuzzy
 msgid "AAB"
-msgstr ""
+msgstr "AAB"
 
+#, fuzzy
 msgid "APK"
-msgstr ""
+msgstr "APK"
 
+#, fuzzy
 msgid "Package name"
-msgstr ""
+msgstr "Nazwa pakietu"
