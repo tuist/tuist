@@ -151,6 +151,8 @@ components:
                 - ipa
                 - app
                 - xcarchive
+                - aab
+                - apk
               type: string
               x-struct:
               x-validate:
@@ -3676,6 +3678,7 @@ components:
         - visionos
         - visionos_simulator
         - macos
+        - android
       title: BundleSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.BundleSupportedPlatform
@@ -6135,6 +6138,8 @@ paths:
                         - ipa
                         - app
                         - xcarchive
+                        - aab
+                        - apk
                       type: string
                       x-struct:
                       x-validate:

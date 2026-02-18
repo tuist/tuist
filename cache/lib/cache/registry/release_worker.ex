@@ -168,16 +168,21 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp submodule_paths(destination) do
-    gitmodules_path = Path.join(destination, ".gitmodules")
+    case System.cmd("git", ["-C", destination, "ls-files", "--stage"], stderr_to_stdout: true) do
+      {output, 0} ->
+        output
+        |> String.split("\n", trim: true)
+        |> Enum.filter(&String.starts_with?(&1, "160000"))
+        |> Enum.map(fn line ->
+          case String.split(line, "\t", parts: 2) do
+            [_, path] -> String.trim(path)
+            _ -> nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
 
-    if File.exists?(gitmodules_path) do
-      gitmodules_content = File.read!(gitmodules_path)
-
-      ~r/^\s*path\s*=\s*(.+)\s*$/m
-      |> Regex.scan(gitmodules_content)
-      |> Enum.map(fn [_, path] -> String.trim(path) end)
-    else
-      []
+      _ ->
+        []
     end
   end
 

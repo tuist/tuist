@@ -21,6 +21,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
+  alias Tuist.CacheEndpoints
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
@@ -1731,15 +1732,15 @@ defmodule Tuist.Accounts do
       |> get_account_by_handle()
       |> custom_cache_endpoints()
       |> case do
-        [] -> Environment.cache_endpoints()
+        [] -> CacheEndpoints.active_endpoint_urls()
         endpoints -> Enum.map(endpoints, & &1.url)
       end
     else
-      Environment.cache_endpoints()
+      CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(_), do: Environment.cache_endpoints()
+  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do

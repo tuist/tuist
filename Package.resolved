@@ -623,7 +623,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.63"
+        "version" : "0.7.0"
       }
     },
     {
