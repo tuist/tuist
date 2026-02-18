@@ -44,12 +44,11 @@ Por ejemplo, supongamos el siguiente gráfico de dependencias:
 | `Se ha actualizado el núcleo`.       | El desarrollador modifica el código de un objetivo.                   | Igual que antes.                                                            |
 | `Prueba tuist invocación`            | Ejecuta las pruebas en `CoreTests`, `FeatureATests` y `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests` y `CoreTests` se mantiene. |
 
-`La prueba tuist` se integra directamente con el almacenamiento en caché binario
-para utilizar tantos binarios como sea posible de su almacenamiento local o
-remoto y mejorar así el tiempo de compilación al ejecutar su conjunto de
-pruebas. La combinación de pruebas selectivas con almacenamiento en caché
-binario puede reducir drásticamente el tiempo que se tarda en ejecutar las
-pruebas en su CI.
+`tuist test` se integra directamente con la {1}caché de módulos{2} para utilizar
+tantos binarios de su almacenamiento local o remoto como sea necesario y mejorar
+el tiempo de compilación al ejecutar su conjunto de pruebas. La combinación de
+pruebas selectivas con el almacenamiento en caché de módulos puede reducir
+drásticamente el tiempo que se tarda en ejecutar las pruebas en su CI.
 
 ## Pruebas de interfaz de usuario {#ui-tests}
 
