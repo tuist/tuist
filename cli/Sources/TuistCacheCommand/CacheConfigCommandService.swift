@@ -1,15 +1,12 @@
 import Foundation
-import Logging
+import Noora
 import Path
-import TSCBasic
 import TuistCAS
 import TuistConfig
 import TuistConfigLoader
 import TuistConstants
-import TuistEncodable
 import TuistEnvironment
 import TuistHTTP
-import TuistLogging
 import TuistOIDC
 import TuistServer
 
@@ -89,12 +86,9 @@ public struct CacheConfigCommandService: CacheConfigCommandServicing {
         )
 
         if json {
-            let jsonOutput = try result.toJSON()
-            Logger.current.info(
-                .init(stringLiteral: jsonOutput.toString(prettyPrint: true)), metadata: .json
-            )
+            try Noora.current.json(result)
         } else {
-            Logger.current.info("""
+            Noora.current.passthrough("""
             Remote Cache Configuration:
               URL: \(result.url)
               Token: \(result.token)

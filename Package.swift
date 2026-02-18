@@ -60,6 +60,8 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
     "TuistServer",
     "TuistOIDC",
     "TuistEnvKey",
