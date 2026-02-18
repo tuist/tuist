@@ -44,7 +44,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - **list_projects**: List all accessible projects.
     - **list_test_cases**: List test cases for a project (requires account_handle and project_handle; use flaky=true to focus on flaky tests).
     - **get_test_case**: Get detailed metrics for a test case (requires test_case_id).
-    - **get_test_run**: Get aggregate metrics and crash summaries for a test run (requires test_run_id).
+    - **get_test_run**: Get aggregate metrics for a test run (requires test_run_id).
     - **get_test_case_run**: Get failure details for a specific test case run (requires test_case_run_id).
 
     ## Workflow
@@ -88,16 +88,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - **repetitions**: retry behavior (pass/fail sequence)
     - **test_run_id**: the broader test run this execution belongs to
 
-    ### 5. Handle crashes explicitly
-
-    If the failing run has empty failures, abrupt termination symptoms, or process-level crashes:
-
-    - Use `get_test_run` with `test_run_id` from the test case run.
-    - Inspect **crashed_test_count** and **crashes[]** for the impacted test case runs.
-    - Use crash fields (**signal**, **exception_type**, **exception_subtype**) to decide if the fix is in test code, app/runtime code, or environment setup.
-    - Prioritize deterministic fixes (remove force-unwrapped assumptions, isolate shared state, stabilize fixtures/bootstrapping).
-
-    ### 6. Read and analyze source code
+    ### 5. Read and analyze source code
 
     Open the file at the reported path and line number. Read the full test function and its setup/teardown.
 
@@ -122,13 +113,13 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - Implicit ordering between tests. Fix: make each test self-contained.
     - Parallel execution conflicts. Fix: use unique resources per test.
 
-    ### 7. Apply the fix
+    ### 6. Apply the fix
 
     - Apply the smallest fix that addresses the root cause.
     - Do not refactor unrelated code.
     - Reuse existing test utilities before creating new ones.
 
-    ### 8. Verify
+    ### 7. Verify
 
     Run the specific test repeatedly until failure using:
 

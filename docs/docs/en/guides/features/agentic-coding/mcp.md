@@ -11,38 +11,14 @@
 MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with external services and data sources.
 
 Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting your MCP client to it, AI agents can access your Tuist project data, including test insights, flaky test analysis, and more.
-The endpoint is implemented on top of the [Hermes MCP](https://github.com/cloudwalk/hermes-mcp) Elixir package.
 
 ## MCP vs Skills
 
-MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> are complementary layers:
-
-- **MCP** exposes live capabilities and context from external systems through tools, resources, and prompts.
-- **Skills** provide reusable workflow instructions for multi-step tasks.
-
-In practice, skills guide how work should be done, and MCP provides the live data and actions to execute it. A skill can call MCP tools, and MCP prompts can be used alongside skills in the same workflow.
+MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> can overlap in what they do. Skills are static instruction files that guide agents through CLI commands, but every agent has its own installation path and there is no standard way to distribute them. MCP gives agents direct access to the same data through authenticated tool calls, with built-in OAuth, a standard protocol across clients, and without needing a CLI installed. Prefer MCP when your client supports it. Fall back to skills when it does not.
 
 ## Configuration
 
-Point your MCP client at the Tuist server endpoint. The exact configuration depends on your client, but it typically involves setting the MCP server URL to:
-
-```
-https://tuist.dev/mcp
-```
-
-Tuist uses the MCP Streamable HTTP transport. Clients should support:
-
-- `Accept: application/json, text/event-stream` on HTTP requests.
-- Session handling via the `mcp-session-id` header.
-
-Refer to your MCP client's documentation for how to add a remote (HTTP-based) MCP server.
-
-## Rate Limiting
-
-MCP requests are rate-limited per authenticated subject.
-
-If your client receives HTTP `429 Too Many Requests`, wait briefly and retry.
-This is usually caused by rapid startup retries or repeated reconnect loops.
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Refer to your client's documentation for the exact steps. Authentication happens through OAuth automatically.
 
 ## Capabilities
 
@@ -54,8 +30,8 @@ The following tools are available through the Tuist MCP server:
 |------|-------------|---------------------|
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
-| `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` |
-| `get_test_run` | Get aggregate metrics and crash summaries for a test run. | `test_run_id` |
+| `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
+| `get_test_run` | Get aggregate metrics for a test run. | `test_run_id` |
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 
 #### `list_projects`
@@ -68,11 +44,11 @@ Returns test cases for a given project. Supports pagination through `page` and `
 
 #### `get_test_case`
 
-Returns detailed metrics for a specific test case: reliability rate (success percentage), flakiness rate (over the last 30 days), total and failed run counts, last status, and average duration.
+Returns detailed metrics for a specific test case: reliability rate (success percentage), flakiness rate (over the last 30 days), total and failed run counts, last status, and average duration. Accepts either a `test_case_id` (UUID) or an `identifier` in `Module/Suite/TestCase` or `Module/TestCase` format together with `account_handle` and `project_handle`.
 
 #### `get_test_run`
 
-Returns test run-level context: status, duration, CI metadata, aggregate counts (total/failed/flaky), and crash summaries (`crashed_test_count` and `crashes[]`).
+Returns test run-level context: status, duration, CI metadata, and aggregate counts (total/failed/flaky). Use `get_test_case_run` to drill into individual failures or crashes.
 
 #### `get_test_case_run`
 

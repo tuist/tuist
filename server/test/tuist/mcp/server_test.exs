@@ -141,7 +141,7 @@ defmodule Tuist.MCP.ServerTest do
       assert message(error) == "You do not have access to project: acme/app"
     end
 
-    test "requires :test_read to read a test case" do
+    test "requires :test_read to read a test case by id" do
       project = %{id: "project-id", name: "project-name"}
       project_id = project.id
       stub(Tests, :get_test_case_by_id, fn "test-case-id" -> {:ok, %{project_id: project.id}} end)
@@ -161,6 +161,49 @@ defmodule Tuist.MCP.ServerTest do
       assert {:error, error, _frame} = Server.handle_request(request, frame)
       assert error.code == -32_602
       assert message(error) == "You do not have access to this resource."
+    end
+
+    test "requires :test_read to read a test case by identifier" do
+      project = %{id: "project-id", name: "project-name"}
+
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      request = %{
+        "method" => "tools/call",
+        "params" => %{
+          "name" => "get_test_case",
+          "arguments" => %{
+            "account_handle" => "acme",
+            "project_handle" => "app",
+            "identifier" => "AuthTests/LoginSuite/testLogin"
+          }
+        }
+      }
+
+      frame = Frame.new(%{current_subject: :subject})
+
+      assert {:error, error, _frame} = Server.handle_request(request, frame)
+      assert error.code == -32_602
+      assert message(error) == "You do not have access to project: acme/app"
+    end
+
+    test "returns error when get_test_case is called without test_case_id or identifier" do
+      request = %{
+        "method" => "tools/call",
+        "params" => %{"name" => "get_test_case", "arguments" => %{}}
+      }
+
+      frame = Frame.new(%{current_subject: :subject})
+
+      assert {:error, error, _frame} = Server.handle_request(request, frame)
+      assert error.code == -32_602
+
+      assert message(error) ==
+               "Provide either test_case_id or identifier with account_handle and project_handle."
     end
 
     test "requires :test_read to read a test case run" do
