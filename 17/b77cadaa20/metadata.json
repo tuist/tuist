@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "17b77cadaa20",
+  "strategy": "manual-commit",
+  "branch": "codex/acceptance-swift-testing",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "Tuist/ProjectDescriptionHelpers/Module.swift",
+    "cli/Tests/TuistAutomationAcceptanceTests/BuildAcceptanceTests.swift",
+    "cli/Tests/TuistDependenciesAcceptanceTests/DependenciesAcceptanceTests.swift",
+    "cli/Tests/TuistGeneratorAcceptanceTests/GenerateAcceptanceTests.swift",
+    "cli/Tests/TuistKitAcceptanceTests/InitAcceptanceTests.swift",
+    "cli/Tests/TuistKitAcceptanceTests/ProjectAcceptanceTests.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/17/b77cadaa20/0/metadata.json",
+      "transcript": "/17/b77cadaa20/0/full.jsonl",
+      "context": "/17/b77cadaa20/0/context.md",
+      "content_hash": "/17/b77cadaa20/0/content_hash.txt",
+      "prompt": "/17/b77cadaa20/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 191,
+    "cache_creation_tokens": 1167843,
+    "cache_read_tokens": 19832108,
+    "output_tokens": 10816,
+    "api_call_count": 183
+  }
+}
