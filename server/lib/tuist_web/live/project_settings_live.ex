@@ -23,7 +23,7 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(rename_project_form: rename_project_form)
       |> assign(delete_project_form: delete_project_form)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("settings"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Settings", "Settings", "Project")))
 
     {:ok, socket}
   end

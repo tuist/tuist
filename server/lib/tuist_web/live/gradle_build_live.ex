@@ -74,7 +74,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:upload_throughput, upload_throughput)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
-    |> assign(OpenGraph.og_image_assigns("build-run"))
+    |> assign(OpenGraph.og_image_assigns())
     |> assign(:head_open_graph_key_values, gradle_build_open_graph_key_values(build))
   end
 

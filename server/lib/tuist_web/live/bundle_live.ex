@@ -54,7 +54,7 @@ defmodule TuistWeb.BundleLive do
         :head_title,
         "#{bundle.name} · #{dgettext("dashboard_cache", "Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("bundle"))
+      |> assign(OpenGraph.og_image_assigns())
       |> assign(:head_open_graph_key_values, bundle_open_graph_key_values(bundle))
       |> assign(:all_artifacts, all_artifacts)
       |> assign(:artifacts_by_id, artifacts_by_id)

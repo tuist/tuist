@@ -77,7 +77,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:cas_metrics, cas_metrics)
       |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("build-run"))
+      |> assign(OpenGraph.og_image_assigns())
       |> assign(:head_open_graph_key_values, build_run_open_graph_key_values(run))
       |> assign(
         :warnings_grouped_by_path,

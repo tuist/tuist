@@ -21,7 +21,7 @@ defmodule TuistWeb.ModuleCacheLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Module Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("module-cache"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Module Cache", "Cache", "Module Cache")))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")

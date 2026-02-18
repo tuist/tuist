@@ -19,7 +19,7 @@ defmodule TuistWeb.FlakyTestsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Flaky Tests")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("flaky-tests"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Flaky Tests", "Quality", "Flaky Tests")))
       |> assign(:available_filters, define_filters())
 
     if connected?(socket) do

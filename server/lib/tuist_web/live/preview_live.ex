@@ -40,7 +40,7 @@ defmodule TuistWeb.PreviewLive do
         :head_title,
         dgettext("dashboard_previews", "%{display_name} · Tuist", display_name: preview.display_name)
       )
-      |> assign(OpenGraph.og_image_assigns("preview"))
+      |> assign(OpenGraph.og_image_assigns())
       |> assign(:head_open_graph_key_values, preview_open_graph_key_values(preview))
       |> assign(
         :preview,

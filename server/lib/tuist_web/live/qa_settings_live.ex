@@ -61,7 +61,7 @@ defmodule TuistWeb.QASettingsLive do
       |> assign(:qa_credentials_form, qa_credentials_form)
       |> assign(:qa_credentials_unchanged, true)
       |> assign(:head_title, "#{dgettext("dashboard_qa", "QA Settings")} · #{selected_project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("qa-settings"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("QA Settings", "Settings", "QA")))
 
     {:ok, socket}
   end

@@ -22,7 +22,9 @@ defmodule TuistWeb.QuarantinedTestsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Quarantined Tests")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("quarantined-tests"))
+      |> assign(
+        OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Quarantined Tests", "Quality", "Quarantined Tests"))
+      )
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

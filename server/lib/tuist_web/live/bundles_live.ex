@@ -26,7 +26,7 @@ defmodule TuistWeb.BundlesLive do
         "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
       )
       |> assign(:available_filters, define_filters(project))
-      |> assign(OpenGraph.og_image_assigns("bundles"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Bundles", "Binary Size", "Bundles")))
 
     {:ok, socket}
   end

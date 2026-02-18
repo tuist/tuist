@@ -57,7 +57,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-run"))
+      |> assign(OpenGraph.og_image_assigns())
       |> assign(:head_open_graph_key_values, test_run_open_graph_key_values(run, failures_count))
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)

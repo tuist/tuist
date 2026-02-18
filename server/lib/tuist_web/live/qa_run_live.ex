@@ -64,7 +64,7 @@ defmodule TuistWeb.QARunLive do
            :head_title,
            "#{dgettext("dashboard_qa", "QA Run")} · #{qa_run.app_build.preview.project.name} · Tuist"
          )
-         |> assign(OpenGraph.og_image_assigns("qa-run"))
+         |> assign(OpenGraph.og_image_assigns())
          |> assign(:head_open_graph_key_values, qa_run_open_graph_key_values(qa_run))
          |> assign(:current_time, 0)
          |> assign(:duration, video_duration)

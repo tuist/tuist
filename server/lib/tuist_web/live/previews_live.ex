@@ -26,7 +26,7 @@ defmodule TuistWeb.PreviewsLive do
        :head_title,
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )
-     |> assign(OpenGraph.og_image_assigns("previews"))
+     |> assign(OpenGraph.og_image_assigns())
      |> assign(:head_open_graph_key_values, previews_open_graph_key_values(latest_app_previews))
      |> assign(:latest_app_previews, latest_app_previews)
      |> assign(

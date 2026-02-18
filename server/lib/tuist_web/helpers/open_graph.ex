@@ -6,20 +6,33 @@ defmodule TuistWeb.Helpers.OpenGraph do
   alias Tuist.Projects.OpenGraph, as: ProjectsOpenGraph
 
   @doc """
-  Returns Open Graph assigns for dashboard pages.
+  Returns default Open Graph assigns for dashboard pages.
   """
-  def og_image_assigns(image_name) when is_binary(image_name) do
-    normalized_image_name = normalize_image_name(image_name)
+  def og_image_assigns do
+    [head_twitter_card: "summary_large_image"]
+  end
 
+  @doc """
+  Returns Open Graph assigns for dashboard pages with explicit key-values.
+  """
+  def og_image_assigns(key_values) when is_list(key_values) do
     [
       head_twitter_card: "summary_large_image",
-      head_open_graph_key_values:
-        [%{key: "Page", value: page_label(normalized_image_name)}] ++ semantic_key_values(normalized_image_name)
+      head_open_graph_key_values: key_values
     ]
   end
 
-  def og_image_assigns(_image_name) do
-    [head_twitter_card: "summary_large_image"]
+  def og_image_assigns(_key_values), do: og_image_assigns()
+
+  @doc """
+  Builds semantic Open Graph key-values for a page.
+  """
+  def semantic_key_values(page, section, focus) do
+    [
+      %{key: "Page", value: semantic_value(page, "Overview")},
+      %{key: "Section", value: semantic_value(section, "Project")},
+      %{key: "Focus", value: semantic_value(focus, "Overview")}
+    ]
   end
 
   def resolved_head_image(assigns) do
@@ -85,63 +98,13 @@ defmodule TuistWeb.Helpers.OpenGraph do
     Enum.take(key_values, 3)
   end
 
-  defp page_label(image_name) do
-    image_name
-    |> normalize_image_name()
-    |> String.trim()
-    |> String.replace(~r/[-_]+/, " ")
-    |> String.split(" ", trim: true)
-    |> Enum.map_join(" ", &String.capitalize/1)
-    |> case do
-      "" -> "Overview"
-      label -> label
-    end
-  end
-
-  defp semantic_key_values(image_name) do
-    case normalize_image_name(image_name) do
-      "overview" -> section_focus("Project", "Overview")
-      "tests" -> section_focus("Quality", "Test Analytics")
-      "test-runs" -> section_focus("Quality", "Test Runs")
-      "test-cases" -> section_focus("Quality", "Test Cases")
-      "test-case" -> section_focus("Quality", "Test Case")
-      "test-run" -> section_focus("Quality", "Test Run")
-      "flaky-tests" -> section_focus("Quality", "Flaky Tests")
-      "quarantined-tests" -> section_focus("Quality", "Quarantined Tests")
-      "module-cache" -> section_focus("Cache", "Module Cache")
-      "cache-runs" -> section_focus("Cache", "Cache Runs")
-      "generate-runs" -> section_focus("Cache", "Generate Runs")
-      "xcode-cache" -> section_focus("Cache", "Xcode")
-      "gradle-cache" -> section_focus("Cache", "Gradle")
-      "connect" -> section_focus("Setup", "Project Connection")
-      "bundles" -> section_focus("Binary Size", "Bundles")
-      "bundle" -> section_focus("Binary Size", "Bundle Analysis")
-      "builds" -> section_focus("Builds", "Overview")
-      "build-runs" -> section_focus("Builds", "Build Runs")
-      "build-run" -> section_focus("Builds", "Build Run")
-      "previews" -> section_focus("Previews", "App Previews")
-      "qa" -> section_focus("QA", "Runs")
-      "qa-run" -> section_focus("QA", "Run Details")
-      "run" -> section_focus("Builds", "Command Run")
-      "settings" -> section_focus("Settings", "Project")
-      "automations" -> section_focus("Settings", "Automations")
-      "notifications" -> section_focus("Settings", "Notifications")
-      "qa-settings" -> section_focus("Settings", "QA")
-      _ -> []
-    end
-  end
-
-  defp section_focus(section, focus) do
-    [
-      %{key: "Section", value: section},
-      %{key: "Focus", value: focus}
-    ]
-  end
-
-  defp normalize_image_name(image_name) do
-    image_name
+  defp semantic_value(value, fallback) do
+    value
     |> to_string()
     |> String.trim()
-    |> String.downcase()
+    |> case do
+      "" -> fallback
+      value -> value
+    end
   end
 end

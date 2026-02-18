@@ -20,7 +20,7 @@ defmodule TuistWeb.TestCasesLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-cases"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Test Cases", "Quality", "Test Cases")))
       |> assign(:available_filters, define_filters())
 
     if connected?(socket) do

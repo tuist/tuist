@@ -35,7 +35,7 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:user, user)
      |> assign(:project, project)
      |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
-     |> assign(OpenGraph.og_image_assigns("run"))
+     |> assign(OpenGraph.og_image_assigns())
      |> assign(:head_open_graph_key_values, run_open_graph_key_values(run))
      |> assign_initial_analytics_state()
      |> assign(:available_filters, define_binary_cache_filters())

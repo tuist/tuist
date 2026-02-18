@@ -33,7 +33,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       socket
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("automations"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Automations", "Settings", "Automations")))
       |> assign(
         :flaky_alert_channel_selection_url,
         SlackOAuthController.flaky_alert_channel_selection_url(selected_project.id, selected_account.id)

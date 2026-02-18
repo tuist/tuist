@@ -37,7 +37,15 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
     assert OpenGraph.resolved_twitter_card(%{}) == "summary"
   end
 
-  test "og_image_assigns/1 returns semantic key values for dashboard pages" do
+  test "og_image_assigns/0 returns default dashboard assigns" do
+    assert [
+             head_twitter_card: "summary_large_image"
+           ] = OpenGraph.og_image_assigns()
+  end
+
+  test "og_image_assigns/1 uses explicit key values" do
+    key_values = OpenGraph.semantic_key_values("Bundles", "Binary Size", "Bundles")
+
     assert [
              head_twitter_card: "summary_large_image",
              head_open_graph_key_values: [
@@ -45,13 +53,14 @@ defmodule TuistWeb.Helpers.OpenGraphTest do
                %{key: "Section", value: "Binary Size"},
                %{key: "Focus", value: "Bundles"}
              ]
-           ] = OpenGraph.og_image_assigns("bundles")
+           ] = OpenGraph.og_image_assigns(key_values)
   end
 
-  test "og_image_assigns/1 falls back to page label for unknown pages" do
+  test "semantic_key_values/3 falls back to defaults when values are blank" do
     assert [
-             head_twitter_card: "summary_large_image",
-             head_open_graph_key_values: [%{key: "Page", value: "Unknown Feature"}]
-           ] = OpenGraph.og_image_assigns("unknown-feature")
+             %{key: "Page", value: "Overview"},
+             %{key: "Section", value: "Project"},
+             %{key: "Focus", value: "Overview"}
+           ] = OpenGraph.semantic_key_values("", "  ", nil)
   end
 end

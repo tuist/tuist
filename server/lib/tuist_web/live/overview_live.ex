@@ -14,7 +14,7 @@ defmodule TuistWeb.OverviewLive do
         :head_title,
         "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("overview"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Overview", "Project", "Overview")))
 
     socket =
       if Project.gradle_project?(project) do

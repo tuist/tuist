@@ -25,7 +25,7 @@ defmodule TuistWeb.GradleCacheLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_gradle", "Gradle Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("gradle-cache"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Gradle Cache", "Cache", "Gradle")))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")

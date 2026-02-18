@@ -14,7 +14,7 @@ defmodule TuistWeb.ConnectLive do
         connected?: false,
         head_title: "#{dgettext("dashboard_auth", "Connect")} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns("connect"))
+      |> assign(OpenGraph.og_image_assigns(OpenGraph.semantic_key_values("Connect", "Setup", "Project Connection")))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("projects.#{socket.assigns.selected_project.id}")
