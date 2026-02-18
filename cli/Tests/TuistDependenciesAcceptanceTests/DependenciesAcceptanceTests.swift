@@ -404,6 +404,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
         }
     #endif
 }
+
 final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
     func test_app_with_pocket_svg() async throws {
         try await setUpFixture("generated_app_with_pocket_svg")
