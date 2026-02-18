@@ -1,4 +1,3 @@
-import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -10,21 +9,17 @@ import XcodeGraph
 /// 1. Configures the target as an aggregate (adds the build script phase)
 /// 2. For each consuming target that depends on this foreign build target (via `.target(name:)` or `.project(target:path:)`),
 ///    inserts a `foreignBuildOutput` graph dependency for linking
-/// 3. If the output artifact doesn't exist yet, emits a side effect to run the foreign build script
-///    so that the artifact is available for Xcode to resolve file references
+///
+/// Side effects (running the foreign build script) are handled separately by `ForeignBuildSideEffectGraphMapper`,
+/// which runs after cache and tree-shaking mappers so that cached/pruned targets don't trigger unnecessary builds.
 public struct ForeignBuildGraphMapper: GraphMapping {
-    private let fileSystem: FileSystem
-
-    public init(fileSystem: FileSystem = FileSystem()) {
-        self.fileSystem = fileSystem
-    }
+    public init() {}
 
     public func map(
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
-        var sideEffects = [SideEffectDescriptor]()
 
         var foreignBuildTargets = [GraphDependency: (name: String, info: ForeignBuild)]()
 
@@ -56,15 +51,6 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 if graph.dependencies[graphDep] == nil {
                     graph.dependencies[graphDep] = Set()
                 }
-
-                if try await !fileSystem.exists(foreignBuild.output.path) {
-                    sideEffects.append(
-                        .command(CommandDescriptor(command: [
-                            "/bin/sh", "-c",
-                            "export SRCROOT=\(projectPath.pathString)\ncd \"$SRCROOT\"\n\(foreignBuild.script)",
-                        ]))
-                    )
-                }
             }
 
             graph.projects[projectPath] = updatedProject
@@ -84,7 +70,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             }
         }
 
-        return (graph, sideEffects, environment)
+        return (graph, [], environment)
     }
 
     private func inputPaths(from inputs: [ForeignBuild.Input]) -> [String] {
