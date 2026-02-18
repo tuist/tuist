@@ -6,9 +6,4 @@ plugins {
 
 tuist {
     project = "tuist/gradle-plugin"
-
-    buildCache {
-        enabled = true
-        push = true
-    }
 }
