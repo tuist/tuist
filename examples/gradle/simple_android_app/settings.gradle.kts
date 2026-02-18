@@ -1,5 +1,4 @@
 pluginManagement {
-    includeBuild("../../../gradle")
     repositories {
         google()
         mavenCentral()
@@ -19,7 +18,7 @@ rootProject.name = "SimpleAndroidApp"
 include(":app")
 
 plugins {
-    id("dev.tuist") version "0.1.0"
+    id("dev.tuist") version "0.1.3"
 }
 
 tuist {
