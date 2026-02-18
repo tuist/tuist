@@ -1,7 +1,10 @@
 import ArgumentParser
 import Foundation
-import TSCUtility
-import TuistSupport
+import TuistEnvKey
+
+#if os(macOS)
+    import TuistSupport
+#endif
 
 enum Runnable: ExpressibleByArgument, Equatable {
     init?(argument: String) {
@@ -33,12 +36,6 @@ public struct RunCommand: AsyncParsableCommand {
             Given a runnable scheme or target the run command builds & runs it.
             All arguments after the scheme or target are forwarded to the application.
             """
-            // TODO: There is a bug in swift-argument-parser dependency (https://github.com/apple/swift-argument-parser/issues/169)
-            // add this documentation when this is true
-            //
-            // For example: calling `tuist run --device iPhone 12 MyScheme Arg1 --arg2 --arg3`
-            // Will result in running the application on an iPhone 12 simulator while 'Arg1', '--arg2', and '--arg3' are forwarded
-            // to the application.
         )
     }
 
@@ -73,7 +70,7 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var configuration: String?
 
-    @Option(help: "The simulator or physical device name to run the target, scheme, or preview on.")
+    @Option(help: "The simulator, physical device, or Android device name to run the target, scheme, or preview on.")
     var device: String?
 
     @Option(

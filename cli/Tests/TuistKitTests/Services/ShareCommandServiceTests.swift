@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -17,7 +18,8 @@ import TuistTesting
 import TuistUserInputReader
 import XcodeGraph
 
-@testable import TuistKit
+import TuistKit
+@testable import TuistShareCommand
 
 @Suite(.snapshots)
 struct ShareCommandServiceTests {
@@ -56,19 +58,21 @@ struct ShareCommandServiceTests {
             .willReturn(fileUnarchiver)
 
         subject = ShareCommandService(
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            apkPreviewUploadService: APKPreviewUploadService(),
+            fileArchiverFactory: fileArchiverFactory,
+            commandRunner: CommandRunner(),
+            fileHandler: FileHandler.shared,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,
             previewsUploadService: previewsUploadService,
-            configLoader: configLoader,
-            serverEnvironmentService: serverEnvironmentService,
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: userInputReader,
             defaultConfigurationFetcher: defaultConfigurationFetcher,
-            appBundleLoader: appBundleLoader,
-            fileArchiverFactory: fileArchiverFactory
+            appBundleLoader: appBundleLoader
         )
 
         given(configLoader)

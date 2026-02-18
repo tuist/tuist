@@ -47,6 +47,8 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistGenerateCommand",
     "TuistTestCommand",
     "TuistInitCommand",
+    "TuistShareCommand",
+    "TuistRunCommand",
     argumentParserDependency,
     "TuistServer",
     pathDependency,
@@ -94,6 +96,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistThreadSafe",
     "TuistOpener",
     "TuistUniqueIDGenerator",
+    "TuistSupport",
     fileSystemDependency,
     mockableDependency,
     pathDependency,
@@ -296,6 +299,44 @@ var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
     mockableDependency,
 ]
+var tuistShareCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    commandDependency,
+    mockableDependency,
+    loggingDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistConstants",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistAlert",
+    "TuistEncodable",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistRunCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    commandDependency,
+    mockableDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    "TuistAndroid",
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistConstants",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
 #if os(macOS)
 tuistDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistSupport", "TuistExtension", "TuistHAR",
@@ -303,7 +344,7 @@ tuistDependencies.append(contentsOf: [
 tuistCacheCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport", "TuistExtension"])
 tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
 tuistServerDependencies.append(contentsOf: [
-    "TuistSupport", "TuistCore", "TuistProcess", "TuistCI",
+    "TuistCore", "TuistProcess", "TuistCI",
     "TuistAutomation", "TuistGit", "TuistXCActivityLog",
     "TuistXCResultService", "TuistSimulator",
     xcodeGraphDependency,
@@ -336,6 +377,16 @@ tuistTestCommandDependencies.append(contentsOf: [
 tuistInitCommandDependencies.append(contentsOf: [
     "TuistCore", "TuistLoader", "TuistScaffold", "TuistSupport",
     "ProjectDescription",
+    xcodeGraphDependency,
+])
+tuistShareCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
+    "TuistSimulator", "TuistUserInputReader", "TuistExtension",
+    xcodeGraphDependency,
+])
+tuistRunCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
+    "TuistSimulator",
     xcodeGraphDependency,
 ])
 #endif
@@ -647,6 +698,37 @@ var targets: [Target] = [
             loggingDependency,
         ],
         path: "cli/Sources/TuistLoggerTesting"
+    ),
+    .target(
+        name: "TuistAndroid",
+        dependencies: [
+            pathDependency,
+            mockableDependency,
+            fileSystemDependency,
+            commandDependency,
+            "TuistLogging",
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistAndroid",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistShareCommand",
+        dependencies: tuistShareCommandDependencies,
+        path: "cli/Sources/TuistShareCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistRunCommand",
+        dependencies: tuistRunCommandDependencies,
+        path: "cli/Sources/TuistRunCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
     ),
     .target(
         name: "TuistSupport",
@@ -1011,6 +1093,8 @@ targets.append(contentsOf: [
             "TuistOrganizationCommand",
             "TuistProjectCommand",
             "TuistRegistryCommand",
+            "TuistRunCommand",
+            "TuistShareCommand",
             xcodeProjDependency,
             fileSystemDependency,
             "ProjectDescription",

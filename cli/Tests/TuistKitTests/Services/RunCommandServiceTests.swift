@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAndroid
 import TuistAutomation
 import TuistConfigLoader
 import TuistCore
@@ -14,7 +15,8 @@ import XcodeGraph
 
 import struct TSCUtility.Version
 
-@testable import TuistKit
+import TuistKit
+@testable import TuistRunCommand
 @testable import TuistTesting
 
 struct RunCommandServiceErrorTests {
@@ -42,15 +44,16 @@ struct RunCommandServiceTests {
     private let targetBuilder = MockTargetBuilder()
     private let targetRunner = MockTargetRunner()
     private let configLoader = MockConfigLoading()
+    private let getPreviewInfoService = MockGetPreviewInfoServicing()
     private let getPreviewService = MockGetPreviewServicing()
     private let listPreviewsService = MockListPreviewsServicing()
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let remoteArtifactDownloader = MockRemoteArtifactDownloading()
     private let appBundleLoader = MockAppBundleLoading()
     private let fileArchiverFactory = MockFileArchivingFactorying()
     private let fileSystem = FileSystem()
     private let deviceController = MockDeviceControlling()
     private let simulatorController = MockSimulatorControlling()
+    private let adbController = MockAdbControlling()
     private let subject: RunCommandService
 
     private struct TestError: Equatable, Error {}
@@ -84,17 +87,19 @@ struct RunCommandServiceTests {
             .booted(device: .any)
             .willProduce { $0 }
         subject = RunCommandService(
+            configLoader: configLoader,
+            getPreviewInfoService: getPreviewInfoService,
+            fileSystem: FileSystem(),
+            remoteArtifactDownloader: remoteArtifactDownloader,
+            fileArchiverFactory: fileArchiverFactory,
+            adbController: adbController,
             generatorFactory: generatorFactory,
             buildGraphInspector: buildGraphInspector,
             targetBuilder: targetBuilder,
             targetRunner: targetRunner,
-            configLoader: configLoader,
             getPreviewService: getPreviewService,
             listPreviewsService: listPreviewsService,
-            fileSystem: FileSystem(),
-            remoteArtifactDownloader: remoteArtifactDownloader,
             appBundleLoader: appBundleLoader,
-            fileArchiverFactory: fileArchiverFactory,
             deviceController: deviceController,
             simulatorController: simulatorController
         )

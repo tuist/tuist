@@ -1,10 +1,13 @@
 import ArgumentParser
 import Foundation
-import XcodeGraph
+import TuistEnvKey
 
-public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
-    public var analyticsRequired: Bool { false }
+#if os(macOS)
+    import TuistKit
+    import XcodeGraph
+#endif
 
+public struct ShareCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -34,12 +37,14 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
     )
     var configuration: String?
 
-    @Option(
-        help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to share the app for. Ignored when the app paths are passed directly.",
-        completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
-        envKey: .sharePlatform
-    )
-    var platforms: [XcodeGraph.Platform] = []
+    #if os(macOS)
+        @Option(
+            help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to share the app for. Ignored when the app paths are passed directly.",
+            completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
+            envKey: .sharePlatform
+        )
+        var platforms: [XcodeGraph.Platform] = []
+    #endif
 
     @Option(
         help: "The derived data path to find the apps in. When absent, the system-configured one.",
@@ -61,14 +66,31 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
     var track: String?
 
     public func run() async throws {
-        try await ShareCommandService().run(
-            path: path,
-            apps: apps,
-            configuration: configuration,
-            platforms: platforms,
-            derivedDataPath: derivedDataPath,
-            json: json,
-            track: track
-        )
+        #if os(macOS)
+            try await ShareCommandService().run(
+                path: path,
+                apps: apps,
+                configuration: configuration,
+                platforms: platforms,
+                derivedDataPath: derivedDataPath,
+                json: json,
+                track: track
+            )
+        #else
+            try await ShareCommandService().run(
+                path: path,
+                apps: apps,
+                configuration: configuration,
+                derivedDataPath: derivedDataPath,
+                json: json,
+                track: track
+            )
+        #endif
     }
 }
+
+#if os(macOS)
+    extension ShareCommand: TrackableParsableCommand {
+        public var analyticsRequired: Bool { false }
+    }
+#endif

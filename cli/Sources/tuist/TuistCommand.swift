@@ -18,6 +18,8 @@ import TuistNooraExtension
 import TuistOrganizationCommand
 import TuistProjectCommand
 import TuistRegistryCommand
+import TuistRunCommand
+import TuistShareCommand
 import TuistTestCommand
 import TuistVersionCommand
 
@@ -101,8 +103,13 @@ public struct TuistCommand: AsyncParsableCommand {
                     BuildCommand.self,
                     CacheCommand.self,
                     GenerateCommand.self,
+                    RunCommand.self,
                     TestCommand.self,
                 ]
+            ))
+            groups.append(CommandGroup(
+                name: "Share",
+                subcommands: [ShareCommand.self]
             ))
         #endif
 

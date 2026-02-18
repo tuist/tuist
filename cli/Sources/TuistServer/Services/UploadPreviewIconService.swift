@@ -10,7 +10,7 @@
     public protocol UploadPreviewIconServicing {
         func uploadPreviewIcon(
             _ icon: AbsolutePath,
-            preview: ServerPreview,
+            previewId: String,
             serverURL: URL,
             fullHandle: String
         ) async throws
@@ -60,7 +60,7 @@
 
         public func uploadPreviewIcon(
             _ icon: AbsolutePath,
-            preview: ServerPreview,
+            previewId: String,
             serverURL: URL,
             fullHandle: String
         ) async throws {
@@ -73,7 +73,7 @@
                     path: .init(
                         account_handle: handles.accountHandle,
                         project_handle: handles.projectHandle,
-                        preview_id: preview.id
+                        preview_id: previewId
                     )
                 )
             )

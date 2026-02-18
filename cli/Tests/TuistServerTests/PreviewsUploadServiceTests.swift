@@ -46,7 +46,8 @@ struct PreviewsUploadServiceTests {
             uploadPreviewIconService: uploadPreviewIconService,
             gitController: gitController,
             commandRunner: commandRunner,
-            precompiledMetadataProvider: precompiledMetadataProvider
+            precompiledMetadataProvider: precompiledMetadataProvider,
+            apkPreviewUploadService: APKPreviewUploadService()
         )
 
         given(fileArchiverFactory)
@@ -170,7 +171,7 @@ struct PreviewsUploadServiceTests {
                     version: .any,
                     buildVersion: .any,
                     bundleIdentifier: .any,
-                    supportedPlatforms: .value([.simulator(.iOS)]),
+                    supportedPlatforms: .value([.ios_simulator]),
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
@@ -330,7 +331,7 @@ struct PreviewsUploadServiceTests {
             try await fileSystem.touch(icon)
 
             given(uploadPreviewIconService)
-                .uploadPreviewIcon(.any, preview: .any, serverURL: .any, fullHandle: .any)
+                .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
                 .willReturn()
 
             given(commandRunner)
@@ -395,7 +396,7 @@ struct PreviewsUploadServiceTests {
                     version: .value("1.0"),
                     buildVersion: .value("1"),
                     bundleIdentifier: .value("dev.tuist.App"),
-                    supportedPlatforms: .value([.device(.iOS)]),
+                    supportedPlatforms: .value([.ios]),
                     gitBranch: .value("main"),
                     gitCommitSHA: .value("commit-sha"),
                     gitRef: .value("git-ref"),
@@ -409,7 +410,7 @@ struct PreviewsUploadServiceTests {
             verify(uploadPreviewIconService)
                 .uploadPreviewIcon(
                     .any,
-                    preview: .any,
+                    previewId: .any,
                     serverURL: .any,
                     fullHandle: .any
                 )
