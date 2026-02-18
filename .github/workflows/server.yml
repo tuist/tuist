@@ -679,97 +679,14 @@ jobs:
             echo "Waiting for cache server... ($i/30)"
             sleep 2
           done
-      - name: Create tuist wrapper for Linux
+      - name: Setup tuist wrapper for Linux
         run: |
-          # Workaround: tuist cache config --json produces no console output on Linux
-          # due to a bug in loggerHandlerForNoora() that only configures file-based logging.
-          # This wrapper intercepts cache config --json calls and constructs the JSON
-          # from the credentials store and server API.
-          cat > /tmp/tuist-wrapper << 'WRAPPER'
-          #!/bin/bash
-          REAL_TUIST="$(mise which tuist 2>/dev/null || which tuist)"
-
-          # Intercept "cache config" with "--json"
-          is_cache_config=false
-          has_json=false
-          for arg in "$@"; do
-            case "$arg" in
-              config) is_cache_config=true ;;
-              --json) has_json=true ;;
-            esac
-          done
-
-          if [ "$is_cache_config" = true ] && [ "$has_json" = true ]; then
-            # Try real tuist first
-            output=$("$REAL_TUIST" "$@" 2>/dev/null)
-            if [ -n "$output" ]; then
-              echo "$output"
-              exit 0
-            fi
-
-            # Fallback: construct JSON from credentials and server API
-            # Parse --url and project handle from arguments
-            SERVER_URL=""
-            FULL_HANDLE=""
-            prev=""
-            found_config=false
-            for arg in "$@"; do
-              if [ "$prev" = "--url" ]; then
-                SERVER_URL="$arg"
-              fi
-              if [ "$found_config" = true ] && [ "${arg:0:2}" != "--" ]; then
-                FULL_HANDLE="$arg"
-                found_config=false
-              fi
-              if [ "$arg" = "config" ]; then
-                found_config=true
-              fi
-              prev="$arg"
-            done
-
-            SERVER_URL="${SERVER_URL:-${TUIST_URL:-${TUIST_SERVER_URL:-http://localhost:8080}}}"
-
-            # Read project handle from tuist.toml if not provided
-            if [ -z "$FULL_HANDLE" ] && [ -f "tuist.toml" ]; then
-              FULL_HANDLE=$(grep -E '^project\s*=' tuist.toml | head -1 | sed "s/.*=[[:space:]]*[\"']\(.*\)[\"'].*/\1/")
-            fi
-
-            if [ -z "$FULL_HANDLE" ]; then
-              echo "Error: no project handle found" >&2
-              exit 1
-            fi
-
-            ACCOUNT_HANDLE="${FULL_HANDLE%%/*}"
-            PROJECT_HANDLE="${FULL_HANDLE#*/}"
-
-            # Read token from credentials store
-            HOST=$(echo "$SERVER_URL" | sed 's|.*://||;s|:.*||;s|/.*||')
-            CREDS_FILE="$HOME/.config/tuist/credentials/${HOST}.json"
-            if [ ! -f "$CREDS_FILE" ]; then
-              echo "Error: credentials not found at $CREDS_FILE" >&2
-              exit 1
-            fi
-            TOKEN=$(python3 -c "import json; print(json.load(open('$CREDS_FILE'))['accessToken'])" 2>/dev/null)
-
-            # Get cache endpoint from server
-            CACHE_URL=$(curl -sf -H "Authorization: Bearer $TOKEN" \
-              "${SERVER_URL}/api/cache-endpoints?account_handle=${ACCOUNT_HANDLE}" 2>/dev/null \
-              | python3 -c "import json,sys; print(json.load(sys.stdin)['urls'][0])" 2>/dev/null)
-            CACHE_URL="${CACHE_URL:-http://localhost:8087}"
-
-            printf '{\n  "url": "%s",\n  "token": "%s",\n  "account_handle": "%s",\n  "project_handle": "%s"\n}\n' \
-              "$CACHE_URL" "$TOKEN" "$ACCOUNT_HANDLE" "$PROJECT_HANDLE"
-            exit 0
-          fi
-
-          exec "$REAL_TUIST" "$@"
-          WRAPPER
-          chmod +x /tmp/tuist-wrapper
-          echo "Wrapper script created at /tmp/tuist-wrapper"
+          chmod +x e2e/tuist-cache-config-wrapper.sh
+          echo "REAL_TUIST_PATH=$(mise which tuist)" >> "$GITHUB_ENV"
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
-          TUIST_EXECUTABLE: /tmp/tuist-wrapper
+          TUIST_EXECUTABLE: ${{ github.workspace }}/e2e/tuist-cache-config-wrapper.sh
           TUIST_SERVER_URL: http://localhost:8080
           SERVER_URL: http://localhost:8080
         run: mise run e2e gradle_cache
