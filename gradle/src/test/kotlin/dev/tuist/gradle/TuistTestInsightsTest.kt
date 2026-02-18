@@ -198,6 +198,29 @@ class TuistTestInsightsTest {
     }
 
     @Test
+    fun `buildReport uses project name as module for single-module project`() {
+        val collector = TestReportCollector()
+        collector.collectTestResult(
+            "my-gradle-plugin", "testApply", "dev.tuist.gradle.PluginTest",
+            TestResult.ResultType.SUCCESS, 0, 100, null
+        )
+        collector.collectTestResult(
+            "my-gradle-plugin", "testConfig", "dev.tuist.gradle.ConfigTest",
+            TestResult.ResultType.SUCCESS, 100, 250, null
+        )
+
+        val report = collector.buildReport(250, false, "my-gradle-plugin", "main", "abc123", null, null)
+
+        assertEquals(1, report.testModules.size)
+        val module = report.testModules[0]
+        assertEquals("my-gradle-plugin", module.name)
+        assertEquals("success", module.status)
+        assertEquals(250, module.duration)
+        assertEquals(2, module.testSuites.size)
+        assertEquals(2, module.testCases.size)
+    }
+
+    @Test
     fun `end-to-end collection and report for multi-module project`() {
         val collector = TestReportCollector()
 
