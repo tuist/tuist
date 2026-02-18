@@ -592,15 +592,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      clickhouse:
-        image: clickhouse/clickhouse-server:24
-        ports:
-          - 8123:8123
-        options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       MIX_ENV: dev
       DATABASE_HOST: localhost
@@ -611,12 +602,17 @@ jobs:
       TUIST_SECRET_KEY_TOKENS: ci-test-secret-key-tokens
       TUIST_SECRET_KEY_ENCRYPTION: ci-test-encryption-key-32-bytes!
       TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
+      TUIST_DEV_USE_REMOTE_STORAGE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: .
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "server-{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -637,6 +633,9 @@ jobs:
       - name: Compile server
         working-directory: server
         run: mix compile
+      - name: Start ClickHouse
+        working-directory: server
+        run: mise run clickhouse:start
       - name: Setup main server
         working-directory: server
         run: |
