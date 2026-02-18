@@ -30,7 +30,7 @@ defmodule Tuist.Projects.OpenGraph do
   @key_label_font_sizes [48, 44, 40, 36]
   @key_value_font_sizes [58, 54, 50, 46, 42, 38, 34]
 
-  @template_path Path.join([Application.app_dir(:tuist, "priv"), "static", "images", "open-graph", "card.png"])
+  @template_relative_path Path.join(["static", "images", "open-graph", "card.png"])
 
   def image_url(account_handle, project_handle, title, key_values \\ []) do
     account_handle = normalize_handle(account_handle)
@@ -40,9 +40,9 @@ defmodule Tuist.Projects.OpenGraph do
     hash = image_hash(account_handle, project_handle, title, key_values)
 
     path = "/#{account_handle}/#{project_handle}/og/#{hash}"
-    query = title |> query_params(key_values) |> URI.encode_query()
+    query_params = query_params(title, key_values)
 
-    Tuist.Environment.app_url(path: path) <> "?" <> query
+    build_app_url(path, query_params)
   end
 
   def payload_from_request(account_handle, project_handle, hash, params) do
@@ -92,7 +92,7 @@ defmodule Tuist.Projects.OpenGraph do
     handle = "#{normalize_handle(account_handle)}/#{normalize_handle(project_handle)}"
     title = normalize_title(title)
 
-    with {:ok, base_image} <- Image.open(@template_path),
+    with {:ok, base_image} <- Image.open(template_path()),
          {:ok, image} <- compose_text(base_image, handle, handle_text_options(), @handle_x, @handle_y),
          {:ok, title_image} <- render_fitted_title(title),
          {:ok, image} <- compose_centered_text(image, title_image, @title_y),
@@ -230,8 +230,7 @@ defmodule Tuist.Projects.OpenGraph do
   defp weighted_text_length(text) do
     text
     |> to_string_safe()
-    |> String.trim()
-    |> String.replace(~r/\s+/, " ")
+    |> normalize_whitespace()
     |> String.graphemes()
     |> Enum.reduce(1.0, fn grapheme, acc ->
       acc + grapheme_weight(grapheme)
@@ -316,8 +315,7 @@ defmodule Tuist.Projects.OpenGraph do
   defp tokenize_for_wrap(text) do
     text
     |> to_string_safe()
-    |> String.trim()
-    |> String.replace(~r/\s+/, " ")
+    |> normalize_whitespace()
     |> String.split(" ", trim: true)
   end
 
@@ -419,8 +417,7 @@ defmodule Tuist.Projects.OpenGraph do
     text =
       text
       |> to_string_safe()
-      |> String.trim()
-      |> String.replace(~r/\s+/, " ")
+      |> normalize_whitespace()
 
     {:ok, fit_ellipsis(text, options, max_text_width)}
   end
@@ -538,8 +535,7 @@ defmodule Tuist.Projects.OpenGraph do
   defp normalize_value(value, max_length) do
     value
     |> to_string_safe()
-    |> String.trim()
-    |> String.replace(~r/\s+/, " ")
+    |> normalize_whitespace()
     |> String.slice(0, max_length)
   end
 
@@ -555,6 +551,27 @@ defmodule Tuist.Projects.OpenGraph do
     |> to_string_safe()
     |> String.trim()
     |> String.downcase()
+  end
+
+  defp normalize_whitespace(value) do
+    value
+    |> String.trim()
+    |> String.replace(~r/\s+/, " ")
+  end
+
+  defp build_app_url(path, query_params) do
+    [path: path]
+    |> Tuist.Environment.app_url()
+    |> URI.parse()
+    |> Map.put(:query, URI.encode_query(query_params))
+    |> URI.to_string()
+  end
+
+  defp template_path do
+    :tuist
+    |> :code.priv_dir()
+    |> to_string()
+    |> Path.join(@template_relative_path)
   end
 
   defp valid_hash?(actual, expected) when is_binary(actual) and is_binary(expected) do
