@@ -1,13 +1,21 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.146.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.147.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* crash stack traces with formatted frames, attachments, and download URLs by [@fortmarek](https://github.com/fortmarek) in [#9436](https://github.com/tuist/tuist/pull/9436)
 ### 🐛 Bug Fixes
 
+* don't run foreign build script when target is served from binary cache by [@fortmarek](https://github.com/fortmarek) in [#9501](https://github.com/tuist/tuist/pull/9501)
+* sanitize + character in intra-package target dependency names by [@pepicrft](https://github.com/pepicrft) in [#9437](https://github.com/tuist/tuist/pull/9437)
+* warn when skip test targets don't intersect by [@pepicrft](https://github.com/pepicrft) in [#9487](https://github.com/tuist/tuist/pull/9487)
+* add Swift toolchain library search path for ObjC targets linking static Swift dependencies by [@pepicrft](https://github.com/pepicrft) in [#9483](https://github.com/tuist/tuist/pull/9483)
+* resolve static ObjC xcframework search paths without Package.swift by [@pepicrft](https://github.com/pepicrft) in [#9440](https://github.com/tuist/tuist/pull/9440)
 * enable HTTP logging and server warnings on Linux by [@fortmarek](https://github.com/fortmarek) in [#9479](https://github.com/tuist/tuist/pull/9479)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.1...4.146.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.1...4.147.0
 
 ## What's Changed in 4.146.1<!-- RELEASE NOTES START -->
 

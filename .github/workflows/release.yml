@@ -496,7 +496,7 @@ jobs:
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: ${{ matrix.runner }}
     container:
-      image: swift:6.1
+      image: swift:6.2
     timeout-minutes: 30
     strategy:
       matrix:
@@ -515,7 +515,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.swiftpm/swift-sdks
-          key: static-linux-sdk-swift-6.1.2-${{ matrix.arch }}
+          key: static-linux-sdk-swift-6.2.3-${{ matrix.arch }}
 
       - name: Restore cache
         id: cache-restore
