@@ -158,6 +158,11 @@ public struct AdbController: AdbControlling {
         return error.localizedDescription
     }
 
+    /// The Android SDK doesn't add `platform-tools/` to `$PATH` by default, so `adb` is
+    /// typically not directly invocable. We probe well-known SDK root locations — environment
+    /// variables first (`ANDROID_HOME`, `ANDROID_SDK_ROOT`), then common install paths
+    /// (mise, Android Studio, Homebrew) — and fall back to bare `adb` for the rare case
+    /// where the user has added it to their PATH manually.
     private func resolveAdbPath() async throws -> String {
         var candidateRoots: [String] = []
 
