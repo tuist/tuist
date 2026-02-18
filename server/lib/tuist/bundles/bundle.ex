@@ -42,7 +42,8 @@ defmodule Tuist.Bundles.Bundle do
         watchos_simulator: 5,
         visionos: 6,
         visionos_simulator: 7,
-        macos: 8
+        macos: 8,
+        android: 9
       ]
 
     field :version, :string
@@ -51,7 +52,9 @@ defmodule Tuist.Bundles.Bundle do
       values: [
         ipa: 0,
         app: 1,
-        xcarchive: 2
+        xcarchive: 2,
+        aab: 3,
+        apk: 4
       ]
 
     belongs_to :project, Tuist.Projects.Project, type: :integer

@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Alerts
+  alias Tuist.Alerts.AlertRule
   alias TuistTestSupport.Fixtures.AlertsFixtures
 
   describe "delete_alert_rule" do
@@ -92,6 +93,35 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
       # Then: rule B should remain unchanged (no crash)
       {:ok, unchanged_rule} = Alerts.get_alert_rule(rule_b.id)
       assert unchanged_rule.name == "Rule B"
+    end
+  end
+
+  describe "render" do
+    test "renders page when a bundle_size alert rule has a non-bundle-size metric", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: a bundle_size alert rule with an invalid metric (e.g. :p99 instead of :install_size)
+      # inserted directly to simulate legacy data that predates the changeset validation
+      %AlertRule{}
+      |> Ecto.Changeset.change(%{
+        project_id: project.id,
+        name: "Legacy Alert",
+        category: :bundle_size,
+        metric: :p99,
+        deviation_percentage: 20.0,
+        git_branch: "main",
+        slack_channel_id: "C123456",
+        slack_channel_name: "test-channel"
+      })
+      |> Tuist.Repo.insert!()
+
+      # When/Then: the page should render without crashing
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      assert html =~ "Metrics"
     end
   end
 

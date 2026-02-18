@@ -17,6 +17,7 @@ on:
       - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
   pull_request:
@@ -34,6 +35,7 @@ on:
       - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
 
@@ -354,7 +356,7 @@ jobs:
     name: Linux Build
     runs-on: ubuntu-latest
     container:
-      image: swift:6.1
+      image: swift:6.2
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -378,7 +380,7 @@ jobs:
     name: Linux Unit Tests
     runs-on: ubuntu-latest
     container:
-      image: swift:6.1
+      image: swift:6.2
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:

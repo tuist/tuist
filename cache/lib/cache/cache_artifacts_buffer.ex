@@ -42,7 +42,7 @@ defmodule Cache.CacheArtifactsBuffer do
   end
 
   @impl true
-  def buffer_name, do: :cas_artifacts
+  def buffer_name, do: :cache_artifacts
 
   @impl true
   def flush_entries(table, max_batch_size) do
@@ -84,7 +84,7 @@ defmodule Cache.CacheArtifactsBuffer do
   @impl true
   def queue_stats(table) do
     count = SQLiteBuffer.table_size(table)
-    %{cas_artifacts: count, total: count}
+    %{cache_artifacts: count, total: count}
   end
 
   @impl true

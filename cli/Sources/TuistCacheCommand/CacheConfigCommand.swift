@@ -1,8 +1,11 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistNooraExtension
 
-public struct CacheConfigCommand: AsyncParsableCommand {
+public struct CacheConfigCommand: AsyncParsableCommand, NooraReadyCommand {
+    public var jsonThroughNoora: Bool { true }
+
     public init() {}
 
     public static var configuration: CommandConfiguration {

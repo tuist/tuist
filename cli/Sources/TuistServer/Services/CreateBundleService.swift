@@ -1,10 +1,10 @@
-import TuistHTTP
-#if os(macOS)
+#if canImport(Rosalind)
     import Foundation
     import Mockable
     import OpenAPIRuntime
     import Path
     import Rosalind
+    import TuistHTTP
 
     @Mockable
     public protocol CreateBundleServicing {
@@ -71,6 +71,7 @@ import TuistHTTP
                 case "watchos": .watchos
                 case "xrsimulator": .visionos_simulator
                 case "xros": .visionos
+                case "android": .android
                 default:
                     throw CreateBundleServiceError.unknownPlatform($0)
                 }
@@ -82,6 +83,8 @@ import TuistHTTP
             case .ipa: .ipa
             case .app: .app
             case .xcarchive: .xcarchive
+            case .aab: .aab
+            case .apk: .apk
             }
 
             let response = try await client.createBundle(
@@ -130,7 +133,7 @@ import TuistHTTP
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
-                    throw CreateBuildServiceError.forbidden(error.message)
+                    throw CreateBundleServiceError.forbidden(error.message)
                 }
             }
         }

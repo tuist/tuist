@@ -9,6 +9,7 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
   pull_request:
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - ".swiftpm/**"
       - "Package.swift"
       - "Package.resolved"
 
