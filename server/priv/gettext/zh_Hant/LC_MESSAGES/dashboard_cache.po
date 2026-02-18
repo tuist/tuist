@@ -596,3 +596,12 @@ msgstr "大小 (KB)"
 #, fuzzy
 msgid "Space usage (%)"
 msgstr "空格使用率 (%)"
+
+msgid "AAB"
+msgstr ""
+
+msgid "APK"
+msgstr ""
+
+msgid "Package name"
+msgstr ""

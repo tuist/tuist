@@ -614,3 +614,12 @@ msgstr "Boyut (KB)"
 #, fuzzy
 msgid "Space usage (%)"
 msgstr "Boşluk kullanımı (%)"
+
+msgid "AAB"
+msgstr ""
+
+msgid "APK"
+msgstr ""
+
+msgid "Package name"
+msgstr ""
