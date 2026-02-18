@@ -604,28 +604,16 @@ struct ShareCommandService {
         }
     }
 
+    /// aapt2 lives inside `build-tools/<version>/` in the Android SDK and is not on `$PATH`
+    /// by default. We check `ANDROID_HOME` / `ANDROID_SDK_ROOT` and pick the highest
+    /// build-tools version available, falling back to bare `aapt2` for PATH lookups.
     private func resolveAapt2Path() async throws -> String {
-        var candidateRoots: [String] = []
-
         let variables = Environment.current.variables
         for envVar in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
-            if let value = variables[envVar], !value.isEmpty {
-                candidateRoots.append(value)
-            }
-        }
-
-        let home = ProcessInfo.processInfo.environment["HOME"] ?? "~"
-        candidateRoots.append(contentsOf: [
-            "\(home)/.local/share/mise/installs/android-sdk/1.0",
-            "\(home)/Library/Android/sdk",
-            "/opt/homebrew/share/android-commandlinetools",
-            "/usr/local/share/android-commandlinetools",
-        ])
-
-        for root in candidateRoots {
+            guard let value = variables[envVar], !value.isEmpty else { continue }
             let buildToolsDir: AbsolutePath
             do {
-                buildToolsDir = try AbsolutePath(validating: root).appending(component: "build-tools")
+                buildToolsDir = try AbsolutePath(validating: value).appending(component: "build-tools")
             } catch { continue }
             guard await (try? fileSystem.exists(buildToolsDir)) == true else { continue }
             let aapt2Paths = try await fileSystem.glob(directory: buildToolsDir, include: ["*/aapt2"]).collect()

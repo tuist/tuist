@@ -159,36 +159,21 @@ public struct AdbController: AdbControlling {
     }
 
     /// The Android SDK doesn't add `platform-tools/` to `$PATH` by default, so `adb` is
-    /// typically not directly invocable. We probe well-known SDK root locations — environment
-    /// variables first (`ANDROID_HOME`, `ANDROID_SDK_ROOT`), then common install paths
-    /// (mise, Android Studio, Homebrew) — and fall back to bare `adb` for the rare case
-    /// where the user has added it to their PATH manually.
+    /// typically not directly invocable. We check `ANDROID_HOME` / `ANDROID_SDK_ROOT`
+    /// (the standard convention) and fall back to bare `adb` for the case where
+    /// the user has added it to their PATH manually.
     private func resolveAdbPath() async throws -> String {
-        var candidateRoots: [String] = []
-
         let variables = Environment.current.variables
         for envVar in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
-            if let value = variables[envVar], !value.isEmpty {
-                candidateRoots.append(value)
-            }
-        }
-
-        let home = ProcessInfo.processInfo.environment["HOME"] ?? "~"
-        candidateRoots.append(contentsOf: [
-            "\(home)/.local/share/mise/installs/android-sdk/1.0",
-            "\(home)/Library/Android/sdk",
-            "/opt/homebrew/share/android-commandlinetools",
-            "/usr/local/share/android-commandlinetools",
-        ])
-
-        for root in candidateRoots {
+            guard let value = variables[envVar], !value.isEmpty else { continue }
             let adbPath: AbsolutePath
             do {
-                adbPath = try AbsolutePath(validating: root)
+                adbPath = try AbsolutePath(validating: value)
                     .appending(components: ["platform-tools", "adb"])
             } catch { continue }
-            guard await (try? fileSystem.exists(adbPath)) == true else { continue }
-            return adbPath.pathString
+            if await (try? fileSystem.exists(adbPath)) == true {
+                return adbPath.pathString
+            }
         }
 
         return "adb"
