@@ -480,7 +480,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "get_test_run_failures_count/1" do
-    test "returns count of failures for a test run" do
+    test "returns count of failed test case runs" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
@@ -530,8 +530,8 @@ defmodule Tuist.TestsTest do
       # When
       count = Tests.get_test_run_failures_count(test.id)
 
-      # Then
-      assert count == 3
+      # Then — counts failed test case runs, not individual failure records
+      assert count == 2
     end
 
     test "returns 0 when no failures exist for test run" do
@@ -554,6 +554,45 @@ defmodule Tuist.TestsTest do
       count = Tests.get_test_run_failures_count(test.id)
 
       # Then
+      assert count == 0
+    end
+
+    test "does not count retried test cases that ultimately passed" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 300,
+                  failures: [
+                    %{
+                      message: "Flaky failure",
+                      path: "/path/to/test.swift",
+                      line_number: 10,
+                      issue_type: "assertion"
+                    }
+                  ],
+                  repetitions: [
+                    %{repetition_number: 1, name: "Run 1", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 200}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # When
+      count = Tests.get_test_run_failures_count(test.id)
+
+      # Then — test case run status is "success", so not counted
       assert count == 0
     end
   end

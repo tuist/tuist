@@ -115,11 +115,9 @@ defmodule Tuist.Tests do
 
   def get_test_run_failures_count(test_run_id) do
     query =
-      from f in TestCaseFailure,
-        join: tcr in TestCaseRun,
-        on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id,
-        select: count(f.id)
+      from tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
+        select: count(tcr.id)
 
     ClickHouseRepo.one(query) || 0
   end

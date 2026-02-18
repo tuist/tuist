@@ -2,14 +2,14 @@
 {
   "title": "Gradle Flaky Tests",
   "titleTemplate": ":title · Flaky Tests · Test Insights · Features · Guides · Tuist",
-  "description": "Detect and manage flaky tests in Gradle projects with Tuist."
+  "description": "Detect, manage, and quarantine flaky tests in Gradle projects with Tuist."
 }
 ---
 # Gradle flaky tests {#gradle-flaky-tests}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- <LocalizedLink href="/guides/features/test-insights">Test Insights</LocalizedLink> must be configured
+- The <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> installed and configured
 <!-- -->
 :::
 
@@ -62,6 +62,41 @@ Tuist automatically clears the flaky flag from tests that haven't been flaky for
 You can also manually mark or unmark tests as flaky from the test case detail page. This is useful when:
 - You want to acknowledge a known flaky test while working on a fix
 - A test was incorrectly flagged due to infrastructure issues
+
+## Quarantining flaky tests {#quarantining}
+
+Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. When quarantine is enabled, the Tuist Gradle plugin automatically fetches quarantined tests from the server before each test task and excludes them using Gradle's `excludeTestsMatching` filter.
+
+### Automatic quarantine
+
+When enabled in your project's Automations settings, tests are automatically quarantined when they're marked as flaky. This ensures that newly detected flaky tests are immediately isolated without manual intervention.
+
+To enable automatic quarantine:
+1. Go to your project settings
+2. Navigate to the **Automations** tab
+3. Enable **Auto-quarantine flaky tests**
+
+### Manual quarantine
+
+You can also manually quarantine or unquarantine tests from the test case detail page using the **Quarantine** and **Unquarantine** buttons. This is useful when:
+- You want to quarantine a test before it's automatically detected as flaky
+- You want to unquarantine a test after fixing the underlying issue
+
+### Skipping quarantined tests {#skipping-quarantined-tests}
+
+Quarantine is **automatically enabled on CI** (when the `CI` environment variable is set) and disabled for local builds. The plugin fetches the list of quarantined tests from the Tuist server and excludes them before tests run.
+
+You can explicitly control this behavior in your `settings.gradle.kts`:
+
+```kotlin
+tuist {
+    testQuarantine {
+        enabled = true  // or false to disable
+    }
+}
+```
+
+When `enabled` is not set, it defaults to auto-detection: enabled on CI, disabled locally.
 
 ## Slack notifications {#slack-notifications}
 

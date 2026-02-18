@@ -53,7 +53,15 @@ data class TestCase(
     @SerializedName("test_suite_name") val testSuiteName: String?,
     val status: String,
     val duration: Long,
-    val failures: List<TestFailure>
+    val failures: List<TestFailure>,
+    val repetitions: List<TestCaseRepetition>? = null
+)
+
+data class TestCaseRepetition(
+    @SerializedName("repetition_number") val repetitionNumber: Int,
+    val name: String,
+    val status: String,
+    val duration: Long
 )
 
 data class TestFailure(
@@ -67,8 +75,17 @@ data class TestResponse(val id: String, val url: String?)
 
 // --- Test report collector ---
 
+internal data class TestAttempt(
+    val testName: String,
+    val className: String?,
+    val resultType: TestResult.ResultType,
+    val startTime: Long,
+    val endTime: Long,
+    val exception: Throwable?
+)
+
 internal class TestReportCollector {
-    private val testCasesByModule = mutableMapOf<String, MutableList<TestCase>>()
+    private val attemptsByModule = mutableMapOf<String, MutableList<TestAttempt>>()
 
     fun collectTestResult(
         moduleName: String,
@@ -79,14 +96,9 @@ internal class TestReportCollector {
         endTime: Long,
         exception: Throwable?
     ) {
-        val testCase = TestCase(
-            name = testName,
-            testSuiteName = className,
-            status = mapTestResultType(resultType),
-            duration = endTime - startTime,
-            failures = mapTestFailures(resultType, exception)
+        attemptsByModule.getOrPut(moduleName) { mutableListOf() }.add(
+            TestAttempt(testName, className, resultType, startTime, endTime, exception)
         )
-        testCasesByModule.getOrPut(moduleName) { mutableListOf() }.add(testCase)
     }
 
     fun buildReport(
@@ -98,7 +110,8 @@ internal class TestReportCollector {
         gitRef: String?,
         gradleBuildId: String?
     ): TestReport {
-        val testModules = testCasesByModule.map { (moduleName, testCases) ->
+        val testModules = attemptsByModule.map { (moduleName, attempts) ->
+            val testCases = buildTestCases(attempts)
             val moduleStatus = if (testCases.any { it.status == "failure" }) "failure" else "success"
             val moduleDuration = testCases.sumOf { it.duration }
 
@@ -139,6 +152,49 @@ internal class TestReportCollector {
         )
     }
 
+    private fun buildTestCases(attempts: List<TestAttempt>): List<TestCase> {
+        return attempts
+            .groupBy { Pair(it.testName, it.className) }
+            .map { (key, attempts) ->
+                val (testName, className) = key
+                val lastAttempt = attempts.last()
+                val finalStatus = mapTestResultType(lastAttempt.resultType)
+                val totalDuration = attempts.sumOf { it.endTime - it.startTime }
+
+                val repetitions = if (attempts.size > 1) {
+                    attempts.mapIndexed { index, attempt ->
+                        // Repetitions only support "success" or "failure" —
+                        // the test-retry plugin may report SKIPPED for retried
+                        // attempts, so treat anything non-success as failure.
+                        val status = if (attempt.resultType == TestResult.ResultType.SUCCESS) "success" else "failure"
+                        TestCaseRepetition(
+                            repetitionNumber = index + 1,
+                            name = if (index == 0) "Run 1" else "Retry $index",
+                            status = status,
+                            duration = attempt.endTime - attempt.startTime
+                        )
+                    }
+                } else {
+                    null
+                }
+
+                val failures = if (repetitions != null) {
+                    attempts.flatMap { attempt -> mapTestFailures(attempt.resultType, attempt.exception) }
+                } else {
+                    mapTestFailures(lastAttempt.resultType, lastAttempt.exception)
+                }
+
+                TestCase(
+                    name = testName,
+                    testSuiteName = className,
+                    status = finalStatus,
+                    duration = totalDuration,
+                    failures = failures,
+                    repetitions = repetitions
+                )
+            }
+    }
+
     private fun mapTestResultType(resultType: TestResult.ResultType): String {
         return when (resultType) {
             TestResult.ResultType.SUCCESS -> "success"
@@ -173,11 +229,6 @@ internal class TestReportCollector {
             )
         )
 
-        // Test failures fall into two categories:
-        // - "assertion_failure": the test explicitly checked a condition that was wrong
-        //   (AssertionError, ComparisonFailure, etc.)
-        // - "error_thrown": the test threw an unexpected exception (RuntimeException,
-        //   NullPointerException, IOException, etc.) — any non-assertion exception
         val issueType = if (exception is AssertionError ||
             exception.javaClass.name.contains("AssertionError") ||
             exception.javaClass.name.contains("AssertError") ||
@@ -239,9 +290,17 @@ abstract class TuistTestInsightsService :
         hasTests = true
         if (result.startTime < earliestStartTime) earliestStartTime = result.startTime
         if (result.endTime > latestEndTime) latestEndTime = result.endTime
+        // The test-retry plugin (org.gradle.test-retry) has a known bug where
+        // afterTest reports resultType as SKIPPED instead of the actual result
+        // when a test is being retried. Use the counts as a workaround.
+        val actualResultType = when {
+            result.failedTestCount > 0 -> TestResult.ResultType.FAILURE
+            result.successfulTestCount > 0 -> TestResult.ResultType.SUCCESS
+            else -> result.resultType
+        }
         collector.collectTestResult(
             moduleName, descriptor.name, descriptor.className,
-            result.resultType, result.startTime, result.endTime, result.exception
+            actualResultType, result.startTime, result.endTime, result.exception
         )
     }
 
@@ -347,6 +406,11 @@ abstract class TuistTestInsightsService :
 // --- Plugin ---
 
 internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<Project> {
+
+    private val logger = Logging.getLogger(TuistTestInsightsPlugin::class.java)
+
+    internal var ciDetector: CIDetector = EnvironmentCIDetector()
+
     override fun apply(project: Project) {
         if (project !== project.rootProject) return
 
@@ -360,6 +424,24 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             config.project?.let { parameters.project.set(it) }
             parameters.executablePath.set(config.executablePath)
             parameters.rootProjectName.set(project.rootProject.name)
+        }
+
+        val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
+        val quarantineService = if (quarantineEnabled) {
+            val configProvider = TuistCommandConfigurationProvider(
+                project = config.project,
+                command = listOf(config.executablePath),
+                url = config.url,
+                projectDir = java.io.File(System.getProperty("user.dir"))
+            )
+            val httpClient = TuistHttpClient(
+                configurationProvider = configProvider,
+                connectTimeoutMs = 10_000,
+                readTimeoutMs = 10_000
+            )
+            TuistTestQuarantineService(httpClient = httpClient, baseUrl = config.url)
+        } else {
+            null
         }
 
         project.allprojects {
@@ -376,6 +458,17 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
                         serviceProvider.get().onTestFinished(moduleName, testDescriptor, result)
                     }
                 })
+
+                if (quarantineService != null) {
+                    testTask.doFirst {
+                        val exclusions = quarantineService.getQuarantinedTests()
+                        val moduleExclusions = exclusions[moduleName] ?: return@doFirst
+                        for (pattern in moduleExclusions) {
+                            testTask.filter.excludeTestsMatching(pattern)
+                        }
+                        logger.lifecycle("Tuist: Quarantined ${moduleExclusions.size} test(s) in module $moduleName")
+                    }
+                }
             }
         }
 

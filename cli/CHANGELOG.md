@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 * crash stack traces with formatted frames, attachments, and download URLs by [@fortmarek](https://github.com/fortmarek) in [#9436](https://github.com/tuist/tuist/pull/9436)
 ### 🐛 Bug Fixes
 
+* pass jsonThroughNoora to Noora on Linux by [@fortmarek](https://github.com/fortmarek) in [#9516](https://github.com/tuist/tuist/pull/9516)
 * bump xcode version release by [@fortmarek](https://github.com/fortmarek) in [#9511](https://github.com/tuist/tuist/pull/9511)
 * preserve JSON logger for non-Noora commands on Linux by [@fortmarek](https://github.com/fortmarek) in [#9510](https://github.com/tuist/tuist/pull/9510)
 * don't run foreign build script when target is served from binary cache by [@fortmarek](https://github.com/fortmarek) in [#9501](https://github.com/tuist/tuist/pull/9501)
