@@ -14,7 +14,9 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
 
     create unique_index(:cache_endpoints, [:url])
 
-    seed_endpoints_for_environment(Tuist.Environment.env())
+    if Tuist.Environment.tuist_hosted?() do
+      seed_endpoints_for_environment(Tuist.Environment.env())
+    end
   end
 
   def down do
@@ -37,6 +39,10 @@ defmodule Tuist.Repo.Migrations.CreateCacheEndpoints do
 
   defp seed_endpoints_for_environment(:can) do
     execute seed_sql("https://cache-eu-central-canary.tuist.dev", "EU Central Canary")
+  end
+
+  defp seed_endpoints_for_environment(:dev) do
+    execute seed_sql("http://localhost:8087", "Local Dev")
   end
 
   defp seed_endpoints_for_environment(:test) do
