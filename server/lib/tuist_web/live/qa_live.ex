@@ -27,6 +27,13 @@ defmodule TuistWeb.QALive do
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
       |> assign(:has_qa_runs, has_qa_runs?(project))
       |> load_qa_runs()
+      |> then(fn updated_socket ->
+        assign(
+          updated_socket,
+          :head_open_graph_key_values,
+          qa_open_graph_key_values(updated_socket.assigns.qa_runs, updated_socket.assigns.available_apps)
+        )
+      end)
 
     {:ok, socket}
   end
@@ -38,6 +45,13 @@ defmodule TuistWeb.QALive do
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> load_qa_runs(params)
+      |> then(fn updated_socket ->
+        assign(
+          updated_socket,
+          :head_open_graph_key_values,
+          qa_open_graph_key_values(updated_socket.assigns.qa_runs, updated_socket.assigns.available_apps)
+        )
+      end)
     }
   end
 
@@ -212,6 +226,37 @@ defmodule TuistWeb.QALive do
       {[], _meta} -> false
       {_runs, _meta} -> true
     end
+  end
+
+  defp qa_open_graph_key_values([latest_run | _], available_apps) do
+    [
+      %{key: "Run Status", value: format_qa_status(latest_run.status)},
+      %{key: "Latest App", value: latest_qa_app_name(latest_run)},
+      %{key: "Apps Tracked", value: Integer.to_string(length(available_apps))}
+    ]
+  end
+
+  defp qa_open_graph_key_values([], available_apps) do
+    [
+      %{key: "Run Status", value: "No Runs"},
+      %{key: "Latest App", value: dgettext("dashboard_qa", "None")},
+      %{key: "Apps Tracked", value: Integer.to_string(length(available_apps))}
+    ]
+  end
+
+  defp latest_qa_app_name(%{app_build: %{preview: %{display_name: display_name}}}) when is_binary(display_name),
+    do: display_name
+
+  defp latest_qa_app_name(_), do: "Unknown"
+
+  defp format_qa_status(status) when status in [nil, ""], do: "Unknown"
+
+  defp format_qa_status(status) do
+    status
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.split(" ", trim: true)
+    |> Enum.map_join(" ", &String.capitalize/1)
   end
 
   def empty_state_light_background(assigns) do

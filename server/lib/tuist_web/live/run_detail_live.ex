@@ -10,7 +10,9 @@ defmodule TuistWeb.RunDetailLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.Xcode
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -33,6 +35,8 @@ defmodule TuistWeb.RunDetailLive do
      |> assign(:user, user)
      |> assign(:project, project)
      |> assign(:head_title, "#{dgettext("dashboard_builds", "Run")} · #{slug} · Tuist")
+     |> assign(OpenGraph.og_image_assigns("run"))
+     |> assign(:head_open_graph_key_values, run_open_graph_key_values(run))
      |> assign_initial_analytics_state()
      |> assign(:available_filters, define_binary_cache_filters())
      |> assign(:has_selective_testing_data, Xcode.has_selective_testing_data?(run))
@@ -363,4 +367,35 @@ defmodule TuistWeb.RunDetailLive do
         [0, 0, 0, 0]
     end
   end
+
+  defp run_open_graph_key_values(run) do
+    [
+      %{key: "Command", value: command_name(run)},
+      %{key: "Duration", value: DateFormatter.format_duration_from_milliseconds(run.duration || 0)},
+      %{key: "Status", value: run_status(run.status)}
+    ]
+  end
+
+  defp command_name(%{name: name, subcommand: subcommand})
+       when is_binary(name) and is_binary(subcommand) and subcommand != "" do
+    String.trim("#{name} #{subcommand}")
+  end
+
+  defp command_name(%{name: name}) when is_binary(name), do: name
+  defp command_name(_run), do: "Run"
+
+  defp run_status(0), do: "Success"
+  defp run_status(1), do: "Failure"
+  defp run_status(status) when is_atom(status), do: status |> Atom.to_string() |> String.capitalize()
+
+  defp run_status(status) when is_binary(status) do
+    status
+    |> String.trim()
+    |> case do
+      "" -> "Success"
+      value -> String.capitalize(value)
+    end
+  end
+
+  defp run_status(_status), do: "Success"
 end

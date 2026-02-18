@@ -14,6 +14,7 @@ defmodule TuistWeb.TestCaseLive do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -48,6 +49,7 @@ defmodule TuistWeb.TestCaseLive do
       |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("test-case"))
       |> assign(:available_filters, define_filters(project))
 
     {:ok, socket}

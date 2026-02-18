@@ -9,6 +9,7 @@ defmodule TuistWeb.QASettingsLive do
   alias Tuist.QA
   alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.Repo
+  alias TuistWeb.Helpers.OpenGraph
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
@@ -60,6 +61,8 @@ defmodule TuistWeb.QASettingsLive do
       |> assign(:qa_credentials_form, qa_credentials_form)
       |> assign(:qa_credentials_unchanged, true)
       |> assign(:head_title, "#{dgettext("dashboard_qa", "QA Settings")} · #{selected_project.name} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("qa-settings"))
+      |> assign(:head_open_graph_key_values, qa_settings_open_graph_key_values(selected_project))
 
     {:ok, socket}
   end
@@ -272,4 +275,25 @@ defmodule TuistWeb.QASettingsLive do
   end
 
   defp qa_credentials_unchanged?(_project, _params), do: true
+
+  defp qa_settings_open_graph_key_values(project) do
+    [
+      %{key: "Launch Args", value: Integer.to_string(length(project.qa_launch_argument_groups || []))},
+      %{key: "App Context", value: configured_value(project.qa_app_description)},
+      %{key: "Credentials", value: credentials_value(project)}
+    ]
+  end
+
+  defp configured_value(value) when value in [nil, ""], do: "Not Set"
+  defp configured_value(_value), do: "Configured"
+
+  defp credentials_value(project) do
+    if configured?(project.qa_email) and configured?(project.qa_password) do
+      "Configured"
+    else
+      "Not Set"
+    end
+  end
+
+  defp configured?(value), do: value |> to_string() |> String.trim() |> Kernel.!=("")
 end

@@ -6,6 +6,8 @@ defmodule TuistWeb.LayoutComponents do
 
   import TuistWeb.CSP, only: [get_csp_nonce: 0]
 
+  alias TuistWeb.Helpers.OpenGraph
+
   attr(:current_user, :map, default: nil)
 
   def head_plain_script(assigns) do
@@ -51,6 +53,9 @@ defmodule TuistWeb.LayoutComponents do
   end
 
   def head_meta_meta_tags(assigns) do
+    resolved_head_image = OpenGraph.resolved_head_image(assigns)
+    assigns = assign(assigns, :resolved_head_image, resolved_head_image)
+
     ~H"""
     <% default_description =
       dgettext("dashboard", "Tuist extends Apple's tools, helping you ship apps that stand out.") %>
@@ -68,33 +73,23 @@ defmodule TuistWeb.LayoutComponents do
       content={assigns[:head_fediverse_creator]}
     />
 
-    <%= if is_nil(assigns[:head_image]) do %>
-      <meta
-        property="og:image"
-        content={Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg")}
-      />
-    <% else %>
-      <meta property="og:image" content={assigns[:head_image]} />
-    <% end %>
+    <meta property="og:image" content={@resolved_head_image} />
     """
   end
 
   def head_x_meta_tags(assigns) do
+    resolved_head_image = OpenGraph.resolved_head_image(assigns)
+    resolved_twitter_card = OpenGraph.resolved_twitter_card(assigns)
+
+    assigns =
+      assigns
+      |> assign(:resolved_head_image, resolved_head_image)
+      |> assign(:resolved_twitter_card, resolved_twitter_card)
+
     ~H"""
-    <%= if is_nil(assigns[:head_twitter_card]) do %>
-      <meta name="twitter:card" content="summary" />
-    <% else %>
-      <meta name="twitter:card" content={assigns[:head_twitter_card]} />
-    <% end %>
+    <meta name="twitter:card" content={@resolved_twitter_card} />
     <meta name="twitter:site" content="@tuistdev" />
-    <%= if is_nil(assigns[:head_image]) do %>
-      <meta
-        name="twitter:image"
-        content={Tuist.Environment.app_url(path: "/images/open-graph/card.jpeg")}
-      />
-    <% else %>
-      <meta name="twitter:image" content={assigns[:head_image]} />
-    <% end %>
+    <meta name="twitter:image" content={@resolved_head_image} />
     <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
     <meta
       property="twitter:domain"

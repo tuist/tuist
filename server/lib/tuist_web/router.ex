@@ -55,7 +55,7 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :browser_app_image do
-    plug :accepts, ["svg", "png"]
+    plug :accepts, ["html", "svg", "png", "jpg", "jpeg"]
     plug :disable_robot_indexing
     plug :fetch_session
     plug :fetch_live_flash
@@ -151,6 +151,10 @@ defmodule TuistWeb.Router do
 
   pipeline :analytics do
     plug TuistWeb.AnalyticsPlug, :track_page_view
+  end
+
+  pipeline :load_selected_project do
+    plug TuistWeb.Plugs.LoaderPlug
   end
 
   # Marketing
@@ -768,11 +772,24 @@ defmodule TuistWeb.Router do
   scope "/:account_handle/:project_handle", TuistWeb do
     pipe_through [
       :open_api,
+      :browser_app_image,
+      :rate_limit,
+      :require_authenticated_user_for_private_projects,
+      :require_user_can_read_project
+    ]
+
+    get "/og/:hash", OpenGraphController, :show
+  end
+
+  scope "/:account_handle/:project_handle", TuistWeb do
+    pipe_through [
+      :open_api,
       :browser_app,
       :rate_limit,
       :require_authenticated_user_for_private_projects,
       :analytics,
-      :require_user_can_read_project
+      :require_user_can_read_project,
+      :load_selected_project
     ]
 
     live_session :project,
@@ -833,8 +850,6 @@ defmodule TuistWeb.Router do
 
   defp enable_robot_indexing(conn, params) do
     if Tuist.Environment.prod?() and Tuist.Environment.tuist_hosted?() do
-      # Once we iterate on the open-graph tags of the dashboard pages for public projects
-      # we should iterate on this to enable indexing for public projects
       put_resp_header(conn, "x-robots-tag", "index, follow")
     else
       disable_robot_indexing(conn, params)

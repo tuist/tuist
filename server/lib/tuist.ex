@@ -74,6 +74,7 @@ defmodule Tuist do
       AppBuilds.AppBuild,
       Projects,
       Projects.Project,
+      Projects.OpenGraph,
       Projects.Workers.CleanProjectWorker,
       QA,
       QA.Run,

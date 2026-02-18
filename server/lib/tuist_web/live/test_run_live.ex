@@ -13,8 +13,10 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Tests
+  alias Tuist.Utilities.DateFormatter
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -55,6 +57,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("test-run"))
+      |> assign(:head_open_graph_key_values, test_run_open_graph_key_values(run, failures_count))
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
       |> assign_initial_analytics_state()
@@ -277,6 +281,26 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_available_filters, define_test_modules_filters())
     |> assign(:test_modules_active_filters, [])
   end
+
+  defp test_run_open_graph_key_values(run, failures_count) do
+    [
+      %{key: "Status", value: test_run_status(run.status)},
+      %{key: "Duration", value: DateFormatter.format_duration_from_milliseconds(run.duration || 0)},
+      %{key: "Failures", value: to_string(failures_count || 0)}
+    ]
+  end
+
+  defp test_run_status(status) when is_binary(status) do
+    status
+    |> String.trim()
+    |> case do
+      "" -> "Success"
+      value -> String.capitalize(value)
+    end
+  end
+
+  defp test_run_status(status) when is_atom(status), do: status |> Atom.to_string() |> String.capitalize()
+  defp test_run_status(_status), do: "Success"
 
   defp assign_initial_failures_state(socket) do
     socket

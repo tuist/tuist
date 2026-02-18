@@ -10,6 +10,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -35,6 +36,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       socket
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Notifications")} · #{selected_project.name} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("notifications"))
       |> assign(
         :slack_channel_selection_url,
         SlackOAuthController.channel_selection_url(selected_project.id, selected_account.id)
