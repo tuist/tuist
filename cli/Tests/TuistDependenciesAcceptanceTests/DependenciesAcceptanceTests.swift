@@ -238,7 +238,7 @@ final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
 
 final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: TuistAcceptanceTestCase {
     func test_app_with_objc_static_framework_with_resources() async throws {
-        try await setUpFixture("generated_app_with_objc_static_framework_with_resources")
+        try await setUpFixture("generated_ios_app_with_static_frameworks_with_resources")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "ios")
@@ -274,7 +274,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
 
         // Launch the app
         try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
+            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
 
         // Wait a bit for the app to initialize and potentially crash
@@ -286,7 +286,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
         ).concatenatedString()
 
         XCTAssertTrue(
-            listOutput.contains("UIKitApplication:dev.tuist.app"),
+            listOutput.contains("UIKitApplication:dev.tuist.App"),
             "App should still be running after launch. If it crashed, the bundle accessor for ObjC static frameworks with resources may be broken."
         )
 
@@ -299,14 +299,14 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
         ).concatenatedString()
 
         XCTAssertTrue(
-            finalListOutput.contains("UIKitApplication:dev.tuist.app"),
+            finalListOutput.contains("UIKitApplication:dev.tuist.App"),
             "App should remain running. If it crashed after initial launch, there may be a delayed resource loading issue."
         )
     }
 
     #if canImport(TuistCacheEE)
         func test_app_with_objc_static_framework_with_resources_from_cache() async throws {
-            try await setUpFixture("generated_app_with_objc_static_framework_with_resources")
+            try await setUpFixture("generated_ios_app_with_static_frameworks_with_resources")
             try await run(InstallCommand.self)
 
             // First, cache the targets to create XCFrameworks
@@ -373,7 +373,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
 
             // Launch the app
             try await commandRunner.run(
-                arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
+                arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
             ).pipedStream().awaitCompletion()
 
             // Wait a bit for the app to initialize and potentially crash
@@ -385,7 +385,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
             ).concatenatedString()
 
             XCTAssertTrue(
-                listOutput.contains("UIKitApplication:dev.tuist.app"),
+                listOutput.contains("UIKitApplication:dev.tuist.App"),
                 "App should still be running after launch when using cached XCFrameworks. If it crashed, the static XCFramework with resources may not be embedded correctly."
             )
 
@@ -398,7 +398,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
             ).concatenatedString()
 
             XCTAssertTrue(
-                finalListOutput.contains("UIKitApplication:dev.tuist.app"),
+                finalListOutput.contains("UIKitApplication:dev.tuist.App"),
                 "App should remain running when using cached XCFrameworks. If it crashed, the bundle accessor for cached static frameworks with resources may be broken."
             )
         }
