@@ -299,6 +299,7 @@ defmodule Tuist.AppBuilds do
       :visionos -> "visionOS"
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
+      :android -> "Android"
     end
   end
 

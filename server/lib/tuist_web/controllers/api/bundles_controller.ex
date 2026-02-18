@@ -227,7 +227,7 @@ defmodule TuistWeb.API.BundlesController do
                },
                type: %Schema{
                  type: :string,
-                 enum: ["ipa", "app", "xcarchive"],
+                 enum: ["ipa", "app", "xcarchive", "aab", "apk"],
                  description: "The type of the bundle"
                },
                artifacts: %Schema{
