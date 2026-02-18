@@ -396,6 +396,9 @@ msgstr "Gradle Önbelleği"
 msgid "Create project"
 msgstr "Proje oluştur"
 
+msgid "Cache"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Çalıştırmalar Oluştur"

@@ -389,6 +389,9 @@ msgstr "Gradle 缓存"
 msgid "Create project"
 msgstr "创建项目"
 
+msgid "Cache"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "生成运行"

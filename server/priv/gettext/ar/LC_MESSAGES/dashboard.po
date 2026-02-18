@@ -393,6 +393,9 @@ msgstr "ذاكرة التخزين المؤقت لـ Gradle"
 msgid "Create project"
 msgstr "إنشاء مشروع"
 
+msgid "Cache"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "إنشاء عمليات تشغيل"

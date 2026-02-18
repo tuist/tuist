@@ -312,5 +312,8 @@ msgstr "Gradle 캐시"
 msgid "Create project"
 msgstr "프로젝트 만들기"
 
+msgid "Cache"
+msgstr ""
+
 #~ msgid "Generate Runs"
 #~ msgstr "Generate 실행 내역"

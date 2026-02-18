@@ -392,6 +392,9 @@ msgstr "Gradle キャッシュ"
 msgid "Create project"
 msgstr "プロジェクトを作成"
 
+msgid "Cache"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "実行を生成"
