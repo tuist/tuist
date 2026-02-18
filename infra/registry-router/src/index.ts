@@ -54,16 +54,28 @@ async function isOriginHealthy(host: string, env: Env): Promise<boolean> {
   return value !== "false";
 }
 
-function redirectToOrigin(request: Request, host: string): Response {
-  const url = new URL(request.url);
-  url.hostname = host;
-  return new Response(null, {
-    status: 303,
-    headers: {
-      Location: url.toString(),
-      "X-Served-By": host,
-    },
-  });
+async function proxyToOrigin(request: Request, host: string): Promise<Response | null> {
+  try {
+    const url = new URL(request.url);
+    url.hostname = host;
+
+    const originRequest = new Request(url.toString(), {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      redirect: "manual",
+    });
+    originRequest.headers.set("Host", host);
+
+    const response = await fetch(originRequest);
+    if (response.status >= 500) return null;
+
+    const proxied = new Response(response.body, response);
+    proxied.headers.set("X-Served-By", host);
+    return proxied;
+  } catch {
+    return null;
+  }
 }
 
 async function handleRequest(request: Request, env: Env): Promise<Response> {
@@ -72,7 +84,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
 
   for (const { host } of origins) {
     if (!(await isOriginHealthy(host, env))) continue;
-    return redirectToOrigin(request, host);
+
+    const response = await proxyToOrigin(request, host);
+    if (response) return response;
   }
 
   return new Response("All origins are unavailable", { status: 502 });

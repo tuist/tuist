@@ -18,10 +18,10 @@ Prometheus metrics collector that scrapes metrics from Tuist server instances an
 **Metrics Destination:** Grafana Cloud Prometheus (EU West 2)
 
 ### Registry Router (`registry-router/`)
-Cloudflare Worker that geo-routes requests to `registry.tuist.dev` by issuing a 303 redirect to the nearest healthy cache origin based on the requester's location. Replaces the Cloudflare Load Balancing setup.
+Cloudflare Worker that geo-routes requests to `registry.tuist.dev` to the nearest healthy cache origin based on the requester's continent. Replaces the Cloudflare Load Balancing setup.
 
 - `wrangler.toml` - Worker configuration, routes, KV binding, and cron trigger
-- `src/index.ts` - Geo-routing logic with 303 redirects, health-check cron handler, and failover
+- `src/index.ts` - Geo-routing logic, health-check cron handler, and failover
 - `package.json` - Project manifest
 
 **Origins:**
