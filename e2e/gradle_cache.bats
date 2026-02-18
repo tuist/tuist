@@ -54,7 +54,9 @@ teardown_file() {
     fi
     [ "$status" -eq 0 ]
 
-    # Verify the plugin configured the remote cache
+    # Verify the plugin configured insights and remote cache
+    [[ "$output" == *"Tuist: Build insights configured"* ]]
+    [[ "$output" == *"Tuist: Test insights configured"* ]]
     [[ "$output" == *"Tuist: Remote build cache configured"* ]]
 
     # Check if artifacts were stored

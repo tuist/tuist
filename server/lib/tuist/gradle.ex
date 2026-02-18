@@ -36,7 +36,7 @@ defmodule Tuist.Gradle do
   """
   def create_build(attrs) do
     now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    build_id = UUIDv7.generate()
+    build_id = attrs.id
     tasks = Map.get(attrs, :tasks, [])
 
     task_counts = compute_task_counts(tasks)

@@ -62,7 +62,7 @@ defmodule Tuist.Tests do
             {:error, :not_found}
 
           test ->
-            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 == :build_run))
+            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build]))
 
             test =
               test
@@ -81,6 +81,20 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.build_run_id == ^build_run_id,
+        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      test -> {:ok, test}
+    end
+  end
+
+  def get_latest_test_by_gradle_build_id(gradle_build_id) do
+    query =
+      from(t in Test,
+        where: t.gradle_build_id == ^gradle_build_id,
         order_by: [desc: t.ran_at, desc: t.inserted_at],
         limit: 1
       )
@@ -1503,7 +1517,12 @@ defmodule Tuist.Tests do
         order_by: [desc: tcr.ran_at]
       )
 
-    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+    current_flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+
+    cross_run_counterparts =
+      get_cross_run_flaky_runs(test_run_id, current_flaky_runs)
+
+    flaky_runs = current_flaky_runs ++ cross_run_counterparts
 
     run_ids = Enum.map(flaky_runs, & &1.id)
 
@@ -1546,6 +1565,33 @@ defmodule Tuist.Tests do
       }
     end)
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+  end
+
+  defp get_cross_run_flaky_runs(_test_run_id, []), do: []
+
+  defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
+    test_case_ids = current_flaky_runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+
+    commit_shas =
+      current_flaky_runs
+      |> Enum.map(& &1.git_commit_sha)
+      |> Enum.reject(&(&1 == "" or is_nil(&1)))
+      |> Enum.uniq()
+
+    if Enum.empty?(commit_shas) do
+      []
+    else
+      query =
+        from(tcr in TestCaseRun,
+          where: tcr.test_run_id != ^test_run_id,
+          where: tcr.git_commit_sha in ^commit_shas,
+          where: tcr.test_case_id in ^test_case_ids,
+          where: tcr.is_flaky == true,
+          order_by: [desc: tcr.ran_at]
+        )
+
+      ClickHouseRepo.all(query)
+    end
   end
 
   defp get_failures_for_runs([]), do: []

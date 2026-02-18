@@ -414,7 +414,7 @@
             end
           }
         >
-          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
+          <:col :let={test_run} label={scheme_label(@selected_project)}>
             <.text_and_description_cell label={
               (test_run.scheme !== "" && test_run.scheme) || "Unknown"
             } />

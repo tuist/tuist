@@ -5,6 +5,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.TestLabels
 
   alias Noora.Filter
   alias Tuist.Tests
@@ -38,7 +39,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
       %Filter.Filter{
         id: "module_name",
         field: "module_name",
-        display_name: dgettext("dashboard_tests", "Module"),
+        display_name: module_label(project),
         type: :text,
         operator: :=~,
         value: ""
@@ -46,7 +47,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
       %Filter.Filter{
         id: "suite_name",
         field: "suite_name",
-        display_name: dgettext("dashboard_tests", "Suite"),
+        display_name: suite_label(project),
         type: :text,
         operator: :=~,
         value: ""

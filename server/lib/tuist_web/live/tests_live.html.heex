@@ -517,6 +517,7 @@
   </.card>
 
   <.card
+    :if={!Tuist.Projects.Project.gradle_project?(@selected_project)}
     title={dgettext("dashboard_tests", "Selective Testing")}
     icon="subtask"
     data-part="selective-testing"
@@ -849,7 +850,7 @@
           end
         }
       >
-        <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
+        <:col :let={test_run} label={scheme_label(@selected_project)}>
           <.text_and_description_cell label={
             (test_run.scheme !== "" && test_run.scheme) || dgettext("dashboard_tests", "Unknown")
           } />

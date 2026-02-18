@@ -38,6 +38,7 @@ defmodule TuistWeb.API.GradleController do
        %Schema{
          type: :object,
          properties: %{
+           id: %Schema{type: :string, nullable: true, description: "Client-provided build ID (UUID)."},
            duration_ms: %Schema{type: :integer, description: "Build duration in milliseconds."},
            status: %Schema{type: :string, enum: ["success", "failure", "cancelled"], description: "Build status."},
            gradle_version: %Schema{type: :string, nullable: true, description: "Gradle version."},
@@ -115,6 +116,7 @@ defmodule TuistWeb.API.GradleController do
       end)
 
     attrs = %{
+      id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
       account_id: account.id,
       duration_ms: body.duration_ms,

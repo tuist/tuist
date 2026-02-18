@@ -258,42 +258,36 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_validateParameters_conflictingParameters_target() throws {
+    func test_validateParameters_conflictingParameters_target_doesNotThrow() throws {
         let testTargets = try [TestIdentifier(string: "test1")]
         let skipTestTargets = try [TestIdentifier(string: "test2")]
-        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
-        XCTAssertThrowsSpecific(
+        XCTAssertNoThrow(
             try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
-            ),
-            error
+            )
         )
     }
 
-    func test_validateParameters_conflictingParameters_targetClass() throws {
+    func test_validateParameters_conflictingParameters_targetClass_doesNotThrow() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class2")]
-        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
-        XCTAssertThrowsSpecific(
+        XCTAssertNoThrow(
             try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
-            ),
-            error
+            )
         )
     }
 
-    func test_validateParameters_conflictingParameters_targetClassMethod() throws {
+    func test_validateParameters_conflictingParameters_targetClassMethod_doesNotThrow() throws {
         let testTargets = try [TestIdentifier(string: "test1/class1/method1")]
         let skipTestTargets = try [TestIdentifier(string: "test1/class2/method2")]
-        let error = TestServiceError.nothingToSkip(skipped: skipTestTargets, included: testTargets)
-        XCTAssertThrowsSpecific(
+        XCTAssertNoThrow(
             try TestService.validateParameters(
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets
-            ),
-            error
+            )
         )
     }
 

@@ -11,8 +11,12 @@ config :cache, Cache.Repo,
   journal_mode: :wal,
   synchronous: :normal,
   temp_store: :memory,
+  cache_size: -64_000,
+  auto_vacuum: :incremental,
+  journal_size_limit: 67_108_864,
   queue_target: 1_000,
-  queue_interval: 1_000
+  queue_interval: 1_000,
+  custom_pragmas: [mmap_size: 268_435_456]
 
 config :cache, Cache.SQLiteBuffer,
   flush_interval_ms: 500,
@@ -46,7 +50,8 @@ config :cache, Oban,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
-       {"0 * * * *", Cache.Registry.SyncWorker}
+       {"0 * * * *", Cache.Registry.SyncWorker},
+       {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]
 

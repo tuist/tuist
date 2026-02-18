@@ -57,7 +57,6 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
-        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"

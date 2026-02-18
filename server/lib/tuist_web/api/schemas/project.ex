@@ -38,11 +38,7 @@ defmodule TuistWeb.API.Schemas.Project do
         description: "The visibility of the project",
         enum: [:private, :public]
       },
-      build_system: %Schema{
-        type: :string,
-        description: "The build system used by the project.",
-        enum: [:xcode, :gradle]
-      }
+      build_system: TuistWeb.API.Schemas.BuildSystem.schema()
     }
   })
 end

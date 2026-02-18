@@ -81,7 +81,7 @@ struct BundleShowCommandService: BundleShowCommandServicing {
             "Name: \(bundle.name)",
             "Version: \(bundle.version)",
             "App Bundle ID: \(bundle.app_bundle_id)",
-            "Supported Platforms: \(bundle.supported_platforms.map(\.rawValue).joined(separator: ", "))",
+            "Supported Platforms: \(bundle.supported_platforms.reduce(into: [String]()) { $0.append($1.rawValue) }.joined(separator: ", "))",
             "Install Size: \(Formatters.formatBytes(bundle.install_size))",
             "Download Size: \(bundle.download_size.map(Formatters.formatBytes) ?? "Unknown")",
             "Uploaded by: \(bundle.uploaded_by_account)",

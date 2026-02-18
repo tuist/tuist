@@ -5,6 +5,7 @@ defmodule TuistWeb.FlakyTestsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.TestLabels
 
   alias Noora.Filter
   alias Tuist.Tests
@@ -20,7 +21,7 @@ defmodule TuistWeb.FlakyTestsLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Flaky Tests")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("flaky-tests"))
-      |> assign(:available_filters, define_filters())
+      |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -29,12 +30,12 @@ defmodule TuistWeb.FlakyTestsLive do
     {:ok, socket}
   end
 
-  defp define_filters do
+  defp define_filters(project) do
     [
       %Filter.Filter{
         id: "module_name",
         field: "module_name",
-        display_name: dgettext("dashboard_tests", "Module"),
+        display_name: module_label(project),
         type: :text,
         operator: :=~,
         value: ""
@@ -42,7 +43,7 @@ defmodule TuistWeb.FlakyTestsLive do
       %Filter.Filter{
         id: "suite_name",
         field: "suite_name",
-        display_name: dgettext("dashboard_tests", "Suite"),
+        display_name: suite_label(project),
         type: :text,
         operator: :=~,
         value: ""

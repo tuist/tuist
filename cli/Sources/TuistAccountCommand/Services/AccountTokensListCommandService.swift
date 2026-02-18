@@ -61,7 +61,7 @@ struct AccountTokensListCommandService {
                     [
                         "\(token.id)",
                         "\(token.name ?? "-")",
-                        "\(token.scopes.map(\.rawValue).joined(separator: ", "))",
+                        "\(token.scopes.reduce(into: [String]()) { $0.append($1.rawValue) }.joined(separator: ", "))",
                         "\(token.all_projects ? "All" : (token.project_handles ?? []).joined(separator: ", "))",
                         "\(token.expires_at.map { Formatters.formatDate($0) } ?? "Never")",
                         "\(Formatters.formatDate(token.inserted_at))",

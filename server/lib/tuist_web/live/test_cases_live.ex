@@ -5,6 +5,7 @@ defmodule TuistWeb.TestCasesLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
@@ -21,7 +22,7 @@ defmodule TuistWeb.TestCasesLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("test-cases"))
-      |> assign(:available_filters, define_filters())
+      |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -30,7 +31,7 @@ defmodule TuistWeb.TestCasesLive do
     {:ok, socket}
   end
 
-  defp define_filters do
+  defp define_filters(project) do
     [
       %Filter.Filter{
         id: "last_status",
@@ -49,7 +50,7 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "module_name",
         field: "module_name",
-        display_name: dgettext("dashboard_tests", "Module"),
+        display_name: module_label(project),
         type: :text,
         operator: :=~,
         value: ""
@@ -57,7 +58,7 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "suite_name",
         field: "suite_name",
-        display_name: dgettext("dashboard_tests", "Suite"),
+        display_name: suite_label(project),
         type: :text,
         operator: :=~,
         value: ""

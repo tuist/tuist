@@ -178,6 +178,7 @@
     & > .noora-card__section {
       flex: 1;
       min-width: 0px;
+      overflow: hidden;
     }
 
     & [data-part="build-runs-chart"] {
@@ -185,6 +186,10 @@
         padding-left: var(--noora-spacing-7);
         color: var(--noora-surface-label-secondary);
         font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+      }
+
+      & .noora-chart {
+        width: 100%;
       }
     }
   }

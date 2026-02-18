@@ -63,13 +63,13 @@ msgid "Billing"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:48
-#: lib/tuist_web/components/app_layout_components.ex:204
+#: lib/tuist_web/components/app_layout_components.ex:203
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:31
-#: lib/tuist_web/components/app_layout_components.ex:187
+#: lib/tuist_web/components/app_layout_components.ex:186
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
@@ -87,7 +87,7 @@ msgstr ""
 msgid "CI"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:149
+#: lib/tuist_web/components/app_layout_components.ex:148
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr ""
@@ -180,7 +180,7 @@ msgstr ""
 msgid "Members"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:126
+#: lib/tuist_web/components/app_layout_components.ex:125
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr ""
@@ -242,7 +242,7 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:229
+#: lib/tuist_web/components/app_layout_components.ex:228
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -252,7 +252,7 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:244
+#: lib/tuist_web/components/app_layout_components.ex:243
 #: lib/tuist_web/components/layouts/ops.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "QA"
@@ -294,17 +294,17 @@ msgstr ""
 msgid "Switch to your preferred theme"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:90
+#: lib/tuist_web/components/app_layout_components.ex:89
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:79
+#: lib/tuist_web/components/app_layout_components.ex:78
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:62
+#: lib/tuist_web/components/app_layout_components.ex:61
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr ""
@@ -395,7 +395,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:177
+#: lib/tuist_web/components/app_layout_components.ex:176
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr ""
@@ -438,7 +438,7 @@ msgstr ""
 msgid "p99"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:101
+#: lib/tuist_web/components/app_layout_components.ex:100
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr ""
@@ -458,17 +458,17 @@ msgstr ""
 msgid "This is a public dashboard for the tuist/tuist project."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:112
+#: lib/tuist_web/components/app_layout_components.ex:111
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:161
+#: lib/tuist_web/components/app_layout_components.ex:160
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:217
+#: lib/tuist_web/components/app_layout_components.ex:216
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""

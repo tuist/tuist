@@ -5,6 +5,7 @@ defmodule TuistWeb.TestRunLive do
 
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
@@ -22,7 +23,7 @@ defmodule TuistWeb.TestRunLive do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Tests.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run]) do
+      case Tests.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run, :gradle_build]) do
         {:ok, test} ->
           test
 
@@ -249,7 +250,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:expanded_target_names, MapSet.new())
   end
 
-  defp assign_initial_test_cases_state(socket) do
+  defp assign_initial_test_cases_state(%{assigns: %{selected_project: project}} = socket) do
     socket
     |> assign(:selected_test_tab, "test-cases")
     |> assign(:test_cases, [])
@@ -274,7 +275,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_search, "")
     |> assign(:test_modules_sort_by, "name")
     |> assign(:test_modules_sort_order, "asc")
-    |> assign(:test_modules_available_filters, define_test_modules_filters())
+    |> assign(:test_modules_available_filters, define_test_modules_filters(project))
     |> assign(:test_modules_active_filters, [])
   end
 
@@ -564,7 +565,9 @@ defmodule TuistWeb.TestRunLive do
     Tests.list_test_suite_runs(flop_params)
   end
 
-  defp load_test_modules_data(run, params, available_filters \\ define_test_modules_filters()) do
+  defp load_test_modules_data(run, params, available_filters \\ nil) do
+    available_filters = available_filters || define_test_modules_filters(run.project)
+
     flop_params = %{
       filters: test_modules_filters(run, params, available_filters, params["test-modules-filter"]),
       page: String.to_integer(params["test-modules-page"] || "1"),
@@ -895,12 +898,12 @@ defmodule TuistWeb.TestRunLive do
     ]
   end
 
-  defp define_test_modules_filters do
+  defp define_test_modules_filters(project) do
     [
       %Filter.Filter{
         id: "test_module_test_suite_count",
         field: :test_module_test_suite_count,
-        display_name: dgettext("dashboard_tests", "Test suites"),
+        display_name: test_suites_label(project),
         type: :number,
         operator: :>,
         value: ""

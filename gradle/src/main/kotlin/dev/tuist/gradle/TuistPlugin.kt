@@ -73,6 +73,7 @@ class TuistPlugin : Plugin<Settings> {
     private fun configure(settings: Settings, extension: TuistExtension) {
         configureBuildCache(settings, extension)
         configureBuildInsights(settings, extension)
+        configureTestInsights(settings, extension)
     }
 
     private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
@@ -87,6 +88,15 @@ class TuistPlugin : Plugin<Settings> {
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
             val projectLabel = project ?: "(from tuist.toml)"
             logger.lifecycle("Tuist: Build insights configured for $projectLabel")
+        }
+    }
+
+    private fun configureTestInsights(settings: Settings, extension: TuistExtension) {
+        val project = extension.project.ifBlank { null }
+        settings.gradle.rootProject {
+            pluginManager.apply(TuistTestInsightsPlugin::class.java)
+            val projectLabel = project ?: "(from tuist.toml)"
+            logger.lifecycle("Tuist: Test insights configured for $projectLabel")
         }
     }
 

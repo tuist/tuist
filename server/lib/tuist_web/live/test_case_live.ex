@@ -5,6 +5,7 @@ defmodule TuistWeb.TestCaseLive do
 
   import Noora.Filter
   import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 

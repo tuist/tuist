@@ -36,6 +36,7 @@ import java.net.URI
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
@@ -81,6 +82,7 @@ data class TaskReportEntry(
 )
 
 data class BuildReportRequest(
+    val id: String,
     @SerializedName("duration_ms") val durationMs: Long,
     val status: String,
     @SerializedName("gradle_version") val gradleVersion: String?,
@@ -116,6 +118,8 @@ abstract class TuistBuildInsightsService :
     internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
     internal var uploadInBackground: Boolean? = null
+
+    val buildId: String = UUID.randomUUID().toString()
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
     private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -316,6 +320,7 @@ abstract class TuistBuildInsightsService :
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
 
         val report = buildReport(
+            id = buildId,
             taskOutcomes = taskOutcomes.toList(),
             buildFailed = buildFailed,
             totalDurationMs = totalDurationMs,
@@ -326,7 +331,7 @@ abstract class TuistBuildInsightsService :
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = config.url.trimEnd('/')
+            val baseUrl = parameters.url.get().trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
             val connection = httpClient.openConnection(url, config)
             try {
@@ -359,7 +364,7 @@ abstract class TuistBuildInsightsService :
         }
 
         if (response != null) {
-            logger.lifecycle("Tuist: Build insights reported successfully (build ${response.id})")
+            logger.lifecycle("Tuist: Build insights reported successfully (build $buildId)")
         } else {
             logger.warn("Tuist: Failed to report build insights.")
         }
@@ -367,6 +372,7 @@ abstract class TuistBuildInsightsService :
 }
 
 internal fun buildReport(
+    id: String,
     taskOutcomes: List<TaskOutcomeData>,
     buildFailed: Boolean,
     totalDurationMs: Long,
@@ -382,6 +388,7 @@ internal fun buildReport(
     }
 
     return BuildReportRequest(
+        id = id,
         durationMs = totalDurationMs,
         status = status,
         gradleVersion = gradleVersion,

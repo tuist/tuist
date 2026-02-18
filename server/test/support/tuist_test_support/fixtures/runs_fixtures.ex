@@ -117,6 +117,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
            ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
            is_ci: Keyword.get(attrs, :is_ci, false),
            build_run_id: Keyword.get(attrs, :build_run_id),
+           gradle_build_id: Keyword.get(attrs, :gradle_build_id),
+           build_system: Keyword.get(attrs, :build_system, "xcode"),
            ci_run_id: Keyword.get(attrs, :ci_run_id),
            ci_project_handle: Keyword.get(attrs, :ci_project_handle),
            ci_host: Keyword.get(attrs, :ci_host),

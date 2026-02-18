@@ -13,7 +13,8 @@ defmodule Tuist.Tests.TestTest do
       project_id: 123,
       account_id: 456,
       status: "success",
-      ran_at: ~N[2024-01-01 12:00:00.000000]
+      ran_at: ~N[2024-01-01 12:00:00.000000],
+      build_system: "xcode"
     }
 
     test "creates valid changeset with all required attributes" do
@@ -136,20 +137,33 @@ defmodule Tuist.Tests.TestTest do
       assert "can't be blank" in errors_on(changeset).duration
     end
 
-    test "requires macos_version" do
+    test "accepts optional macos_version" do
       attrs = Map.delete(@valid_attrs, :macos_version)
       changeset = Test.create_changeset(%Test{}, attrs)
 
-      refute changeset.valid?
-      assert "can't be blank" in errors_on(changeset).macos_version
+      assert changeset.valid?
     end
 
-    test "requires xcode_version" do
+    test "accepts optional xcode_version" do
       attrs = Map.delete(@valid_attrs, :xcode_version)
       changeset = Test.create_changeset(%Test{}, attrs)
 
+      assert changeset.valid?
+    end
+
+    test "defaults build_system to xcode" do
+      attrs = Map.delete(@valid_attrs, :build_system)
+      changeset = Test.create_changeset(%Test{}, attrs)
+
+      assert changeset.valid?
+    end
+
+    test "rejects invalid build_system" do
+      attrs = Map.put(@valid_attrs, :build_system, "invalid")
+      changeset = Test.create_changeset(%Test{}, attrs)
+
       refute changeset.valid?
-      assert "can't be blank" in errors_on(changeset).xcode_version
+      assert "is invalid" in errors_on(changeset).build_system
     end
 
     test "requires is_ci" do

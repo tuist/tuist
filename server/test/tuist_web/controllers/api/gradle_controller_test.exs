@@ -91,6 +91,31 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.cacheable_tasks_count == 0
     end
 
+    test "uses client-provided build ID when present", %{conn: conn, user: user, project: project} do
+      client_id = UUIDv7.generate()
+
+      body = %{
+        id: client_id,
+        duration_ms: 5000,
+        status: "success",
+        tasks: []
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", body)
+
+      response = json_response(conn, 201)
+      assert response["id"] == client_id
+
+      Buffer.flush()
+
+      {:ok, build} = Gradle.get_build(client_id)
+      assert build.id == client_id
+      assert build.project_id == project.id
+    end
+
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
       other_user = AccountsFixtures.user_fixture(preload: [:account])
       conn = Authentication.put_current_user(conn, other_user)

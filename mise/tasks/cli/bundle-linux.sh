@@ -19,7 +19,7 @@ if [ "$usage_linux_vm" = "true" ]; then
         --volume "$PROJECT_ROOT:/package" \
         --workdir "/package" \
         --env MISE_PROJECT_ROOT=/package \
-        swift:6.1 \
+        swift:6.2 \
         ./mise/tasks/cli/bundle-linux.sh
 fi
 
@@ -36,8 +36,8 @@ mkdir -p $BUILD_DIRECTORY
 # This eliminates all shared library dependencies and cross-distro compatibility issues
 # (e.g. Ubuntu's CURL_OPENSSL_4 vs Fedora's libcurl-minimal).
 echo "==> Installing Swift Static Linux SDK"
-swift sdk install https://download.swift.org/swift-6.1.2-release/static-sdk/swift-6.1.2-RELEASE/swift-6.1.2-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
-    --checksum df0b40b9b582598e7e3d70c82ab503fd6fbfdff71fd17e7f1ab37115a0665b3b
+swift sdk install https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
+    --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
 
 ARCH=$(uname -m)
 if [ "$ARCH" = "x86_64" ]; then

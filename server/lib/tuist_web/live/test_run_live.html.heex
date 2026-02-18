@@ -59,6 +59,25 @@
       >
         <:icon_left><.versions /></:icon_left>
       </.link_button>
+      <.link_button
+        :if={@run.gradle_build}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.gradle_build_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name:
+              if(@run.gradle_build.root_project_name == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.gradle_build.root_project_name
+              )
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
     </div>
     <div data-part="actions">
       <.button
@@ -197,7 +216,7 @@
                 data-part="value"
               />
             </div>
-            <div data-part="metadata">
+            <div :if={@run.build_system != "gradle"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -206,7 +225,7 @@
                   else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
-            <div data-part="metadata">
+            <div :if={@run.build_system != "gradle"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "macOS version")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -639,12 +658,12 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
-        label={dgettext("dashboard_tests", "Test Suites")}
+        label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
       />
       <.tab_menu_horizontal_item
-        label={dgettext("dashboard_tests", "Modules")}
+        label={modules_label(@selected_project)}
         selected={@selected_test_tab == "test-modules"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-modules")}"}
       />
@@ -827,7 +846,7 @@
 
     <.card
       :if={@selected_test_tab == "test-suites"}
-      title={dgettext("dashboard_tests", "Test Suites")}
+      title={test_suites_label(@selected_project)}
       icon="exchange"
       data-part="test-suites-card"
     >
@@ -849,7 +868,7 @@
             label={
               case @test_suites_sort_by do
                 "name" ->
-                  dgettext("dashboard_tests", "Test suite")
+                  test_suite_label(@selected_project)
 
                 "test_case_count" ->
                   dgettext("dashboard_tests", "Test cases")
@@ -861,14 +880,14 @@
                   dgettext("dashboard_tests", "Duration")
 
                 _ ->
-                  dgettext("dashboard_tests", "Test suite")
+                  test_suite_label(@selected_project)
               end
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={dgettext("dashboard_tests", "Test suite")}
+              label={test_suite_label(@selected_project)}
               patch={test_suites_dropdown_item_patch_sort("name", @uri)}
               data-selected={@test_suites_sort_by == "name"}
             >
@@ -912,7 +931,7 @@
         <.table id="test-suites-table" rows={@test_suites}>
           <:col
             :let={test_suite}
-            label={dgettext("dashboard_tests", "Test suite")}
+            label={test_suite_label(@selected_project)}
             patch={
               @test_suites_sort_by == "name" &&
                 test_suites_column_patch_sort(assigns, "name")
@@ -1033,7 +1052,7 @@
 
     <.card
       :if={@selected_test_tab == "test-modules"}
-      title={dgettext("dashboard_tests", "Test Modules")}
+      title={test_modules_label(@selected_project)}
       icon="apps"
       data-part="test-modules-card"
     >
@@ -1055,10 +1074,10 @@
             label={
               case @test_modules_sort_by do
                 "name" ->
-                  dgettext("dashboard_tests", "Module")
+                  module_label(@selected_project)
 
                 "test_suite_count" ->
-                  dgettext("dashboard_tests", "Test suites")
+                  test_suites_label(@selected_project)
 
                 "test_case_count" ->
                   dgettext("dashboard_tests", "Test cases")
@@ -1070,14 +1089,14 @@
                   dgettext("dashboard_tests", "Duration")
 
                 _ ->
-                  dgettext("dashboard_tests", "Module")
+                  module_label(@selected_project)
               end
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={dgettext("dashboard_tests", "Module")}
+              label={module_label(@selected_project)}
               patch={test_modules_dropdown_item_patch_sort("name", @uri)}
               data-selected={@test_modules_sort_by == "name"}
             >
@@ -1085,7 +1104,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="test_suite_count"
-              label={dgettext("dashboard_tests", "Test suites")}
+              label={test_suites_label(@selected_project)}
               patch={test_modules_dropdown_item_patch_sort("test_suite_count", @uri)}
               data-selected={@test_modules_sort_by == "test_suite_count"}
             >
@@ -1129,7 +1148,7 @@
         <.table id="test-modules-table" rows={@test_modules}>
           <:col
             :let={test_module}
-            label={dgettext("dashboard_tests", "Module")}
+            label={module_label(@selected_project)}
             patch={
               @test_modules_sort_by == "name" &&
                 test_modules_column_patch_sort(assigns, "name")
@@ -1156,7 +1175,7 @@
           </:col>
           <:col
             :let={test_module}
-            label={dgettext("dashboard_tests", "Test suites")}
+            label={test_suites_label(@selected_project)}
             patch={
               @test_modules_sort_by == "test_suite_count" &&
                 test_modules_column_patch_sort(assigns, "test_suite_count")

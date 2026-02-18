@@ -217,7 +217,7 @@ defmodule TuistWeb.GradleCacheLive do
       else
         total =
           recent_builds_chart_data
-          |> Enum.map(& &1.value)
+          |> Enum.map(fn %{value: v} -> v || 0.0 end)
           |> Enum.sum()
 
         Float.round(total / length(recent_builds_chart_data), 1)

@@ -6,6 +6,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
+  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.Authentication
@@ -41,11 +42,7 @@ defmodule TuistWeb.API.ProjectsController do
                "Organization to create the project with. If not specified, the project will be created with the current user's personal account.",
              deprecated: true
            },
-           build_system: %Schema{
-             type: :string,
-             description: "The build system used by the project. Defaults to xcode.",
-             enum: ["xcode", "gradle"]
-           }
+           build_system: BuildSystem.schema()
          }
        }},
     responses: %{

@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
@@ -108,6 +109,11 @@ defmodule TuistWeb.API.TestsController do
              description: "The CI provider.",
              enum: Tests.valid_ci_providers()
            },
+           gradle_build_id: %Schema{
+             type: :string,
+             description: "The UUID of an associated Gradle build."
+           },
+           build_system: BuildSystem.schema(),
            test_modules: %Schema{
              type: :array,
              description: "The test modules associated with the test run.",
@@ -239,7 +245,6 @@ defmodule TuistWeb.API.TestsController do
          required: [
            :duration,
            :test_modules,
-           :macos_version,
            :is_ci
          ]
        }},
@@ -423,9 +428,11 @@ defmodule TuistWeb.API.TestsController do
           ci_project_handle: Map.get(params, :ci_project_handle),
           ci_host: Map.get(params, :ci_host),
           ci_provider: Map.get(params, :ci_provider),
+          build_system: Map.get(params, :build_system, "xcode"),
           test_modules: Map.get(params, :test_modules, []),
           test_cases: Map.get(params, :test_cases, []),
-          build_run_id: Map.get(params, :build_run_id)
+          build_run_id: Map.get(params, :build_run_id),
+          gradle_build_id: Map.get(params, :gradle_build_id)
         })
     end
   end

@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistConfig
+import TuistDependencies
 import TuistLoader
 import TuistServer
 import XcodeGraph

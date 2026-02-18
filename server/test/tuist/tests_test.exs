@@ -241,6 +241,62 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "get_latest_test_by_gradle_build_id/1" do
+    test "returns test when it exists for gradle build" do
+      # Given
+      gradle_build_id = UUIDv7.generate()
+
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          gradle_build_id: gradle_build_id,
+          build_system: "gradle",
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      # When
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == test.id
+      assert found_test.gradle_build_id == gradle_build_id
+    end
+
+    test "returns the latest test when multiple tests exist for gradle build" do
+      # Given
+      gradle_build_id = UUIDv7.generate()
+
+      {:ok, _older_test} =
+        RunsFixtures.test_fixture(
+          gradle_build_id: gradle_build_id,
+          build_system: "gradle",
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      {:ok, latest_test} =
+        RunsFixtures.test_fixture(
+          gradle_build_id: gradle_build_id,
+          build_system: "gradle",
+          ran_at: ~N[2024-03-04 02:00:00]
+        )
+
+      # When
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == latest_test.id
+    end
+
+    test "returns error when no test exists for gradle build" do
+      # When
+      result = Tests.get_latest_test_by_gradle_build_id(UUIDv7.generate())
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
   describe "list_test_runs/1" do
     test "lists test runs with pagination" do
       # Given
@@ -3678,8 +3734,9 @@ defmodule Tuist.TestsTest do
 
       assert length(result) == 1
       group = hd(result)
-      assert group.passed_count == 0
+      assert group.passed_count == 1
       assert group.failed_count == 1
+      assert length(group.runs) == 2
     end
 
     test "groups multiple test cases separately" do

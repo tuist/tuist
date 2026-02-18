@@ -1385,6 +1385,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loader.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.dependencies.targetName),
                     .target(name: Module.generator.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),

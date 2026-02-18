@@ -117,6 +117,25 @@
         trend_type={:inverse}
         empty={@build_duration_analytics.total_average_duration == 0}
       />
+      <.widget
+        title={dgettext("dashboard_gradle", "Average test time")}
+        description={
+          dgettext(
+            "dashboard_gradle",
+            "Average time it takes to run tests during the selected period."
+          )
+        }
+        value={
+          dgettext("dashboard_gradle", "%{duration}s",
+            duration: Float.round(@test_duration_analytics.total_average_duration / 1000, 1)
+          )
+        }
+        id="widget-average-test-time"
+        trend_value={@test_duration_analytics.trend}
+        trend_label={@analytics_trend_label}
+        trend_type={:inverse}
+        empty={@test_duration_analytics.total_average_duration == 0}
+      />
     </div>
     <.card_section
       :if={@cache_hit_rate_analytics.avg_hit_rate != 0.0}
@@ -198,11 +217,97 @@
     <.empty_card_section
       :if={@cache_hit_rate_analytics.avg_hit_rate == 0.0}
       title={dgettext("dashboard_gradle", "No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/gradle"
+      get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
     >
       <:image>
         <img src="/images/empty_line_chart_light.png" data-theme="light" />
         <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card title={dgettext("dashboard_gradle", "Tests")} icon="subtask">
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_gradle", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+        disabled={Enum.empty?(@recent_test_runs)}
+      />
+    </:actions>
+    <.card_section :if={not Enum.empty?(@recent_test_runs)}>
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_gradle", "Passed runs")}
+            value={@passed_test_runs_count}
+            style="primary"
+          />
+          <.legend
+            title={dgettext("dashboard_gradle", "Failed runs")}
+            value={@failed_test_runs_count}
+            style="destructive"
+          />
+        </div>
+        <.chart
+          id="chart-single-test-run-duration"
+          type="bar"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              tooltip: %{
+                valueFormat: "fn:formatSeconds",
+                dateFormat: "minute"
+              },
+              xAxis: %{
+                axisLabel: %{show: false},
+                data: @recent_test_runs |> Enum.map(& &1.date)
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatSeconds"
+                }
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data: @recent_test_runs,
+              name: "Test Run",
+              type: "bar"
+            }
+          ]}
+          y_axis_min={0}
+          grid_lines
+          bar_width={8}
+          bar_radius={2}
+        />
+        <span data-part="label">{dgettext("dashboard_gradle", "Last 40 runs")}</span>
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@recent_test_runs)}
+      title={dgettext("dashboard_gradle", "Runs: no data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
+    >
+      <:image>
+        <img src="/images/empty_bar_chart_light.png" data-theme="light" />
+        <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
       </:image>
     </.empty_card_section>
   </.card>
@@ -358,7 +463,7 @@
       <.empty_card_section
         :if={Enum.empty?(@recent_build_runs)}
         title={dgettext("dashboard_gradle", "No recent builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/gradle"
+        get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
       >
         <:image>
           <img src="/images/empty_bar_chart_light.png" data-theme="light" />
@@ -459,7 +564,7 @@
       <.empty_card_section
         :if={@builds_duration_analytics.total_average_duration == 0}
         title={dgettext("dashboard_gradle", "No builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/gradle"
+        get_started_href="https://docs.tuist.dev/en/guides/install-gradle-plugin"
       >
         <:image>
           <img src="/images/empty_line_chart_light.png" data-theme="light" />
