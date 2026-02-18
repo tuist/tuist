@@ -19,7 +19,11 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  id-token: write
   contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 defaults:
   run:
@@ -38,6 +42,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
       - run: ./gradlew build -x test
 
   test:
@@ -52,4 +60,8 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
       - run: ./gradlew test
