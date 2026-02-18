@@ -77,82 +77,8 @@ window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
 // connect if there are any LiveViews on the page
 liveSocket.connect();
 
-let headSyncRequestId = 0;
-
-function upsertMetaTag(attribute, value, content) {
-  if (!content) return;
-
-  let tag = document.head.querySelector(`meta[${attribute}="${value}"]`);
-  if (!tag) {
-    tag = document.createElement("meta");
-    tag.setAttribute(attribute, value);
-    document.head.appendChild(tag);
-  }
-
-  tag.setAttribute("content", content);
-}
-
-function syncHeadMetaFromDocument(doc) {
-  const metaMappings = [
-    ["property", "og:image"],
-    ["property", "og:title"],
-    ["property", "og:description"],
-    ["name", "twitter:image"],
-    ["name", "twitter:card"],
-    ["name", "twitter:title"],
-  ];
-
-  metaMappings.forEach(([attribute, value]) => {
-    const content = doc.head.querySelector(`meta[${attribute}="${value}"]`)?.getAttribute("content");
-    upsertMetaTag(attribute, value, content);
-  });
-
-  if (doc.title) {
-    document.title = doc.title;
-  }
-}
-
-function shouldSyncDashboardMeta(pathname) {
-  return /^\/[^/]+\/[^/]+(?:\/|$)/.test(pathname);
-}
-
-function normalizeNavigateHref(event) {
-  return event?.detail?.href || event?.detail?.to || window.location.href;
-}
-
-async function syncHeadMetaOnLiveNavigate(href) {
-  const url = new URL(href, window.location.origin);
-  if (!shouldSyncDashboardMeta(url.pathname)) return;
-
-  const requestId = ++headSyncRequestId;
-
-  try {
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      credentials: "same-origin",
-      headers: { "x-requested-with": "XMLHttpRequest" },
-    });
-
-    if (!response.ok) return;
-
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("text/html")) return;
-
-    const html = await response.text();
-    if (requestId !== headSyncRequestId) return;
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    syncHeadMetaFromDocument(doc);
-  } catch (_error) {
-    // Ignore failures; metadata will still be correct on hard reload/direct visit.
-  }
-}
-
 // Analytics
-window.addEventListener("phx:navigate", (event) => {
-  syncHeadMetaOnLiveNavigate(normalizeNavigateHref(event));
-
+window.addEventListener("phx:navigate", (_info) => {
   if (globalThis.analytics.enabled) {
     // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
     posthog.capture("$pageview");
