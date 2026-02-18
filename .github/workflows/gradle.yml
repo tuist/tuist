@@ -30,24 +30,6 @@ defaults:
     working-directory: gradle
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: gradle/actions/setup-gradle@v4
-      - uses: jdx/mise-action@v2
-      - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
-        run: tuist auth login
-      - run: ./gradlew build -x test
-
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -64,24 +46,4 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Debug tuist cache config
-        if: github.event.pull_request.head.repo.fork != true
-        run: |
-          set +e
-          echo "=== without --json (to see error messages) ==="
-          tuist cache config 2>&1
-          echo "exit code: $?"
-          echo ""
-          echo "=== with --json (stdout + stderr combined) ==="
-          tuist cache config --json 2>&1
-          echo "exit code: $?"
-          echo ""
-          echo "=== tuist version ==="
-          tuist version 2>&1
-          echo ""
-          echo "=== which tuist ==="
-          which tuist
-          echo ""
-          echo "=== tuist.toml ==="
-          cat tuist.toml
       - run: ./gradlew test
