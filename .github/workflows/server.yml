@@ -602,7 +602,6 @@ jobs:
       TUIST_SECRET_KEY_TOKENS: ci-test-secret-key-tokens
       TUIST_SECRET_KEY_ENCRYPTION: ci-test-encryption-key-32-bytes!
       TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
-      TUIST_DEV_USE_REMOTE_STORAGE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
