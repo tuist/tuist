@@ -136,6 +136,8 @@
                 case .visionOS:
                     self = .visionos_simulator
                 }
+            case .android:
+                self = .android
             }
         }
     }

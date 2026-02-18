@@ -79,6 +79,8 @@
                 .app_bundle
             case .ipa:
                 .ipa
+            case .apk:
+                .apk
             }
             let response = try await client.startPreviewsMultipartUpload(
                 .init(

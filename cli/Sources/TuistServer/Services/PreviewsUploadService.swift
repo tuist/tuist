@@ -1,5 +1,6 @@
 #if canImport(TuistCore)
     import Command
+    import CryptoKit
     import FileSystem
     import Foundation
     import Mockable
@@ -11,9 +12,24 @@
     import TuistSimulator
     import TuistSupport
 
+    public struct APKMetadata: Equatable {
+        public let packageName: String
+        public let versionName: String
+        public let versionCode: String
+        public let displayName: String
+
+        public init(packageName: String, versionName: String, versionCode: String, displayName: String) {
+            self.packageName = packageName
+            self.versionName = versionName
+            self.versionCode = versionCode
+            self.displayName = displayName
+        }
+    }
+
     public enum PreviewUploadType: Equatable {
         case ipa(AppBundle)
         case appBundles([AppBundle])
+        case apk(path: AbsolutePath, metadata: APKMetadata)
     }
 
     public enum PreviewsUploadServiceError: LocalizedError, Equatable {
@@ -165,6 +181,32 @@
                 }
 
                 return preview
+
+            case let .apk(apkPath, metadata):
+                let bundleArchivePath = try await fileArchiver
+                    .makeFileArchiver(for: [apkPath])
+                    .zip(name: apkPath.basename)
+                let buildVersion = resolvedBuildVersion(metadata.versionCode)
+                let binaryId = try await apkBinaryId(at: apkPath)
+
+                let preview = try await uploadPreview(
+                    buildPath: bundleArchivePath,
+                    previewType: .apk,
+                    displayName: metadata.displayName,
+                    version: metadata.versionName,
+                    buildVersion: buildVersion,
+                    bundleIdentifier: metadata.packageName,
+                    icon: nil,
+                    supportedPlatforms: [.android],
+                    gitInfo: gitInfo,
+                    binaryId: binaryId,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    track: track,
+                    updateProgress: updateProgress
+                )
+
+                return preview
             }
         }
 
@@ -257,6 +299,8 @@
 
         private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
             switch previewUploadType {
+            case .apk:
+                return []
             case let .appBundles(appBundles):
                 return try await appBundles.concurrentMap { try await iconPaths(for: $0) }.flatMap { $0 }
             case let .ipa(appBundle):
@@ -329,6 +373,12 @@
                 throw PreviewsUploadServiceError.binaryIdNotFound(executablePath)
             }
             return uuid.uuidString
+        }
+
+        private func apkBinaryId(at path: AbsolutePath) async throws -> String {
+            let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
+            let digest = SHA256.hash(data: data)
+            return digest.map { String(format: "%02x", $0) }.joined()
         }
     }
 #endif

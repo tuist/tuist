@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Noora
@@ -23,6 +24,8 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
     case multipleAppsSpecified([String])
     case platformsNotSpecified
     case fullHandleNotFound
+    case aapt2NotFound
+    case aapt2ParsingFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -38,6 +41,10 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         case .fullHandleNotFound:
             return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
+        case .aapt2NotFound:
+            return "aapt2 is required to share APK files. Install it via the Android SDK (build-tools) and ensure it is in your PATH."
+        case let .aapt2ParsingFailed(path):
+            return "Failed to parse APK metadata from \(path). Ensure the file is a valid APK."
         }
     }
 }
@@ -145,7 +152,16 @@ struct ShareCommandService {
                 relativeTo: path
             )
         }
-        if appPaths.contains(where: { $0.extension == "ipa" }) {
+        if appPaths.contains(where: { $0.extension == "apk" }) {
+            try await shareAPK(
+                appPaths,
+                path: path,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                json: json,
+                track: track
+            )
+        } else if appPaths.contains(where: { $0.extension == "ipa" }) {
             try await shareIPA(
                 appPaths,
                 path: path,
@@ -279,6 +295,80 @@ struct ShareCommandService {
             json: json,
             track: track
         )
+    }
+
+    private func shareAPK(
+        _ appPaths: [AbsolutePath],
+        path: AbsolutePath,
+        fullHandle: String,
+        serverURL: URL,
+        json: Bool,
+        track: String?
+    ) async throws {
+        guard appPaths.count == 1,
+              let apkPath = appPaths.first
+        else { throw ShareCommandServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
+
+        let metadata = try await parseAPKMetadata(at: apkPath)
+
+        try await uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            displayName: metadata.displayName,
+            path: path,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            json: json,
+            track: track
+        )
+    }
+
+    private func parseAPKMetadata(at apkPath: AbsolutePath) async throws -> APKMetadata {
+        let commandRunner = CommandRunner()
+
+        let output: String
+        do {
+            output = try await commandRunner
+                .run(arguments: ["aapt2", "dump", "badging", apkPath.pathString])
+                .concatenatedString()
+        } catch {
+            throw ShareCommandServiceError.aapt2NotFound
+        }
+
+        var packageName: String?
+        var versionName: String?
+        var versionCode: String?
+        var applicationLabel: String?
+
+        for line in output.components(separatedBy: "\n") {
+            if line.hasPrefix("package:") {
+                packageName = extractValue(from: line, key: "name")
+                versionCode = extractValue(from: line, key: "versionCode")
+                versionName = extractValue(from: line, key: "versionName")
+            } else if line.hasPrefix("application-label:") {
+                applicationLabel = line
+                    .replacingOccurrences(of: "application-label:", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "'"))
+            }
+        }
+
+        guard let packageName, let versionName, let versionCode else {
+            throw ShareCommandServiceError.aapt2ParsingFailed(apkPath.pathString)
+        }
+
+        return APKMetadata(
+            packageName: packageName,
+            versionName: versionName,
+            versionCode: versionCode,
+            displayName: applicationLabel ?? apkPath.basenameWithoutExt
+        )
+    }
+
+    private func extractValue(from line: String, key: String) -> String? {
+        guard let range = line.range(of: "\(key)='") else { return nil }
+        let start = range.upperBound
+        guard let end = line[start...].firstIndex(of: "'") else { return nil }
+        return String(line[start ..< end])
     }
 
     private func shareAppBundles(

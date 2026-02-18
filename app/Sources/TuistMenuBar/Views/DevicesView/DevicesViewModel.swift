@@ -37,6 +37,8 @@ enum SimulatorsViewModelError: FatalError, Equatable {
                     return platform.caseValue
                 case let .simulator(platform):
                     return "\(platform.caseValue) simulator"
+                case .android:
+                    return "Android"
                 }
             }
             if platforms.isEmpty {

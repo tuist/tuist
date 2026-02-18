@@ -22,7 +22,7 @@ public struct ShareCommand: AsyncParsableCommand, TrackableParsableCommand {
     var path: String?
 
     @Argument(
-        help: "The app name to be looked up in the built products directory or the paths to the app bundles or an .ipa archive.",
+        help: "The app name to be looked up in the built products directory or the paths to the app bundles, an .ipa archive, or an .apk file.",
         envKey: .shareApp
     )
     var apps: [String] = []

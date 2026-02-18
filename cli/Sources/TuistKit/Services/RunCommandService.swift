@@ -267,7 +267,7 @@ struct RunCommandService {
         try await simulatorController.devicesAndRuntimes().filter { deviceAndRuntime in
             try preview.supportedPlatforms.contains { supportedPlatform in
                 switch supportedPlatform {
-                case .device:
+                case .device, .android:
                     return false
                 case let .simulator(platform):
                     return try deviceAndRuntime.runtime.platform() == platform

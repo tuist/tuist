@@ -299,7 +299,14 @@ defmodule Tuist.AppBuilds do
       :visionos -> "visionOS"
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
+      :android -> "Android"
     end
+  end
+
+  def latest_apk_app_build_for_preview(%Preview{} = preview) do
+    preview.app_builds
+    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    |> Enum.find(&(&1.type == :apk))
   end
 
   def latest_ipa_app_build_for_preview(%Preview{} = preview) do

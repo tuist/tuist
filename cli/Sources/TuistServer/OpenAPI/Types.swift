@@ -3593,6 +3593,7 @@ public enum Components {
             case visionos = "visionos"
             case visionos_simulator = "visionos_simulator"
             case macos = "macos"
+            case android = "android"
         }
         /// It represents an artifact that's associated with a command event (e.g. result bundles)
         ///
@@ -6336,6 +6337,17 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/build_run_id`.
             public var build_run_id: Swift.String?
+            /// The build system used by the project.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/build_system`.
+            @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case xcode = "xcode"
+                case gradle = "gradle"
+            }
+            /// The build system used by the project.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/build_system`.
+            public var build_system: Components.Schemas.TestParams.build_systemPayload?
             /// The CI host URL (optional, for self-hosted instances).
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/ci_host`.
@@ -6383,6 +6395,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/git_remote_url_origin`.
             public var git_remote_url_origin: Swift.String?
+            /// The UUID of an associated Gradle build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestParams/gradle_build_id`.
+            public var gradle_build_id: Swift.String?
             /// Indicates if the run was executed on a Continuous Integration (CI) system.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/is_ci`.
@@ -6390,7 +6406,7 @@ public enum Components {
             /// The version of macOS used during the run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/macos_version`.
-            public var macos_version: Swift.String
+            public var macos_version: Swift.String?
             /// Identifier for the model where the run was executed, such as MacBookAir10,1.
             ///
             /// - Remark: Generated from `#/components/schemas/TestParams/model_identifier`.
@@ -6712,6 +6728,7 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - build_run_id: The UUID of an associated build run.
+            ///   - build_system: The build system used by the project.
             ///   - ci_host: The CI host URL (optional, for self-hosted instances).
             ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
             ///   - ci_provider: The CI provider.
@@ -6721,6 +6738,7 @@ public enum Components {
             ///   - git_commit_sha: The commit SHA.
             ///   - git_ref: The git reference.
             ///   - git_remote_url_origin: The git remote URL origin.
+            ///   - gradle_build_id: The UUID of an associated Gradle build.
             ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
             ///   - macos_version: The version of macOS used during the run.
             ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -6730,6 +6748,7 @@ public enum Components {
             ///   - xcode_version: The version of Xcode used during the run.
             public init(
                 build_run_id: Swift.String? = nil,
+                build_system: Components.Schemas.TestParams.build_systemPayload? = nil,
                 ci_host: Swift.String? = nil,
                 ci_project_handle: Swift.String? = nil,
                 ci_provider: Components.Schemas.TestParams.ci_providerPayload? = nil,
@@ -6739,8 +6758,9 @@ public enum Components {
                 git_commit_sha: Swift.String? = nil,
                 git_ref: Swift.String? = nil,
                 git_remote_url_origin: Swift.String? = nil,
+                gradle_build_id: Swift.String? = nil,
                 is_ci: Swift.Bool,
-                macos_version: Swift.String,
+                macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.TestParams.statusPayload? = nil,
@@ -6748,6 +6768,7 @@ public enum Components {
                 xcode_version: Swift.String? = nil
             ) {
                 self.build_run_id = build_run_id
+                self.build_system = build_system
                 self.ci_host = ci_host
                 self.ci_project_handle = ci_project_handle
                 self.ci_provider = ci_provider
@@ -6757,6 +6778,7 @@ public enum Components {
                 self.git_commit_sha = git_commit_sha
                 self.git_ref = git_ref
                 self.git_remote_url_origin = git_remote_url_origin
+                self.gradle_build_id = gradle_build_id
                 self.is_ci = is_ci
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
@@ -6767,6 +6789,7 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case build_run_id
+                case build_system
                 case ci_host
                 case ci_project_handle
                 case ci_provider
@@ -6776,6 +6799,7 @@ public enum Components {
                 case git_commit_sha
                 case git_ref
                 case git_remote_url_origin
+                case gradle_build_id
                 case is_ci
                 case macos_version
                 case model_identifier
@@ -7315,6 +7339,7 @@ public enum Components {
             @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case app_bundle = "app_bundle"
                 case ipa = "ipa"
+                case apk = "apk"
             }
             /// The type of the build
             ///
@@ -10395,11 +10420,11 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The Mach-O UUID of the binary
+                    /// A unique identifier for the binary (Mach-O UUID for Apple platforms, SHA256 hash for Android).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/binary_id`.
                     public var binary_id: Swift.String?
-                    /// The CFBundleVersion of the app.
+                    /// The build version of the app (CFBundleVersion for Apple platforms, versionCode for Android).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/start/POST/requestBody/json/build_version`.
                     public var build_version: Swift.String?
@@ -10437,6 +10462,7 @@ public enum Operations {
                     @frozen public enum _typePayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case app_bundle = "app_bundle"
                         case ipa = "ipa"
+                        case apk = "apk"
                     }
                     /// The type of the preview to upload.
                     ///
@@ -10449,8 +10475,8 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - binary_id: The Mach-O UUID of the binary
-                    ///   - build_version: The CFBundleVersion of the app.
+                    ///   - binary_id: A unique identifier for the binary (Mach-O UUID for Apple platforms, SHA256 hash for Android).
+                    ///   - build_version: The build version of the app (CFBundleVersion for Apple platforms, versionCode for Android).
                     ///   - bundle_identifier: The bundle identifier of the preview.
                     ///   - display_name: The display name of the preview.
                     ///   - git_branch: The git branch associated with the preview.
@@ -13775,14 +13801,14 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The build system used by the project. Defaults to xcode.
+                    /// The build system used by the project.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/build_system`.
                     @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case xcode = "xcode"
                         case gradle = "gradle"
                     }
-                    /// The build system used by the project. Defaults to xcode.
+                    /// The build system used by the project.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/POST/requestBody/json/build_system`.
                     public var build_system: Operations.createProject.Input.Body.jsonPayload.build_systemPayload?
@@ -13803,7 +13829,7 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - build_system: The build system used by the project. Defaults to xcode.
+                    ///   - build_system: The build system used by the project.
                     ///   - full_handle: The full handle of the project that should be created.
                     ///   - name: The name of the project that should be created.
                     ///   - organization: Organization to create the project with. If not specified, the project will be created with the current user's personal account.
@@ -23169,6 +23195,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/gradle_version`.
                     public var gradle_version: Swift.String?
+                    /// Client-provided build ID (UUID).
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// Whether the build ran on CI.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/is_ci`.
@@ -23292,6 +23322,7 @@ public enum Operations {
                     ///   - git_commit_sha: Git commit SHA.
                     ///   - git_ref: Git ref.
                     ///   - gradle_version: Gradle version.
+                    ///   - id: Client-provided build ID (UUID).
                     ///   - is_ci: Whether the build ran on CI.
                     ///   - java_version: Java version.
                     ///   - root_project_name: Root project name.
@@ -23303,6 +23334,7 @@ public enum Operations {
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         gradle_version: Swift.String? = nil,
+                        id: Swift.String? = nil,
                         is_ci: Swift.Bool? = nil,
                         java_version: Swift.String? = nil,
                         root_project_name: Swift.String? = nil,
@@ -23314,6 +23346,7 @@ public enum Operations {
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.gradle_version = gradle_version
+                        self.id = id
                         self.is_ci = is_ci
                         self.java_version = java_version
                         self.root_project_name = root_project_name
@@ -23326,6 +23359,7 @@ public enum Operations {
                         case git_commit_sha
                         case git_ref
                         case gradle_version
+                        case id
                         case is_ci
                         case java_version
                         case root_project_name
@@ -37256,6 +37290,17 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_run_id`.
                     public var build_run_id: Swift.String?
+                    /// The build system used by the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_system`.
+                    @frozen public enum build_systemPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case xcode = "xcode"
+                        case gradle = "gradle"
+                    }
+                    /// The build system used by the project.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/build_system`.
+                    public var build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload?
                     /// The CI host URL (optional, for self-hosted instances).
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/ci_host`.
@@ -37303,6 +37348,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/git_remote_url_origin`.
                     public var git_remote_url_origin: Swift.String?
+                    /// The UUID of an associated Gradle build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/gradle_build_id`.
+                    public var gradle_build_id: Swift.String?
                     /// Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/is_ci`.
@@ -37310,7 +37359,7 @@ public enum Operations {
                     /// The version of macOS used during the run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/macos_version`.
-                    public var macos_version: Swift.String
+                    public var macos_version: Swift.String?
                     /// Identifier for the model where the run was executed, such as MacBookAir10,1.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/POST/requestBody/json/model_identifier`.
@@ -37632,6 +37681,7 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - build_run_id: The UUID of an associated build run.
+                    ///   - build_system: The build system used by the project.
                     ///   - ci_host: The CI host URL (optional, for self-hosted instances).
                     ///   - ci_project_handle: The CI project handle (e.g., 'owner/repo' for GitHub, project path for GitLab).
                     ///   - ci_provider: The CI provider.
@@ -37641,6 +37691,7 @@ public enum Operations {
                     ///   - git_commit_sha: The commit SHA.
                     ///   - git_ref: The git reference.
                     ///   - git_remote_url_origin: The git remote URL origin.
+                    ///   - gradle_build_id: The UUID of an associated Gradle build.
                     ///   - is_ci: Indicates if the run was executed on a Continuous Integration (CI) system.
                     ///   - macos_version: The version of macOS used during the run.
                     ///   - model_identifier: Identifier for the model where the run was executed, such as MacBookAir10,1.
@@ -37650,6 +37701,7 @@ public enum Operations {
                     ///   - xcode_version: The version of Xcode used during the run.
                     public init(
                         build_run_id: Swift.String? = nil,
+                        build_system: Operations.createTest.Input.Body.jsonPayload.build_systemPayload? = nil,
                         ci_host: Swift.String? = nil,
                         ci_project_handle: Swift.String? = nil,
                         ci_provider: Operations.createTest.Input.Body.jsonPayload.ci_providerPayload? = nil,
@@ -37659,8 +37711,9 @@ public enum Operations {
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
                         git_remote_url_origin: Swift.String? = nil,
+                        gradle_build_id: Swift.String? = nil,
                         is_ci: Swift.Bool,
-                        macos_version: Swift.String,
+                        macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
                         scheme: Swift.String? = nil,
                         status: Operations.createTest.Input.Body.jsonPayload.statusPayload? = nil,
@@ -37668,6 +37721,7 @@ public enum Operations {
                         xcode_version: Swift.String? = nil
                     ) {
                         self.build_run_id = build_run_id
+                        self.build_system = build_system
                         self.ci_host = ci_host
                         self.ci_project_handle = ci_project_handle
                         self.ci_provider = ci_provider
@@ -37677,6 +37731,7 @@ public enum Operations {
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
                         self.git_remote_url_origin = git_remote_url_origin
+                        self.gradle_build_id = gradle_build_id
                         self.is_ci = is_ci
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
@@ -37687,6 +37742,7 @@ public enum Operations {
                     }
                     public enum CodingKeys: String, CodingKey {
                         case build_run_id
+                        case build_system
                         case ci_host
                         case ci_project_handle
                         case ci_provider
@@ -37696,6 +37752,7 @@ public enum Operations {
                         case git_commit_sha
                         case git_ref
                         case git_remote_url_origin
+                        case gradle_build_id
                         case is_ci
                         case macos_version
                         case model_identifier

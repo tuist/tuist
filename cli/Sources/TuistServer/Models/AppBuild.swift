@@ -40,7 +40,7 @@
     #endif
 
     public enum AppBuildType: Sendable, Equatable, Codable {
-        case appBundle, ipa
+        case appBundle, ipa, apk
     }
 
     extension AppBuildType {
@@ -50,6 +50,8 @@
                 self = .appBundle
             case .ipa:
                 self = .ipa
+            case .apk:
+                self = .apk
             }
         }
     }

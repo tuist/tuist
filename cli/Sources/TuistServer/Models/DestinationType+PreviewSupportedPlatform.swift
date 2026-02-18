@@ -23,6 +23,8 @@
                 self = .simulator(.visionOS)
             case .macos:
                 self = .device(.macOS)
+            case .android:
+                self = .android
             }
         }
     }
