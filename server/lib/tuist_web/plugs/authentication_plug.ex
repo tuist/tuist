@@ -8,10 +8,10 @@ defmodule TuistWeb.AuthenticationPlug do
 
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
-  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias TuistWeb.Headers
+  alias TuistWeb.RequestOrigin
   alias TuistWeb.WarningsHeaderPlug
 
   @mcp_resource_metadata_path "/.well-known/oauth-protected-resource/mcp"
@@ -46,7 +46,7 @@ defmodule TuistWeb.AuthenticationPlug do
           conn
           |> put_resp_header(
             "www-authenticate",
-            ~s(Bearer realm="tuist-mcp", resource_metadata="#{Environment.app_url()}#{@mcp_resource_metadata_path}")
+            ~s(Bearer realm="tuist-mcp", resource_metadata="#{RequestOrigin.from_conn(conn)}#{@mcp_resource_metadata_path}")
           )
           |> put_status(:unauthorized)
           |> json(%{

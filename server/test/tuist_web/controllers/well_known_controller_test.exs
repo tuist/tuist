@@ -56,16 +56,27 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   describe "GET /.well-known/oauth-protected-resource/mcp" do
     test "returns MCP protected resource metadata", %{conn: conn} do
-      stub(Environment, :app_url, fn -> "https://test.tuist.dev" end)
-
       conn = get(conn, "/.well-known/oauth-protected-resource/mcp")
 
       response = json_response(conn, 200)
 
-      assert response["resource"] == "https://test.tuist.dev/mcp"
-      assert response["authorization_servers"] == ["https://test.tuist.dev"]
+      assert response["resource"] == "http://www.example.com/mcp"
+      assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
-      assert response["resource_documentation"] =~ "/guides/features/agentic-coding/mcp"
+      refute Map.has_key?(response, "resource_documentation")
+    end
+
+    test "uses request origin including non-default port", %{conn: conn} do
+      conn =
+        conn
+        |> Map.put(:host, "custom.tuist.dev")
+        |> Map.put(:port, 8443)
+        |> get("/.well-known/oauth-protected-resource/mcp")
+
+      response = json_response(conn, 200)
+
+      assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
+      assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
     end
   end
 

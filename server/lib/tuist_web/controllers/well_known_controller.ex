@@ -3,6 +3,7 @@ defmodule TuistWeb.WellKnownController do
 
   alias Tuist.Environment
   alias Tuist.Namespace.JWTToken
+  alias TuistWeb.RequestOrigin
 
   @mcp_path "/mcp"
   @oauth_token_path "/oauth2/token"
@@ -62,14 +63,13 @@ defmodule TuistWeb.WellKnownController do
   Returns OAuth Protected Resource metadata for the MCP endpoint.
   """
   def oauth_protected_resource(conn, %{"resource_path" => ["mcp"]}) do
-    app_url = Environment.app_url()
+    app_url = RequestOrigin.from_conn(conn)
 
     metadata = %{
       resource: "#{app_url}#{@mcp_path}",
       authorization_servers: [app_url],
       bearer_methods_supported: ["header"],
-      scopes_supported: [],
-      resource_documentation: "#{app_url}/docs/en/guides/features/agentic-coding/mcp"
+      scopes_supported: []
     }
 
     conn
