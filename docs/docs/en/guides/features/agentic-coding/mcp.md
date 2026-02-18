@@ -37,6 +37,13 @@ Tuist uses the MCP Streamable HTTP transport. Clients should support:
 
 Refer to your MCP client's documentation for how to add a remote (HTTP-based) MCP server.
 
+## Rate Limiting
+
+MCP requests are rate-limited per authenticated subject.
+
+If your client receives HTTP `429 Too Many Requests`, wait briefly and retry.
+This is usually caused by rapid startup retries or repeated reconnect loops.
+
 ## Capabilities
 
 ### Tools

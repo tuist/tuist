@@ -610,6 +610,20 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Returns the bucket size for the MCP rate limiter.
+
+  The default values are:
+  - 600 requests for canary environments
+  - 120 requests for other environments (production, staging, dev)
+  """
+  def mcp_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:mcp_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 600, else: 120
+    end
+  end
+
   def app_url(opts \\ [], secrets \\ secrets()) do
     path = opts |> Keyword.get(:path, "/") |> String.trim_trailing("/")
 

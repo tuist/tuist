@@ -8,7 +8,7 @@ defmodule TuistWeb.Plugs.MCPRateLimitPlug do
   def init(opts), do: opts
 
   def call(%Plug.Conn{} = conn, _opts) do
-    case RateLimit.Auth.hit(conn) do
+    case RateLimit.MCP.hit(conn) do
       {:allow, _} ->
         conn
 

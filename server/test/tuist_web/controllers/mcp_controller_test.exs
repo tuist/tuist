@@ -23,7 +23,7 @@ defmodule TuistWeb.MCPControllerTest do
 
     test "returns 202 for initialize over streamable transport", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
-      stub(RateLimit.Auth, :hit, fn _conn -> {:allow, 1} end)
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
       conn =
         conn
@@ -40,7 +40,7 @@ defmodule TuistWeb.MCPControllerTest do
 
     test "returns protocol error when session is not initialized", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
-      stub(RateLimit.Auth, :hit, fn _conn -> {:allow, 1} end)
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
       conn =
         conn
@@ -61,7 +61,7 @@ defmodule TuistWeb.MCPControllerTest do
 
     test "returns 202 for notifications", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
-      stub(RateLimit.Auth, :hit, fn _conn -> {:allow, 1} end)
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
       conn =
         conn
@@ -77,7 +77,7 @@ defmodule TuistWeb.MCPControllerTest do
 
     test "returns rate limit error when rate limited", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
-      stub(RateLimit.Auth, :hit, fn _conn -> {:deny, 0} end)
+      stub(RateLimit.MCP, :hit, fn _conn -> {:deny, 0} end)
 
       conn =
         conn
