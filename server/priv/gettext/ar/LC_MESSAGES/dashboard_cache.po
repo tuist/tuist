@@ -613,3 +613,12 @@ msgstr "الحجم (كيلوبايت)"
 #, fuzzy
 msgid "Space usage (%)"
 msgstr "استخدام المسافات (٪)"
+
+msgid "AAB"
+msgstr ""
+
+msgid "APK"
+msgstr ""
+
+msgid "Package name"
+msgstr ""

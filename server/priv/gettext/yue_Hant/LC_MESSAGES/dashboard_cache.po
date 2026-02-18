@@ -454,3 +454,12 @@ msgstr ""
 
 msgid "Space usage (%)"
 msgstr ""
+
+msgid "AAB"
+msgstr ""
+
+msgid "APK"
+msgstr ""
+
+msgid "Package name"
+msgstr ""

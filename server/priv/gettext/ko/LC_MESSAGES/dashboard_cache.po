@@ -479,3 +479,12 @@ msgstr "크기 (KB)"
 #, fuzzy
 msgid "Space usage (%)"
 msgstr "공백 사용률 (%)"
+
+msgid "AAB"
+msgstr ""
+
+msgid "APK"
+msgstr ""
+
+msgid "Package name"
+msgstr ""

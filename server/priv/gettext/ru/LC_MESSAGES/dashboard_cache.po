@@ -613,3 +613,12 @@ msgstr "Размер (КБ)"
 #, fuzzy
 msgid "Space usage (%)"
 msgstr "Использование пробелов (%)"
+
+msgid "AAB"
+msgstr ""
+
+msgid "APK"
+msgstr ""
+
+msgid "Package name"
+msgstr ""
