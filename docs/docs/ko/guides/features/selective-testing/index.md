@@ -23,10 +23,10 @@
 향후 실행 시 `tuist test` 은 해시(hash)를 투명하게 활용하여 테스트를 필터링하여, 마지막 성공적인 테스트 실행 이후 변경된
 테스트만 실행합니다.
 
-예를 들어, 다음과 같은 종속성 그래프를 가정합니다:
+예를 들어, 다음과 같은 의존성 그래프를 가정합니다:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
+- `FeatureA` has tests `FeatureATests`, and has 의존성 `Core`
+- `FeatureB` has tests `FeatureBTests`, and has 의존성 `Core`
 - `Core` 에는 테스트가 있습니다 `CoreTests`
 
 `tuist test` 는 다음과 같이 동작합니다:
@@ -34,13 +34,13 @@
 | 액션                     | 설명                                                                    | 내부 상태                                                                      |
 | ---------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `tuist 테스트` 호출         | `의 CoreTests(`), `의 FeatureATests(`), `의 FeatureBTests에서 테스트를 실행합니다.` | `의 FeatureATests(`), `의 FeatureBTests(` ), `의 CoreTests(` ) 해시값은 영구 저장됩니다. |
-| `FeatureA` 이 업데이트되었습니다 | 개발자는 대상의 코드를 수정합니다.                                                   | 이전과 동일                                                                     |
+| `FeatureA` 이 업데이트되었습니다 | 개발자는 Target의 코드를 수정합니다.                                               | 이전과 동일                                                                     |
 | `tuist 테스트` 호출         | `에서 FeatureATests 테스트 실행 중` 해시 변경으로 인해                                | `FeatureATests의 새 해시` 이 저장됩니다.                                             |
-| `Core` 업데이트됨           | 개발자는 대상의 코드를 수정합니다.                                                   | 이전과 동일                                                                     |
-| `tuist 테스트` 호출         | `의 CoreTests(`), `의 FeatureATests(`), `의 FeatureBTests에서 테스트를 실행합니다.` | `의 새 해시 FeatureATests` `FeatureBTests`, 그리고 `CoreTests` 가 지속됩니다.           |
+| `Core` 업데이트됨           | 개발자는 Target의 코드를 수정합니다.                                               | 이전과 동일                                                                     |
+| `tuist 테스트` 호출         | `의 CoreTests(`), `의 FeatureATests(`), `의 FeatureBTests에서 테스트를 실행합니다.` | `의 새 해시 FeatureATests` `FeatureBTests`, 그리고 `CoreTests` 은 지속됩니다            |
 
-`tuist 테스트` 는 바이너리 캐싱과 직접 연동되어 로컬 또는 원격 저장소의 바이너리를 최대한 활용하여 테스트 스위트 실행 시 빌드 시간을
-단축합니다. 선택적 테스트와 바이너리 캐싱의 결합은 CI 환경에서 테스트 실행 시간을 획기적으로 줄일 수 있습니다.
+`tuist 테스트` 는 {1}모듈 캐시{2}와 직접 연동되어 로컬 또는 원격 저장소의 바이너리를 최대한 활용하여 테스트 스위트 실행 시 빌드
+시간을 단축합니다. 선택적 테스트와 모듈 캐싱의 조합은 CI 환경에서 테스트 실행 시간을 획기적으로 줄일 수 있습니다.
 
 ## UI 테스트 {#ui-tests}
 
