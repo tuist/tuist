@@ -7,7 +7,7 @@ struct InspectBundleCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "bundle",
-            abstract: "Inspects an app bundle. The app bundle has to be either `.app`, `.xcarchive` or `.ipa`."
+            abstract: "Inspects an app bundle. The app bundle has to be either `.app`, `.xcarchive`, `.ipa`, `.aab`, or `.apk`."
         )
     }
 

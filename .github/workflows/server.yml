@@ -456,6 +456,8 @@ jobs:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
       - run: mise run install
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       # We move it so that we can copy it inside the Docker image for
       # reproducibility of dependency resolution.
       - name: Docker build

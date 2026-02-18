@@ -1906,6 +1906,8 @@ public enum Components {
                     case ipa = "ipa"
                     case app = "app"
                     case xcarchive = "xcarchive"
+                    case aab = "aab"
+                    case apk = "apk"
                 }
                 /// The type of the bundle
                 ///
@@ -7245,6 +7247,7 @@ public enum Components {
             case visionos = "visionos"
             case visionos_simulator = "visionos_simulator"
             case macos = "macos"
+            case android = "android"
         }
         /// The artifact exists in the cache and can be downloaded
         ///
@@ -12705,6 +12708,8 @@ public enum Operations {
                             case ipa = "ipa"
                             case app = "app"
                             case xcarchive = "xcarchive"
+                            case aab = "aab"
+                            case apk = "apk"
                         }
                         /// The type of the bundle
                         ///

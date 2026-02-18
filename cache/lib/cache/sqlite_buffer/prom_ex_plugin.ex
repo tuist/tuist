@@ -56,10 +56,10 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
           measurement: :key_values,
           description: "Queued key-value upserts."
         ),
-        last_value([:tuist_cache, :sqlite_buffer, :pending, :cas_artifacts],
+        last_value([:tuist_cache, :sqlite_buffer, :pending, :cache_artifacts],
           event_name: [:cache, :prom_ex, :sqlite_buffer, :queue],
-          measurement: :cas_artifacts,
-          description: "Queued CAS artifact updates and deletes."
+          measurement: :cache_artifacts,
+          description: "Queued cache artifact updates and deletes."
         ),
         last_value([:tuist_cache, :sqlite_buffer, :pending, :s3_transfers],
           event_name: [:cache, :prom_ex, :sqlite_buffer, :queue],
@@ -86,15 +86,15 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
       :ok
     else
       key_values = Map.get(stats_by_buffer[Cache.KeyValueBuffer] || %{}, :key_values, 0)
-      cas_artifacts = Map.get(stats_by_buffer[Cache.CacheArtifactsBuffer] || %{}, :cas_artifacts, 0)
+      cache_artifacts = Map.get(stats_by_buffer[Cache.CacheArtifactsBuffer] || %{}, :cache_artifacts, 0)
       s3_transfers = Map.get(stats_by_buffer[Cache.S3TransfersBuffer] || %{}, :s3_transfers, 0)
 
       :telemetry.execute(
         [:cache, :prom_ex, :sqlite_buffer, :queue],
         %{
-          total: key_values + cas_artifacts + s3_transfers,
+          total: key_values + cache_artifacts + s3_transfers,
           key_values: key_values,
-          cas_artifacts: cas_artifacts,
+          cache_artifacts: cache_artifacts,
           s3_transfers: s3_transfers
         },
         %{}

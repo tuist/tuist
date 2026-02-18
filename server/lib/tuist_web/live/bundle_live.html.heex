@@ -63,7 +63,11 @@
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_cache", "Bundle ID")}</div>
+            <div data-part="title">
+              {if :android in @bundle.supported_platforms,
+                do: dgettext("dashboard_cache", "Package name"),
+                else: dgettext("dashboard_cache", "Bundle ID")}
+            </div>
             <span data-part="label">
               {@bundle.app_bundle_id}
             </span>
@@ -272,6 +276,7 @@
           <.table
             id="bundle-size-analysis-sunburst-chart-table"
             rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
+            row_key={fn artifact -> artifact.path || artifact.name end}
             row_click={
               fn artifact ->
                 if Map.get(artifact, :collapsed?) do

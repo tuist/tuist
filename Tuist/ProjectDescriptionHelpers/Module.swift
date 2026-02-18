@@ -1011,6 +1011,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.oidc.targetName),
@@ -1023,6 +1024,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.encodable.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "Logging"),
+                    .external(name: "Noora"),
                     .external(name: "SwiftToolsSupport"),
                 ]
             case .authCommand:

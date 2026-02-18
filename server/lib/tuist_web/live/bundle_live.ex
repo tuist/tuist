@@ -994,6 +994,8 @@ defmodule TuistWeb.BundleLive do
   def format_bundle_type(:ipa), do: dgettext("dashboard_cache", "IPA")
   def format_bundle_type(:app), do: dgettext("dashboard_cache", "App bundle")
   def format_bundle_type(:xcarchive), do: dgettext("dashboard_cache", "XCArchive")
+  def format_bundle_type(:aab), do: dgettext("dashboard_cache", "AAB")
+  def format_bundle_type(:apk), do: dgettext("dashboard_cache", "APK")
   def format_bundle_type(_), do: dgettext("dashboard_cache", "Unknown")
 
   defp define_file_breakdown_filters do

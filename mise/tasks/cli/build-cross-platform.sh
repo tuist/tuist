@@ -13,7 +13,7 @@ if [ "$usage_linux_vm" = "true" ]; then
     $CONTAINER_ENGINE run --rm \
             --volume "$MISE_PROJECT_ROOT:/package" \
             --workdir "/package" \
-            swift:6.1 \
+            swift:6.2 \
             swift build --target tuist --build-path .build-linux --replace-scm-with-registry
 else
     swift build --target tuist --replace-scm-with-registry

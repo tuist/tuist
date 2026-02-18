@@ -1,0 +1,68 @@
+<div id="ops-cache">
+  <.card title="Cache Endpoints" icon="server">
+    <.card_section>
+      <.table id="cache-endpoints-table" rows={@endpoints}>
+        <:col :let={endpoint} label="Display Name">
+          <.text_cell label={endpoint.display_name} />
+        </:col>
+        <:col :let={endpoint} label="URL">
+          <.text_cell label={endpoint.url} />
+        </:col>
+        <:col :let={endpoint} label="Status">
+          <.text_cell label={if endpoint.enabled, do: "Enabled", else: "Disabled"} />
+        </:col>
+        <:col :let={endpoint} label="Actions">
+          <div data-part="actions">
+            <.button
+              variant="secondary"
+              label={if endpoint.enabled, do: "Disable", else: "Enable"}
+              phx-click="toggle_enabled"
+              phx-value-id={endpoint.id}
+            />
+            <.button
+              variant="secondary"
+              label="Delete"
+              phx-click="delete"
+              phx-value-id={endpoint.id}
+            />
+          </div>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="server"
+            title="No cache endpoints"
+            subtitle="Add a cache endpoint to get started."
+          />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+
+  <.card title="Add Cache Endpoint" icon="circle_plus">
+    <.card_section>
+      <form phx-submit="add" data-part="add-form">
+        <div data-part="field">
+          <label for="url">URL</label>
+          <input
+            type="text"
+            name="url"
+            id="url"
+            placeholder="https://cache-node.tuist.dev"
+            required
+          />
+        </div>
+        <div data-part="field">
+          <label for="display_name">Display Name</label>
+          <input
+            type="text"
+            name="display_name"
+            id="display_name"
+            placeholder="EU Central"
+            required
+          />
+        </div>
+        <.button type="submit" label="Add Endpoint" />
+      </form>
+    </.card_section>
+  </.card>
+</div>

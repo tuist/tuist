@@ -628,4 +628,5 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   defp bundle_size_metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
   defp bundle_size_metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
+  defp bundle_size_metric_label(_), do: ""
 end

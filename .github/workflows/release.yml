@@ -496,7 +496,7 @@ jobs:
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: ${{ matrix.runner }}
     container:
-      image: swift:6.1
+      image: swift:6.2
     timeout-minutes: 30
     strategy:
       matrix:
@@ -515,7 +515,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.swiftpm/swift-sdks
-          key: static-linux-sdk-swift-6.1.2-${{ matrix.arch }}
+          key: static-linux-sdk-swift-6.2.3-${{ matrix.arch }}
 
       - name: Restore cache
         id: cache-restore
@@ -724,6 +724,9 @@ jobs:
             git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -810,6 +813,9 @@ jobs:
           else
             git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -912,11 +918,6 @@ jobs:
           else
             git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
-
-      - name: Update minimum Tuist CLI version
-        if: needs.check-releases.outputs.cli-should-release == 'true'
-        run: |
-          sed -i 's/const val MINIMUM_REQUIRED = ".*"/const val MINIMUM_REQUIRED = "${{ needs.check-releases.outputs.cli-next-version-number }}"/' gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt
 
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle

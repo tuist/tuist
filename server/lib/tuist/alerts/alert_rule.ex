@@ -14,6 +14,8 @@ defmodule Tuist.Alerts.AlertRule do
 
   @categories [build_run_duration: 0, test_run_duration: 1, cache_hit_rate: 2, bundle_size: 3]
   @metrics [p50: 0, p90: 1, p99: 2, average: 3, install_size: 4, download_size: 5]
+  @bundle_size_metrics [:install_size, :download_size]
+  @duration_metrics [:p50, :p90, :p99, :average]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -62,16 +64,41 @@ defmodule Tuist.Alerts.AlertRule do
   end
 
   defp validate_category_fields(changeset) do
-    case get_field(changeset, :category) do
-      :bundle_size ->
-        validate_required(changeset, [:git_branch])
+    category = get_field(changeset, :category)
+    metric = get_field(changeset, :metric)
 
-      _ ->
-        changeset
-        |> validate_required([:rolling_window_size])
-        |> validate_number(:rolling_window_size, greater_than: 0)
+    changeset =
+      case category do
+        :bundle_size ->
+          validate_required(changeset, [:git_branch])
+
+        _ ->
+          changeset
+          |> validate_required([:rolling_window_size])
+          |> validate_number(:rolling_window_size, greater_than: 0)
+      end
+
+    validate_metric_for_category(changeset, category, metric)
+  end
+
+  defp validate_metric_for_category(changeset, :bundle_size, metric) when not is_nil(metric) do
+    if metric in @bundle_size_metrics do
+      changeset
+    else
+      add_error(changeset, :metric, "is invalid for bundle_size category")
     end
   end
+
+  defp validate_metric_for_category(changeset, category, metric)
+       when category in [:build_run_duration, :test_run_duration, :cache_hit_rate] and not is_nil(metric) do
+    if metric in @duration_metrics do
+      changeset
+    else
+      add_error(changeset, :metric, "is invalid for #{category} category")
+    end
+  end
+
+  defp validate_metric_for_category(changeset, _category, _metric), do: changeset
 
   def categories, do: @categories
   def metrics, do: @metrics
