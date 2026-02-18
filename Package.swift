@@ -101,7 +101,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     .product(name: "HTTPTypes", package: "apple.swift-http-types"),
     .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
-    .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
+    .product(name: "Rosalind", package: "tuist.Rosalind"),
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
     "TuistConstants",
@@ -1473,7 +1473,7 @@ let package = Package(
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.45")),
         .package(id: "modelcontextprotocol.swift-sdk", .upToNextMajor(from: "0.9.0")),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.6.0")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.0")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
