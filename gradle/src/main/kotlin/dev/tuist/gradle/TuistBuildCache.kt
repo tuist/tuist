@@ -163,16 +163,6 @@ class TuistCommandConfigurationProvider(
         // When a project handle is provided explicitly, run in a temp directory to
         // avoid tuist detecting any project context. When relying on tuist.toml,
         // run in the project directory so the CLI can find the config file.
-        // Resolve the executable to an absolute path before switching to the temp
-        // directory so that version-manager shims (e.g. mise) that rely on the
-        // working directory to locate their config still resolve correctly.
-        val resolvedCommand = if (!project.isNullOrBlank()) {
-            fullCommand.mapIndexed { index, arg ->
-                if (index == 0) resolveExecutablePath(arg) else arg
-            }
-        } else {
-            fullCommand
-        }
         val workDir = if (!project.isNullOrBlank()) {
             java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
         } else {
@@ -180,16 +170,21 @@ class TuistCommandConfigurationProvider(
         }
         val cleanupTempDir = !project.isNullOrBlank()
         try {
-            val processBuilder = ProcessBuilder(resolvedCommand)
+            val processBuilder = ProcessBuilder(fullCommand)
                 .apply { workDir?.let { directory(it) } }
                 .redirectErrorStream(false)
 
             if (!project.isNullOrBlank()) {
-                // Clear environment variables that might leak project context to tuist
                 val env = processBuilder.environment()
+                // Clear environment variables that might leak project context to tuist
                 env.remove("PWD")
                 env.remove("TUIST_CONFIG_PATH")
                 env.remove("TUIST_CURRENT_DIRECTORY")
+                // Preserve the project directory for version-manager shims (e.g. mise)
+                // that rely on the working directory to locate their config.
+                if (projectDir != null) {
+                    env["MISE_PROJECT_DIR"] = projectDir.absolutePath
+                }
             }
 
             val process = processBuilder.start()
@@ -222,18 +217,6 @@ class TuistCommandConfigurationProvider(
         }
     }
 
-    private fun resolveExecutablePath(executable: String): String {
-        if (java.io.File(executable).isAbsolute) return executable
-        return try {
-            val process = ProcessBuilder("which", executable)
-                .redirectErrorStream(true)
-                .start()
-            val path = BufferedReader(InputStreamReader(process.inputStream)).use { it.readLine()?.trim() }
-            if (process.waitFor() == 0 && !path.isNullOrBlank()) path else executable
-        } catch (e: Exception) {
-            executable
-        }
-    }
 }
 
 /**
