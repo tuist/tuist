@@ -67,12 +67,21 @@ jobs:
       - name: Debug tuist cache config
         if: github.event.pull_request.head.repo.fork != true
         run: |
-          echo "=== stdout ==="
-          tuist cache config --json 2>/dev/null || true
+          set +e
+          echo "=== without --json (to see error messages) ==="
+          tuist cache config 2>&1
+          echo "exit code: $?"
           echo ""
-          echo "=== stderr ==="
-          tuist cache config --json 1>/dev/null 2>&1 || true
+          echo "=== with --json (stdout + stderr combined) ==="
+          tuist cache config --json 2>&1
+          echo "exit code: $?"
           echo ""
-          echo "=== with --url ==="
-          tuist cache config --json --url https://tuist.dev 2>/dev/null || true
+          echo "=== tuist version ==="
+          tuist version 2>&1
+          echo ""
+          echo "=== which tuist ==="
+          which tuist
+          echo ""
+          echo "=== tuist.toml ==="
+          cat tuist.toml
       - run: ./gradlew test
