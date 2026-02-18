@@ -11,6 +11,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @allowed_sort_fields ~w(name last_ran_at)
@@ -22,6 +23,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Quarantined Tests")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("quarantined-tests"))
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

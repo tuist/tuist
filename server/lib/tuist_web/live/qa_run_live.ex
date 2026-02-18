@@ -12,6 +12,7 @@ defmodule TuistWeb.QARunLive do
   alias Tuist.Storage
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.SHA
 
   @impl true
@@ -63,6 +64,8 @@ defmodule TuistWeb.QARunLive do
            :head_title,
            "#{dgettext("dashboard_qa", "QA Run")} · #{qa_run.app_build.preview.project.name} · Tuist"
          )
+         |> assign(OpenGraph.og_image_assigns("qa-run"))
+         |> assign(:head_open_graph_key_values, qa_run_open_graph_key_values(qa_run))
          |> assign(:current_time, 0)
          |> assign(:duration, video_duration)
          |> assign(:video_url, video_url)
@@ -315,6 +318,30 @@ defmodule TuistWeb.QARunLive do
     else
       "#{speed}x"
     end
+  end
+
+  defp qa_run_open_graph_key_values(qa_run) do
+    [
+      %{key: "App", value: qa_run.app_build.preview.display_name || "Unknown"},
+      %{key: "Status", value: format_qa_status(qa_run.status)},
+      %{key: "Issues", value: Integer.to_string(issue_count(qa_run.run_steps))}
+    ]
+  end
+
+  defp issue_count(run_steps) do
+    run_steps
+    |> Enum.map(fn step -> length(step.issues || []) end)
+    |> Enum.sum()
+  end
+
+  defp format_qa_status(status) when status in [nil, ""], do: "Unknown"
+
+  defp format_qa_status(status) do
+    status
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.split(" ", trim: true)
+    |> Enum.map_join(" ", &String.capitalize/1)
   end
 
   defp steps_with_times(%{recording: nil} = _qa_run), do: []

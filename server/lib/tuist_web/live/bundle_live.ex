@@ -14,6 +14,7 @@ defmodule TuistWeb.BundleLive do
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
@@ -53,6 +54,8 @@ defmodule TuistWeb.BundleLive do
         :head_title,
         "#{bundle.name} · #{dgettext("dashboard_cache", "Bundle")} · #{Projects.get_project_slug_from_id(selected_project.id)} · Tuist"
       )
+      |> assign(OpenGraph.og_image_assigns("bundle"))
+      |> assign(:head_open_graph_key_values, bundle_open_graph_key_values(bundle))
       |> assign(:all_artifacts, all_artifacts)
       |> assign(:artifacts_by_id, artifacts_by_id)
       |> assign(:artifacts_by_path, artifacts_by_path)
@@ -997,6 +1000,14 @@ defmodule TuistWeb.BundleLive do
   def format_bundle_type(:aab), do: dgettext("dashboard_cache", "AAB")
   def format_bundle_type(:apk), do: dgettext("dashboard_cache", "APK")
   def format_bundle_type(_), do: dgettext("dashboard_cache", "Unknown")
+
+  defp bundle_open_graph_key_values(bundle) do
+    [
+      %{key: "Bundle Size", value: ByteFormatter.format_bytes(bundle.install_size)},
+      %{key: "Type", value: format_bundle_type(bundle.type)},
+      %{key: "Branch", value: bundle.git_branch || dgettext("dashboard_cache", "Unknown")}
+    ]
+  end
 
   defp define_file_breakdown_filters do
     [

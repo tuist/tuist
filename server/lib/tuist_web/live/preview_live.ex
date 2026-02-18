@@ -11,6 +11,7 @@ defmodule TuistWeb.PreviewLive do
   alias Tuist.AppBuilds.AppBuild
   alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -39,6 +40,8 @@ defmodule TuistWeb.PreviewLive do
         :head_title,
         dgettext("dashboard_previews", "%{display_name} · Tuist", display_name: preview.display_name)
       )
+      |> assign(OpenGraph.og_image_assigns("preview"))
+      |> assign(:head_open_graph_key_values, preview_open_graph_key_values(preview))
       |> assign(
         :preview,
         preview
@@ -127,4 +130,15 @@ defmodule TuistWeb.PreviewLive do
               "Preview not found."
     end
   end
+
+  defp preview_open_graph_key_values(preview) do
+    [
+      %{key: "Version", value: preview.version || "Unknown"},
+      %{key: "Track", value: preview_track(preview.track)},
+      %{key: "Branch", value: preview.git_branch || dgettext("dashboard_previews", "None")}
+    ]
+  end
+
+  defp preview_track(track) when track in [nil, ""], do: dgettext("dashboard_previews", "None")
+  defp preview_track(track), do: String.capitalize(track)
 end

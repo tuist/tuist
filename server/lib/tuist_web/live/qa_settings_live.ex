@@ -9,6 +9,7 @@ defmodule TuistWeb.QASettingsLive do
   alias Tuist.QA
   alias Tuist.QA.LaunchArgumentGroup
   alias Tuist.Repo
+  alias TuistWeb.Helpers.OpenGraph
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
@@ -60,6 +61,7 @@ defmodule TuistWeb.QASettingsLive do
       |> assign(:qa_credentials_form, qa_credentials_form)
       |> assign(:qa_credentials_unchanged, true)
       |> assign(:head_title, "#{dgettext("dashboard_qa", "QA Settings")} · #{selected_project.name} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("qa-settings"))
 
     {:ok, socket}
   end

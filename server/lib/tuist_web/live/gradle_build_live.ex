@@ -13,6 +13,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Utilities.DateFormatter
   alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @table_page_size 25
@@ -81,6 +82,8 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:upload_throughput, upload_throughput)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
+    |> assign(OpenGraph.og_image_assigns("build-run"))
+    |> assign(:head_open_graph_key_values, gradle_build_open_graph_key_values(build))
   end
 
   @doc """
@@ -242,6 +245,26 @@ defmodule TuistWeb.GradleBuildLive do
       }
     ]
   end
+
+  defp gradle_build_open_graph_key_values(build) do
+    [
+      %{key: "Status", value: gradle_build_status(build.status)},
+      %{key: "Duration", value: DateFormatter.format_duration_from_milliseconds(build.duration_ms || 0)},
+      %{key: "Cacheable", value: to_string(build.cacheable_tasks_count || 0)}
+    ]
+  end
+
+  defp gradle_build_status(status) when is_binary(status) do
+    status
+    |> String.trim()
+    |> case do
+      "" -> "Success"
+      value -> String.capitalize(value)
+    end
+  end
+
+  defp gradle_build_status(status) when is_atom(status), do: status |> Atom.to_string() |> String.capitalize()
+  defp gradle_build_status(_status), do: "Success"
 
   defp build_text_flop_filters(nil), do: []
   defp build_text_flop_filters(""), do: []

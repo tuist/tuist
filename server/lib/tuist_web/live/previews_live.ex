@@ -18,6 +18,8 @@ defmodule TuistWeb.PreviewsLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+    latest_app_previews = AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+
     {:ok,
      socket
      |> assign(
@@ -25,10 +27,8 @@ defmodule TuistWeb.PreviewsLive do
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )
      |> assign(OpenGraph.og_image_assigns("previews"))
-     |> assign(
-       :latest_app_previews,
-       AppBuilds.latest_previews_with_distinct_bundle_ids(project)
-     )
+     |> assign(:head_open_graph_key_values, previews_open_graph_key_values(latest_app_previews))
+     |> assign(:latest_app_previews, latest_app_previews)
      |> assign(
        :user_agent,
        UAParser.parse(get_connect_info(socket, :user_agent))
@@ -51,6 +51,7 @@ defmodule TuistWeb.PreviewsLive do
       |> assign(:filter_name, filter_name)
       |> assign(:previews, next_previews)
       |> assign(:previews_meta, next_previews_meta)
+      |> assign(:head_open_graph_key_values, previews_open_graph_key_values(next_previews))
       |> assign(
         :latest_app_previews,
         AppBuilds.latest_previews_with_distinct_bundle_ids(project)
@@ -180,6 +181,22 @@ defmodule TuistWeb.PreviewsLive do
 
   defp format_track(track) when track in [nil, ""], do: dgettext("dashboard_previews", "None")
   defp format_track(track), do: String.capitalize(track)
+
+  defp previews_open_graph_key_values([preview | _]) do
+    [
+      %{key: "Latest Preview", value: preview.display_name || "Unknown"},
+      %{key: "Track", value: format_track(preview.track)},
+      %{key: "Branch", value: preview.git_branch || dgettext("dashboard_previews", "None")}
+    ]
+  end
+
+  defp previews_open_graph_key_values([]) do
+    [
+      %{key: "Latest Preview", value: dgettext("dashboard_previews", "None")},
+      %{key: "Track", value: dgettext("dashboard_previews", "None")},
+      %{key: "Branch", value: dgettext("dashboard_previews", "None")}
+    ]
+  end
 
   def empty_state_light_background(assigns) do
     ~H"""

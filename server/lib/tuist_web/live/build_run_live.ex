@@ -14,7 +14,9 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Tests
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) when is_struct(project) do
@@ -75,6 +77,8 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:cas_metrics, cas_metrics)
       |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("build-run"))
+      |> assign(:head_open_graph_key_values, build_run_open_graph_key_values(run))
       |> assign(
         :warnings_grouped_by_path,
         run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
@@ -1269,6 +1273,29 @@ defmodule TuistWeb.BuildRunLive do
 
     "?#{query}"
   end
+
+  defp build_run_open_graph_key_values(run) do
+    [
+      %{key: "Status", value: build_run_status(run.status)},
+      %{key: "Duration", value: DateFormatter.format_duration_from_milliseconds(run.duration || 0)},
+      %{key: "Scheme", value: scheme_label(run.scheme)}
+    ]
+  end
+
+  defp build_run_status(status) when is_binary(status) do
+    status
+    |> String.trim()
+    |> case do
+      "" -> "Success"
+      value -> String.capitalize(value)
+    end
+  end
+
+  defp build_run_status(status) when is_atom(status), do: status |> Atom.to_string() |> String.capitalize()
+  defp build_run_status(_status), do: "Success"
+
+  defp scheme_label(scheme) when is_binary(scheme) and scheme != "", do: scheme
+  defp scheme_label(_scheme), do: "Unknown"
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do

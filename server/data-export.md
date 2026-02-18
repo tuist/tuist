@@ -58,6 +58,7 @@ All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **QA screenshots**: Test run screenshots and reports
+- **Open Graph images**: Generated dashboard OG cards for public project pages (stored under `og/{account_handle}/{project_handle}/{hash}.jpg`)
 
 **Note**: Package registry files are not included (shared community resources).
 
