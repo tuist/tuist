@@ -226,21 +226,23 @@ public struct TuistCommand: AsyncParsableCommand {
             }
         #else
             try await withLoggerForNoora(logFilePath: logFilePath) {
-                try await Noora.$current.withValue(initNoora()) {
-                    do {
-                        var command = try parseAsRoot(processedArguments)
+                do {
+                    let command = try parseAsRoot(processedArguments)
+                    let jsonThroughNoora = (command as? NooraReadyCommand)?.jsonThroughNoora ?? false
+                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
                         if var asyncCommand = command as? AsyncParsableCommand {
                             try await asyncCommand.run()
                         } else {
-                            try command.run()
+                            var mutableCommand = command
+                            try mutableCommand.run()
                         }
                         outputCompletion(
                             logFilePath: logFilePath,
                             shouldOutputLogFilePath: false
                         )
-                    } catch {
-                        onError(error, isParsingError: false, logFilePath: logFilePath)
                     }
+                } catch {
+                    onError(error, isParsingError: false, logFilePath: logFilePath)
                 }
             }
         #endif
