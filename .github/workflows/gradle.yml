@@ -24,7 +24,6 @@ permissions:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MISE_TUIST_VERSION: 4.147.0
 
 defaults:
   run:
@@ -65,4 +64,15 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - name: Debug tuist cache config
+        if: github.event.pull_request.head.repo.fork != true
+        run: |
+          echo "=== stdout ==="
+          tuist cache config --json 2>/dev/null || true
+          echo ""
+          echo "=== stderr ==="
+          tuist cache config --json 1>/dev/null 2>&1 || true
+          echo ""
+          echo "=== with --url ==="
+          tuist cache config --json --url https://tuist.dev 2>/dev/null || true
       - run: ./gradlew test
