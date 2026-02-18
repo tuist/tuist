@@ -2,10 +2,6 @@ import ArgumentParser
 import Foundation
 import TuistEnvKey
 
-#if os(macOS)
-    import TuistSupport
-#endif
-
 enum Runnable: ExpressibleByArgument, Equatable {
     init?(argument: String) {
         let specifierComponents = argument.components(separatedBy: "@")
