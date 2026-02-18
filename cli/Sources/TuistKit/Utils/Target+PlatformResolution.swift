@@ -3,11 +3,11 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-public struct UnspecifiedPlatformError: FatalError, CustomStringConvertible {
-    public var type: ErrorType = .abort
+struct UnspecifiedPlatformError: FatalError, CustomStringConvertible {
+    var type: ErrorType = .abort
 
-    public let target: Target
-    public var description: String {
+    let target: Target
+    var description: String {
         "Only single platform targets supported. The target \(target.name) specifies multiple supported platforms (\(target.supportedPlatforms.map(\.rawValue).joined(separator: ", ")))."
     }
 }
