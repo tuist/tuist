@@ -690,4 +690,5 @@ jobs:
           TUIST_EXECUTABLE: ${{ github.workspace }}/e2e/tuist-cache-config-wrapper.sh
           TUIST_SERVER_URL: http://localhost:8080
           SERVER_URL: http://localhost:8080
+          TUIST_CACHE_ENDPOINT: http://localhost:8087
         run: mise run e2e gradle_cache

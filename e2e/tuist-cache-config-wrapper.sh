@@ -95,20 +95,30 @@ fi
 account_handle="${full_handle%%/*}"
 project_handle="${full_handle#*/}"
 
-# Get cache endpoints from server API
-cache_endpoints_response=$(curl -sf \
-    -H "Authorization: Bearer $access_token" \
-    "${server_url}/api/cache-endpoints?account_handle=${account_handle}" 2>/dev/null) || {
-    echo "Error: Failed to get cache endpoints from ${server_url}" >&2
-    exit 1
-}
-
-# Extract the first cache URL
-cache_url=$(python3 -c "import json; urls=json.loads('$cache_endpoints_response').get('urls',[]); print(urls[0] if urls else '')" 2>/dev/null)
+# Determine the cache URL.
+# Priority: TUIST_CACHE_ENDPOINT env var > server API > server URL itself
+cache_url="${TUIST_CACHE_ENDPOINT:-}"
 
 if [ -z "$cache_url" ]; then
-    echo "Error: No cache endpoints returned by server" >&2
-    exit 1
+    # Try to get cache endpoints from server API
+    cache_endpoints_response=$(curl -sf \
+        -H "Authorization: Bearer $access_token" \
+        "${server_url}/api/cache/endpoints?account_handle=${account_handle}" 2>/dev/null) || true
+
+    if [ -n "$cache_endpoints_response" ]; then
+        cache_url=$(python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+eps = data.get('endpoints', [])
+if eps:
+    print(eps[0])
+" <<< "$cache_endpoints_response" 2>/dev/null) || true
+    fi
+fi
+
+# Fall back to the server URL if no cache endpoint was found
+if [ -z "$cache_url" ]; then
+    cache_url="$server_url"
 fi
 
 # Output the cache configuration JSON
