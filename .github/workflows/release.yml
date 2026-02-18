@@ -919,6 +919,10 @@ jobs:
             git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
+      - name: Update version in settings.gradle.kts
+        run: |
+          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
+
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
         run: |
@@ -964,6 +968,7 @@ jobs:
           name: gradle-artifacts
           path: |
             gradle/CHANGELOG.md
+            gradle/settings.gradle.kts
             gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt
           retention-days: 1
 
@@ -1264,6 +1269,7 @@ jobs:
 
           if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
             git add gradle/CHANGELOG.md
+            git add gradle/settings.gradle.kts
             git add gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt || true
             FILES_ADDED=true
           fi
