@@ -4,11 +4,14 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   """
 
   use Hermes.Server.Component, type: :tool
-  use Tuist.MCP.Components.ToolPlug, action: :read, category: :test
 
   alias Hermes.Server.Response
+  alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
+
+  @authorization_action :read
+  @authorization_category :test
 
   schema do
     field :account_handle, :string,
@@ -31,10 +34,12 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   @impl true
   def execute(%{account_handle: account_handle, project_handle: project_handle} = arguments, frame) do
     with {:ok, project} <-
-           load_and_authorize_project_by_handle(
+           ToolSupport.load_and_authorize_project_by_handle(
              account_handle,
              project_handle,
              frame,
+             @authorization_action,
+             @authorization_category,
              "You do not have access to project: #{account_handle}/#{project_handle}"
            ) do
       page = arguments |> Map.get(:page) |> integer_argument(1)

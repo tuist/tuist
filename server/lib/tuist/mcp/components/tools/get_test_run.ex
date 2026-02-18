@@ -4,17 +4,20 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   """
 
   use Hermes.Server.Component, type: :tool
-  use Tuist.MCP.Components.ToolPlug, action: :read, category: :test
 
   import Ecto.Query
 
   alias Hermes.Server.Response
   alias Tuist.ClickHouseRepo
+  alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.TestCaseRun
+
+  @authorization_action :read
+  @authorization_category :test
 
   schema do
     field :test_run_id, :string, required: true, description: "The UUID of the test run."
@@ -22,8 +25,15 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
 
   @impl true
   def execute(%{test_run_id: test_run_id}, frame) do
-    with {:ok, run} <- load_resource(Tests.get_test(test_run_id), "Test run not found: #{test_run_id}", frame),
-         {:ok, _project} <- authorize_project_by_id(frame, run.project_id) do
+    with {:ok, run} <-
+           ToolSupport.load_resource(Tests.get_test(test_run_id), "Test run not found: #{test_run_id}", frame),
+         {:ok, _project} <-
+           ToolSupport.authorize_project_by_id(
+             frame,
+             run.project_id,
+             @authorization_action,
+             @authorization_category
+           ) do
       metrics = Analytics.get_test_run_metrics(run.id)
       {crashed_test_count, crashes} = get_crash_summaries(run.id)
 

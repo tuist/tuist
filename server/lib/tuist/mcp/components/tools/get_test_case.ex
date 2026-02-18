@@ -4,11 +4,14 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   """
 
   use Hermes.Server.Component, type: :tool
-  use Tuist.MCP.Components.ToolPlug, action: :read, category: :test
 
   alias Hermes.Server.Response
+  alias Tuist.MCP.Components.ToolSupport
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
+
+  @authorization_action :read
+  @authorization_category :test
 
   schema do
     field :test_case_id, :string, required: true, description: "The UUID of the test case."
@@ -17,8 +20,18 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   @impl true
   def execute(%{test_case_id: test_case_id}, frame) do
     with {:ok, test_case} <-
-           load_resource(Tests.get_test_case_by_id(test_case_id), "Test case not found: #{test_case_id}", frame),
-         {:ok, _project} <- authorize_project_by_id(frame, test_case.project_id) do
+           ToolSupport.load_resource(
+             Tests.get_test_case_by_id(test_case_id),
+             "Test case not found: #{test_case_id}",
+             frame
+           ),
+         {:ok, _project} <-
+           ToolSupport.authorize_project_by_id(
+             frame,
+             test_case.project_id,
+             @authorization_action,
+             @authorization_category
+           ) do
       analytics = Analytics.test_case_analytics_by_id(test_case_id)
       reliability_rate = Analytics.test_case_reliability_by_id(test_case_id, "main")
       flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)

@@ -4,11 +4,14 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   """
 
   use Hermes.Server.Component, type: :tool
-  use Tuist.MCP.Components.ToolPlug, action: :read, category: :test
 
   alias Hermes.Server.Response
+  alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
+
+  @authorization_action :read
+  @authorization_category :test
 
   schema do
     field :test_case_run_id, :string,
@@ -19,12 +22,18 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   @impl true
   def execute(%{test_case_run_id: test_case_run_id}, frame) do
     with {:ok, run} <-
-           load_resource(
+           ToolSupport.load_resource(
              Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]),
              "Test case run not found: #{test_case_run_id}",
              frame
            ),
-         {:ok, _project} <- authorize_project_by_id(frame, run.project_id) do
+         {:ok, _project} <-
+           ToolSupport.authorize_project_by_id(
+             frame,
+             run.project_id,
+             @authorization_action,
+             @authorization_category
+           ) do
       data = %{
         id: run.id,
         test_case_id: run.test_case_id,
