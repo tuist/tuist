@@ -680,6 +680,7 @@ jobs:
             sleep 2
           done
       - name: Setup tuist wrapper for Linux
+        working-directory: .
         run: |
           chmod +x e2e/tuist-cache-config-wrapper.sh
           echo "REAL_TUIST_PATH=$(mise which tuist)" >> "$GITHUB_ENV"
