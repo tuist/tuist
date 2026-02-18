@@ -81,10 +81,15 @@ if [ -z "$access_token" ]; then
     exit 1
 fi
 
-# Parse full handle into account_handle and project_handle
+# If no handle was passed, try to read it from tuist.toml in the current directory
 if [ -z "$full_handle" ]; then
-    echo "Error: Full handle is required (e.g., tuist/android-app)" >&2
-    exit 1
+    if [ -f "tuist.toml" ]; then
+        full_handle=$(sed -n 's/^project *= *"\(.*\)"/\1/p' tuist.toml)
+    fi
+    if [ -z "$full_handle" ]; then
+        echo "Error: Full handle is required (e.g., tuist/android-app)" >&2
+        exit 1
+    fi
 fi
 
 account_handle="${full_handle%%/*}"
