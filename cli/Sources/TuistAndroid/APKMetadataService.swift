@@ -54,6 +54,7 @@ public protocol APKMetadataServicing {
             var versionName: String?
             var versionCode: String?
             var applicationLabel: String?
+            var iconPaths: [(density: String, path: String)] = []
 
             for line in output.components(separatedBy: "\n") {
                 if line.hasPrefix("package:") {
@@ -65,6 +66,14 @@ public protocol APKMetadataServicing {
                         .replacingOccurrences(of: "application-label:", with: "")
                         .trimmingCharacters(in: .whitespaces)
                         .trimmingCharacters(in: CharacterSet(charactersIn: "'"))
+                } else if line.hasPrefix("application-icon-") {
+                    let parts = line.split(separator: ":", maxSplits: 1)
+                    guard parts.count == 2 else { continue }
+                    let density = String(parts[0]).replacingOccurrences(of: "application-icon-", with: "")
+                    let path = String(parts[1]).trimmingCharacters(in: CharacterSet(charactersIn: "'"))
+                    if !path.isEmpty {
+                        iconPaths.append((density: density, path: path))
+                    }
                 }
             }
 
@@ -72,12 +81,28 @@ public protocol APKMetadataServicing {
                 throw APKMetadataServiceError.parsingFailed(apkPath.pathString)
             }
 
+            let iconPath = try bestIconPath(from: iconPaths)
+                .map { try RelativePath(validating: $0) }
+
             return APKMetadata(
                 packageName: packageName,
                 versionName: versionName,
                 versionCode: versionCode,
-                displayName: applicationLabel ?? apkPath.basenameWithoutExt
+                displayName: applicationLabel ?? apkPath.basenameWithoutExt,
+                iconPath: iconPath
             )
+        }
+
+        private let densityPriority = ["xxxhdpi", "xxhdpi", "xhdpi", "hdpi", "mdpi", "ldpi"]
+
+        private func bestIconPath(from iconPaths: [(density: String, path: String)]) -> String? {
+            guard !iconPaths.isEmpty else { return nil }
+            for density in densityPriority {
+                if let match = iconPaths.first(where: { $0.density == density }) {
+                    return match.path
+                }
+            }
+            return iconPaths.first?.path
         }
 
         private func resolveAapt2Path() async throws -> String {

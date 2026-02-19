@@ -71,9 +71,9 @@ public protocol PreviewsUploadServicing {
             MultipartUploadGenerateURLPreviewsServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+        private let uploadPreviewIconService: UploadPreviewIconServicing
 
         #if canImport(TuistCore)
-            private let uploadPreviewIconService: UploadPreviewIconServicing
             private let commandRunner: CommandRunning
             private let precompiledMetadataProvider: PrecompiledMetadataProviding
         #endif
@@ -104,7 +104,8 @@ public protocol PreviewsUploadServicing {
                         MultipartUploadGenerateURLPreviewsService(),
                     multipartUploadArtifactService: MultipartUploadArtifactService(),
                     multipartUploadCompletePreviewsService:
-                        MultipartUploadCompletePreviewsService()
+                        MultipartUploadCompletePreviewsService(),
+                    uploadPreviewIconService: UploadPreviewIconService()
                 )
             #endif
         }
@@ -141,7 +142,8 @@ public protocol PreviewsUploadServicing {
                 multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
                 multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
                 multipartUploadArtifactService: MultipartUploadArtifactServicing,
-                multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
+                multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
+                uploadPreviewIconService: UploadPreviewIconServicing
             ) {
                 self.fileSystem = fileSystem
                 self.fileArchiver = fileArchiver
@@ -150,6 +152,7 @@ public protocol PreviewsUploadServicing {
                 self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
                 self.multipartUploadArtifactService = multipartUploadArtifactService
                 self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
+                self.uploadPreviewIconService = uploadPreviewIconService
             }
         #endif
 
@@ -171,7 +174,7 @@ public protocol PreviewsUploadServicing {
                 let buildVersion = resolvedBuildVersion(metadata.versionCode)
                 let binaryId = try await apkBinaryId(at: apkPath)
 
-                return try await uploadPreviewBuild(
+                let preview = try await uploadPreviewBuild(
                     buildPath: bundleArchivePath,
                     previewType: .apk,
                     displayName: metadata.displayName,
@@ -188,6 +191,22 @@ public protocol PreviewsUploadServicing {
                     track: track,
                     updateProgress: updateProgress
                 )
+
+                if let iconPath = metadata.iconPath {
+                    let unarchiver = try fileArchiver.makeFileUnarchiver(for: apkPath)
+                    let unzippedPath = try unarchiver.unzip()
+                    let iconAbsolutePath = unzippedPath.appending(iconPath)
+                    if try await fileSystem.exists(iconAbsolutePath) {
+                        try await uploadPreviewIconService.uploadPreviewIcon(
+                            iconAbsolutePath,
+                            previewId: preview.id,
+                            serverURL: serverURL,
+                            fullHandle: fullHandle
+                        )
+                    }
+                }
+
+                return preview
 
             #if canImport(TuistCore)
                 case let .ipa(bundle):

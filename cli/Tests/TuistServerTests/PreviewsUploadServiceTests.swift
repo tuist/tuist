@@ -1,9 +1,11 @@
 import Command
+import CryptoKit
 import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
+import TuistAndroid
 import TuistCore
 import TuistServer
 import TuistSupport
@@ -554,6 +556,224 @@ struct PreviewsUploadServiceTests {
                 gitCommitSHA: .any,
                 gitRef: .any,
                 binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any,
+                track: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_apk() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let apkPath = temporaryDirectory.appending(component: "app.apk")
+        let apkContent = Data("fake-apk-content".utf8)
+        try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
+
+        given(fileArchiver)
+            .zip(name: .value("app.apk"))
+            .willReturn(temporaryDirectory.appending(component: "app.zip"))
+
+        let unzippedPath = temporaryDirectory.appending(component: "unzipped-apk")
+        let iconPath = unzippedPath.appending(
+            components: ["res", "mipmap-xxxhdpi-v4", "ic_launcher.png"]
+        )
+        try await fileSystem.makeDirectory(at: iconPath.parentDirectory)
+        try await fileSystem.touch(iconPath)
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unzippedPath)
+
+        given(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
+            .willReturn()
+
+        var multipartUploadCapturedGenerateUploadURLCallback:
+            ((MultipartUploadArtifactPart) async throws -> String)!
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .value(temporaryDirectory.appending(component: "app.zip")),
+                generateUploadURL: .matching { callback in
+                    multipartUploadCapturedGenerateUploadURLCallback = callback
+                    return true
+                },
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "42",
+            displayName: "Example App",
+            iconPath: try RelativePath(validating: "res/mipmap-xxxhdpi-v4/ic_launcher.png")
+        )
+
+        // When
+        let got = try await subject.uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: "main",
+            gitCommitSHA: "abc123",
+            gitRef: "refs/heads/main",
+            track: "beta",
+            updateProgress: { _ in }
+        )
+
+        // Then
+        #expect(
+            got == .test(
+                id: "preview-id",
+                url: shareURL
+            )
+        )
+
+        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(
+            MultipartUploadArtifactPart(
+                number: 1,
+                contentLength: 20
+            )
+        )
+        #expect(
+            gotMultipartUploadURL == "https://tuist.dev/upload-url"
+        )
+
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.apk),
+                displayName: .value("Example App"),
+                version: .value("1.0.0"),
+                buildVersion: .value("42"),
+                bundleIdentifier: .value("com.example.app"),
+                supportedPlatforms: .value([.android]),
+                gitBranch: .value("main"),
+                gitCommitSHA: .value("abc123"),
+                gitRef: .value("refs/heads/main"),
+                binaryId: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(serverURL),
+                track: .value("beta")
+            )
+            .called(1)
+
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                .any,
+                previewId: .value("preview-id"),
+                serverURL: .value(serverURL),
+                fullHandle: .value("tuist/tuist")
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_apk_without_icon() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let apkPath = temporaryDirectory.appending(component: "app.apk")
+        let apkContent = Data("fake-apk-content".utf8)
+        try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
+
+        given(fileArchiver)
+            .zip(name: .value("app.apk"))
+            .willReturn(temporaryDirectory.appending(component: "app.zip"))
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .value(temporaryDirectory.appending(component: "app.zip")),
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "42",
+            displayName: "Example App"
+        )
+
+        // When
+        _ = try await subject.uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: "main",
+            gitCommitSHA: "abc123",
+            gitRef: "refs/heads/main",
+            track: "beta",
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                .any,
+                previewId: .any,
+                serverURL: .any,
+                fullHandle: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_apk_computes_sha256_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let apkPath = temporaryDirectory.appending(component: "app.apk")
+        let apkContent = Data("deterministic-content".utf8)
+        try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "app.zip"))
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "1",
+            displayName: "App"
+        )
+
+        // When
+        _ = try await subject.uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        // Then: verify binaryId is a valid SHA256 hex string (64 chars)
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.apk),
+                displayName: .any,
+                version: .any,
+                buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .matching { binaryId in
+                    guard let binaryId else { return false }
+                    return binaryId.count == 64 && binaryId.allSatisfy { $0.isHexDigit }
+                },
                 fullHandle: .any,
                 serverURL: .any,
                 track: .any

@@ -948,6 +948,18 @@ var targets: [Target] = [
         ],
         path: "cli/Tests/TuistInitCommandTests"
     ),
+    .testTarget(
+        name: "TuistAndroidTests",
+        dependencies: [
+            "TuistAndroid",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            commandDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistAndroidTests"
+    ),
 ]
 
 // MARK: - macOS-only targets
