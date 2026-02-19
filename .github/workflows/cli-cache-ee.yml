@@ -131,8 +131,12 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: |
+          if [ ! -f .build/workspace-state.json ]; then
+            tuist install
+          else
+            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
+          fi
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests
@@ -177,8 +181,12 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: |
+          if [ ! -f .build/workspace-state.json ]; then
+            tuist install
+          else
+            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
+          fi
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests
@@ -223,8 +231,12 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: |
+          if [ ! -f .build/workspace-state.json ]; then
+            tuist install
+          else
+            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
+          fi
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests

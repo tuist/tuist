@@ -76,8 +76,12 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: |
+          if [ ! -f .build/workspace-state.json ]; then
+            tuist install
+          else
+            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
+          fi
       - name: Lint
         run: |
           mise x swiftformat -- swiftformat cli/ app/ --lint
@@ -109,8 +113,12 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: |
+          if [ ! -f .build/workspace-state.json ]; then
+            tuist install
+          else
+            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
+          fi
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry
 
@@ -175,8 +183,12 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: |
+          if [ ! -f .build/workspace-state.json ]; then
+            tuist install
+          else
+            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
+          fi
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
