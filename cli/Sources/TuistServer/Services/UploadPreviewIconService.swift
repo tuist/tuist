@@ -1,5 +1,8 @@
 import FileSystem
 import Foundation
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 import Mockable
 import OpenAPIRuntime
 import Path
