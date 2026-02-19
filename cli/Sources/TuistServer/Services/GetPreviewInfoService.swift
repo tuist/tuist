@@ -8,7 +8,7 @@ public protocol GetPreviewInfoServicing: Sendable {
         _ previewId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> ServerPreviewInfo
+    ) async throws -> Components.Schemas.Preview
 }
 
 public enum GetPreviewInfoServiceError: LocalizedError, Equatable {
@@ -16,7 +16,6 @@ public enum GetPreviewInfoServiceError: LocalizedError, Equatable {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
-    case invalidPreview(String)
     case badRequest(String)
 
     public var errorDescription: String? {
@@ -25,8 +24,6 @@ public enum GetPreviewInfoServiceError: LocalizedError, Equatable {
             return "The preview could not be downloaded due to an unknown Tuist server response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .badRequest(message):
             return message
-        case let .invalidPreview(id):
-            return "The preview \(id) is invalid."
         }
     }
 }
@@ -50,7 +47,7 @@ public struct GetPreviewInfoService: GetPreviewInfoServicing {
         _ previewId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> ServerPreviewInfo {
+    ) async throws -> Components.Schemas.Preview {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.downloadPreview(
@@ -66,10 +63,7 @@ public struct GetPreviewInfoService: GetPreviewInfoServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(preview):
-                guard let previewInfo = ServerPreviewInfo(preview) else {
-                    throw GetPreviewInfoServiceError.invalidPreview(previewId)
-                }
-                return previewInfo
+                return preview
             }
         case let .undocumented(statusCode: statusCode, _):
             throw GetPreviewInfoServiceError.unknownError(statusCode)

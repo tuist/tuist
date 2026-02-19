@@ -33,7 +33,7 @@ public protocol APKPreviewUploadServicing {
         serverURL: URL,
         track: String?,
         updateProgress: @escaping (Double) -> Void
-    ) async throws -> PreviewUploadResult
+    ) async throws -> Components.Schemas.Preview
 }
 
 #if canImport(TuistSupport)
@@ -91,7 +91,7 @@ public struct APKPreviewUploadService: APKPreviewUploadServicing {
         serverURL: URL,
         track: String?,
         updateProgress: @escaping (Double) -> Void
-    ) async throws -> PreviewUploadResult {
+    ) async throws -> Components.Schemas.Preview {
         let bundleArchivePath = try await fileArchiver
             .makeFileArchiver(for: [apkPath])
             .zip(name: apkPath.basename)
@@ -144,7 +144,7 @@ public struct APKPreviewUploadService: APKPreviewUploadServicing {
         serverURL: URL,
         track: String?,
         updateProgress: @escaping (Double) -> Void
-    ) async throws -> PreviewUploadResult {
+    ) async throws -> Components.Schemas.Preview {
         updateProgress(0.1)
 
         let preview = try await retryProvider.runWithRetries {
@@ -242,7 +242,7 @@ public struct APKPreviewUploadService: APKPreviewUploadServicing {
             serverURL: URL,
             track: String?,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> PreviewUploadResult
+        ) async throws -> Components.Schemas.Preview
     }
 
     public struct PreviewsUploadService: PreviewsUploadServicing {
@@ -314,7 +314,7 @@ public struct APKPreviewUploadService: APKPreviewUploadServicing {
             serverURL: URL,
             track: String?,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> PreviewUploadResult {
+        ) async throws -> Components.Schemas.Preview {
             let gitInfo = try gitController.gitInfo(workingDirectory: path)
 
             switch previewUploadType {
@@ -341,7 +341,7 @@ public struct APKPreviewUploadService: APKPreviewUploadServicing {
                 return preview
 
             case let .appBundles(bundles):
-                var preview: PreviewUploadResult!
+                var preview: Components.Schemas.Preview!
 
                 for (index, bundle) in bundles.enumerated() {
                     let progressOffset = Double(index) / Double(bundles.count)
@@ -416,7 +416,7 @@ public struct APKPreviewUploadService: APKPreviewUploadServicing {
             serverURL: URL,
             track: String?,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> PreviewUploadResult {
+        ) async throws -> Components.Schemas.Preview {
             updateProgress(0.1)
 
             let preview = try await retryProvider.runWithRetries {

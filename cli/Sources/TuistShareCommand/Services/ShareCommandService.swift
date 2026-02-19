@@ -568,7 +568,7 @@ struct ShareCommandService {
             fullHandle: String,
             serverURL: URL,
             track: String?
-        ) async throws -> PreviewUploadResult {
+        ) async throws -> Components.Schemas.Preview {
             try await Noora.current.progressBarStep(
                 message: "Uploading \(displayName)",
                 successMessage: "\(displayName) uploaded",
@@ -673,11 +673,11 @@ struct ShareCommandService {
         return String(line[start ..< end])
     }
 
-    private func outputResult(_ preview: PreviewUploadResult, displayName: String, json: Bool) {
+    private func outputResult(_ preview: Components.Schemas.Preview, displayName: String, json: Bool) {
         AlertController.current
             .success(
                 .alert(
-                    "Share \(displayName) with others using the following link: \(preview.url.absoluteString)"
+                    "Share \(displayName) with others using the following link: \(preview.url)"
                 )
             )
 

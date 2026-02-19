@@ -11,7 +11,7 @@ public protocol MultipartUploadCompletePreviewsServicing {
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> PreviewUploadResult
+    ) async throws -> Components.Schemas.Preview
 }
 
 public enum MultipartUploadCompletePreviewsServiceError: LocalizedError, Equatable {
@@ -19,7 +19,6 @@ public enum MultipartUploadCompletePreviewsServiceError: LocalizedError, Equatab
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
-    case invalidPreview(String)
 
     public var errorDescription: String? {
         switch self {
@@ -27,8 +26,6 @@ public enum MultipartUploadCompletePreviewsServiceError: LocalizedError, Equatab
             return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
-        case let .invalidPreview(id):
-            return "The preview \(id) is invalid."
         }
     }
 }
@@ -54,7 +51,7 @@ public struct MultipartUploadCompletePreviewsService: MultipartUploadCompletePre
         parts: [(etag: String, partNumber: Int)],
         fullHandle: String,
         serverURL: URL
-    ) async throws -> PreviewUploadResult {
+    ) async throws -> Components.Schemas.Preview {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.completePreviewsMultipartUpload(
@@ -80,16 +77,7 @@ public struct MultipartUploadCompletePreviewsService: MultipartUploadCompletePre
         case let .ok(previewUploadCompletionResponse):
             switch previewUploadCompletionResponse.body {
             case let .json(preview):
-                guard let url = URL(string: preview.url),
-                      let qrCodeURL = URL(string: preview.qr_code_url)
-                else {
-                    throw MultipartUploadCompletePreviewsServiceError.invalidPreview(preview.id)
-                }
-                return PreviewUploadResult(
-                    id: preview.id,
-                    url: url,
-                    qrCodeURL: qrCodeURL
-                )
+                return preview
             }
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadCompletePreviewsServiceError.unknownError(statusCode)

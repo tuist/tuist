@@ -340,13 +340,13 @@ struct RunCommandService {
 
         var destinationDevices: [DestinationDevice] = []
 
-        if preview.supportedPlatforms.contains(.android) {
+        if preview.supported_platforms.contains(.android) {
             let androidDevices = try await adbController.findAvailableDevices()
             destinationDevices.append(contentsOf: androidDevices.map(DestinationDevice.android))
         }
 
         #if os(macOS)
-            if preview.supportedPlatforms.contains(where: { $0 != .android }) {
+            if preview.supported_platforms.contains(where: { $0 != .android }) {
                 let physicalDevices = try await deviceController.findAvailableDevices()
                 destinationDevices.append(contentsOf: physicalDevices.map(DestinationDevice.physical))
 
@@ -414,7 +414,7 @@ struct RunCommandService {
 
     private func runApp(
         on destinationDevice: DestinationDevice,
-        preview: ServerPreviewInfo,
+        preview: Components.Schemas.Preview,
         previewLink: URL
     ) async throws {
         switch destinationDevice {
@@ -455,14 +455,14 @@ struct RunCommandService {
 
     private func runAndroidApp(
         on androidDevice: AndroidDevice,
-        preview: ServerPreviewInfo,
+        preview: Components.Schemas.Preview,
         previewLink: URL
     ) async throws {
-        guard let build = preview.builds.first(where: { $0.supportedPlatforms.contains(.android) })
+        guard let build = preview.builds.first(where: { $0.supported_platforms.contains(.android) })
         else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
-        let displayName = preview.displayName ?? "app"
-        let packageName = preview.bundleIdentifier ?? ""
+        let displayName = preview.display_name ?? "app"
+        let packageName = preview.bundle_identifier ?? ""
 
         try await Noora.current.progressStep(
             message: "Installing \(displayName) on \(androidDevice.name)",
@@ -470,7 +470,8 @@ struct RunCommandService {
             errorMessage: nil,
             showSpinner: true
         ) { updateProgress in
-            let archivePath = try await remoteArtifactDownloader.download(url: build.url)
+            guard let buildURL = URL(string: build.url) else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
+            let archivePath = try await remoteArtifactDownloader.download(url: buildURL)
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
             let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
@@ -495,10 +496,10 @@ struct RunCommandService {
 
     #if os(macOS)
         private func appleSimulators(
-            for preview: ServerPreviewInfo
+            for preview: Components.Schemas.Preview
         ) async throws -> [SimulatorDeviceAndRuntime] {
             try await simulatorController.devicesAndRuntimes().filter { deviceAndRuntime in
-                try preview.supportedPlatforms.contains { supportedPlatform in
+                try preview.supported_platforms.contains { supportedPlatform in
                     switch supportedPlatform {
                     case .ios, .tvos, .watchos, .visionos, .macos, .android:
                         return false
@@ -547,16 +548,17 @@ struct RunCommandService {
 
         private func downloadAppleAppBundle(
             for destination: DestinationType,
-            preview: ServerPreviewInfo,
+            preview: Components.Schemas.Preview,
             previewLink: URL
         ) async throws -> AppBundle {
             let targetPlatform = previewSupportedPlatform(for: destination)
-            guard let url = preview.builds.first(where: { $0.supportedPlatforms.contains(targetPlatform) })?.url
+            guard let buildURLString = preview.builds.first(where: { $0.supported_platforms.contains(targetPlatform) })?.url,
+                let buildURL = URL(string: buildURLString)
             else {
                 throw RunCommandServiceError.noCompatibleAppBuild(destination: destination.description)
             }
             let archivePath = try await Noora.current.progressStep(message: "Downloading preview...") { _ in
-                return try await remoteArtifactDownloader.download(url: url)
+                return try await remoteArtifactDownloader.download(url: buildURL)
             }
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
