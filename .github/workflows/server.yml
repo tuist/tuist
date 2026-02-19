@@ -429,37 +429,12 @@ jobs:
     name: Docker build
     runs-on: namespace-profile-default
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      # We move it so that we can copy it inside the Docker image for
-      # reproducibility of dependency resolution.
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
@@ -468,7 +443,7 @@ jobs:
           push: false
           tags: tuist/tuist
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max' || '' }}
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
