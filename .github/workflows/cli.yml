@@ -61,10 +61,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
-        id: cache
         with:
           cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
           path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -76,12 +79,8 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        run: |
-          if [ ! -f .build/workspace-state.json ]; then
-            tuist install
-          else
-            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
-          fi
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Lint
         run: |
           mise x swiftformat -- swiftformat cli/ app/ --lint
@@ -98,10 +97,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
-        id: cache
         with:
           cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
           path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -113,12 +115,8 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        run: |
-          if [ ! -f .build/workspace-state.json ]; then
-            tuist install
-          else
-            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
-          fi
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry
 
@@ -168,10 +166,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
-        id: cache
         with:
           cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
           path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -183,12 +184,8 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        run: |
-          if [ ! -f .build/workspace-state.json ]; then
-            tuist install
-          else
-            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
-          fi
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 

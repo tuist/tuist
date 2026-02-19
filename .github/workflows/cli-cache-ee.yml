@@ -118,10 +118,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
-        id: cache
         with:
           cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
           path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -131,12 +134,8 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        run: |
-          if [ ! -f .build/workspace-state.json ]; then
-            tuist install
-          else
-            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
-          fi
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests
@@ -168,10 +167,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
-        id: cache
         with:
           cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
           path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -181,12 +183,8 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        run: |
-          if [ ! -f .build/workspace-state.json ]; then
-            tuist install
-          else
-            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
-          fi
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests
@@ -218,10 +216,13 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
-        id: cache
         with:
           cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
           path: .build
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -231,12 +232,8 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        run: |
-          if [ ! -f .build/workspace-state.json ]; then
-            tuist install
-          else
-            echo "Skipping tuist install — .build/workspace-state.json exists (cache hit)"
-          fi
+        if: steps.cache.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests
