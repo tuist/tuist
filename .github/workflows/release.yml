@@ -725,7 +725,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -752,8 +752,6 @@ jobs:
           context: .
           file: ./server/Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -815,7 +813,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -842,8 +840,6 @@ jobs:
           context: .
           file: ./cache/Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             CACHE_VERSION=${{ needs.check-releases.outputs.cache-next-version-number }}
             MIX_ENV=prod
