@@ -95,7 +95,7 @@ jobs:
             }
   inspect-implicit-imports:
     name: Inspect Implicit Imports
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     timeout-minutes: 60
     needs: [check-team-membership]
     if: |
@@ -123,10 +123,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -148,7 +151,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     timeout-minutes: 40
     needs: [check-team-membership]
     if: |
@@ -176,10 +179,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -201,7 +207,7 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     timeout-minutes: 60
     needs: [check-team-membership]
     if: |
@@ -229,10 +235,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache

@@ -54,7 +54,7 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -66,10 +66,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist swiftlint swiftformat"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          cache: "false"
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -90,7 +93,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -103,10 +106,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          cache: "false"
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -163,7 +169,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: namespace-profile-default-macos-with-volume
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -176,10 +182,13 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          cache: "false"
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
