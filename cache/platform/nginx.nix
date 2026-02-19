@@ -45,7 +45,9 @@
         'request_length=$request_length '
         'method=$request_method';
 
-      access_log /var/log/nginx/access.log timed_combined;
+      # Buffer log writes so tiny-file bursts don't trigger a write()
+      # syscall per request on the worker's event loop.
+      access_log /var/log/nginx/access.log timed_combined buffer=256k flush=5s;
 
       # Swift Package Registry requires a Content-Version response header.
       # X-Accel-Redirect to proxy_pass locations replaces upstream headers,
@@ -170,7 +172,9 @@
             # while large module artifacts don't evict them.
             aio threads=cacheio;
             directio 4m;
-            output_buffers 1 256k;
+            # Double-buffer AIO reads: one buffer sends while the next
+            # is filled by the thread pool, smoothing large-file throughput.
+            output_buffers 2 512k;
 
             add_header Cache-Control "public, max-age=31536000, immutable";
             add_header Content-Version $registry_content_version;
@@ -197,10 +201,15 @@
             proxy_set_header Host $2;
             proxy_pass $download_url$is_args$args;
             add_header Content-Version $registry_content_version;
+            gzip off;
             proxy_request_buffering off;
-            proxy_buffering on;
-            proxy_buffer_size 128k;
-            proxy_buffers 16 128k;
+
+            # Stream S3 responses directly to the client instead of buffering.
+            # With buffering on and no temp-file cap, large artifacts (up to
+            # 300 MB) would spill to disk and compete with local CAS reads.
+            proxy_buffering off;
+            proxy_buffer_size 16k;
+
             proxy_intercept_errors on;
             error_page 301 302 307 = @handle_remote_redirect;
             error_page 403 404 = @handle_remote_not_found;
