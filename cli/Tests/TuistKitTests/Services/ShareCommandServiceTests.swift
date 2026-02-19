@@ -10,6 +10,7 @@ import TuistAutomation
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistNooraTesting
 import TuistServer
@@ -64,6 +65,7 @@ struct ShareCommandServiceTests {
             previewsUploadService: previewsUploadService,
             fileArchiverFactory: fileArchiverFactory,
             commandRunner: CommandRunner(),
+            gitController: GitController(),
             fileHandler: FileHandler.shared,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,

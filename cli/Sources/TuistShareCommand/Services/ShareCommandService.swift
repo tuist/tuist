@@ -8,6 +8,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistEncodable
 import TuistEnvironment
+import TuistGit
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -69,6 +70,7 @@ struct ShareCommandService {
     private let previewsUploadService: PreviewsUploadServicing
     private let fileArchiverFactory: FileArchivingFactorying
     private let commandRunner: CommandRunning
+    private let gitController: GitControlling
 
     #if os(macOS)
         private let fileHandler: FileHandling
@@ -97,7 +99,9 @@ struct ShareCommandService {
                 previewsUploadService: PreviewsUploadService(),
                 fileArchiverFactory: FileArchivingFactory(),
                 commandRunner: CommandRunner(),
+                gitController: GitController(),
                 fileHandler: FileHandler.shared,
+
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
                 buildGraphInspector: BuildGraphInspector(),
                 manifestLoader: manifestLoader,
@@ -113,7 +117,8 @@ struct ShareCommandService {
                 serverEnvironmentService: ServerEnvironmentService(),
                 previewsUploadService: PreviewsUploadService(),
                 fileArchiverFactory: FileArchivingFactory(),
-                commandRunner: CommandRunner()
+                commandRunner: CommandRunner(),
+                gitController: GitController()
             )
         #endif
     }
@@ -126,6 +131,7 @@ struct ShareCommandService {
             previewsUploadService: PreviewsUploadServicing,
             fileArchiverFactory: FileArchivingFactorying,
             commandRunner: CommandRunning,
+            gitController: GitControlling,
             fileHandler: FileHandling,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
             buildGraphInspector: BuildGraphInspecting,
@@ -141,6 +147,7 @@ struct ShareCommandService {
             self.previewsUploadService = previewsUploadService
             self.fileArchiverFactory = fileArchiverFactory
             self.commandRunner = commandRunner
+            self.gitController = gitController
             self.fileHandler = fileHandler
             self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
             self.buildGraphInspector = buildGraphInspector
@@ -157,7 +164,8 @@ struct ShareCommandService {
             serverEnvironmentService: ServerEnvironmentServicing,
             previewsUploadService: PreviewsUploadServicing,
             fileArchiverFactory: FileArchivingFactorying,
-            commandRunner: CommandRunning
+            commandRunner: CommandRunning,
+            gitController: GitControlling
         ) {
             self.fileSystem = fileSystem
             self.configLoader = configLoader
@@ -165,6 +173,7 @@ struct ShareCommandService {
             self.previewsUploadService = previewsUploadService
             self.fileArchiverFactory = fileArchiverFactory
             self.commandRunner = commandRunner
+            self.gitController = gitController
         }
     #endif
 
@@ -367,8 +376,7 @@ struct ShareCommandService {
 
         let metadata = try await parseAPKMetadata(at: apkPath)
 
-        let gitCommitSHA = try? await resolveGitCommitSHA(at: path)
-        let gitBranch = try? await resolveGitBranch(at: path)
+        let gitInfo = resolveGitInfo(at: path)
 
         let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(metadata.displayName)",
@@ -379,9 +387,9 @@ struct ShareCommandService {
                 .apk(path: apkPath, metadata: metadata),
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                gitBranch: gitBranch,
-                gitCommitSHA: gitCommitSHA,
-                gitRef: gitBranch,
+                gitBranch: gitInfo.branch,
+                gitCommitSHA: gitInfo.sha,
+                gitRef: gitInfo.ref,
                 track: track,
                 updateProgress: updateProgress
             )
@@ -390,18 +398,13 @@ struct ShareCommandService {
         outputResult(preview, displayName: metadata.displayName, json: json)
     }
 
-    private func resolveGitCommitSHA(at _path: AbsolutePath) async throws -> String {
-        try await CommandRunner()
-            .run(arguments: ["git", "-C", _path.pathString, "rev-parse", "HEAD"])
-            .concatenatedString()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func resolveGitBranch(at _path: AbsolutePath) async throws -> String {
-        try await CommandRunner()
-            .run(arguments: ["git", "-C", _path.pathString, "rev-parse", "--abbrev-ref", "HEAD"])
-            .concatenatedString()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private func resolveGitInfo(at path: AbsolutePath) -> GitInfo {
+        (try? gitController.gitInfo(workingDirectory: path)) ?? GitInfo(
+            ref: nil,
+            branch: nil,
+            sha: nil,
+            remoteURLOrigin: nil
+        )
     }
 
     // MARK: - macOS-only Apple sharing
@@ -561,8 +564,7 @@ struct ShareCommandService {
             serverURL: URL,
             track: String?
         ) async throws -> Components.Schemas.Preview {
-            let gitCommitSHA = try? await resolveGitCommitSHA(at: path)
-            let gitBranch = try? await resolveGitBranch(at: path)
+            let gitInfo = resolveGitInfo(at: path)
 
             return try await Noora.current.progressBarStep(
                 message: "Uploading \(displayName)",
@@ -573,9 +575,9 @@ struct ShareCommandService {
                     previewUploadType,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    gitBranch: gitBranch,
-                    gitCommitSHA: gitCommitSHA,
-                    gitRef: gitBranch,
+                    gitBranch: gitInfo.branch,
+                    gitCommitSHA: gitInfo.sha,
+                    gitRef: gitInfo.ref,
                     track: track,
                     updateProgress: updateProgress
                 )

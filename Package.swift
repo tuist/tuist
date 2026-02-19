@@ -316,6 +316,7 @@ var tuistShareCommandDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
     "TuistNooraExtension",
     "TuistSupport",
+    "TuistGit",
     "TuistAlert",
     "TuistEncodable",
     .product(name: "Noora", package: "tuist.Noora"),
@@ -469,6 +470,20 @@ var targets: [Target] = [
             swiftToolsSupportDependency,
         ],
         path: "cli/Sources/TuistEncodable"
+    ),
+    .target(
+        name: "TuistGit",
+        dependencies: [
+            "TuistSupport",
+            fileSystemDependency,
+            swiftToolsSupportDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistGit",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
     ),
     .target(
         name: "TuistAlert",
@@ -1336,20 +1351,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistXCResultService",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistGit",
-        dependencies: [
-            "TuistSupport",
-            fileSystemDependency,
-            swiftToolsSupportDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistGit",
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
