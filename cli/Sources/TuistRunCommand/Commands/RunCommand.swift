@@ -36,10 +36,18 @@ public struct RunCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "Runnable project scheme, a preview URL, or app name with a specifier such as App@latest or App@feature-branch.",
+        help: ArgumentHelp(RunCommand.runnableHelp),
         envKey: .runScheme
     )
     var runnable: Runnable
+
+    #if os(macOS)
+        private static let runnableHelp =
+            "A preview URL, app name with a specifier such as App@latest or App@feature-branch, or a scheme from a generated project."
+    #else
+        private static let runnableHelp =
+            "A preview URL or app name with a specifier such as App@latest or App@feature-branch."
+    #endif
 
     @Option(
         name: .shortAndLong,
