@@ -4,6 +4,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import Path
 import Testing
 import TuistAndroid
 import TuistCore

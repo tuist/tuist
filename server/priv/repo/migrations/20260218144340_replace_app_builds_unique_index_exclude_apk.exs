@@ -2,6 +2,7 @@ defmodule Tuist.Repo.Migrations.ReplaceAppBuildsUniqueIndexExcludeApk do
   use Ecto.Migration
 
   def change do
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     drop_if_exists unique_index(:app_builds, [:binary_id, :build_version])
 
     # APK builds use a SHA256 hash of the file as binary_id, so re-uploading

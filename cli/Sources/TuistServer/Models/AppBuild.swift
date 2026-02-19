@@ -16,7 +16,7 @@
             guard let url = URL(string: appBuild.url)
             else { return nil }
             self.url = url
-            supportedPlatforms = appBuild.supported_platforms.map(DestinationType.init)
+            supportedPlatforms = appBuild.supported_platforms.compactMap(DestinationType.init)
             type = AppBuildType(appBuild._type)
         }
     }

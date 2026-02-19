@@ -51,6 +51,8 @@ defmodule Tuist.AppBuilds.AppBuild do
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_required([:preview_id, :type])
-    |> unique_constraint([:binary_id, :build_version])
+    |> unique_constraint([:binary_id, :build_version],
+      name: :app_builds_binary_id_build_version_non_apk_index
+    )
   end
 end
