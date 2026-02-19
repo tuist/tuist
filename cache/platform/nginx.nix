@@ -23,6 +23,7 @@
       ssl_prefer_server_ciphers off;
       keepalive_requests 50000;
       http2_max_concurrent_streams 512;
+      http2_chunk_size 64k;
 
       log_format timed_combined '$remote_addr - $remote_user [$time_local] '
         '"$request" $status $body_bytes_sent '
@@ -86,6 +87,7 @@
       "${config.networking.hostName}.tuist.dev" = {
         forceSSL = true;
         enableACME = true;
+        kTLS = true;
 
         extraConfig = ''
           client_max_body_size 0;
@@ -154,6 +156,10 @@
             gzip off;
             add_header Cache-Control "public, max-age=31536000, immutable";
             add_header Content-Version $registry_content_version;
+            open_file_cache max=10000 inactive=60s;
+            open_file_cache_valid 60s;
+            open_file_cache_min_uses 1;
+            open_file_cache_errors off;
           '';
         };
 

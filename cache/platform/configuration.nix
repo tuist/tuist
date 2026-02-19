@@ -29,6 +29,21 @@
       "net.ipv4.tcp_wmem" = "4096 65536 67108864";
       "fs.file-max" = 1048576;
       "fs.nr_open" = 1048576;
+
+      # BBR congestion control — bandwidth-based instead of loss-based (cubic).
+      # Ramps up faster on WAN links and sustains higher throughput.
+      "net.ipv4.tcp_congestion_control" = "bbr";
+      "net.core.default_qdisc" = "fq";
+
+      # Keep the congestion window warm between HTTP/2 stream bursts instead
+      # of falling back to slow-start after brief idle periods.
+      "net.ipv4.tcp_slow_start_after_idle" = 0;
+
+      # Limit unsent data buffered per socket to 256 KB. With HTTP/2
+      # multiplexing 100+ streams, unlimited buffering (the default) lets
+      # large streams starve small ones. A lower value wakes nginx sooner
+      # so it can interleave streams more fairly.
+      "net.ipv4.tcp_notsent_lowat" = 262144;
     };
   };
 
