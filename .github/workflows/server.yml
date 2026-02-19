@@ -679,16 +679,10 @@ jobs:
             echo "Waiting for cache server... ($i/30)"
             sleep 2
           done
-      - name: Setup tuist wrapper for Linux
-        working-directory: .
-        run: |
-          chmod +x e2e/tuist-cache-config-wrapper.sh
-          echo "REAL_TUIST_PATH=$(mise which tuist)" >> "$GITHUB_ENV"
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
-          TUIST_EXECUTABLE: ${{ github.workspace }}/e2e/tuist-cache-config-wrapper.sh
+          TUIST_EXECUTABLE: tuist
           TUIST_SERVER_URL: http://localhost:8080
           SERVER_URL: http://localhost:8080
-          TUIST_CACHE_ENDPOINT: http://localhost:8087
         run: mise run e2e gradle_cache
