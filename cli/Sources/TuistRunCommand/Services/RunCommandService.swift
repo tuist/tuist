@@ -36,6 +36,7 @@ enum RunCommandServiceError: LocalizedError, Equatable {
         case missingFullHandle(displayName: String, specifier: String)
         case previewNotFound(displayName: String, specifier: String)
         case noCompatibleAppBuild(destination: String)
+        case unspecifiedPlatform(target: String, platforms: [String])
     #endif
 
     var errorDescription: String? {
@@ -71,6 +72,9 @@ enum RunCommandServiceError: LocalizedError, Equatable {
                 return "We could not find a preview for \(displayName)@\(specifier). You can create one by running tuist share \(displayName)."
             case let .noCompatibleAppBuild(destination):
                 return "No compatible app build found for destination: \(destination)"
+            case let .unspecifiedPlatform(target, platforms):
+                return
+                    "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
         #endif
         }
     }
@@ -660,9 +664,18 @@ struct RunCommandService {
 
             try targetRunner.assertCanRunTarget(graphTarget.target)
 
+            guard let buildPlatform = graphTarget.target.destinations.first?.platform,
+                graphTarget.target.destinations.platforms.count == 1
+            else {
+                throw RunCommandServiceError.unspecifiedPlatform(
+                    target: graphTarget.target.name,
+                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                )
+            }
+
             try await targetBuilder.buildTarget(
                 graphTarget,
-                platform: try graphTarget.target.servicePlatform,
+                platform: buildPlatform,
                 workspacePath: workspacePath,
                 scheme: scheme,
                 clean: clean,
@@ -693,7 +706,7 @@ struct RunCommandService {
 
             try await targetRunner.runTarget(
                 graphTarget,
-                platform: try graphTarget.target.servicePlatform,
+                platform: buildPlatform,
                 workspacePath: workspacePath,
                 schemeName: scheme.name,
                 configuration: configuration,
