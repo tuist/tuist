@@ -119,9 +119,9 @@ final class StubCommandRunner: CommandRunning, @unchecked Sendable {
     var stubbedOutput: String = ""
 
     func run(
-        arguments: [String],
-        environment: [String: String],
-        workingDirectory: Path.AbsolutePath?
+        arguments _: [String],
+        environment _: [String: String],
+        workingDirectory _: Path.AbsolutePath?
     ) -> AsyncThrowingStream<CommandEvent, any Error> {
         let output = stubbedOutput
         return AsyncThrowingStream { continuation in
