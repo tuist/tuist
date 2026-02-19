@@ -1290,6 +1290,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.simulator.targetName),
                     .target(name: Module.userInputReader.targetName),
                     .target(name: Module.tuistExtension.targetName),
+                    .target(name: Module.android.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
