@@ -8,8 +8,8 @@ defmodule Tuist.Repo.Migrations.ReplaceAppBuildsUniqueIndexExcludeApk do
     # the same unchanged APK is expected and should not be blocked.
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create unique_index(:app_builds, [:binary_id, :build_version],
-      where: "type != 2",
-      name: :app_builds_binary_id_build_version_non_apk_index
-    )
+             where: "type != 2",
+             name: :app_builds_binary_id_build_version_non_apk_index
+           )
   end
 end

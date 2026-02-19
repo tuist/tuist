@@ -62,6 +62,7 @@ public protocol PreviewsUploadServicing {
 // MARK: - Implementation
 
 #if canImport(TuistSupport)
+    // swiftlint:disable:next type_body_length
     public struct PreviewsUploadService: PreviewsUploadServicing {
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
@@ -156,6 +157,7 @@ public protocol PreviewsUploadServicing {
             }
         #endif
 
+        // swiftlint:disable:next function_body_length
         public func uploadPreview(
             _ previewUploadType: PreviewUploadType,
             fullHandle: String,
