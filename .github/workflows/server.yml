@@ -50,6 +50,7 @@ jobs:
         with:
           install_args: "erlang elixir"
           cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -117,6 +118,7 @@ jobs:
         with:
           install_args: "erlang elixir"
           cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
@@ -314,6 +316,7 @@ jobs:
         with:
           install_args: "erlang elixir"
           cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
