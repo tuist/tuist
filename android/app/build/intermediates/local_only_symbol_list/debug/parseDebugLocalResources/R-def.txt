@@ -1,0 +1,27 @@
+R_DEF: Internal format may change without notice
+local
+drawable apple_logo
+drawable github_logo
+drawable google_logo
+drawable ic_apple_logo
+drawable ic_github_logo
+drawable ic_google_logo
+drawable ic_launcher_background
+drawable ic_launcher_foreground
+drawable ic_tuist_logo
+drawable launch_background
+drawable tuist_logo
+drawable tuist_rounded_icon
+string app_name
+string login_subtitle
+string login_title
+string no_projects
+string projects_title
+string retry
+string sign_in_apple
+string sign_in_github
+string sign_in_google
+string sign_in_tuist
+string sign_out
+style Theme.Tuist
+xml network_security_config

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tuist</string>
+    <string name="login_title">Welcome to Tuist</string>
+    <string name="login_subtitle">Sign in to access your projects and\ncollaborate with your team</string>
+    <string name="sign_in_tuist">Sign in with Tuist</string>
+    <string name="sign_in_apple">Sign in with Apple</string>
+    <string name="sign_in_google">Sign in with Google</string>
+    <string name="sign_in_github">Sign in with GitHub</string>
+    <string name="projects_title">Projects</string>
+    <string name="sign_out">Sign out</string>
+    <string name="retry">Retry</string>
+    <string name="no_projects">No projects found</string>
+</resources>

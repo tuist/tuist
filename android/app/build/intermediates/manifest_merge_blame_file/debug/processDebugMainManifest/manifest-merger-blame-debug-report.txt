@@ -1,0 +1,184 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="dev.tuist.app"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:4:5-67
+11-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:4:22-64
+12
+13    <permission
+13-->[androidx.core:core:1.15.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/9cc030562f297a9a15b0ce1f28c0716a/transformed/core-1.15.0/AndroidManifest.xml:22:5-24:47
+14        android:name="dev.tuist.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+14-->[androidx.core:core:1.15.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/9cc030562f297a9a15b0ce1f28c0716a/transformed/core-1.15.0/AndroidManifest.xml:23:9-81
+15        android:protectionLevel="signature" />
+15-->[androidx.core:core:1.15.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/9cc030562f297a9a15b0ce1f28c0716a/transformed/core-1.15.0/AndroidManifest.xml:24:9-44
+16
+17    <uses-permission android:name="dev.tuist.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+17-->[androidx.core:core:1.15.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/9cc030562f297a9a15b0ce1f28c0716a/transformed/core-1.15.0/AndroidManifest.xml:26:5-97
+17-->[androidx.core:core:1.15.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/9cc030562f297a9a15b0ce1f28c0716a/transformed/core-1.15.0/AndroidManifest.xml:26:22-94
+18
+19    <application
+19-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:6:5-40:19
+20        android:name="dev.tuist.app.TuistApplication"
+20-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:7:9-41
+21        android:allowBackup="true"
+21-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:8:9-35
+22        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+22-->[androidx.core:core:1.15.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/9cc030562f297a9a15b0ce1f28c0716a/transformed/core-1.15.0/AndroidManifest.xml:28:18-86
+23        android:debuggable="true"
+24        android:extractNativeLibs="false"
+25        android:icon="@drawable/ic_tuist_logo"
+25-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:9:9-47
+26        android:label="@string/app_name"
+26-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:10:9-41
+27        android:networkSecurityConfig="@xml/network_security_config"
+27-->/Users/marekfort/Developer/tuist-bob/android/app/src/debug/AndroidManifest.xml:6:9-69
+28        android:supportsRtl="true"
+28-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:11:9-35
+29        android:theme="@style/Theme.Tuist" >
+29-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:12:9-43
+30        <activity
+30-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:13:9-39:20
+31            android:name="dev.tuist.app.MainActivity"
+31-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:14:13-41
+32            android:exported="true"
+32-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:15:13-36
+33            android:launchMode="singleTask"
+33-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:16:13-44
+34            android:theme="@style/Theme.Tuist" >
+34-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:17:13-47
+35            <intent-filter>
+35-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:18:13-21:29
+36                <action android:name="android.intent.action.MAIN" />
+36-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:19:17-69
+36-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:19:25-66
+37
+38                <category android:name="android.intent.category.LAUNCHER" />
+38-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:20:17-77
+38-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:20:27-74
+39            </intent-filter>
+40            <intent-filter>
+40-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:22:13-29:29
+41                <action android:name="android.intent.action.VIEW" />
+41-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:23:17-69
+41-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:23:25-66
+42
+43                <category android:name="android.intent.category.DEFAULT" />
+43-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:24:17-76
+43-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:24:27-73
+44                <category android:name="android.intent.category.BROWSABLE" />
+44-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:25:17-78
+44-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:25:27-75
+45
+46                <data
+46-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:26:17-28:46
+47                    android:host="oauth-callback"
+47-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:27:21-50
+48                    android:scheme="tuist" />
+48-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:28:21-43
+49            </intent-filter>
+50            <intent-filter android:autoVerify="true" >
+50-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:30:13-38:29
+50-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:30:28-53
+51                <action android:name="android.intent.action.VIEW" />
+51-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:23:17-69
+51-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:23:25-66
+52
+53                <category android:name="android.intent.category.DEFAULT" />
+53-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:24:17-76
+53-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:24:27-73
+54                <category android:name="android.intent.category.BROWSABLE" />
+54-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:25:17-78
+54-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:25:27-75
+55
+56                <data
+56-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:26:17-28:46
+57                    android:host="tuist.dev"
+57-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:27:21-50
+58                    android:pathPrefix="/oauth/callback/android"
+59                    android:scheme="https" />
+59-->/Users/marekfort/Developer/tuist-bob/android/app/src/main/AndroidManifest.xml:28:21-43
+60            </intent-filter>
+61        </activity>
+62
+63        <provider
+63-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+64            android:name="androidx.startup.InitializationProvider"
+64-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+65            android:authorities="dev.tuist.app.androidx-startup"
+65-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+66            android:exported="false" >
+66-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+67            <meta-data
+67-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+68                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+68-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+69                android:value="androidx.startup" />
+69-->[androidx.emoji2:emoji2:1.3.0] /Users/marekfort/.gradle/caches/8.12.1/transforms/e49e949441f8408a34f374bd1de2f127/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+70            <meta-data
+70-->[androidx.lifecycle:lifecycle-process:2.8.7] /Users/marekfort/.gradle/caches/8.12.1/transforms/22e542bf4457d7312d80f8a5a2a5e87e/transformed/lifecycle-process-2.8.7/AndroidManifest.xml:29:13-31:52
+71                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+71-->[androidx.lifecycle:lifecycle-process:2.8.7] /Users/marekfort/.gradle/caches/8.12.1/transforms/22e542bf4457d7312d80f8a5a2a5e87e/transformed/lifecycle-process-2.8.7/AndroidManifest.xml:30:17-78
+72                android:value="androidx.startup" />
+72-->[androidx.lifecycle:lifecycle-process:2.8.7] /Users/marekfort/.gradle/caches/8.12.1/transforms/22e542bf4457d7312d80f8a5a2a5e87e/transformed/lifecycle-process-2.8.7/AndroidManifest.xml:31:17-49
+73            <meta-data
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+74                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+74-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+75                android:value="androidx.startup" />
+75-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+76        </provider>
+77
+78        <activity
+78-->[androidx.compose.ui:ui-tooling-android:1.7.7] /Users/marekfort/.gradle/caches/8.12.1/transforms/ce421fa93a29a2cb36dd2708393ebe91/transformed/ui-tooling-release/AndroidManifest.xml:23:9-25:39
+79            android:name="androidx.compose.ui.tooling.PreviewActivity"
+79-->[androidx.compose.ui:ui-tooling-android:1.7.7] /Users/marekfort/.gradle/caches/8.12.1/transforms/ce421fa93a29a2cb36dd2708393ebe91/transformed/ui-tooling-release/AndroidManifest.xml:24:13-71
+80            android:exported="true" />
+80-->[androidx.compose.ui:ui-tooling-android:1.7.7] /Users/marekfort/.gradle/caches/8.12.1/transforms/ce421fa93a29a2cb36dd2708393ebe91/transformed/ui-tooling-release/AndroidManifest.xml:25:13-36
+81
+82        <receiver
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+83            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+83-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+84            android:directBootAware="false"
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+85            android:enabled="true"
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+86            android:exported="true"
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+87            android:permission="android.permission.DUMP" >
+87-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+88            <intent-filter>
+88-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+89                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+90            </intent-filter>
+91            <intent-filter>
+91-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+92                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+93            </intent-filter>
+94            <intent-filter>
+94-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+95                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+96            </intent-filter>
+97            <intent-filter>
+97-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+98                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+98-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+98-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/marekfort/.gradle/caches/8.12.1/transforms/c60c1ebd79a373c2bda2275d31c49fc1/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+99            </intent-filter>
+100        </receiver>
+101    </application>
+102
+103</manifest>

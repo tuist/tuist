@@ -297,6 +297,7 @@ defmodule TuistWeb.Router do
     get "/openid-configuration", WellKnownController, :openid_configuration
     get "/jwks.json", WellKnownController, :jwks
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
+    get "/assetlinks.json", WellKnownController, :assetlinks
   end
 
   scope path: "/api",
@@ -530,12 +531,19 @@ defmodule TuistWeb.Router do
     get "/authorize", AuthorizeController, :authorize
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
+    get "/apple", AuthorizeController, :authorize_with_apple
   end
 
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through :non_authenticated_api
 
     post "/token", TokenController, :token
+  end
+
+  scope "/oauth/callback", TuistWeb.Oauth do
+    pipe_through [:browser_app]
+
+    get "/android", AndroidCallbackController, :callback
   end
 
   # Ops Routes
