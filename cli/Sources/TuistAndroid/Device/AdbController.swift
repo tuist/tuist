@@ -89,7 +89,7 @@ public struct AdbController: AdbControlling {
                 .run(arguments: [adb, "-s", device.id, "install", "-r", path.pathString])
                 .awaitCompletion()
         } catch {
-            throw AdbControllerError.installFailed(device: device.id, reason: Self.commandErrorMessage(error))
+            throw AdbControllerError.installFailed(device: device.id, reason: error.localizedDescription)
         }
     }
 
@@ -121,7 +121,7 @@ public struct AdbController: AdbControlling {
         } catch let error as AdbControllerError {
             throw error
         } catch {
-            throw AdbControllerError.launchFailed(device: device.id, reason: Self.commandErrorMessage(error))
+            throw AdbControllerError.launchFailed(device: device.id, reason: error.localizedDescription)
         }
 
         do {
@@ -132,31 +132,11 @@ public struct AdbController: AdbControlling {
                 ])
                 .awaitCompletion()
         } catch {
-            throw AdbControllerError.launchFailed(device: device.id, reason: Self.commandErrorMessage(error))
+            throw AdbControllerError.launchFailed(device: device.id, reason: error.localizedDescription)
         }
     }
 
     // MARK: - Private
-
-    private static func commandErrorMessage(_ error: Error) -> String {
-        if let commandError = error as? CommandError {
-            switch commandError {
-            case let .terminated(code, stderr: stderr):
-                let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    return "Process exited with code \(code)"
-                }
-                return trimmed
-            case let .signalled(code):
-                return "Process terminated by signal \(code)"
-            case let .executableNotFound(name):
-                return "Executable '\(name)' not found"
-            case .missingExecutableName:
-                return "Missing executable name"
-            }
-        }
-        return error.localizedDescription
-    }
 
     /// The Android SDK doesn't add `platform-tools/` to `$PATH` by default, so `adb` is
     /// typically not directly invocable. We check `ANDROID_HOME` / `ANDROID_SDK_ROOT`
