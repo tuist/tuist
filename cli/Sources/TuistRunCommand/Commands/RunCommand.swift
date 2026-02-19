@@ -117,13 +117,7 @@ public struct RunCommand: AsyncParsableCommand {
             try await RunCommandService().run(
                 path: path,
                 runnable: runnable,
-                generate: false,
-                clean: false,
-                configuration: nil,
-                device: device,
-                osVersion: nil,
-                rosetta: false,
-                arguments: []
+                device: device
             )
         #endif
     }

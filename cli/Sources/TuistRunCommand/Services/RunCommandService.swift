@@ -28,7 +28,6 @@ enum RunCommandServiceError: LocalizedError, Equatable {
     case deviceNotFound(String)
     case noDevicesFound
     case schemeRunNotSupportedOnLinux
-    case specifierRunNotSupportedOnLinux
     #if os(macOS)
         case schemeNotFound(scheme: String, existing: [String])
         case schemeWithoutRunnableTarget(scheme: String)
@@ -55,9 +54,7 @@ enum RunCommandServiceError: LocalizedError, Equatable {
         case .noDevicesFound:
             return "No devices found. Connect a device or start a simulator/emulator."
         case .schemeRunNotSupportedOnLinux:
-            return "Running schemes is only supported on macOS."
-        case .specifierRunNotSupportedOnLinux:
-            return "Running previews by specifier is only supported on macOS."
+            return "Running schemes and specifiers is only supported on macOS. Use a preview URL instead."
         #if os(macOS)
             case let .schemeNotFound(scheme, existing):
                 return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
@@ -214,30 +211,46 @@ struct RunCommandService {
         }
     #endif
 
-    // swiftlint:disable:next function_body_length
     func run(
         path: String?,
         runnable: Runnable,
-        generate: Bool,
-        clean: Bool,
-        configuration: String?,
-        device: String?,
-        osVersion: String?,
-        rosetta: Bool,
-        arguments: [String]
+        device: String?
     ) async throws {
-        let device = arguments.firstIndex(of: "-destination").map { arguments[$0 + 1] } ?? device
-
-        let runPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
-
         switch runnable {
         case let .url(previewLink):
             try await runPreviewLink(
                 previewLink,
                 device: device
             )
-        case let .scheme(scheme):
-            #if os(macOS)
+        case .scheme, .specifier:
+            throw RunCommandServiceError.schemeRunNotSupportedOnLinux
+        }
+    }
+
+    #if os(macOS)
+        // swiftlint:disable:next function_body_length
+        func run(
+            path: String?,
+            runnable: Runnable,
+            generate: Bool,
+            clean: Bool,
+            configuration: String?,
+            device: String?,
+            osVersion: String?,
+            rosetta: Bool,
+            arguments: [String]
+        ) async throws {
+            let device = arguments.firstIndex(of: "-destination").map { arguments[$0 + 1] } ?? device
+
+            let runPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
+
+            switch runnable {
+            case let .url(previewLink):
+                try await runPreviewLink(
+                    previewLink,
+                    device: device
+                )
+            case let .scheme(scheme):
                 let osVersion = try osVersion.map { versionString in
                     guard let version = versionString.version() else {
                         throw RunCommandServiceError.invalidVersion(versionString)
@@ -255,14 +268,10 @@ struct RunCommandService {
                     rosetta: rosetta,
                     arguments: arguments
                 )
-            #else
-                throw RunCommandServiceError.schemeRunNotSupportedOnLinux
-            #endif
-        case let .specifier(
-            displayName: displayName,
-            specifier: specifier
-        ):
-            #if os(macOS)
+            case let .specifier(
+                displayName: displayName,
+                specifier: specifier
+            ):
                 let config = try await configLoader.loadConfig(path: runPath)
                 guard let fullHandle = config.fullHandle
                 else {
@@ -291,11 +300,9 @@ struct RunCommandService {
                     preview.url,
                     device: device
                 )
-            #else
-                throw RunCommandServiceError.specifierRunNotSupportedOnLinux
-            #endif
+            }
         }
-    }
+    #endif
 
     // MARK: - Preview link running
 
