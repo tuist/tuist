@@ -1,2 +1,0 @@
--keep,allowobfuscation,allowshrinking class dev.tuist.app.ui.projects.ProjectsViewModel
--keep,allowobfuscation,allowshrinking class dev.tuist.app.ui.projects.ProjectsViewModel
