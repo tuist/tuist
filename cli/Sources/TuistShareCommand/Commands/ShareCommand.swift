@@ -30,28 +30,28 @@ public struct ShareCommand: AsyncParsableCommand {
     )
     var apps: [String] = []
 
-    @Option(
-        name: [.long, .customShort("C")],
-        help: "The configuration of the app to share. Ignored when the app paths are passed directly.",
-        envKey: .shareConfiguration
-    )
-    var configuration: String?
-
     #if os(macOS)
+        @Option(
+            name: [.long, .customShort("C")],
+            help: "The configuration of the app to share. Ignored when the app paths are passed directly.",
+            envKey: .shareConfiguration
+        )
+        var configuration: String?
+
         @Option(
             help: "The platforms (iOS, tvOS, visionOS, watchOS or macOS) to share the app for. Ignored when the app paths are passed directly.",
             completion: .list(["iOS", "tvOS", "macOS", "visionOS", "watchOS"]),
             envKey: .sharePlatform
         )
         var platforms: [XcodeGraph.Platform] = []
-    #endif
 
-    @Option(
-        help: "The derived data path to find the apps in. When absent, the system-configured one.",
-        completion: .directory,
-        envKey: .shareDerivedDataPath
-    )
-    var derivedDataPath: String?
+        @Option(
+            help: "The derived data path to find the apps in. When absent, the system-configured one.",
+            completion: .directory,
+            envKey: .shareDerivedDataPath
+        )
+        var derivedDataPath: String?
+    #endif
 
     @Flag(
         help: "The output in JSON format.",
@@ -80,8 +80,6 @@ public struct ShareCommand: AsyncParsableCommand {
             try await ShareCommandService().run(
                 path: path,
                 apps: apps,
-                configuration: configuration,
-                derivedDataPath: derivedDataPath,
                 json: json,
                 track: track
             )

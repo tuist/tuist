@@ -318,8 +318,6 @@ struct ShareCommandService {
         func run(
             path: String?,
             apps: [String],
-            configuration _: String?,
-            derivedDataPath _: String?,
             json: Bool,
             track: String?
         ) async throws {
