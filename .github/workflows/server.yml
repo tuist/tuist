@@ -330,8 +330,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Touch cached build artifacts
-        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         with:
@@ -366,8 +364,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Touch cached build artifacts
-        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         with:
