@@ -434,7 +434,7 @@ jobs:
         with:
           submodules: false
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
@@ -442,8 +442,6 @@ jobs:
           file: ./server/Dockerfile
           push: false
           tags: tuist/tuist
-          cache-from: type=gha
-          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max' || '' }}
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
