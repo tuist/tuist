@@ -60,14 +60,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d _build ]; then
-            # Backdate source files so they appear older than cached _build artifacts
-            find lib runner credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find ../tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find _build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install dependencies
         run: mix deps.get
       - name: Check marketing gettext template is up-to-date
@@ -129,14 +121,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d _build ]; then
-            # Backdate source files so they appear older than cached _build artifacts
-            find lib runner credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find ../tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find _build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install dependencies
         run: mix deps.get
       - name: Check dashboard gettext templates are up-to-date
@@ -287,14 +271,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d _build ]; then
-            # Backdate source files so they appear older than cached _build artifacts
-            find lib runner credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find ../tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find _build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
@@ -327,14 +303,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d _build ]; then
-            # Backdate source files so they appear older than cached _build artifacts
-            find lib runner credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find ../tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find _build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install dependencies
         run: mix deps.get
       - name: Run Credo
@@ -450,14 +418,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d _build ]; then
-            # Backdate source files so they appear older than cached _build artifacts
-            find lib runner credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find ../tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find _build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install dependencies
         run: mix deps.get
       - name: Check
@@ -564,14 +524,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d _build ]; then
-            # Backdate source files so they appear older than cached _build artifacts
-            find lib runner credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find ../tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find _build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install dependencies
         run: mix deps.get
       - name: Start ClickHouse
@@ -637,13 +589,6 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Prevent recompilation from checkout timestamps
-        run: |
-          if [ -d server/_build ]; then
-            find server/lib server/runner server/credo -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find tuist_common -type f -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find server/_build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install server deps
         working-directory: server
         run: mix deps.get
@@ -670,12 +615,6 @@ jobs:
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
           restore-keys: |
             cache-mix-
-      - name: Prevent cache recompilation from checkout timestamps
-        run: |
-          if [ -d cache/_build ]; then
-            find cache/lib tuist_common/lib -name "*.ex" -exec touch -t 200001010000 {} + 2>/dev/null || true
-            find cache/_build -type f -exec touch {} + 2>/dev/null || true
-          fi
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
