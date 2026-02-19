@@ -48,7 +48,7 @@ public struct RunCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    @Option(help: "The simulator, physical device, or Android device name to run the target, scheme, or preview on.")
+    @Option(help: "The device name to run on.")
     var device: String?
 
     #if os(macOS)
