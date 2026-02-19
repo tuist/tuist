@@ -42,9 +42,9 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -54,7 +54,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -106,9 +106,9 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -118,7 +118,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -189,7 +189,7 @@ jobs:
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
       - name: Check for .po file modifications by non-bot users
@@ -259,9 +259,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -271,7 +271,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -292,9 +292,9 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -304,7 +304,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -322,9 +322,9 @@ jobs:
     runs-on: namespace-profile-default
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -334,7 +334,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -353,9 +353,9 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4 # v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -365,7 +365,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -400,9 +400,9 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -412,7 +412,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -431,7 +431,7 @@ jobs:
     timeout-minutes: 15
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           submodules: false
       - name: Set up Docker Buildx
@@ -466,9 +466,9 @@ jobs:
   #         --health-timeout 5s
   #         --health-retries 5
   #   steps:
-  #     - uses: actions/checkout@v4
+  #     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
   #     - name: Restore Mix Cache
-  #       uses: actions/cache@v4
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
   #       id: mix-cache
   #       with:
   #         path: |
@@ -477,7 +477,7 @@ jobs:
   #           _site
   #         key: mix-${{ hashFiles('mix.lock') }}
   #     - name: Restore PNPM Cache
-  #       uses: actions/cache@v4
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
   #       id: pnpm-cache
   #       with:
   #         path: |
@@ -522,9 +522,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore Mix Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: mix-cache
         with:
           path: |
@@ -534,7 +534,7 @@ jobs:
           restore-keys: |
             mix-
       - name: Restore PNPM Cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         id: pnpm-cache
         with:
           path: |
@@ -580,7 +580,7 @@ jobs:
       TUIST_SECRET_KEY_ENCRYPTION: ci-test-encryption-key-32-bytes!
       TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - uses: jdx/mise-action@v3.2.0
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
@@ -595,7 +595,7 @@ jobs:
           java-version: '21'
       - uses: android-actions/setup-android@v3
       - name: Restore server deps
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         with:
           path: |
             server/deps
@@ -621,7 +621,7 @@ jobs:
           mix ecto.migrate
           mix run priv/repo/seeds.exs
       - name: Restore cache deps
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 #v4
         with:
           path: |
             cache/deps

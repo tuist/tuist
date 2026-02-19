@@ -37,13 +37,13 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Restore PNPM Cache
-        uses: actions/cache@v3
+        uses: actions/cache@6f8efc29b200d32929f49075959781ed54ec270c #v3
         id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
         with:
           working_directory: handbook
       - name: Build handbook

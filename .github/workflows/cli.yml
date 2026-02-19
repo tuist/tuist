@@ -57,7 +57,7 @@ jobs:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -66,7 +66,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -91,7 +91,7 @@ jobs:
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -100,7 +100,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -125,7 +125,7 @@ jobs:
     timeout-minutes: 60
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -134,7 +134,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -159,7 +159,7 @@ jobs:
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -168,7 +168,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -193,7 +193,7 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -202,7 +202,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -233,7 +233,7 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -242,7 +242,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -280,7 +280,7 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -289,7 +289,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -320,7 +320,7 @@ jobs:
     timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -329,7 +329,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -360,7 +360,7 @@ jobs:
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -384,7 +384,7 @@ jobs:
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4

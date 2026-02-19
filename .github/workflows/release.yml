@@ -46,10 +46,10 @@ jobs:
       skills-next-version-number: ${{ steps.skills-check.outputs.next-version-number }}
       should-release-any: ${{ steps.check-any.outputs.should-release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
 
       - name: Check CLI for releasable changes
         id: cli-check
@@ -417,7 +417,7 @@ jobs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -429,7 +429,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -477,7 +477,7 @@ jobs:
 
       - name: Upload CLI artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: cli-artifacts
           path: |
@@ -506,7 +506,7 @@ jobs:
           - arch: aarch64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -539,7 +539,7 @@ jobs:
 
       - name: Upload CLI Linux artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: cli-linux-${{ matrix.arch }}-artifacts
           path: |
@@ -561,7 +561,7 @@ jobs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -569,7 +569,7 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -622,7 +622,7 @@ jobs:
 
       - name: Upload App artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: app-artifacts
           path: |
@@ -642,7 +642,7 @@ jobs:
     runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -652,7 +652,7 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -692,10 +692,10 @@ jobs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
 
       - name: Get release notes
         id: release-notes
@@ -761,7 +761,7 @@ jobs:
 
       - name: Upload Server artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: server-artifacts
           path: |
@@ -780,10 +780,10 @@ jobs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
 
       - name: Get release notes
         id: release-notes
@@ -848,7 +848,7 @@ jobs:
 
       - name: Upload Cache artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: cache-artifacts
           path: |
@@ -867,11 +867,11 @@ jobs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -959,7 +959,7 @@ jobs:
 
       - name: Upload Gradle artifacts
         id: upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: gradle-artifacts
           path: |
@@ -979,10 +979,10 @@ jobs:
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
 
       - name: Get release notes
         id: release-notes
@@ -1029,7 +1029,7 @@ jobs:
           fi
 
       - name: Upload Skills artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4
         with:
           name: skills-artifacts
           path: |
@@ -1061,29 +1061,29 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
 
       - name: Download CLI artifacts
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: cli-artifacts
 
       - name: Download CLI Linux x86_64 artifacts
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: cli-linux-x86_64-artifacts
           path: build-linux-x86_64
 
       - name: Download CLI Linux aarch64 artifacts
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
@@ -1102,33 +1102,33 @@ jobs:
 
       - name: Download App artifacts
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: app-artifacts
           path: app
 
       - name: Download Server artifacts
         if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: server-artifacts
 
       - name: Download Cache artifacts
         if: needs.check-releases.outputs.cache-should-release == 'true' && needs.release-cache.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: cache-artifacts
 
       - name: Download Gradle artifacts
         if: needs.check-releases.outputs.gradle-should-release == 'true' && needs.release-gradle.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: gradle-artifacts
           path: gradle
 
       - name: Download Skills artifacts
         if: needs.check-releases.outputs.skills-should-release == 'true' && needs.release-skills.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 #v4
         with:
           name: skills-artifacts
           path: skills

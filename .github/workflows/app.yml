@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: Check if author is team member
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b #v7
         with:
           github-token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
           script: |
@@ -85,7 +85,7 @@ jobs:
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
@@ -98,7 +98,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -139,7 +139,7 @@ jobs:
       !contains(needs.*.result, 'failure') &&
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
@@ -152,7 +152,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -184,7 +184,7 @@ jobs:
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
@@ -197,7 +197,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login

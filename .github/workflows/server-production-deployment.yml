@@ -42,13 +42,13 @@ jobs:
         working-directory: server
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
         with:
           install: false
       - name: "Get version"
@@ -70,7 +70,7 @@ jobs:
     needs: canary
     environment: server-canary
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         with:
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
           submodules: recursive
@@ -82,7 +82,7 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -111,13 +111,13 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
         with:
           install: false
       - name: "Get version"
@@ -144,13 +144,13 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
         if: ${{ github.event.inputs.commit_sha != '' }}
         with:
           ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac #v2
         with:
           install: false
       - name: "Get version"

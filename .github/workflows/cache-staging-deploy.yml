@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 30
     environment: cache-staging
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
       - uses: 1password/install-cli-action@v2
       - uses: jdx/mise-action@v3.2.0
         with:
