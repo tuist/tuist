@@ -957,7 +957,6 @@ var targets: [Target] = [
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             commandDependency,
-            mockableDependency,
         ],
         path: "cli/Tests/TuistAndroidTests"
     ),

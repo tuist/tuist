@@ -2,18 +2,19 @@ import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
-import Mockable
 import Path
 import Testing
 import TuistAndroid
 
 struct APKMetadataServiceTests {
     private let subject: APKMetadataService
-    private let commandRunner = MockCommandRunning()
+    private let commandRunner: StubCommandRunner
 
     init() {
+        let runner = StubCommandRunner()
+        commandRunner = runner
         subject = APKMetadataService(
-            commandRunner: commandRunner
+            commandRunner: runner
         )
     }
 
@@ -32,7 +33,7 @@ struct APKMetadataServiceTests {
         application-icon-xxxhdpi:'res/mipmap-xxxhdpi-v4/ic_launcher.png'
         """
 
-        givenAapt2Output(output)
+        commandRunner.stubbedOutput = output
 
         let metadata = try await subject.parseMetadata(at: apkPath)
 
@@ -56,7 +57,7 @@ struct APKMetadataServiceTests {
         application-icon-xhdpi:'res/mipmap-xhdpi/ic_launcher.png'
         """
 
-        givenAapt2Output(output)
+        commandRunner.stubbedOutput = output
 
         let metadata = try await subject.parseMetadata(at: apkPath)
 
@@ -74,7 +75,7 @@ struct APKMetadataServiceTests {
         application-label:'App'
         """
 
-        givenAapt2Output(output)
+        commandRunner.stubbedOutput = output
 
         let metadata = try await subject.parseMetadata(at: apkPath)
 
@@ -90,7 +91,7 @@ struct APKMetadataServiceTests {
         application-label:'App'
         """
 
-        givenAapt2Output(output)
+        commandRunner.stubbedOutput = output
 
         await #expect(throws: APKMetadataServiceError.parsingFailed(apkPath.pathString)) {
             try await subject.parseMetadata(at: apkPath)
@@ -106,27 +107,26 @@ struct APKMetadataServiceTests {
         package: name='com.example.app' versionCode='1' versionName='1.0'
         """
 
-        givenAapt2Output(output)
+        commandRunner.stubbedOutput = output
 
         let metadata = try await subject.parseMetadata(at: apkPath)
 
         #expect(metadata.displayName == "MyApp")
     }
+}
 
-    // MARK: - Helpers
+final class StubCommandRunner: CommandRunning, @unchecked Sendable {
+    var stubbedOutput: String = ""
 
-    private func givenAapt2Output(_ output: String) {
-        given(commandRunner)
-            .run(
-                arguments: .any,
-                environment: .any,
-                workingDirectory: .any
-            )
-            .willReturn(
-                AsyncThrowingStream { continuation in
-                    continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
-                    continuation.finish()
-                }
-            )
+    func run(
+        arguments: [String],
+        environment: [String: String],
+        workingDirectory: Path.AbsolutePath?
+    ) -> AsyncThrowingStream<CommandEvent, any Error> {
+        let output = stubbedOutput
+        return AsyncThrowingStream { continuation in
+            continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
+            continuation.finish()
+        }
     }
 }
