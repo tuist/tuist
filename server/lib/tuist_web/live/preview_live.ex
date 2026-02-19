@@ -106,9 +106,7 @@ defmodule TuistWeb.PreviewLive do
   end
 
   defp android_only?(preview) do
-    not is_nil(preview.supported_platforms) and
-      preview.supported_platforms != [] and
-      Enum.all?(preview.supported_platforms, &(&1 == :android))
+    preview.supported_platforms == [:android]
   end
 
   def handle_event(

@@ -864,13 +864,8 @@ defmodule TuistWeb.API.PreviewsController do
       |> Enum.map(&map_app_build(&1, account_handle, project_handle, account, opts))
       |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
 
-    android_only? =
-      not is_nil(preview.supported_platforms) and
-        preview.supported_platforms != [] and
-        Enum.all?(preview.supported_platforms, &(&1 == :android))
-
     device_url =
-      if android_only? do
+      if preview.supported_platforms == [:android] do
         url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.apk")
       else
         "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}"
