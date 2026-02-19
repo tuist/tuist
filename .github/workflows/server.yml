@@ -292,10 +292,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - uses: erlef/setup-beam@v1
+      - uses: jdx/mise-action@v3.2.0
         with:
-          otp-version: "28.1"
-          elixir-version: "1.19.1"
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
       - name: Restore Mix Cache
         uses: actions/cache@v4
         id: mix-cache
