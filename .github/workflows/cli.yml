@@ -54,7 +54,7 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: namespace-profile-default-macos-with-volume
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +93,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: namespace-profile-default-macos-with-volume
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -169,7 +169,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-default-macos-with-volume
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
