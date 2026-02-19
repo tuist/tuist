@@ -682,7 +682,5 @@ jobs:
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
-          TUIST_EXECUTABLE: tuist
-          TUIST_SERVER_URL: http://localhost:8080
           SERVER_URL: http://localhost:8080
         run: mise run e2e gradle_cache
