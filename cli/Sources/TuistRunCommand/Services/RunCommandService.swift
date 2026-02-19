@@ -340,13 +340,13 @@ struct RunCommandService {
 
         var destinationDevices: [DestinationDevice] = []
 
-        if preview.hasAndroidBuilds {
+        if preview.supportedPlatforms.contains(.android) {
             let androidDevices = try await adbController.findAvailableDevices()
             destinationDevices.append(contentsOf: androidDevices.map(DestinationDevice.android))
         }
 
         #if os(macOS)
-            if preview.hasAppleBuilds {
+            if preview.supportedPlatforms.contains(where: { $0 != .android }) {
                 let physicalDevices = try await deviceController.findAvailableDevices()
                 destinationDevices.append(contentsOf: physicalDevices.map(DestinationDevice.physical))
 

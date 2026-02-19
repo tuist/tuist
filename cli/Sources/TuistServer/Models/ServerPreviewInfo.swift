@@ -42,14 +42,6 @@ public struct ServerPreviewInfo: Sendable, Equatable {
         self.builds = builds
         self.supportedPlatforms = supportedPlatforms
     }
-
-    public var hasAndroidBuilds: Bool {
-        supportedPlatforms.contains(.android)
-    }
-
-    public var hasAppleBuilds: Bool {
-        supportedPlatforms.contains(where: { $0 != .android })
-    }
 }
 
 extension ServerPreviewInfo {
