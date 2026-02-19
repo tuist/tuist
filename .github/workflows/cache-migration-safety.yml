@@ -1,0 +1,65 @@
+name: Cache - Migration Safety
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - cache/priv/repo/migrations/**
+      - cache/priv/repo/seeds.exs
+      - .github/workflows/cache-migration-safety.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-migration-safety-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: cache
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  migration-safety:
+    name: Migration Safety
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir"
+          cache: "false"
+          working_directory: cache
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
+          restore-keys: |
+            cache-mix-
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Fetch main branch
+        run: git fetch origin main --depth=1
+      - name: Test migrations against seeded database
+        run: |
+          NEW_MIGRATIONS=$(git diff --name-only --relative origin/main -- priv/repo/migrations/ | grep '\.exs$' | sort)
+
+          EARLIEST=$(echo "$NEW_MIGRATIONS" | head -1 | sed 's|.*/||' | grep -oP '^\d+')
+          BEFORE=$((EARLIEST - 1))
+
+          MIX_ENV=test mix ecto.create --quiet 2>/dev/null || true
+          MIX_ENV=test mix ecto.migrate --to $BEFORE
+          SKIP_MIGRATIONS=true MIX_ENV=test mix run priv/repo/seeds.exs
+          MIX_ENV=test mix ecto.migrate

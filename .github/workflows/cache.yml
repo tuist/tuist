@@ -122,45 +122,6 @@ jobs:
       - name: Compile with MIX_ENV=prod
         run: MIX_ENV=prod mix compile --warnings-as-errors
 
-  migration-safety:
-    name: Migration Safety
-    runs-on: namespace-profile-default
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            cache/deps
-            cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: cache
-      - name: Install dependencies
-        run: mise run install
-      - name: Fetch main branch
-        run: git fetch origin main --depth=1
-      - name: Test migrations against seeded database
-        run: |
-          NEW_MIGRATIONS=$(git diff --name-only --relative origin/main -- priv/repo/migrations/ | grep '\.exs$' | sort || true)
-
-          if [ -z "$NEW_MIGRATIONS" ]; then
-            echo "No new migrations found, skipping."
-            exit 0
-          fi
-
-          EARLIEST=$(echo "$NEW_MIGRATIONS" | head -1 | sed 's|.*/||' | grep -oP '^\d+')
-          BEFORE=$((EARLIEST - 1))
-
-          MIX_ENV=test mix ecto.create --quiet 2>/dev/null || true
-          MIX_ENV=test mix ecto.migrate --to $BEFORE
-          SKIP_MIGRATIONS=true MIX_ENV=test mix run priv/repo/seeds.exs
-          MIX_ENV=test mix ecto.migrate
-
   docker-compose:
     name: Docker Compose
     runs-on: namespace-profile-default
