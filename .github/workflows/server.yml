@@ -286,12 +286,11 @@ jobs:
       - uses: namespacelabs/nscloud-checkout-action@v8
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
-          cache: |
-            mise
-            pnpm
+          cache: mise
           path: |
             server/deps
             server/_build
+            ~/.pnpm/store
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir node pnpm npm:prettier"
@@ -310,12 +309,11 @@ jobs:
       - uses: namespacelabs/nscloud-checkout-action@v8
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
-          cache: |
-            mise
-            pnpm
+          cache: mise
           path: |
             server/deps
             server/_build
+            ~/.pnpm/store
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir node pnpm"
