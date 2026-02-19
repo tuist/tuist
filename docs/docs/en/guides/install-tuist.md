@@ -7,7 +7,7 @@
 ---
 # Install Tuist {#install-tuist}
 
-Tuist runs on **macOS** and **Linux**. The Tuist CLI consists of an executable, dynamic frameworks, and a set of resources (for example, templates). Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
+Tuist runs on **macOS** and **Linux**. Although you could manually build Tuist from [the sources](https://github.com/tuist/tuist), **we recommend using one of the following installation methods to ensure a valid installation.**
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
