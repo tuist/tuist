@@ -60,15 +60,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
+          path: .build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist swiftlint swiftformat"
@@ -80,19 +75,12 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Lint
         run: |
           mise x swiftformat -- swiftformat cli/ app/ --lint
           mise x swiftlint -- swiftlint lint --quiet --config .swiftlint.yml cli/Sources
           tuist inspect dependencies --only implicit
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-spm-build:
     name: SwiftPM Build
@@ -103,15 +91,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
+          path: .build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -123,16 +106,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-cache:
     name: Cache
@@ -179,15 +155,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: .build
-          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
+          path: .build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist"
@@ -199,16 +170,9 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   # Acceptance tests commented out temporarily to measure optimization impact on other jobs
   # cli-automation-acceptance-tests:
