@@ -59,6 +59,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Install dependencies
         run: mix deps.get
       - name: Check marketing gettext template is up-to-date
@@ -119,6 +121,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Install dependencies
         run: mix deps.get
       - name: Check dashboard gettext templates are up-to-date
@@ -269,6 +273,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Install dependencies
         run: mix deps.get
       - run: mise run --no-prepare clickhouse:start
@@ -298,6 +304,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Install dependencies
         run: mix deps.get
       - name: Run Credo
@@ -325,6 +333,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         with:
@@ -359,6 +369,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Restore PNPM Cache
         uses: actions/cache@v4
         with:
@@ -409,6 +421,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Install dependencies
         run: mix deps.get
       - name: Check
@@ -515,6 +529,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached build artifacts
+        run: if [ -d _build ]; then find _build -type f -exec touch {} +; fi
       - name: Install dependencies
         run: mix deps.get
       - run: mise run --no-prepare clickhouse:start
@@ -578,6 +594,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
+      - name: Touch cached server build artifacts
+        run: if [ -d server/_build ]; then find server/_build -type f -exec touch {} +; fi
       - name: Install server deps
         working-directory: server
         run: mix deps.get
@@ -604,6 +622,8 @@ jobs:
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
           restore-keys: |
             cache-mix-
+      - name: Touch cached cache build artifacts
+        run: if [ -d cache/_build ]; then find cache/_build -type f -exec touch {} +; fi
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
