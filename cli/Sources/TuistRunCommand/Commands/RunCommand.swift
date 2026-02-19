@@ -27,11 +27,8 @@ public struct RunCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
-            abstract: "Runs a scheme or target in the project",
-            discussion: """
-            Given a runnable scheme or target the run command builds & runs it.
-            All arguments after the scheme or target are forwarded to the application.
-            """
+            abstract: "Runs a preview or a scheme from a generated project.",
+            discussion: RunCommand.discussionText
         )
     }
 
@@ -44,9 +41,13 @@ public struct RunCommand: AsyncParsableCommand {
     #if os(macOS)
         private static let runnableHelp =
             "A preview URL, app name with a specifier such as App@latest or App@feature-branch, or a scheme from a generated project."
+        private static let discussionText =
+            "Run a preview by passing a preview URL or an app specifier (e.g. App@latest). You can also run a scheme from a Tuist-generated project."
     #else
         private static let runnableHelp =
             "A preview URL or app name with a specifier such as App@latest or App@feature-branch."
+        private static let discussionText =
+            "Run a preview by passing a preview URL or an app specifier (e.g. App@latest)."
     #endif
 
     @Option(
