@@ -3,7 +3,8 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
 routes = [
-  { pattern = "registry.tuist.dev/*", zone_name = "tuist.dev" }
+  { pattern = "registry.tuist.dev/*", zone_name = "tuist.dev" },
+  { pattern = "tuist.dev/api/registry/*", zone_name = "tuist.dev" }
 ]
 
 [[kv_namespaces]]
