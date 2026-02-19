@@ -10,7 +10,7 @@
     appendConfig = ''
       worker_processes auto;
       worker_rlimit_nofile 1048576;
-      thread_pool cacheio threads=8 max_queue=16384;
+      thread_pool cacheio threads=32 max_queue=65536;
     '';
 
     eventsConfig = ''
@@ -170,13 +170,14 @@
             sendfile on;
             gzip off;
 
-            # Files ≥ 2 MB bypass the page cache (O_DIRECT) and are read
+            # Files ≥ 8 MB bypass the page cache (O_DIRECT) and are read
             # in the cacheio thread pool so the worker stays non-blocking.
-            # Files < 2 MB use sendfile + kTLS (zero-copy, kernel TLS).
-            # This keeps the page cache hot for Xcode's tiny-file bursts
-            # while large module artifacts don't evict them.
+            # Files < 8 MB use sendfile + kTLS (zero-copy, kernel TLS).
+            # Keeping the threshold high maximises the zero-copy window;
+            # sendfile_max_chunk (512 KB) prevents any single sendfile()
+            # call from blocking the event loop for more than ~1 ms on SSD.
             aio threads=cacheio;
-            directio 2m;
+            directio 8m;
             directio_alignment 4k;
             # Double-buffer AIO reads: one buffer sends while the next
             # is filled by the thread pool, smoothing large-file throughput.

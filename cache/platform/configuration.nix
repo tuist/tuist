@@ -20,17 +20,24 @@
       efiInstallAsRemovable = true;
     };
     kernelPackages = pkgs.linuxPackages_6_18;
+    # THP causes latency spikes under nginx: the kernel stalls
+    # defragmenting 2 MB pages while workers allocate small buffers.
+    kernelParams = ["transparent_hugepage=never"];
     kernel.sysctl = {
       # Handle burst reconnections (many CI clients at once) without
       # dropping SYN packets in the backlog queue.
       "net.core.somaxconn" = 16384;
       "net.ipv4.tcp_max_syn_backlog" = 16384;
-      "net.core.rmem_max" = 16777216;
-      "net.core.wmem_max" = 16777216;
-      "net.ipv4.tcp_rmem" = "4096 131072 16777216";
-      "net.ipv4.tcp_wmem" = "4096 65536 16777216";
+      # TCP buffer ceilings at 64 MB — just a max; autotuning allocates
+      # only what each socket needs. Covers 1 Gbps × 500 ms RTT BDP
+      # without capping fast or intercontinental clients.
+      "net.core.rmem_max" = 67108864;
+      "net.core.wmem_max" = 67108864;
+      "net.ipv4.tcp_rmem" = "4096 131072 67108864";
+      "net.ipv4.tcp_wmem" = "4096 65536 67108864";
       "fs.file-max" = 1048576;
       "fs.nr_open" = 1048576;
+      "fs.aio-max-nr" = 1048576;
       "net.core.optmem_max" = 65536;
 
       # BBR congestion control — bandwidth-based instead of loss-based (cubic).
@@ -79,6 +86,11 @@
       "net.ipv4.tcp_keepalive_time" = 300;
       "net.ipv4.tcp_keepalive_intvl" = 15;
       "net.ipv4.tcp_keepalive_probes" = 5;
+
+      # Process more packets per NAPI cycle before yielding to the
+      # network stack. Helps absorb download bursts at the NIC.
+      "net.core.netdev_budget" = 600;
+      "net.core.netdev_budget_usecs" = 16000;
     };
   };
 
