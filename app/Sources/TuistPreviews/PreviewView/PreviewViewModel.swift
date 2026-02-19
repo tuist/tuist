@@ -60,12 +60,13 @@ final class PreviewViewModel: Sendable {
         isLoading = true
         defer { isLoading = false }
 
-        let previewResponse = try await getPreviewService.getPreview(
-            previewId,
-            fullHandle: fullHandle,
-            serverURL: serverEnvironmentService.url()
+        preview = try await ServerPreview(
+            getPreviewService.getPreview(
+                previewId,
+                fullHandle: fullHandle,
+                serverURL: serverEnvironmentService.url()
+            )
         )
-        preview = try ServerPreview(previewResponse)
     }
 
     func deletePreview(_ preview: ServerPreview) async throws {
