@@ -3,7 +3,7 @@
 This node covers the Tuist Server application under `server/`. Follow downlinks for subsystem boundaries.
 
 ## Project Architecture
-Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It provides binary caching, app preview deployment, build analytics, and Swift package registry services.
+Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It provides binary caching, app preview deployment, and build analytics services.
 
 **Key Technologies**
 - Backend: Elixir 1.18.3 with Phoenix 1.7.12
@@ -12,7 +12,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - Package management: pnpm for JavaScript dependencies
 
 **Core Components**
-- `lib/tuist/` - Business logic modules (accounts, billing, bundles, projects, registry, etc.)
+- `lib/tuist/` - Business logic modules (accounts, billing, bundles, projects, etc.)
 - `lib/tuist_web/` - Web interface (controllers, LiveView, marketing site)
 - `priv/repo/migrations/` - PostgreSQL migrations
 - `priv/ingest_repo/migrations/` - ClickHouse migrations (analytics)
@@ -24,7 +24,6 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 - Projects (tokens, permissions)
 - Bundles (binary cache)
 - Previews (iOS app preview deployment)
-- Registry (Swift package registry)
 - Command Events (CLI analytics)
 
 ## Development Setup

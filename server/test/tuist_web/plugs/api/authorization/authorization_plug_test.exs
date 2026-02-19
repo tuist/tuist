@@ -18,28 +18,6 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     %{cache: cache}
   end
 
-  test "returns the connection when the authenticated account can read its registry" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-    opts = AuthorizationPlug.init(:registry)
-
-    conn =
-      :get
-      |> build_conn(~p"/api/accounts/#{account.name}/registry/swift/availability")
-      |> assign(:selected_account, account)
-      |> assign(:current_subject, %AuthenticatedAccount{
-        account: account,
-        scopes: ["account:registry:read"]
-      })
-
-    # When
-    got = AuthorizationPlug.call(conn, opts)
-
-    # Then
-    assert conn == got
-  end
-
   test "returns the connection when the authenticated account with project:bundles:read scope can read bundles" do
     # Given
     project = ProjectsFixtures.project_fixture()

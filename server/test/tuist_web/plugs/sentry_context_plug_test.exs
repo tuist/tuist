@@ -75,7 +75,7 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
 
     test "sets auth context for authenticated account" do
       account = AccountsFixtures.account_fixture()
-      authenticated_account = %AuthenticatedAccount{account: account, scopes: [:registry_read]}
+      authenticated_account = %AuthenticatedAccount{account: account, scopes: ["project:cache:read"]}
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
 

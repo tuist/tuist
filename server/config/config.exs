@@ -69,12 +69,6 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config :mime, :types, %{
-  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
-  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
-  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
-}
-
 # Money
 config :money,
   default_currency: :USD

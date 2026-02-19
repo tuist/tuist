@@ -49,7 +49,6 @@ The following data is stored in ClickHouse for analytics purposes:
 - QA testing logs and results
 
 ### Non-Exportable Data
-- Swift package registry data (shared community resources)
 - Encrypted passwords and authentication secrets
 
 ## Binary Files
@@ -58,8 +57,6 @@ All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **QA screenshots**: Test run screenshots and reports
-
-**Note**: Package registry files are not included (shared community resources).
 
 ## Export Process
 

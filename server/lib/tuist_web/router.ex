@@ -124,13 +124,6 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
-  pipeline :api_registry_swift do
-    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
-    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug SentryContextPlug
-    plug TuistWeb.RateLimit.Registry
-  end
-
   pipeline :authenticated_api do
     plug :accepts, ["json", "application/octet-stream"]
 
@@ -477,34 +470,6 @@ defmodule TuistWeb.Router do
         :update_member
   end
 
-  scope "/api", TuistWeb.API do
-    # Deprecated Swift package registry endpoints
-    scope "/accounts/:account_handle/registry", Registry do
-      scope "/swift" do
-        pipe_through [:api_registry_swift]
-
-        get "/identifiers", SwiftController, :identifiers
-        get "/:scope/:name", SwiftController, :list_releases
-        get "/:scope/:name/:version", SwiftController, :show_release
-        get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
-        get "/availability", SwiftController, :availability
-        post "/login", SwiftController, :login
-      end
-    end
-
-    # Swift package registry endpoints
-    scope "/registry/swift", Registry do
-      pipe_through [:api_registry_swift]
-
-      get "/identifiers", SwiftController, :identifiers
-      get "/:scope/:name", SwiftController, :list_releases
-      get "/:scope/:name/:version", SwiftController, :show_release
-      get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
-      get "/availability", SwiftController, :availability
-      post "/login", SwiftController, :login
-    end
-  end
-
   scope "/api" do
     pipe_through [:open_api, :non_authenticated_api]
 
@@ -519,8 +484,6 @@ defmodule TuistWeb.Router do
 
     post "/auth", AuthController, :authenticate
     post "/auth/apple", AuthController, :authenticate_apple
-
-    get "/registry/swift", Registry.SwiftController, :availability
 
     post "/auth/oidc/token", OIDCController, :exchange_token
   end

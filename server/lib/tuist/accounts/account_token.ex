@@ -28,8 +28,6 @@ defmodule Tuist.Accounts.AccountToken do
     "ci",
     "account:members:read",
     "account:members:write",
-    "account:registry:read",
-    "account:registry:write",
     "project:previews:read",
     "project:previews:write",
     "project:admin:read",

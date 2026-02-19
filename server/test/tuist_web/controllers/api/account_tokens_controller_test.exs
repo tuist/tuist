@@ -44,7 +44,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/accounts/#{organization.account.name}/tokens", %{
-          scopes: ["account:registry:read"],
+          scopes: ["project:cache:read"],
           name: "org-token"
         })
 
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       response = json_response(conn, :ok)
       {:ok, token} = Accounts.account_token(response["token"], preload: [:account])
       assert token.account == organization.account
-      assert token.scopes == ["account:registry:read"]
+      assert token.scopes == ["project:cache:read"]
     end
 
     test "generates token name when name is not provided", %{conn: conn} do
@@ -75,27 +75,6 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert token.account == user.account
       assert String.starts_with?(token.name, "token-")
       assert String.length(token.name) == 14
-    end
-
-    test "transforms legacy scope registry_read to account:registry:read", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture(preload: [:account])
-
-      conn = TuistWeb.Authentication.put_current_user(conn, user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/accounts/#{user.account.name}/tokens", %{
-          scopes: ["registry_read"],
-          name: "legacy-token"
-        })
-
-      # Then
-      response = json_response(conn, :ok)
-      {:ok, token} = Accounts.account_token(response["token"], preload: [:account])
-      assert token.scopes == ["account:registry:read"]
     end
 
     test "returns bad_request when scopes are invalid", %{conn: conn} do
