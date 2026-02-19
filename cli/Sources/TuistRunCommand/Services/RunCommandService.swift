@@ -4,8 +4,8 @@ import Noora
 import Path
 import TuistAndroid
 import TuistConfigLoader
-import TuistEnvironment
 import TuistConstants
+import TuistEnvironment
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -226,7 +226,7 @@ struct RunCommandService {
     #endif
 
     func run(
-        path: String?,
+        path _: String?,
         runnable: Runnable,
         device: String?
     ) async throws {
@@ -372,7 +372,7 @@ struct RunCommandService {
             throw RunCommandServiceError.noDevicesFound
         }
 
-        let readyDevices = destinationDevices.filter { $0.isReady }
+        let readyDevices = destinationDevices.filter(\.isReady)
         if readyDevices.count == 1, let readyDevice = readyDevices.first {
             try await runApp(
                 on: readyDevice,
@@ -472,7 +472,8 @@ struct RunCommandService {
             errorMessage: nil,
             showSpinner: true
         ) { updateProgress in
-            guard let buildURL = URL(string: build.url) else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
+            guard let buildURL = URL(string: build.url)
+            else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
             let archivePath = try await remoteArtifactDownloader.download(url: buildURL)
             guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
@@ -555,7 +556,7 @@ struct RunCommandService {
         ) async throws -> AppBundle {
             let targetPlatform = previewSupportedPlatform(for: destination)
             guard let buildURLString = preview.builds.first(where: { $0.supported_platforms.contains(targetPlatform) })?.url,
-                let buildURL = URL(string: buildURLString)
+                  let buildURL = URL(string: buildURLString)
             else {
                 throw RunCommandServiceError.noCompatibleAppBuild(destination: destination.description)
             }
@@ -665,7 +666,7 @@ struct RunCommandService {
             try targetRunner.assertCanRunTarget(graphTarget.target)
 
             guard let buildPlatform = graphTarget.target.destinations.first?.platform,
-                graphTarget.target.destinations.platforms.count == 1
+                  graphTarget.target.destinations.platforms.count == 1
             else {
                 throw RunCommandServiceError.unspecifiedPlatform(
                     target: graphTarget.target.name,

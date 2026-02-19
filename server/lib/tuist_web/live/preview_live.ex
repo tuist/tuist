@@ -83,11 +83,7 @@ defmodule TuistWeb.PreviewLive do
       apk_build = AppBuilds.latest_apk_app_build_for_preview(preview)
 
       if apk_build do
-        url(
-          ~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/app.apk"
-        )
-      else
-        nil
+        url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/app.apk")
       end
     else
       case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do

@@ -772,7 +772,7 @@ struct PreviewsUploadServiceTests {
                 gitRef: .any,
                 binaryId: .matching { binaryId in
                     guard let binaryId else { return false }
-                    return binaryId.count == 64 && binaryId.allSatisfy { $0.isHexDigit }
+                    return binaryId.count == 64 && binaryId.allSatisfy(\.isHexDigit)
                 },
                 fullHandle: .any,
                 serverURL: .any,

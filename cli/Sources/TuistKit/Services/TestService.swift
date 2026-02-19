@@ -809,7 +809,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if let platform {
             buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
         } else if let resolvedPlatform = buildableTarget.target.destinations.first?.platform,
-            buildableTarget.target.destinations.platforms.count == 1
+                  buildableTarget.target.destinations.platforms.count == 1
         {
             buildPlatform = resolvedPlatform
         } else {

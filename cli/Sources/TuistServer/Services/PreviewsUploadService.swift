@@ -86,10 +86,10 @@ public protocol PreviewsUploadServicing {
                     retryProvider: RetryProvider(),
                     multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
                     multipartUploadGenerateURLPreviewsService:
-                        MultipartUploadGenerateURLPreviewsService(),
+                    MultipartUploadGenerateURLPreviewsService(),
                     multipartUploadArtifactService: MultipartUploadArtifactService(),
                     multipartUploadCompletePreviewsService:
-                        MultipartUploadCompletePreviewsService(),
+                    MultipartUploadCompletePreviewsService(),
                     uploadPreviewIconService: UploadPreviewIconService(),
                     commandRunner: CommandRunner(),
                     precompiledMetadataProvider: PrecompiledMetadataProvider()
@@ -101,10 +101,10 @@ public protocol PreviewsUploadServicing {
                     retryProvider: RetryProvider(),
                     multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
                     multipartUploadGenerateURLPreviewsService:
-                        MultipartUploadGenerateURLPreviewsService(),
+                    MultipartUploadGenerateURLPreviewsService(),
                     multipartUploadArtifactService: MultipartUploadArtifactService(),
                     multipartUploadCompletePreviewsService:
-                        MultipartUploadCompletePreviewsService(),
+                    MultipartUploadCompletePreviewsService(),
                     uploadPreviewIconService: UploadPreviewIconService()
                 )
             #endif

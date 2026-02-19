@@ -145,7 +145,7 @@ public struct BuildService {
             if let platform {
                 buildPlatform = platform
             } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
-                graphTarget.target.destinations.platforms.count == 1
+                      graphTarget.target.destinations.platforms.count == 1
             {
                 buildPlatform = resolvedPlatform
             } else {
@@ -189,7 +189,7 @@ public struct BuildService {
                 if let platform {
                     buildPlatform = platform
                 } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
-                    graphTarget.target.destinations.platforms.count == 1
+                          graphTarget.target.destinations.platforms.count == 1
                 {
                     buildPlatform = resolvedPlatform
                 } else {
