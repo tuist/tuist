@@ -86,6 +86,21 @@ enum DestinationDevice: Equatable {
     #endif
 }
 
+extension DestinationDevice {
+    var isReady: Bool {
+        switch self {
+        case .android:
+            return true
+        #if os(macOS)
+            case .physical:
+                return true
+            case let .simulator(sim):
+                return !sim.device.isShutdown
+        #endif
+        }
+    }
+}
+
 extension DestinationDevice: CustomStringConvertible {
     var description: String {
         switch self {
@@ -357,24 +372,10 @@ struct RunCommandService {
             throw RunCommandServiceError.noDevicesFound
         }
 
-        #if os(macOS)
-            let bootedSimulators = destinationDevices.filter {
-                if case let .simulator(sim) = $0 { return !sim.device.isShutdown }
-                return false
-            }
-            if bootedSimulators.count == 1, let bootedDevice = bootedSimulators.first {
-                try await runApp(
-                    on: bootedDevice,
-                    preview: preview,
-                    previewLink: previewLink
-                )
-                return
-            }
-        #endif
-
-        if destinationDevices.count == 1, let onlyDevice = destinationDevices.first {
+        let readyDevices = destinationDevices.filter { $0.isReady }
+        if readyDevices.count == 1, let readyDevice = readyDevices.first {
             try await runApp(
-                on: onlyDevice,
+                on: readyDevice,
                 preview: preview,
                 previewLink: previewLink
             )
