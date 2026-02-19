@@ -292,8 +292,10 @@ jobs:
           fi
       - name: Install dependencies
         run: mix deps.get
-      - run: mise run --no-prepare clickhouse:start
-      - run: mise run --no-prepare db:reset
+      - name: Start ClickHouse
+        run: bash mise/tasks/clickhouse/start.sh
+      - name: Setup database
+        run: mix ecto.create && mix ecto.load
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -563,8 +565,10 @@ jobs:
           fi
       - name: Install dependencies
         run: mix deps.get
-      - run: mise run --no-prepare clickhouse:start
-      - run: mise run --no-prepare db:reset
+      - name: Start ClickHouse
+        run: bash mise/tasks/clickhouse/start.sh
+      - name: Setup database
+        run: mix ecto.create && mix ecto.load
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database
@@ -638,7 +642,7 @@ jobs:
         run: mix compile
       - name: Start ClickHouse
         working-directory: server
-        run: mise run --no-prepare clickhouse:start
+        run: bash mise/tasks/clickhouse/start.sh
       - name: Setup main server
         working-directory: server
         run: |
