@@ -25,6 +25,7 @@ enum RunCommandServiceError: LocalizedError, Equatable {
     case appNotFound(String)
     case appBundleNotFoundInArchive
     case apkNotFoundInArchive
+    case missingPackageName
     case deviceNotFound(String)
     case noDevicesFound
     case schemeRunNotSupportedOnLinux
@@ -49,6 +50,8 @@ enum RunCommandServiceError: LocalizedError, Equatable {
             return "Could not find app bundle in the downloaded archive"
         case .apkNotFoundInArchive:
             return "Could not find APK in the downloaded archive"
+        case .missingPackageName:
+            return "The preview is missing a package name (bundle identifier). The APK cannot be launched without it."
         case let .deviceNotFound(device):
             return "Device '\(device)' not found among available devices or simulators"
         case .noDevicesFound:
@@ -459,7 +462,9 @@ struct RunCommandService {
         else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
         let displayName = preview.display_name ?? "app"
-        let packageName = preview.bundle_identifier ?? ""
+        guard let packageName = preview.bundle_identifier else {
+            throw RunCommandServiceError.missingPackageName
+        }
 
         try await Noora.current.progressStep(
             message: "Installing \(displayName) on \(androidDevice.name)",

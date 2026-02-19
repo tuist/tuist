@@ -91,6 +91,7 @@ var tuistAuthCommandDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
 ]
 var tuistServerDependencies: [Target.Dependency] = [
+    "TuistAndroid",
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",

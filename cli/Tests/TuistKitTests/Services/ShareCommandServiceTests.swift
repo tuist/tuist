@@ -6,6 +6,7 @@ import Mockable
 import Path
 import SnapshotTesting
 import Testing
+import TuistAndroid
 import TuistAutomation
 import TuistConfigLoader
 import TuistConstants
@@ -63,8 +64,8 @@ struct ShareCommandServiceTests {
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
             previewsUploadService: previewsUploadService,
+            apkMetadataService: APKMetadataService(),
             fileArchiverFactory: fileArchiverFactory,
-            commandRunner: CommandRunner(),
             gitController: GitController(),
             fileHandler: FileHandler.shared,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,

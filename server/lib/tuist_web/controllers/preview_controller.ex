@@ -154,10 +154,11 @@ defmodule TuistWeb.PreviewController do
       raise NotFoundError, dgettext("dashboard", "The preview APK doesn't exist or has expired.")
     end
 
+    url = Storage.generate_download_url(storage_key, account, expires_in: 3600)
+
     conn
-    |> put_resp_content_type("application/vnd.android.package-archive")
-    |> put_resp_header("content-disposition", "attachment; filename=\"preview.apk\"")
-    |> send_resp(:ok, Storage.get_object_as_string(storage_key, account))
+    |> redirect(external: url)
+    |> halt()
   end
 
   def manifest(

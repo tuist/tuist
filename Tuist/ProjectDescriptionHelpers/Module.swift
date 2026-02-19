@@ -826,6 +826,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .server:
                 [
+                    .target(name: Module.android.targetName),
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
@@ -1267,7 +1268,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.environment.targetName),
                     .external(name: "FileSystem"),
-                    .external(name: "Command"),
+                    .external(name: "Command", condition: .when([.macos])),
                     .external(name: "Mockable"),
                 ]
             case .shareCommand:
@@ -1618,6 +1619,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .server:
                 [
+                    .target(name: Module.android.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
@@ -1758,7 +1760,7 @@ public enum Module: String, CaseIterable {
 
     private var destinations: Destinations {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants:
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants, .android:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -1767,7 +1769,7 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants: .multiplatform(iOS: "18.0", macOS: "15.0")
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants, .android: .multiplatform(iOS: "18.0", macOS: "15.0")
         default: .macOS("15.0")
         }
     }

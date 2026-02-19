@@ -1,9 +1,9 @@
-import Command
 import FileSystem
 import Foundation
 import Noora
 import Path
 import TuistAlert
+import TuistAndroid
 import TuistConfigLoader
 import TuistConstants
 import TuistEncodable
@@ -25,8 +25,6 @@ import TuistSupport
 
 enum ShareCommandServiceError: Equatable, LocalizedError {
     case fullHandleNotFound
-    case aapt2NotFound
-    case aapt2ParsingFailed(String)
     case multipleAppsSpecified([String])
     #if os(macOS)
         case projectOrWorkspaceNotFound(path: String)
@@ -40,10 +38,6 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
         switch self {
         case .fullHandleNotFound:
             return "You are missing fullHandle in your \(Constants.tuistManifestFileName). Run 'tuist init' to get started with remote Tuist features."
-        case .aapt2NotFound:
-            return "aapt2 is required to share APK files. Install it via the Android SDK (build-tools) and ensure ANDROID_HOME or ANDROID_SDK_ROOT is set, or that aapt2 is in your PATH."
-        case let .aapt2ParsingFailed(path):
-            return "Failed to parse APK metadata from \(path). Ensure the file is a valid APK."
         case let .multipleAppsSpecified(apps):
             return "You specified multiple apps to share: \(apps.joined(separator: " ")). You cannot specify multiple apps when using `tuist share`."
         #if os(macOS)
@@ -68,8 +62,8 @@ struct ShareCommandService {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let previewsUploadService: PreviewsUploadServicing
+    private let apkMetadataService: APKMetadataServicing
     private let fileArchiverFactory: FileArchivingFactorying
-    private let commandRunner: CommandRunning
     private let gitController: GitControlling
 
     #if os(macOS)
@@ -97,11 +91,10 @@ struct ShareCommandService {
                 configLoader: ConfigLoader(),
                 serverEnvironmentService: ServerEnvironmentService(),
                 previewsUploadService: PreviewsUploadService(),
+                apkMetadataService: APKMetadataService(),
                 fileArchiverFactory: FileArchivingFactory(),
-                commandRunner: CommandRunner(),
                 gitController: GitController(),
                 fileHandler: FileHandler.shared,
-
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
                 buildGraphInspector: BuildGraphInspector(),
                 manifestLoader: manifestLoader,
@@ -116,6 +109,7 @@ struct ShareCommandService {
                 configLoader: ConfigLoader(),
                 serverEnvironmentService: ServerEnvironmentService(),
                 previewsUploadService: PreviewsUploadService(),
+                apkMetadataService: APKMetadataService(),
                 fileArchiverFactory: FileArchivingFactory(),
                 commandRunner: CommandRunner(),
                 gitController: GitController()
@@ -129,8 +123,8 @@ struct ShareCommandService {
             configLoader: ConfigLoading,
             serverEnvironmentService: ServerEnvironmentServicing,
             previewsUploadService: PreviewsUploadServicing,
+            apkMetadataService: APKMetadataServicing,
             fileArchiverFactory: FileArchivingFactorying,
-            commandRunner: CommandRunning,
             gitController: GitControlling,
             fileHandler: FileHandling,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
@@ -145,8 +139,8 @@ struct ShareCommandService {
             self.configLoader = configLoader
             self.serverEnvironmentService = serverEnvironmentService
             self.previewsUploadService = previewsUploadService
+            self.apkMetadataService = apkMetadataService
             self.fileArchiverFactory = fileArchiverFactory
-            self.commandRunner = commandRunner
             self.gitController = gitController
             self.fileHandler = fileHandler
             self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
@@ -163,16 +157,16 @@ struct ShareCommandService {
             configLoader: ConfigLoading,
             serverEnvironmentService: ServerEnvironmentServicing,
             previewsUploadService: PreviewsUploadServicing,
+            apkMetadataService: APKMetadataServicing,
             fileArchiverFactory: FileArchivingFactorying,
-            commandRunner: CommandRunning,
             gitController: GitControlling
         ) {
             self.fileSystem = fileSystem
             self.configLoader = configLoader
             self.serverEnvironmentService = serverEnvironmentService
             self.previewsUploadService = previewsUploadService
+            self.apkMetadataService = apkMetadataService
             self.fileArchiverFactory = fileArchiverFactory
-            self.commandRunner = commandRunner
             self.gitController = gitController
         }
     #endif
@@ -190,7 +184,7 @@ struct ShareCommandService {
             json: Bool,
             track: String?
         ) async throws {
-            let path = try self.path(path)
+            let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
@@ -330,7 +324,7 @@ struct ShareCommandService {
             json: Bool,
             track: String?
         ) async throws {
-            let path = try self.path(path)
+            let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
             let config = try await configLoader.loadConfig(path: path)
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
@@ -374,7 +368,7 @@ struct ShareCommandService {
               let apkPath = appPaths.first
         else { throw ShareCommandServiceError.multipleAppsSpecified(appPaths.map(\.pathString)) }
 
-        let metadata = try await parseAPKMetadata(at: apkPath)
+        let metadata = try await apkMetadataService.parseMetadata(at: apkPath)
 
         let gitInfo = resolveGitInfo(at: path)
 
@@ -586,91 +580,6 @@ struct ShareCommandService {
     #endif
 
     // MARK: - Helpers
-
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            #if os(macOS)
-                return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-            #else
-                return try AbsolutePath(validating: path, relativeTo: .current)
-            #endif
-        } else {
-            #if os(macOS)
-                return FileHandler.shared.currentPath
-            #else
-                return .current
-            #endif
-        }
-    }
-
-    /// aapt2 lives inside `build-tools/<version>/` in the Android SDK and is not on `$PATH`
-    /// by default. We check `ANDROID_HOME` / `ANDROID_SDK_ROOT` and pick the highest
-    /// build-tools version available, falling back to bare `aapt2` for PATH lookups.
-    private func resolveAapt2Path() async throws -> String {
-        let variables = Environment.current.variables
-        for envVar in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
-            guard let value = variables[envVar], !value.isEmpty else { continue }
-            let buildToolsDir: AbsolutePath
-            do {
-                buildToolsDir = try AbsolutePath(validating: value).appending(component: "build-tools")
-            } catch { continue }
-            guard await (try? fileSystem.exists(buildToolsDir)) == true else { continue }
-            let aapt2Paths = try await fileSystem.glob(directory: buildToolsDir, include: ["*/aapt2"]).collect()
-            if let aapt2 = aapt2Paths.sorted(by: { $0.pathString > $1.pathString }).first {
-                return aapt2.pathString
-            }
-        }
-        return "aapt2"
-    }
-
-    private func parseAPKMetadata(at apkPath: AbsolutePath) async throws -> APKMetadata {
-        let aapt2 = try await resolveAapt2Path()
-
-        let output: String
-        do {
-            output = try await commandRunner
-                .run(arguments: [aapt2, "dump", "badging", apkPath.pathString])
-                .concatenatedString()
-        } catch {
-            throw ShareCommandServiceError.aapt2NotFound
-        }
-
-        var packageName: String?
-        var versionName: String?
-        var versionCode: String?
-        var applicationLabel: String?
-
-        for line in output.components(separatedBy: "\n") {
-            if line.hasPrefix("package:") {
-                packageName = extractValue(from: line, key: "name")
-                versionCode = extractValue(from: line, key: "versionCode")
-                versionName = extractValue(from: line, key: "versionName")
-            } else if line.hasPrefix("application-label:") {
-                applicationLabel = line
-                    .replacingOccurrences(of: "application-label:", with: "")
-                    .trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "'"))
-            }
-        }
-
-        guard let packageName, let versionName, let versionCode else {
-            throw ShareCommandServiceError.aapt2ParsingFailed(apkPath.pathString)
-        }
-
-        return APKMetadata(
-            packageName: packageName,
-            versionName: versionName,
-            versionCode: versionCode,
-            displayName: applicationLabel ?? apkPath.basenameWithoutExt
-        )
-    }
-
-    private func extractValue(from line: String, key: String) -> String? {
-        guard let range = line.range(of: "\(key)='") else { return nil }
-        let start = range.upperBound
-        guard let end = line[start...].firstIndex(of: "'") else { return nil }
-        return String(line[start ..< end])
-    }
 
     private func outputResult(_ preview: Components.Schemas.Preview, displayName: String, json: Bool) {
         AlertController.current
