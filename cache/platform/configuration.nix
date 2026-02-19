@@ -35,14 +35,24 @@
       "net.core.wmem_max" = 67108864;
       "net.ipv4.tcp_rmem" = "4096 131072 67108864";
       "net.ipv4.tcp_wmem" = "4096 65536 67108864";
+      # System-wide FD ceiling. Each connection, open CAS file, and
+      # cached FD (open_file_cache) consumes one. 1 M gives headroom
+      # for thousands of concurrent downloads + the file cache.
       "fs.file-max" = 1048576;
       "fs.nr_open" = 1048576;
+      # Max outstanding AIO operations system-wide. The cacheio thread
+      # pool submits AIO reads for every large-file download chunk.
       "fs.aio-max-nr" = 1048576;
+      # Per-socket ancillary buffer (cmsg). 64 KB covers the overhead
+      # for SO_TIMESTAMP / IP_PKTINFO used by the network stack.
       "net.core.optmem_max" = 65536;
 
       # BBR congestion control — bandwidth-based instead of loss-based (cubic).
-      # Ramps up faster on WAN links and sustains higher throughput.
+      # Ramps up faster on WAN links and sustains higher throughput for
+      # both large module downloads and bursty Xcode fetches.
       "net.ipv4.tcp_congestion_control" = "bbr";
+      # Fair Queue qdisc — required companion for BBR. Provides per-flow
+      # pacing so concurrent downloads get fair bandwidth allocation.
       "net.core.default_qdisc" = "fq";
 
       # Keep the congestion window warm between HTTP/2 stream bursts instead
@@ -87,8 +97,11 @@
       "net.ipv4.tcp_keepalive_intvl" = 15;
       "net.ipv4.tcp_keepalive_probes" = 5;
 
-      # Process more packets per NAPI cycle before yielding to the
-      # network stack. Helps absorb download bursts at the NIC.
+      # Process more packets (600, default 300) and spend more time
+      # (16 ms, default 8 ms) per NAPI poll cycle before yielding.
+      # Prevents packet drops when many concurrent downloads burst
+      # at the NIC simultaneously. Tradeoff: slightly higher per-cycle
+      # CPU cost, but avoids softnet backlog overflows.
       "net.core.netdev_budget" = 600;
       "net.core.netdev_budget_usecs" = 16000;
     };
