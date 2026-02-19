@@ -347,7 +347,7 @@ tuistCacheCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport",
 tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
 tuistServerDependencies.append(contentsOf: [
     "TuistCore", "TuistProcess", "TuistCI",
-    "TuistAutomation", "TuistGit", "TuistXCActivityLog",
+    "TuistAutomation", "TuistXCActivityLog",
     "TuistXCResultService", "TuistSimulator",
     xcodeGraphDependency,
 ])

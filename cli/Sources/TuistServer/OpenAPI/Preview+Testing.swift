@@ -4,10 +4,10 @@
     extension Components.Schemas.Preview {
         public static func test(
             builds: [Components.Schemas.AppBuild] = [.test()],
-            bundleIdentifier: String? = nil,
+            bundleIdentifier: String? = "dev.tuist.app",
             createdFromCI: Bool = false,
             deviceURL: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/device")!,
-            displayName: String? = nil,
+            displayName: String? = "App",
             gitBranch: String? = nil,
             gitCommitSHA: String? = nil,
             iconURL: URL = URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/icon")!,

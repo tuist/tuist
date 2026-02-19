@@ -5,7 +5,6 @@ import Foundation
 import Mockable
 import Testing
 import TuistCore
-import TuistGit
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -25,7 +24,6 @@ struct PreviewsUploadServiceTests {
     private let multipartUploadCompletePreviewsService =
         MockMultipartUploadCompletePreviewsServicing()
     private let uploadPreviewIconService = MockUploadPreviewIconServicing()
-    private let gitController = MockGitControlling()
     private let commandRunner = MockCommandRunning()
     private let precompiledMetadataProvider = MockPrecompiledMetadataProvider()
 
@@ -44,10 +42,8 @@ struct PreviewsUploadServiceTests {
             multipartUploadArtifactService: multipartUploadArtifactService,
             multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
             uploadPreviewIconService: uploadPreviewIconService,
-            gitController: gitController,
             commandRunner: commandRunner,
-            precompiledMetadataProvider: precompiledMetadataProvider,
-            apkPreviewUploadService: APKPreviewUploadService()
+            precompiledMetadataProvider: precompiledMetadataProvider
         )
 
         given(fileArchiverFactory)
@@ -80,14 +76,6 @@ struct PreviewsUploadServiceTests {
                 contentLength: .value(20)
             )
             .willReturn("https://tuist.dev/upload-url")
-
-        given(gitController)
-            .isInGitRepository(workingDirectory: .any)
-            .willReturn(false)
-
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test())
 
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
@@ -141,9 +129,11 @@ struct PreviewsUploadServiceTests {
             // When
             let got = try await subject.uploadPreview(
                 .appBundles([.test(path: preview)]),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -244,9 +234,11 @@ struct PreviewsUploadServiceTests {
             // When
             _ = try await subject.uploadPreview(
                 .appBundles([.test(path: preview1), .test(path: preview2)]),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -307,11 +299,6 @@ struct PreviewsUploadServiceTests {
 
             precompiledMetadataProvider.uuidsStub = { _ in [UUID()] }
 
-            gitController.reset()
-            given(gitController)
-                .gitInfo(workingDirectory: .any)
-                .willReturn(.test(ref: "git-ref", branch: "main", sha: "commit-sha"))
-
             var multipartUploadCapturedGenerateUploadURLCallback:
                 ((MultipartUploadArtifactPart) async throws -> String)!
             given(multipartUploadArtifactService)
@@ -365,9 +352,11 @@ struct PreviewsUploadServiceTests {
                         )
                     )
                 ),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: "main",
+                gitCommitSHA: "commit-sha",
+                gitRef: "git-ref",
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -450,9 +439,11 @@ struct PreviewsUploadServiceTests {
         // When
         _ = try await subject.uploadPreview(
             .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
-            path: temporaryDirectory,
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
             track: nil,
             updateProgress: { _ in }
         )
@@ -495,9 +486,11 @@ struct PreviewsUploadServiceTests {
         await #expect(throws: PreviewsUploadServiceError.binaryIdNotFound(preview.appending(component: appName))) {
             try await subject.uploadPreview(
                 .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -539,9 +532,11 @@ struct PreviewsUploadServiceTests {
         // When
         _ = try await subject.uploadPreview(
             .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
-            path: temporaryDirectory,
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
             track: nil,
             updateProgress: { _ in }
         )
@@ -584,9 +579,11 @@ struct PreviewsUploadServiceTests {
         await #expect(throws: PreviewsUploadServiceError.appBundleNotFound(preview)) {
             try await subject.uploadPreview(
                 .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )

@@ -61,13 +61,12 @@ struct ShareCommandServiceTests {
             fileSystem: fileSystem,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
-            apkPreviewUploadService: APKPreviewUploadService(),
+            previewsUploadService: previewsUploadService,
             fileArchiverFactory: fileArchiverFactory,
             commandRunner: CommandRunner(),
             fileHandler: FileHandler.shared,
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildGraphInspector,
-            previewsUploadService: previewsUploadService,
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: userInputReader,
@@ -90,9 +89,11 @@ struct ShareCommandServiceTests {
         given(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .any,
                 serverURL: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .any,
                 updateProgress: .any
             )
@@ -245,9 +246,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -451,9 +454,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -542,8 +547,8 @@ struct ShareCommandServiceTests {
             track: nil
         )
 
-        TuistTest.expectLogs(#""bundleIdentifier": "dev.tuist.app""#)
-        TuistTest.expectLogs(#""displayName": "App""#)
+        TuistTest.expectLogs(#""bundle_identifier": "dev.tuist.app""#)
+        TuistTest.expectLogs(#""display_name": "App""#)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -814,9 +819,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -962,9 +969,11 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -1029,9 +1038,11 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -1111,9 +1122,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value("beta"),
                 updateProgress: .any
             )
@@ -1169,9 +1182,11 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value("nightly"),
                 updateProgress: .any
             )

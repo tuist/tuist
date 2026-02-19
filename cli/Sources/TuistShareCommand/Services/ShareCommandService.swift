@@ -66,7 +66,7 @@ struct ShareCommandService {
     private let fileSystem: FileSysteming
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
-    private let apkPreviewUploadService: APKPreviewUploadServicing
+    private let previewsUploadService: PreviewsUploadServicing
     private let fileArchiverFactory: FileArchivingFactorying
     private let commandRunner: CommandRunning
 
@@ -74,7 +74,6 @@ struct ShareCommandService {
         private let fileHandler: FileHandling
         private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
         private let buildGraphInspector: BuildGraphInspecting
-        private let previewsUploadService: PreviewsUploadServicing
         private let manifestLoader: ManifestLoading
         private let manifestGraphLoader: ManifestGraphLoading
         private let userInputReader: UserInputReading
@@ -95,13 +94,12 @@ struct ShareCommandService {
                 fileSystem: FileSystem(),
                 configLoader: ConfigLoader(),
                 serverEnvironmentService: ServerEnvironmentService(),
-                apkPreviewUploadService: APKPreviewUploadService(),
+                previewsUploadService: PreviewsUploadService(),
                 fileArchiverFactory: FileArchivingFactory(),
                 commandRunner: CommandRunner(),
                 fileHandler: FileHandler.shared,
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
                 buildGraphInspector: BuildGraphInspector(),
-                previewsUploadService: PreviewsUploadService(),
                 manifestLoader: manifestLoader,
                 manifestGraphLoader: manifestGraphLoader,
                 userInputReader: UserInputReader(),
@@ -113,7 +111,7 @@ struct ShareCommandService {
                 fileSystem: FileSystem(),
                 configLoader: ConfigLoader(),
                 serverEnvironmentService: ServerEnvironmentService(),
-                apkPreviewUploadService: APKPreviewUploadService(),
+                previewsUploadService: PreviewsUploadService(),
                 fileArchiverFactory: FileArchivingFactory(),
                 commandRunner: CommandRunner()
             )
@@ -125,13 +123,12 @@ struct ShareCommandService {
             fileSystem: FileSysteming,
             configLoader: ConfigLoading,
             serverEnvironmentService: ServerEnvironmentServicing,
-            apkPreviewUploadService: APKPreviewUploadServicing,
+            previewsUploadService: PreviewsUploadServicing,
             fileArchiverFactory: FileArchivingFactorying,
             commandRunner: CommandRunning,
             fileHandler: FileHandling,
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
             buildGraphInspector: BuildGraphInspecting,
-            previewsUploadService: PreviewsUploadServicing,
             manifestLoader: ManifestLoading,
             manifestGraphLoader: ManifestGraphLoading,
             userInputReader: UserInputReading,
@@ -141,13 +138,12 @@ struct ShareCommandService {
             self.fileSystem = fileSystem
             self.configLoader = configLoader
             self.serverEnvironmentService = serverEnvironmentService
-            self.apkPreviewUploadService = apkPreviewUploadService
+            self.previewsUploadService = previewsUploadService
             self.fileArchiverFactory = fileArchiverFactory
             self.commandRunner = commandRunner
             self.fileHandler = fileHandler
             self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
             self.buildGraphInspector = buildGraphInspector
-            self.previewsUploadService = previewsUploadService
             self.manifestLoader = manifestLoader
             self.manifestGraphLoader = manifestGraphLoader
             self.userInputReader = userInputReader
@@ -159,14 +155,14 @@ struct ShareCommandService {
             fileSystem: FileSysteming,
             configLoader: ConfigLoading,
             serverEnvironmentService: ServerEnvironmentServicing,
-            apkPreviewUploadService: APKPreviewUploadServicing,
+            previewsUploadService: PreviewsUploadServicing,
             fileArchiverFactory: FileArchivingFactorying,
             commandRunner: CommandRunning
         ) {
             self.fileSystem = fileSystem
             self.configLoader = configLoader
             self.serverEnvironmentService = serverEnvironmentService
-            self.apkPreviewUploadService = apkPreviewUploadService
+            self.previewsUploadService = previewsUploadService
             self.fileArchiverFactory = fileArchiverFactory
             self.commandRunner = commandRunner
         }
@@ -375,21 +371,19 @@ struct ShareCommandService {
 
         let gitCommitSHA = try? await resolveGitCommitSHA(at: path)
         let gitBranch = try? await resolveGitBranch(at: path)
-        let gitRef = gitBranch
 
         let preview = try await Noora.current.progressBarStep(
             message: "Uploading \(metadata.displayName)",
             successMessage: "\(metadata.displayName) uploaded",
             errorMessage: "Failed to upload \(metadata.displayName)"
         ) { updateProgress in
-            try await apkPreviewUploadService.uploadAPKPreview(
-                apkPath: apkPath,
-                metadata: metadata,
-                gitCommitSHA: gitCommitSHA,
-                gitBranch: gitBranch,
-                gitRef: gitRef,
+            try await previewsUploadService.uploadPreview(
+                .apk(path: apkPath, metadata: metadata),
                 fullHandle: fullHandle,
                 serverURL: serverURL,
+                gitBranch: gitBranch,
+                gitCommitSHA: gitCommitSHA,
+                gitRef: gitBranch,
                 track: track,
                 updateProgress: updateProgress
             )
@@ -569,16 +563,21 @@ struct ShareCommandService {
             serverURL: URL,
             track: String?
         ) async throws -> Components.Schemas.Preview {
-            try await Noora.current.progressBarStep(
+            let gitCommitSHA = try? await resolveGitCommitSHA(at: path)
+            let gitBranch = try? await resolveGitBranch(at: path)
+
+            return try await Noora.current.progressBarStep(
                 message: "Uploading \(displayName)",
                 successMessage: "\(displayName) uploaded",
                 errorMessage: "Failed to upload \(displayName)"
             ) { updateProgress in
                 try await previewsUploadService.uploadPreview(
                     previewUploadType,
-                    path: path,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
+                    gitBranch: gitBranch,
+                    gitCommitSHA: gitCommitSHA,
+                    gitRef: gitBranch,
                     track: track,
                     updateProgress: updateProgress
                 )
