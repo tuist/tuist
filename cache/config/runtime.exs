@@ -66,6 +66,18 @@ if config_env() == :prod do
   s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("AWS_SECRET_ACCESS_KEY")
   s3_region = System.get_env("S3_REGION") || System.get_env("AWS_REGION")
 
+  s3_protocol =
+    case System.get_env("S3_PROTOCOL") do
+      protocol when is_binary(protocol) and protocol != "" -> [String.to_atom(protocol)]
+      _ -> [:http1]
+    end
+
+  s3_virtual_host =
+    case System.get_env("S3_VIRTUAL_HOST") do
+      val when val in ["1", "true"] -> true
+      _ -> false
+    end
+
   otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
 
   config :cache, Cache.Guardian,
@@ -89,7 +101,8 @@ if config_env() == :prod do
 
   config :cache, :s3,
     bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
-    registry_bucket: System.get_env("S3_REGISTRY_BUCKET")
+    registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
+    protocols: s3_protocol
 
   config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
@@ -102,10 +115,15 @@ if config_env() == :prod do
     registry_sync_limit: Cache.Config.int_env("REGISTRY_SYNC_LIMIT", 350),
     registry_sync_min_interval_seconds: Cache.Config.int_env("REGISTRY_SYNC_MIN_INTERVAL_SECONDS", 21_600)
 
+  # Note: connect_options cannot be used with Finch
+  # Connection settings are handled at the Finch pool level
+  config :ex_aws, :req_opts, []
+
   config :ex_aws, :s3,
     scheme: s3_scheme,
     host: s3_host,
-    region: s3_region
+    region: s3_region,
+    virtual_host: s3_virtual_host
 
   config :ex_aws,
     region: s3_region,
