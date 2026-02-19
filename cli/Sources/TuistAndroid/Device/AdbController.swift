@@ -95,9 +95,9 @@ public struct AdbController: AdbControlling {
 
     public func launchApp(packageName: String, device: AndroidDevice) async throws {
         let adb = try await resolveAdbPath()
-        let activity: String
+        let output: String
         do {
-            let output = try await commandRunner
+            output = try await commandRunner
                 .run(arguments: [
                     adb, "-s", device.id, "shell",
                     "cmd", "package", "resolve-activity", "--brief",
@@ -106,23 +106,22 @@ public struct AdbController: AdbControlling {
                     packageName,
                 ])
                 .concatenatedString()
-            guard let lastLine = output
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .components(separatedBy: "\n")
-                .last,
-                lastLine.contains("/")
-            else {
-                throw AdbControllerError.launchFailed(
-                    device: device.id,
-                    reason: "Could not resolve launcher activity for \(packageName)"
-                )
-            }
-            activity = lastLine.trimmingCharacters(in: .whitespaces)
-        } catch let error as AdbControllerError {
-            throw error
         } catch {
             throw AdbControllerError.launchFailed(device: device.id, reason: error.localizedDescription)
         }
+
+        guard let lastLine = output
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: "\n")
+            .last,
+            lastLine.contains("/")
+        else {
+            throw AdbControllerError.launchFailed(
+                device: device.id,
+                reason: "Could not resolve launcher activity for \(packageName)"
+            )
+        }
+        let activity = lastLine.trimmingCharacters(in: .whitespaces)
 
         do {
             try await commandRunner
