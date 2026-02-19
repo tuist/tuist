@@ -89,6 +89,7 @@ defmodule Cache.Application do
       OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
+      CacheWeb.OtelSpanName.setup()
       OpentelemetryEcto.setup(event_prefix: [:cache, :repo])
       OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
