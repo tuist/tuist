@@ -130,6 +130,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
+        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
@@ -174,6 +175,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
+        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
@@ -218,6 +220,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
+        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee

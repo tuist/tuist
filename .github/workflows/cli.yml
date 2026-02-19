@@ -75,6 +75,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
+        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
         run: tuist install
       - name: Lint
         run: |
@@ -106,6 +107,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
+        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
         run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry
@@ -170,6 +172,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
+        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
         run: tuist install
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
