@@ -3,6 +3,7 @@
 # Tests the full flow: Gradle Plugin -> tuist CLI (cache config) -> Main Server -> Cache Node
 #
 # Prerequisites (provided by CI):
+#   - TUIST_EXECUTABLE: path to the tuist CLI binary (optional, defaults to "tuist")
 #   - SERVER_URL: URL of the running main server (default: http://localhost:8080)
 #   - Java and Android SDK installed
 #   - Main server and cache node already running
@@ -11,6 +12,7 @@ setup_file() {
     load 'test_helper'
 
     # Configuration
+    export TUIST_EXECUTABLE="${TUIST_EXECUTABLE:-tuist}"
     export GRADLE_PROJECT_DIR="${REPO_ROOT}/examples/gradle/simple_android_app"
     export TUIST_URL="${SERVER_URL}"
     export TUIST_SERVER_URL="${SERVER_URL}"
@@ -22,7 +24,6 @@ setup_file() {
     # Verify prerequisites
     require_cmd java
     require_cmd curl
-    require_cmd tuist
     setup_android_sdk
 
     if [[ ! -d "$GRADLE_PROJECT_DIR" ]]; then
@@ -31,7 +32,7 @@ setup_file() {
 
     # Authenticate against the local server (stores credentials for tuist cache config)
     echo "# Logging in to server at $TUIST_URL..." >&3
-    tuist auth login --email tuistrocks@tuist.dev --password tuistrocks
+    "$TUIST_EXECUTABLE" auth login --email tuistrocks@tuist.dev --password tuistrocks
 }
 
 teardown_file() {
