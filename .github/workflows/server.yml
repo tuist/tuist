@@ -271,8 +271,8 @@ jobs:
             mix-
       - name: Install dependencies
         run: mix deps.get
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+      - run: mise run --no-prepare clickhouse:start
+      - run: mise run --no-prepare db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
@@ -334,7 +334,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
       - name: Check format
-        run: mise run format --check
+        run: mise run --no-prepare format --check
   esbuild:
     name: esbuild
     runs-on: namespace-profile-default-with-volume
@@ -412,7 +412,7 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
       - name: Check
-        run: mise run security
+        run: mise run --no-prepare security
   docker_build:
     name: Docker build
     runs-on: namespace-profile-default-with-volume
@@ -517,8 +517,8 @@ jobs:
             mix-
       - name: Install dependencies
         run: mix deps.get
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+      - run: mise run --no-prepare clickhouse:start
+      - run: mise run --no-prepare db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database
@@ -586,7 +586,7 @@ jobs:
         run: mix compile
       - name: Start ClickHouse
         working-directory: server
-        run: mise run clickhouse:start
+        run: mise run --no-prepare clickhouse:start
       - name: Setup main server
         working-directory: server
         run: |
@@ -635,4 +635,4 @@ jobs:
         working-directory: .
         env:
           SERVER_URL: http://localhost:8080
-        run: mise run e2e gradle_cache
+        run: mise run --no-prepare e2e gradle_cache
