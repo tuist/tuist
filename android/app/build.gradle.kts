@@ -21,7 +21,7 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:8080\"")
+            buildConfigField("String", "SERVER_URL", "\"http://localhost:8080\"")
             buildConfigField("String", "OAUTH_CLIENT_ID", "\"5339abf2-467c-4690-b816-17246ed149d2\"")
         }
         release {
