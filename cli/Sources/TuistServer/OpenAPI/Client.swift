@@ -7412,11 +7412,11 @@ public struct Client: APIProtocol {
     /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    public func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output {
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)`.
+    public func getPreview(_ input: Operations.getPreview.Input) async throws -> Operations.getPreview.Output {
         try await client.send(
             input: input,
-            forOperation: Operations.downloadPreview.id,
+            forOperation: Operations.getPreview.id,
             serializer: { input in
                 let path = try converter.renderedPath(
                     template: "/api/projects/{}/{}/previews/{}",
@@ -7441,7 +7441,7 @@ public struct Client: APIProtocol {
                 switch response.status.code {
                 case 200:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.downloadPreview.Output.Ok.Body
+                    let body: Operations.getPreview.Output.Ok.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -7463,7 +7463,7 @@ public struct Client: APIProtocol {
                     return .ok(.init(body: body))
                 case 400:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.downloadPreview.Output.BadRequest.Body
+                    let body: Operations.getPreview.Output.BadRequest.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -7485,7 +7485,7 @@ public struct Client: APIProtocol {
                     return .badRequest(.init(body: body))
                 case 401:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.downloadPreview.Output.Unauthorized.Body
+                    let body: Operations.getPreview.Output.Unauthorized.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -7507,7 +7507,7 @@ public struct Client: APIProtocol {
                     return .unauthorized(.init(body: body))
                 case 403:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.downloadPreview.Output.Forbidden.Body
+                    let body: Operations.getPreview.Output.Forbidden.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [
@@ -7529,7 +7529,7 @@ public struct Client: APIProtocol {
                     return .forbidden(.init(body: body))
                 case 404:
                     let contentType = converter.extractContentTypeIfPresent(in: response.headerFields)
-                    let body: Operations.downloadPreview.Output.NotFound.Body
+                    let body: Operations.getPreview.Output.NotFound.Body
                     let chosenContentType = try converter.bestContentType(
                         received: contentType,
                         options: [

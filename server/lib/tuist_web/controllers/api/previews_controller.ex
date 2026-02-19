@@ -406,7 +406,7 @@ defmodule TuistWeb.API.PreviewsController do
   operation(:show,
     summary: "Returns a preview with a given id.",
     description: "This endpoint returns a preview with a given id, including the url to download the preview.",
-    operation_id: "downloadPreview",
+    operation_id: "getPreview",
     parameters: [
       account_handle: [
         in: :path,

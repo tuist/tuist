@@ -44,7 +44,6 @@ struct RunCommandServiceTests {
     private let targetBuilder = MockTargetBuilder()
     private let targetRunner = MockTargetRunner()
     private let configLoader = MockConfigLoading()
-    private let getPreviewInfoService = MockGetPreviewInfoServicing()
     private let getPreviewService = MockGetPreviewServicing()
     private let listPreviewsService = MockListPreviewsServicing()
     private let remoteArtifactDownloader = MockRemoteArtifactDownloading()
@@ -88,7 +87,7 @@ struct RunCommandServiceTests {
             .willProduce { $0 }
         subject = RunCommandService(
             configLoader: configLoader,
-            getPreviewInfoService: getPreviewInfoService,
+            getPreviewService: getPreviewService,
             fileSystem: FileSystem(),
             remoteArtifactDownloader: remoteArtifactDownloader,
             fileArchiverFactory: fileArchiverFactory,
@@ -97,7 +96,6 @@ struct RunCommandServiceTests {
             buildGraphInspector: buildGraphInspector,
             targetBuilder: targetBuilder,
             targetRunner: targetRunner,
-            getPreviewService: getPreviewService,
             listPreviewsService: listPreviewsService,
             appBundleLoader: appBundleLoader,
             deviceController: deviceController,

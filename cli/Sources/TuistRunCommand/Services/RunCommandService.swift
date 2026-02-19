@@ -125,7 +125,7 @@ extension DestinationDevice: CustomStringConvertible {
 // swiftlint:disable:next type_body_length
 struct RunCommandService {
     private let configLoader: ConfigLoading
-    private let getPreviewInfoService: GetPreviewInfoServicing
+    private let getPreviewService: GetPreviewServicing
     private let fileSystem: FileSysteming
     private let remoteArtifactDownloader: RemoteArtifactDownloading
     private let fileArchiverFactory: FileArchivingFactorying
@@ -136,7 +136,6 @@ struct RunCommandService {
         private let buildGraphInspector: BuildGraphInspecting
         private let targetBuilder: TargetBuilding
         private let targetRunner: TargetRunning
-        private let getPreviewService: GetPreviewServicing
         private let listPreviewsService: ListPreviewsServicing
         private let appBundleLoader: AppBundleLoading
         private let deviceController: DeviceControlling
@@ -147,7 +146,7 @@ struct RunCommandService {
         #if os(macOS)
             self.init(
                 configLoader: ConfigLoader(),
-                getPreviewInfoService: GetPreviewInfoService(),
+                getPreviewService: GetPreviewService(),
                 fileSystem: FileSystem(),
                 remoteArtifactDownloader: RemoteArtifactDownloader(),
                 fileArchiverFactory: FileArchivingFactory(),
@@ -156,7 +155,6 @@ struct RunCommandService {
                 buildGraphInspector: BuildGraphInspector(),
                 targetBuilder: TargetBuilder(),
                 targetRunner: TargetRunner(),
-                getPreviewService: GetPreviewService(),
                 listPreviewsService: ListPreviewsService(),
                 appBundleLoader: AppBundleLoader(),
                 deviceController: DeviceController(),
@@ -165,7 +163,7 @@ struct RunCommandService {
         #else
             self.init(
                 configLoader: ConfigLoader(),
-                getPreviewInfoService: GetPreviewInfoService(),
+                getPreviewService: GetPreviewService(),
                 fileSystem: FileSystem(),
                 remoteArtifactDownloader: RemoteArtifactDownloader(),
                 fileArchiverFactory: FileArchivingFactory(),
@@ -177,7 +175,7 @@ struct RunCommandService {
     #if os(macOS)
         init(
             configLoader: ConfigLoading,
-            getPreviewInfoService: GetPreviewInfoServicing,
+            getPreviewService: GetPreviewServicing,
             fileSystem: FileSysteming,
             remoteArtifactDownloader: RemoteArtifactDownloading,
             fileArchiverFactory: FileArchivingFactorying,
@@ -186,14 +184,13 @@ struct RunCommandService {
             buildGraphInspector: BuildGraphInspecting,
             targetBuilder: TargetBuilding,
             targetRunner: TargetRunning,
-            getPreviewService: GetPreviewServicing,
             listPreviewsService: ListPreviewsServicing,
             appBundleLoader: AppBundleLoading,
             deviceController: DeviceControlling,
             simulatorController: SimulatorControlling
         ) {
             self.configLoader = configLoader
-            self.getPreviewInfoService = getPreviewInfoService
+            self.getPreviewService = getPreviewService
             self.fileSystem = fileSystem
             self.remoteArtifactDownloader = remoteArtifactDownloader
             self.fileArchiverFactory = fileArchiverFactory
@@ -202,7 +199,6 @@ struct RunCommandService {
             self.buildGraphInspector = buildGraphInspector
             self.targetBuilder = targetBuilder
             self.targetRunner = targetRunner
-            self.getPreviewService = getPreviewService
             self.listPreviewsService = listPreviewsService
             self.appBundleLoader = appBundleLoader
             self.deviceController = deviceController
@@ -211,14 +207,14 @@ struct RunCommandService {
     #else
         init(
             configLoader: ConfigLoading,
-            getPreviewInfoService: GetPreviewInfoServicing,
+            getPreviewService: GetPreviewServicing,
             fileSystem: FileSysteming,
             remoteArtifactDownloader: RemoteArtifactDownloading,
             fileArchiverFactory: FileArchivingFactorying,
             adbController: AdbControlling
         ) {
             self.configLoader = configLoader
-            self.getPreviewInfoService = getPreviewInfoService
+            self.getPreviewService = getPreviewService
             self.fileSystem = fileSystem
             self.remoteArtifactDownloader = remoteArtifactDownloader
             self.fileArchiverFactory = fileArchiverFactory
@@ -259,6 +255,13 @@ struct RunCommandService {
 
             let runPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
+            let osVersion = try osVersion.map { versionString in
+                guard let version = versionString.version() else {
+                    throw RunCommandServiceError.invalidVersion(versionString)
+                }
+                return version
+            }
+
             switch runnable {
             case let .url(previewLink):
                 try await runPreviewLink(
@@ -266,12 +269,6 @@ struct RunCommandService {
                     device: device
                 )
             case let .scheme(scheme):
-                let osVersion = try osVersion.map { versionString in
-                    guard let version = versionString.version() else {
-                        throw RunCommandServiceError.invalidVersion(versionString)
-                    }
-                    return version
-                }
                 try await runScheme(
                     scheme,
                     path: runPath,
@@ -332,7 +329,7 @@ struct RunCommandService {
               previewLink.pathComponents.count > 4
         else { throw RunCommandServiceError.invalidPreviewURL(previewLink.absoluteString) }
 
-        let preview = try await getPreviewInfoService.getPreviewInfo(
+        let preview = try await getPreviewService.getPreview(
             previewLink.lastPathComponent,
             fullHandle: "\(previewLink.pathComponents[1])/\(previewLink.pathComponents[2])",
             serverURL: serverURL

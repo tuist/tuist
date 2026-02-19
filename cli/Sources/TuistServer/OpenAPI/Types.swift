@@ -372,8 +372,8 @@ public protocol APIProtocol: Sendable {
     /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    func downloadPreview(_ input: Operations.downloadPreview.Input) async throws -> Operations.downloadPreview.Output
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)`.
+    func getPreview(_ input: Operations.getPreview.Input) async throws -> Operations.getPreview.Output
     /// Deletes a preview.
     ///
     /// This endpoint deletes a preview with a given id.
@@ -1368,12 +1368,12 @@ extension APIProtocol {
     /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    public func downloadPreview(
-        path: Operations.downloadPreview.Input.Path,
-        headers: Operations.downloadPreview.Input.Headers = .init()
-    ) async throws -> Operations.downloadPreview.Output {
-        try await downloadPreview(Operations.downloadPreview.Input(
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)`.
+    public func getPreview(
+        path: Operations.getPreview.Input.Path,
+        headers: Operations.getPreview.Input.Headers = .init()
+    ) async throws -> Operations.getPreview.Output {
+        try await getPreview(Operations.getPreview.Input(
             path: path,
             headers: headers
         ))
@@ -28571,9 +28571,9 @@ public enum Operations {
     /// This endpoint returns a preview with a given id, including the url to download the preview.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/previews/{preview_id}`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)`.
-    public enum downloadPreview {
-        public static let id: Swift.String = "downloadPreview"
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)`.
+    public enum getPreview {
+        public static let id: Swift.String = "getPreview"
         public struct Input: Sendable, Hashable {
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/path`.
             public struct Path: Sendable, Hashable {
@@ -28605,27 +28605,27 @@ public enum Operations {
                     self.preview_id = preview_id
                 }
             }
-            public var path: Operations.downloadPreview.Input.Path
+            public var path: Operations.getPreview.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/previews/{preview_id}/GET/header`.
             public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadPreview.AcceptableContentType>]
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPreview.AcceptableContentType>]
                 /// Creates a new `Headers`.
                 ///
                 /// - Parameters:
                 ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.downloadPreview.AcceptableContentType>] = .defaultValues()) {
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getPreview.AcceptableContentType>] = .defaultValues()) {
                     self.accept = accept
                 }
             }
-            public var headers: Operations.downloadPreview.Input.Headers
+            public var headers: Operations.getPreview.Input.Headers
             /// Creates a new `Input`.
             ///
             /// - Parameters:
             ///   - path:
             ///   - headers:
             public init(
-                path: Operations.downloadPreview.Input.Path,
-                headers: Operations.downloadPreview.Input.Headers = .init()
+                path: Operations.getPreview.Input.Path,
+                headers: Operations.getPreview.Input.Headers = .init()
             ) {
                 self.path = path
                 self.headers = headers
@@ -28651,26 +28651,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.downloadPreview.Output.Ok.Body
+                public var body: Operations.getPreview.Output.Ok.Body
                 /// Creates a new `Ok`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadPreview.Output.Ok.Body) {
+                public init(body: Operations.getPreview.Output.Ok.Body) {
                     self.body = body
                 }
             }
             /// The preview exists and can be downloaded
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/200`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)/responses/200`.
             ///
             /// HTTP response code: `200 ok`.
-            case ok(Operations.downloadPreview.Output.Ok)
+            case ok(Operations.getPreview.Output.Ok)
             /// The associated value of the enum case if `self` is `.ok`.
             ///
             /// - Throws: An error if `self` is not `.ok`.
             /// - SeeAlso: `.ok`.
-            public var ok: Operations.downloadPreview.Output.Ok {
+            public var ok: Operations.getPreview.Output.Ok {
                 get throws {
                     switch self {
                     case let .ok(response):
@@ -28702,26 +28702,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.downloadPreview.Output.BadRequest.Body
+                public var body: Operations.getPreview.Output.BadRequest.Body
                 /// Creates a new `BadRequest`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadPreview.Output.BadRequest.Body) {
+                public init(body: Operations.getPreview.Output.BadRequest.Body) {
                     self.body = body
                 }
             }
             /// The request is invalid
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/400`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)/responses/400`.
             ///
             /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.downloadPreview.Output.BadRequest)
+            case badRequest(Operations.getPreview.Output.BadRequest)
             /// The associated value of the enum case if `self` is `.badRequest`.
             ///
             /// - Throws: An error if `self` is not `.badRequest`.
             /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.downloadPreview.Output.BadRequest {
+            public var badRequest: Operations.getPreview.Output.BadRequest {
                 get throws {
                     switch self {
                     case let .badRequest(response):
@@ -28753,26 +28753,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.downloadPreview.Output.Unauthorized.Body
+                public var body: Operations.getPreview.Output.Unauthorized.Body
                 /// Creates a new `Unauthorized`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadPreview.Output.Unauthorized.Body) {
+                public init(body: Operations.getPreview.Output.Unauthorized.Body) {
                     self.body = body
                 }
             }
             /// You need to be authenticated to access this resource
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/401`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)/responses/401`.
             ///
             /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.downloadPreview.Output.Unauthorized)
+            case unauthorized(Operations.getPreview.Output.Unauthorized)
             /// The associated value of the enum case if `self` is `.unauthorized`.
             ///
             /// - Throws: An error if `self` is not `.unauthorized`.
             /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.downloadPreview.Output.Unauthorized {
+            public var unauthorized: Operations.getPreview.Output.Unauthorized {
                 get throws {
                     switch self {
                     case let .unauthorized(response):
@@ -28804,26 +28804,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.downloadPreview.Output.Forbidden.Body
+                public var body: Operations.getPreview.Output.Forbidden.Body
                 /// Creates a new `Forbidden`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadPreview.Output.Forbidden.Body) {
+                public init(body: Operations.getPreview.Output.Forbidden.Body) {
                     self.body = body
                 }
             }
             /// The authenticated subject is not authorized to perform this action
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/403`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)/responses/403`.
             ///
             /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.downloadPreview.Output.Forbidden)
+            case forbidden(Operations.getPreview.Output.Forbidden)
             /// The associated value of the enum case if `self` is `.forbidden`.
             ///
             /// - Throws: An error if `self` is not `.forbidden`.
             /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.downloadPreview.Output.Forbidden {
+            public var forbidden: Operations.getPreview.Output.Forbidden {
                 get throws {
                     switch self {
                     case let .forbidden(response):
@@ -28855,26 +28855,26 @@ public enum Operations {
                     }
                 }
                 /// Received HTTP response body
-                public var body: Operations.downloadPreview.Output.NotFound.Body
+                public var body: Operations.getPreview.Output.NotFound.Body
                 /// Creates a new `NotFound`.
                 ///
                 /// - Parameters:
                 ///   - body: Received HTTP response body
-                public init(body: Operations.downloadPreview.Output.NotFound.Body) {
+                public init(body: Operations.getPreview.Output.NotFound.Body) {
                     self.body = body
                 }
             }
             /// The preview does not exist
             ///
-            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(downloadPreview)/responses/404`.
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/{preview_id}/get(getPreview)/responses/404`.
             ///
             /// HTTP response code: `404 notFound`.
-            case notFound(Operations.downloadPreview.Output.NotFound)
+            case notFound(Operations.getPreview.Output.NotFound)
             /// The associated value of the enum case if `self` is `.notFound`.
             ///
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.downloadPreview.Output.NotFound {
+            public var notFound: Operations.getPreview.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

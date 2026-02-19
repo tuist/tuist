@@ -12,6 +12,7 @@ import TuistSupport
 enum DeviceServiceError: FatalError, Equatable {
     case appDownloadFailed(String)
     case appBundleNotFoundInArchive
+    case invalidPreview(String)
 
     var description: String {
         switch self {
@@ -19,6 +20,8 @@ enum DeviceServiceError: FatalError, Equatable {
             return "The app preview \(id) was not found."
         case .appBundleNotFoundInArchive:
             return "Could not find app bundle in the downloaded archive"
+        case let .invalidPreview(id):
+            return "The preview \(id) is invalid."
         }
     }
 
@@ -28,6 +31,8 @@ enum DeviceServiceError: FatalError, Equatable {
             return .abort
         case .appBundleNotFoundInArchive:
             return .bug
+        case .invalidPreview:
+            return .abort
         }
     }
 }
@@ -156,11 +161,14 @@ final class DeviceService: DeviceServicing {
         )
 
         do {
-            let preview = try await getPreviewService.getPreview(
+            let previewResponse = try await getPreviewService.getPreview(
                 previewId,
                 fullHandle: fullHandle,
                 serverURL: serverURL
             )
+            guard let preview = ServerPreview(previewResponse) else {
+                throw DeviceServiceError.invalidPreview(previewId)
+            }
 
             let app = try await downloadApp(
                 for: preview,

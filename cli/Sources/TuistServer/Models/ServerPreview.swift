@@ -24,7 +24,7 @@
     extension ServerPreview {
         private static let dateFormatter = ISO8601DateFormatter()
 
-        init?(_ preview: Components.Schemas.Preview) {
+        public init?(_ preview: Components.Schemas.Preview) {
             id = preview.id
             guard let url = URL(string: preview.url),
                   let qrCodeURL = URL(string: preview.qr_code_url),

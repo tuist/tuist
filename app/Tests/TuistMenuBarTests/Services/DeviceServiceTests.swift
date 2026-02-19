@@ -519,8 +519,8 @@ final class DeviceServiceTests: TuistUnitTestCase {
             )
             .willReturn(
                 .test(
-                    appBuilds: [
-                        .test(supportedPlatforms: [.device(.iOS)]),
+                    builds: [
+                        .test(supportedPlatforms: [.ios]),
                     ]
                 )
             )
@@ -636,9 +636,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .getPreview(.any, fullHandle: .any, serverURL: .any)
             .willReturn(
                 .test(
-                    appBuilds: [
+                    builds: [
                         .test(
-                            supportedPlatforms: [.device(.visionOS)]
+                            supportedPlatforms: [.visionos]
                         ),
                     ]
                 )
