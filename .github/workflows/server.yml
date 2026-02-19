@@ -42,17 +42,23 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir"
           cache: "false"
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install dependencies
         run: mix deps.get
       - name: Check marketing gettext template is up-to-date
@@ -96,17 +102,23 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir"
           cache: "false"
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install dependencies
         run: mix deps.get
       - name: Check dashboard gettext templates are up-to-date
@@ -169,7 +181,7 @@ jobs:
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Check for .po file modifications by non-bot users
@@ -239,18 +251,24 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir clickhouse"
           cache: "false"
           working_directory: server
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install dependencies
         run: mix deps.get
       - run: mise run clickhouse:start
@@ -263,17 +281,23 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir"
           cache: "false"
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install dependencies
         run: mix deps.get
       - name: Run Credo
@@ -283,19 +307,30 @@ jobs:
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
-            ~/.pnpm/store
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir node pnpm npm:prettier"
           cache: "false"
           working_directory: server
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
       - name: Check format
@@ -306,19 +341,30 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
-            ~/.pnpm/store
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir node pnpm"
           cache: "false"
           working_directory: server
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
       - name: Install esbuild
@@ -345,18 +391,24 @@ jobs:
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir ubi:aquasecurity/trivy"
           cache: "false"
           working_directory: server
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install dependencies
         run: mix deps.get
       - name: Check
@@ -367,7 +419,7 @@ jobs:
     timeout-minutes: 15
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
         with:
           submodules: false
       - name: Set up Docker Buildx
@@ -402,13 +454,10 @@ jobs:
   #         --health-timeout 5s
   #         --health-retries 5
   #   steps:
-  #     - uses: namespacelabs/nscloud-checkout-action@v8
+  #     - uses: actions/checkout@v4
   #     - uses: namespacelabs/nscloud-cache-action@v1
   #       with:
   #         cache: mise
-  #         path: |
-  #           server/deps
-  #           server/_build
   #     - uses: jdx/mise-action@v3.2.0
   #       with:
   #         cache: "false"
@@ -448,18 +497,24 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "erlang elixir clickhouse"
           cache: "false"
           working_directory: server
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install dependencies
         run: mix deps.get
       - run: mise run clickhouse:start
@@ -497,15 +552,10 @@ jobs:
       TUIST_SECRET_KEY_ENCRYPTION: ci-test-encryption-key-32-bytes!
       TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
     steps:
-      - uses: namespacelabs/nscloud-checkout-action@v8
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: mise
-          path: |
-            server/deps
-            server/_build
-            cache/deps
-            cache/_build
       - uses: jdx/mise-action@v3.2.0
         with:
           cache: "false"
@@ -519,6 +569,15 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
+      - name: Restore server deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
       - name: Install server deps
         working-directory: server
         run: mix deps.get
@@ -536,6 +595,15 @@ jobs:
           mix ecto.load
           mix ecto.migrate
           mix run priv/repo/seeds.exs
+      - name: Restore cache deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
+          restore-keys: |
+            cache-mix-
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
