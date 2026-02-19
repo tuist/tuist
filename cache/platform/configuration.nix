@@ -25,12 +25,13 @@
       # dropping SYN packets in the backlog queue.
       "net.core.somaxconn" = 16384;
       "net.ipv4.tcp_max_syn_backlog" = 16384;
-      "net.core.rmem_max" = 134217728;
-      "net.core.wmem_max" = 134217728;
-      "net.ipv4.tcp_rmem" = "4096 87380 67108864";
-      "net.ipv4.tcp_wmem" = "4096 65536 67108864";
+      "net.core.rmem_max" = 16777216;
+      "net.core.wmem_max" = 16777216;
+      "net.ipv4.tcp_rmem" = "4096 131072 16777216";
+      "net.ipv4.tcp_wmem" = "4096 65536 16777216";
       "fs.file-max" = 1048576;
       "fs.nr_open" = 1048576;
+      "net.core.optmem_max" = 65536;
 
       # BBR congestion control — bandwidth-based instead of loss-based (cubic).
       # Ramps up faster on WAN links and sustains higher throughput.

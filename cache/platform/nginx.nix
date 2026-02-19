@@ -2,15 +2,15 @@
   services.nginx = {
     enable = true;
 
-    recommendedGzipSettings = true;
-    recommendedOptimisation = true;
-    recommendedProxySettings = true;
+    recommendedGzipSettings = false;
+    recommendedOptimisation = false;
+    recommendedProxySettings = false;
     recommendedTlsSettings = false;
 
     appendConfig = ''
       worker_processes auto;
       worker_rlimit_nofile 1048576;
-      thread_pool cacheio threads=32 max_queue=65536;
+      thread_pool cacheio threads=8 max_queue=16384;
     '';
 
     eventsConfig = ''
@@ -20,18 +20,22 @@
 
     appendHttpConfig = ''
       http2 on;
-      ssl_session_cache shared:SSL:50m;
-      ssl_session_timeout 1h;
-      ssl_session_tickets on;
-      ssl_prefer_server_ciphers off;
+
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+
+      keepalive_timeout 120s;
       keepalive_requests 50000;
+
+      # ssl_protocols and server_tokens are set by the NixOS nginx module.
       http2_max_concurrent_streams 256;
       http2_chunk_size 16k;
 
       # Cap each sendfile() call so one large transfer cannot monopolise
-      # a worker's event-loop iteration. The worker yields after 1 MB,
+      # a worker's event-loop iteration. The worker yields after 512 KB,
       # processes queued events (tiny-file requests), then continues.
-      sendfile_max_chunk 1m;
+      sendfile_max_chunk 512k;
 
       log_format timed_combined '$remote_addr - $remote_user [$time_local] '
         '"$request" $status $body_bytes_sent '
@@ -59,7 +63,7 @@
 
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
-        keepalive 512;
+        keepalive 64;
         keepalive_timeout 120s;
         keepalive_requests 50000;
       }
@@ -163,15 +167,17 @@
             alias /cas/;
             types { }
             default_type application/octet-stream;
+            sendfile on;
             gzip off;
 
-            # Files ≥ 4 MB bypass the page cache (O_DIRECT) and are read
+            # Files ≥ 2 MB bypass the page cache (O_DIRECT) and are read
             # in the cacheio thread pool so the worker stays non-blocking.
-            # Files < 4 MB use sendfile + kTLS (zero-copy, kernel TLS).
+            # Files < 2 MB use sendfile + kTLS (zero-copy, kernel TLS).
             # This keeps the page cache hot for Xcode's tiny-file bursts
             # while large module artifacts don't evict them.
             aio threads=cacheio;
-            directio 4m;
+            directio 2m;
+            directio_alignment 4k;
             # Double-buffer AIO reads: one buffer sends while the next
             # is filled by the thread pool, smoothing large-file throughput.
             output_buffers 2 512k;
@@ -181,7 +187,8 @@
 
             # CAS artifacts are immutable (content-addressed), so we can
             # cache many more FDs and revalidate less often.
-            open_file_cache max=100000 inactive=600s;
+            # max is per-worker — 20 K × N workers stays within FD limits.
+            open_file_cache max=20000 inactive=600s;
             open_file_cache_valid 120s;
             open_file_cache_min_uses 1;
             open_file_cache_errors off;
@@ -196,9 +203,14 @@
             # object metadata (often application/zip), which breaks strict clients.
             proxy_hide_header Content-Type;
             default_type application/octet-stream;
-            resolver 1.1.1.1 ipv6=off;
+            resolver 1.1.1.1 ipv6=off valid=300s;
+            resolver_timeout 5s;
             set $download_url $1://$2/$3;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
             proxy_set_header Host $2;
+            proxy_socket_keepalive on;
+            proxy_ssl_server_name on;
             proxy_pass $download_url$is_args$args;
             add_header Content-Version $registry_content_version;
             gzip off;
@@ -209,6 +221,8 @@
             # 300 MB) would spill to disk and compete with local CAS reads.
             proxy_buffering off;
             proxy_buffer_size 16k;
+            proxy_buffers 4 16k;
+            proxy_busy_buffers_size 16k;
 
             proxy_intercept_errors on;
             error_page 301 302 307 = @handle_remote_redirect;
