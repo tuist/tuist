@@ -1377,6 +1377,7 @@ struct ShareCommandServiceTests {
                 )
             )
 
+        gitController.reset()
         given(gitController)
             .gitInfo(workingDirectory: .any)
             .willReturn(

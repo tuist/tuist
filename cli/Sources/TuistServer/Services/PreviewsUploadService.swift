@@ -1,4 +1,4 @@
-import CryptoKit
+import CryptoSwift
 import FileSystem
 import Foundation
 import Mockable
@@ -376,8 +376,7 @@ public protocol PreviewsUploadServicing {
 
         private func apkBinaryId(at path: AbsolutePath) async throws -> String {
             let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
-            let digest = SHA256.hash(data: data)
-            return digest.map { String(format: "%02x", $0) }.joined()
+            return data.sha256().toHexString()
         }
 
         // MARK: - Apple (macOS-only)
