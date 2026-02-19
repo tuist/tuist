@@ -39,11 +39,32 @@
       # of falling back to slow-start after brief idle periods.
       "net.ipv4.tcp_slow_start_after_idle" = 0;
 
-      # Limit unsent data buffered per socket to 256 KB. With HTTP/2
+      # Limit unsent data buffered per socket to 128 KB. With HTTP/2
       # multiplexing 100+ streams, unlimited buffering (the default) lets
-      # large streams starve small ones. A lower value wakes nginx sooner
-      # so it can interleave streams more fairly.
-      "net.ipv4.tcp_notsent_lowat" = 262144;
+      # large streams starve small ones. 128 KB wakes nginx more often
+      # than 256 KB, improving stream interleaving for tiny-file bursts
+      # at a negligible syscall cost.
+      "net.ipv4.tcp_notsent_lowat" = 131072;
+
+      # Accept up to 16 K packets per NAPI cycle before handing off to
+      # the network stack. The default (1000) can drop packets when many
+      # concurrent downloads burst at the NIC.
+      "net.core.netdev_max_backlog" = 16384;
+
+      # Enable TCP Fast Open for client and server sides. Saves one RTT
+      # on new TLS connections. Minor win since HTTP/2 connections are
+      # long-lived, but helps when many Xcode clients connect at once.
+      "net.ipv4.tcp_fastopen" = 3;
+
+      # Probe for the largest MTU when ICMP black-holes block PMTUD.
+      # Avoids silent packet drops on WAN paths with clamped MTU.
+      "net.ipv4.tcp_mtu_probing" = 1;
+
+      # Recycle TIME-WAIT sockets for new outbound connections and shorten
+      # FIN timeout. nginx makes outbound connections to S3 for remote
+      # proxying; under burst loads this prevents ephemeral port exhaustion.
+      "net.ipv4.tcp_tw_reuse" = 1;
+      "net.ipv4.tcp_fin_timeout" = 15;
     };
   };
 

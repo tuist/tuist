@@ -9,10 +9,13 @@
 
     appendConfig = ''
       worker_processes auto;
+      worker_rlimit_nofile 1048576;
+      thread_pool cacheio threads=32 max_queue=65536;
     '';
 
     eventsConfig = ''
       worker_connections 4096;
+      multi_accept on;
     '';
 
     appendHttpConfig = ''
@@ -22,8 +25,13 @@
       ssl_session_tickets on;
       ssl_prefer_server_ciphers off;
       keepalive_requests 50000;
-      http2_max_concurrent_streams 512;
-      http2_chunk_size 64k;
+      http2_max_concurrent_streams 256;
+      http2_chunk_size 16k;
+
+      # Cap each sendfile() call so one large transfer cannot monopolise
+      # a worker's event-loop iteration. The worker yields after 1 MB,
+      # processes queued events (tiny-file requests), then continues.
+      sendfile_max_chunk 1m;
 
       log_format timed_combined '$remote_addr - $remote_user [$time_local] '
         '"$request" $status $body_bytes_sent '
@@ -154,10 +162,23 @@
             types { }
             default_type application/octet-stream;
             gzip off;
+
+            # Files ≥ 4 MB bypass the page cache (O_DIRECT) and are read
+            # in the cacheio thread pool so the worker stays non-blocking.
+            # Files < 4 MB use sendfile + kTLS (zero-copy, kernel TLS).
+            # This keeps the page cache hot for Xcode's tiny-file bursts
+            # while large module artifacts don't evict them.
+            aio threads=cacheio;
+            directio 4m;
+            output_buffers 1 256k;
+
             add_header Cache-Control "public, max-age=31536000, immutable";
             add_header Content-Version $registry_content_version;
-            open_file_cache max=10000 inactive=60s;
-            open_file_cache_valid 60s;
+
+            # CAS artifacts are immutable (content-addressed), so we can
+            # cache many more FDs and revalidate less often.
+            open_file_cache max=100000 inactive=600s;
+            open_file_cache_valid 120s;
             open_file_cache_min_uses 1;
             open_file_cache_errors off;
           '';
@@ -220,5 +241,6 @@
 
   systemd.services.nginx.serviceConfig = {
     ReadOnlyPaths = ["/cas"];
+    LimitNOFILE = 1048576;
   };
 }
