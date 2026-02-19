@@ -89,7 +89,7 @@
             case let .ok(okResponse):
                 switch okResponse.body {
                 case let .json(previewsIndex):
-                    return ServerPreviewsPage(previewsIndex)
+                    return try ServerPreviewsPage(previewsIndex)
                 }
             case let .undocumented(statusCode: statusCode, _):
                 throw ListPreviewsServiceError.unknownError(statusCode)

@@ -65,7 +65,7 @@ final class PreviewViewModel: Sendable {
             fullHandle: fullHandle,
             serverURL: serverEnvironmentService.url()
         )
-        preview = ServerPreview(previewResponse)
+        preview = try ServerPreview(previewResponse)
     }
 
     func deletePreview(_ preview: ServerPreview) async throws {
