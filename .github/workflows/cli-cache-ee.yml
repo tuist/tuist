@@ -118,6 +118,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
+        id: cache
         with:
           cache: mise
           path: .build
@@ -130,7 +131,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
@@ -163,6 +164,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
+        id: cache
         with:
           cache: mise
           path: .build
@@ -175,7 +177,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
@@ -208,6 +210,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
+        id: cache
         with:
           cache: mise
           path: .build
@@ -220,7 +223,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee

@@ -61,6 +61,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
+        id: cache
         with:
           cache: mise
           path: .build
@@ -75,7 +76,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Lint
         run: |
@@ -93,6 +94,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
+        id: cache
         with:
           cache: mise
           path: .build
@@ -107,7 +109,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry
@@ -158,6 +160,7 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: namespacelabs/nscloud-cache-action@v1
+        id: cache
         with:
           cache: mise
           path: .build
@@ -172,7 +175,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: ${{ hashFiles('.build/workspace-state.json') == '' }}
+        if: steps.cache.outputs.cache-hit != 'true'
         run: tuist install
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
