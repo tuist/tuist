@@ -4,6 +4,7 @@ import Noora
 import Path
 import TuistAndroid
 import TuistConfigLoader
+import TuistEnvironment
 import TuistConstants
 import TuistLogging
 import TuistServer
@@ -227,20 +228,7 @@ struct RunCommandService {
     ) async throws {
         let device = arguments.firstIndex(of: "-destination").map { arguments[$0 + 1] } ?? device
 
-        let runPath: AbsolutePath
-        if let path {
-            #if os(macOS)
-                runPath = try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-            #else
-                runPath = try AbsolutePath(validating: path, relativeTo: .current)
-            #endif
-        } else {
-            #if os(macOS)
-                runPath = FileHandler.shared.currentPath
-            #else
-                runPath = .current
-            #endif
-        }
+        let runPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         switch runnable {
         case let .url(previewLink):
