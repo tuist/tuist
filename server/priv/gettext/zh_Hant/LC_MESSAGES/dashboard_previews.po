@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-02-20 07:20+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_previews/zh_Hant/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -164,16 +164,20 @@ msgstr "搜尋..."
 msgid "Track"
 msgstr "追蹤"
 
+#, fuzzy
 msgid "Package name"
-msgstr ""
+msgstr "套件名稱"
 
+#, fuzzy
 msgid ""
 "Scan this QR code on your Android device to download and install this "
 "version of the app"
-msgstr ""
+msgstr "請使用您的 Android 裝置掃描此 QR 碼，下載並安裝此版本應用程式"
 
+#, fuzzy
 msgid "The APK for this preview is no longer available"
-msgstr ""
+msgstr "此預覽版本的 APK 已不再提供"
 
+#, fuzzy
 msgid "This preview isn't available for download"
-msgstr ""
+msgstr "此預覽無法下載"
