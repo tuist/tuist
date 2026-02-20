@@ -18,7 +18,9 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234", "efgh5678"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
 
       expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
@@ -68,7 +70,9 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
 
       expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
@@ -111,7 +115,9 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
 
       expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
@@ -154,7 +160,9 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
 
       expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
@@ -208,7 +216,9 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["ab", "abcd1234"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ["abcd1234"] -> [] end)
+      expect(KeyValueEntries, :unreferenced_hashes, fn ["abcd1234"], ^account_handle, ^project_handle ->
+        ["abcd1234"]
+      end)
 
       expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
@@ -249,8 +259,8 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234", "efgh5678"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes ->
-        ["efgh5678"]
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        ["abcd1234"]
       end)
 
       expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
@@ -289,8 +299,8 @@ defmodule Cache.CASCleanupWorkerTest do
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
 
-      expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes ->
-        ["abcd1234"]
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        []
       end)
 
       job = %Oban.Job{

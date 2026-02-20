@@ -161,7 +161,7 @@ defmodule Cache.KeyValueEntriesTest do
     assert returned_entry.id
   end
 
-  test "referenced_hashes returns hashes still present in other KV entries" do
+  test "unreferenced_hashes excludes hashes still present in other KV entries" do
     Repo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:ROOT1",
       json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
@@ -174,50 +174,46 @@ defmodule Cache.KeyValueEntriesTest do
       last_accessed_at: DateTime.utc_now()
     })
 
-    result = KeyValueEntries.referenced_hashes("acme", "ios", ["ABCD1234", "EFGH5678", "MISSING"])
+    result = KeyValueEntries.unreferenced_hashes(["ABCD1234", "EFGH5678", "MISSING"], "acme", "ios")
 
-    assert Enum.sort(result) == ["ABCD1234", "EFGH5678"]
+    assert result == ["MISSING"]
   end
 
-  test "referenced_hashes returns empty list when no entries reference the hashes" do
+  test "unreferenced_hashes returns all hashes when no entries reference them" do
     Repo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:ROOT1",
       json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
       last_accessed_at: DateTime.utc_now()
     })
 
-    assert KeyValueEntries.referenced_hashes("acme", "ios", ["MISSING"]) == []
+    assert KeyValueEntries.unreferenced_hashes(["MISSING"], "acme", "ios") == ["MISSING"]
   end
 
-  test "referenced_hashes scopes to account and project" do
+  test "unreferenced_hashes scopes to account and project" do
     Repo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:ROOT1",
       json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
       last_accessed_at: DateTime.utc_now()
     })
 
-    assert KeyValueEntries.referenced_hashes("other_account", "ios", ["ABCD1234"]) == []
-    assert KeyValueEntries.referenced_hashes("acme", "android", ["ABCD1234"]) == []
+    assert KeyValueEntries.unreferenced_hashes(["ABCD1234"], "other_account", "ios") == ["ABCD1234"]
+    assert KeyValueEntries.unreferenced_hashes(["ABCD1234"], "acme", "android") == ["ABCD1234"]
   end
 
-  test "referenced_hashes checks all entries in the payload, not just the first" do
+  test "unreferenced_hashes checks all entries in the payload, not just the first" do
     Repo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:ROOT1",
       json_payload: ~s({"entries":[{"value":"FIRST"},{"value":"SECOND"},{"value":"THIRD"}]}),
       last_accessed_at: DateTime.utc_now()
     })
 
-    assert KeyValueEntries.referenced_hashes("acme", "ios", ["SECOND"]) == ["SECOND"]
-    assert KeyValueEntries.referenced_hashes("acme", "ios", ["THIRD"]) == ["THIRD"]
-
-    assert Enum.sort(KeyValueEntries.referenced_hashes("acme", "ios", ["FIRST", "THIRD", "MISSING"])) == [
-             "FIRST",
-             "THIRD"
-           ]
+    assert KeyValueEntries.unreferenced_hashes(["SECOND"], "acme", "ios") == []
+    assert KeyValueEntries.unreferenced_hashes(["THIRD"], "acme", "ios") == []
+    assert KeyValueEntries.unreferenced_hashes(["FIRST", "THIRD", "MISSING"], "acme", "ios") == ["MISSING"]
   end
 
-  test "referenced_hashes returns empty list for empty input" do
-    assert KeyValueEntries.referenced_hashes("acme", "ios", []) == []
+  test "unreferenced_hashes returns empty list for empty input" do
+    assert KeyValueEntries.unreferenced_hashes([], "acme", "ios") == []
   end
 
   test "delete_expired handles mixed old and fresh entries correctly" do

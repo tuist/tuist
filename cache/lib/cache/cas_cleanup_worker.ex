@@ -25,10 +25,9 @@ defmodule Cache.CASCleanupWorker do
   def perform(%Oban.Job{
         args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
       }) do
-    valid_hashes = filter_valid_hashes(cas_hashes)
-    still_referenced = KeyValueEntries.referenced_hashes(account_handle, project_handle, valid_hashes)
-
-    case valid_hashes -- still_referenced do
+    case cas_hashes
+         |> filter_valid_hashes()
+         |> KeyValueEntries.unreferenced_hashes(account_handle, project_handle) do
       [] ->
         :ok
 
