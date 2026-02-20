@@ -2,7 +2,7 @@ defmodule Tuist.Tests do
   @moduledoc """
   Module for interacting with test runs.
 
-    ## ClickHouse and deduplication
+  ## ClickHouse and deduplication
 
     This module uses ClickHouse with ReplacingMergeTree tables to store test data.
     ClickHouse doesn't support in-place updates - to "update" a row (e.g., setting `is_flaky`),
