@@ -65,7 +65,7 @@ defmodule Cache.CASCleanupWorkerTest do
       end)
     end
 
-    test "logs disk failure but still proceeds with S3 and metadata cleanup" do
+    test "skips S3 and metadata cleanup when disk deletion fails" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
@@ -80,18 +80,6 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" ->
         {:error, :eacces}
-      end)
-
-      expect(Config, :cache_bucket, fn -> "test-bucket" end)
-
-      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", ["test_account/test_project/cas/ab/cd/abcd1234"] ->
-        %S3{}
-      end)
-
-      expect(ExAws, :request, fn %S3{} -> {:ok, %{}} end)
-
-      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
-        :ok
       end)
 
       job = %Oban.Job{

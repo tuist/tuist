@@ -3,7 +3,9 @@ defmodule Cache.CASCleanupWorker do
   Oban worker that deletes CAS artifacts from disk, S3, and metadata.
 
   Only deletes artifacts that are no longer referenced by any key-value entry.
-  Disk cleanup is best-effort. Metadata is only removed after confirmed S3 deletion.
+  Artifacts flow through disk → S3 → metadata deletion. Each stage only
+  receives keys that the previous stage successfully cleaned up, so a failure
+  at any point leaves metadata intact for retries.
   """
 
   use Oban.Worker,
@@ -28,28 +30,28 @@ defmodule Cache.CASCleanupWorker do
         :ok
 
       unreferenced ->
-        keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
+        unreferenced
+        |> Enum.map(&CAS.Disk.key(account_handle, project_handle, &1))
+        |> delete_from_disk()
+        |> delete_from_s3()
+        |> delete_from_metadata()
 
-        # Disk is best-effort — the eviction worker will reclaim space eventually.
-        # Metadata is only removed for keys confirmed deleted from S3,
-        # since S3 is the authoritative copy and orphaned metadata is harmless.
-        delete_from_disk(keys)
-        keys |> delete_from_s3() |> delete_from_metadata()
         :ok
     end
   end
 
   defp delete_from_disk(keys) do
-    Enum.each(keys, fn key ->
+    Enum.filter(keys, fn key ->
       case Disk.delete_artifact(key) do
         :ok ->
-          :ok
+          true
 
         {:error, :enoent} ->
-          :ok
+          true
 
         {:error, reason} ->
           Logger.error("Failed to delete CAS artifact from disk #{key}: #{inspect(reason)}")
+          false
       end
     end)
   end
