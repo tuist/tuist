@@ -12,9 +12,9 @@
 <!-- -->
 Bu sayfa, Tuist önbellek hizmeti mimarisinin teknik bir özetini sunar.
 Öncelikle, hizmetin iç işleyişini anlaması gereken **kendi sunucusunda
-barındıran kullanıcılar** ve **katkıda bulunanlar** için hazırlanmıştır.
-Yalnızca önbelleği kullanmak isteyen genel kullanıcıların bu sayfayı okumasına
-gerek yoktur.
+barındıran kullanıcılar** ve **katkıcılar** için hazırlanmıştır. Yalnızca
+önbelleği kullanmak isteyen genel kullanıcıların bu sayfayı okumasına gerek
+yoktur.
 <!-- -->
 :::
 
@@ -28,7 +28,7 @@ Hizmet, iki katmanlı bir depolama mimarisi kullanır:
 
 - **Yerel disk**: Düşük gecikmeli önbellek isabetleri için birincil depolama
   alanı
-- **S3**: Artefaktları kalıcı olarak saklayan ve tahliye sonrasında kurtarmaya
+- **S3**: Artefaktları kalıcı olarak saklayan ve tahliye sonrası kurtarmaya
   olanak tanıyan dayanıklı depolama
 
 ```mermaid
