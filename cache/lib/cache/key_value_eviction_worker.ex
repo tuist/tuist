@@ -34,9 +34,13 @@ defmodule Cache.KeyValueEvictionWorker do
       |> CASCleanupWorker.new()
       |> Oban.insert()
     else
-      _ -> :ok
+      _ ->
+        Logger.warning("Skipping CAS cleanup for entry with key: #{entry.key}")
+        :ok
     end
   rescue
-    _ -> :ok
+    error ->
+      Logger.warning("Failed to parse CAS cleanup data for entry with key: #{entry.key}, error: #{inspect(error)}")
+      :ok
   end
 end
