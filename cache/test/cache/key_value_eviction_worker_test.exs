@@ -1,6 +1,8 @@
 defmodule Cache.KeyValueEvictionWorkerTest do
   use ExUnit.Case, async: false
+  use Oban.Testing, repo: Cache.Repo
 
+  alias Cache.CASCleanupWorker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
@@ -49,6 +51,94 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
     entries = Repo.all(KeyValueEntry)
     assert length(entries) == 1
+  end
+
+  test "enqueues CASCleanupWorker for expired entry with valid CAS key and payload" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT_HASH",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"},{"value":"EFGH5678"}]}),
+      last_accessed_at: old_time
+    })
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+
+    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert args["account_handle"] == "acme"
+    assert args["project_handle"] == "ios"
+    assert args["cas_hashes"] == ["ABCD1234", "EFGH5678"]
+  end
+
+  test "does not enqueue cleanup for expired entry with non-keyvalue key" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "old-entry",
+      json_payload: ~s({"hash": "abc"}),
+      last_accessed_at: old_time
+    })
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: CASCleanupWorker)
+  end
+
+  test "does not enqueue cleanup for expired entry with malformed json_payload" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT_HASH",
+      json_payload: ~s({"hash":"abc"}),
+      last_accessed_at: old_time
+    })
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: CASCleanupWorker)
+  end
+
+  test "does not enqueue cleanup for expired entry with empty entries list" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT_HASH",
+      json_payload: ~s({"entries":[]}),
+      last_accessed_at: old_time
+    })
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: CASCleanupWorker)
+  end
+
+  test "filters out CAS hashes shorter than 4 characters" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT_HASH",
+      json_payload: ~s({"entries":[{"value":"AB"},{"value":"ABCD1234"}]}),
+      last_accessed_at: old_time
+    })
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+
+    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert args["cas_hashes"] == ["ABCD1234"]
+  end
+
+  test "does not enqueue cleanup when all hashes are too short" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT_HASH",
+      json_payload: ~s({"entries":[{"value":"AB"},{"value":"CD"}]}),
+      last_accessed_at: old_time
+    })
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+
+    assert [] = all_enqueued(worker: CASCleanupWorker)
   end
 
   test "respects configurable max age via delete_expired/1" do
