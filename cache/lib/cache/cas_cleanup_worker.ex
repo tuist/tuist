@@ -29,6 +29,10 @@ defmodule Cache.CASCleanupWorker do
 
       unreferenced ->
         keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
+
+        # Disk is best-effort — the eviction worker will reclaim space eventually.
+        # Metadata is only removed for keys confirmed deleted from S3,
+        # since S3 is the authoritative copy and orphaned metadata is harmless.
         delete_from_disk(keys)
         keys |> delete_from_s3() |> delete_from_metadata()
         :ok
