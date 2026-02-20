@@ -42,6 +42,19 @@ defmodule Cache.CacheArtifacts do
   end
 
   @doc """
+  Returns the subset of keys that exist in the cache_artifacts table.
+  """
+
+  def existing_keys([]), do: []
+
+  def existing_keys(keys) when is_list(keys) do
+    CacheArtifact
+    |> where([a], a.key in ^keys)
+    |> select([a], a.key)
+    |> Repo.all()
+  end
+
+  @doc """
   Tracks access to a cache artifact by updating its metadata in the database.
 
   Creates or updates a CacheArtifact record with the current file size and access time.
