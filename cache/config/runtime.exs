@@ -40,26 +40,26 @@ if config_env() == :prod do
 
   s3_endpoint = System.get_env("S3_ENDPOINT")
 
-  {s3_scheme, s3_host} =
+  {s3_scheme, s3_host, s3_port} =
     case s3_endpoint do
       nil ->
-        {"https://", System.get_env("S3_HOST")}
+        {"https://", System.get_env("S3_HOST"), nil}
 
       "" ->
-        {"https://", System.get_env("S3_HOST")}
+        {"https://", System.get_env("S3_HOST"), nil}
 
       endpoint ->
         uri = URI.parse(endpoint)
 
-        host =
+        {host, port} =
           case {uri.host, uri.port} do
-            {nil, _} -> System.get_env("S3_HOST")
-            {host, nil} -> host
-            {host, port} -> "#{host}:#{port}"
+            {nil, _} -> {System.get_env("S3_HOST"), nil}
+            {host, nil} -> {host, nil}
+            {host, port} -> {host, port}
           end
 
         scheme = (uri.scheme || "https") <> "://"
-        {scheme, host}
+        {scheme, host, port}
     end
 
   s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID") || System.get_env("AWS_ACCESS_KEY_ID")
@@ -79,6 +79,16 @@ if config_env() == :prod do
     end
 
   otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+  s3_config =
+    [
+      scheme: s3_scheme,
+      host: s3_host,
+      region: s3_region,
+      virtual_host: s3_virtual_host
+    ]
+
+  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
   config :cache, Cache.Guardian,
     issuer: "tuist",
@@ -118,12 +128,7 @@ if config_env() == :prod do
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level
   config :ex_aws, :req_opts, []
-
-  config :ex_aws, :s3,
-    scheme: s3_scheme,
-    host: s3_host,
-    region: s3_region,
-    virtual_host: s3_virtual_host
+  config :ex_aws, :s3, s3_config
 
   config :ex_aws,
     region: s3_region,
