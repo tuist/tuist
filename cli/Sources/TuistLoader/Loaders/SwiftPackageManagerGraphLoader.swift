@@ -172,7 +172,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 return $0.name
             }
         })
-        .map { _, groupedPackageInfos in
+        .compactMap { _, groupedPackageInfos in
             if let localPackage = groupedPackageInfos.first(where: {
                 ["local", "fileSystem", "localSourceControl"].contains($0.kind)
             }) {
@@ -180,9 +180,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
                 return registryPackage
             } else {
-                /// `group` is guaranteed to be non-empty because `Dictionary(grouping:by:)` only creates buckets that contain
-                /// at least one element. If `packageInfos` is empty, the `map` body is never executed.
-                return groupedPackageInfos.first!
+                return groupedPackageInfos.first
             }
         }
 
