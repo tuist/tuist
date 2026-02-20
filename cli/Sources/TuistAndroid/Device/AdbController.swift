@@ -153,6 +153,21 @@ public protocol AdbControlling: Sendable {
                 }
             }
 
+            let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+            let wellKnownPaths = [
+                "\(homeDir)/Library/Android/sdk/platform-tools/adb",
+                "\(homeDir)/.local/share/mise/installs/android-sdk/latest/platform-tools/adb",
+                "/opt/homebrew/bin/adb",
+                "/usr/local/bin/adb",
+            ]
+            for path in wellKnownPaths {
+                if let adbPath = try? AbsolutePath(validating: path),
+                   await (try? fileSystem.exists(adbPath)) == true
+                {
+                    return adbPath.pathString
+                }
+            }
+
             return "adb"
         }
     }

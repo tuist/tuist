@@ -1,7 +1,7 @@
 import Foundation
 
-public struct AndroidDevice: Equatable, Sendable, CustomStringConvertible {
-    public enum DeviceType: Equatable, Sendable {
+public struct AndroidDevice: Equatable, Hashable, Sendable, Codable, CustomStringConvertible {
+    public enum DeviceType: Equatable, Hashable, Sendable, Codable {
         case emulator
         case device
     }

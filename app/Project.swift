@@ -11,6 +11,7 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistHTTP", path: "../"),
         .project(target: "TuistAutomation", path: "../"),
         .project(target: "TuistSimulator", path: "../"),
+        .project(target: "TuistAndroid", path: "../"),
         .project(target: "TuistLogging", path: "../"),
         .external(name: "XcodeGraph"),
         .external(name: "Command"),

@@ -2,6 +2,7 @@ import Command
 import FileSystem
 import Foundation
 import SwiftUI
+import TuistAndroid
 import TuistAppStorage
 import TuistAutomation
 import TuistCore
@@ -30,6 +31,9 @@ enum SimulatorsViewModelError: FatalError, Equatable {
             case let .device(device):
                 name = device.name
                 platform = device.platform.caseValue
+            case let .androidDevice(androidDevice):
+                name = androidDevice.name
+                platform = "Android"
             }
             let platforms = destinations.map {
                 switch $0 {
@@ -64,6 +68,11 @@ struct PinnedSimulatorsKey: AppStorageKey {
     static let defaultValue: [SimulatorDeviceAndRuntime] = []
 }
 
+struct PinnedAndroidDevicesKey: AppStorageKey {
+    static let key = "pinnedAndroidDevices"
+    static let defaultValue: [AndroidDevice] = []
+}
+
 struct SelectedDeviceKey: AppStorageKey {
     static let key = "selectedDevice"
     static let defaultValue: SelectedDevice? = nil
@@ -72,11 +81,13 @@ struct SelectedDeviceKey: AppStorageKey {
 enum Device: Codable, Equatable {
     case simulator(SimulatorDeviceAndRuntime)
     case device(PhysicalDevice)
+    case androidDevice(AndroidDevice)
 }
 
 enum SelectedDevice: Codable, Equatable {
     case simulator(id: String)
     case device(id: String)
+    case androidDevice(id: String)
 }
 
 @Observable
@@ -97,12 +108,31 @@ final class DevicesViewModel: Sendable {
         deviceService.simulators
     }
 
+    var androidDevices: [AndroidDevice] {
+        deviceService.androidDevices
+    }
+
+    var androidPhysicalDevices: [AndroidDevice] {
+        androidDevices.filter { $0.type == .device }
+    }
+
+    var androidEmulators: [AndroidDevice] {
+        androidDevices.filter { $0.type == .emulator }
+    }
+
     private(set) var pinnedSimulators: [SimulatorDeviceAndRuntime] = []
     var unpinnedSimulators: [SimulatorDeviceAndRuntime] {
         Set(simulators)
             .subtracting(Set(pinnedSimulators))
             .map { $0 }
             .sorted()
+    }
+
+    private(set) var pinnedAndroidEmulators: [AndroidDevice] = []
+    var unpinnedAndroidEmulators: [AndroidDevice] {
+        Set(androidEmulators)
+            .subtracting(Set(pinnedAndroidEmulators))
+            .sorted(by: { $0.name < $1.name })
     }
 
     var selectedDevice: Device? {
@@ -130,6 +160,10 @@ final class DevicesViewModel: Sendable {
         deviceService.selectDevice(.device(device))
     }
 
+    @MainActor func selectAndroidDevice(_ device: AndroidDevice) {
+        deviceService.selectDevice(.androidDevice(device))
+    }
+
     func simulatorPinned(_ simulator: SimulatorDeviceAndRuntime, pinned: Bool) {
         if pinned {
             pinnedSimulators = (pinnedSimulators + [simulator]).sorted()
@@ -137,6 +171,15 @@ final class DevicesViewModel: Sendable {
             pinnedSimulators = pinnedSimulators.filter { $0.id != simulator.id }
         }
         try? appStorage.set(PinnedSimulatorsKey.self, value: pinnedSimulators)
+    }
+
+    func androidEmulatorPinned(_ device: AndroidDevice, pinned: Bool) {
+        if pinned {
+            pinnedAndroidEmulators = (pinnedAndroidEmulators + [device]).sorted(by: { $0.name < $1.name })
+        } else {
+            pinnedAndroidEmulators = pinnedAndroidEmulators.filter { $0.id != device.id }
+        }
+        try? appStorage.set(PinnedAndroidDevicesKey.self, value: pinnedAndroidEmulators)
     }
 
     func refreshDevices() async throws {
@@ -147,5 +190,6 @@ final class DevicesViewModel: Sendable {
 
     func onAppear() throws {
         pinnedSimulators = try appStorage.get(PinnedSimulatorsKey.self)
+        pinnedAndroidEmulators = try appStorage.get(PinnedAndroidDevicesKey.self)
     }
 }
