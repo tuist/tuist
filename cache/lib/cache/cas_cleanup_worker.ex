@@ -2,11 +2,14 @@ defmodule Cache.CASCleanupWorker do
   @moduledoc """
   Oban worker that deletes CAS artifacts from disk, S3, and metadata.
 
-  Best-effort: failures are logged but do not cause retries.
   Only deletes artifacts that are no longer referenced by any key-value entry.
+  Disk cleanup is best-effort. Metadata is only removed after confirmed S3 deletion.
   """
 
-  use Oban.Worker, queue: :clean, max_attempts: 1
+  use Oban.Worker,
+    queue: :clean,
+    max_attempts: 3,
+    unique: [keys: [:account_handle, :project_handle], period: 300]
 
   alias Cache.CacheArtifacts
   alias Cache.CAS.Disk, as: CASDisk
@@ -15,8 +18,6 @@ defmodule Cache.CASCleanupWorker do
   alias Cache.KeyValueEntries
 
   require Logger
-
-  @min_hash_length 4
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -30,11 +31,11 @@ defmodule Cache.CASCleanupWorker do
       :ok
     else
       keys = build_cas_keys(account_handle, project_handle, unreferenced)
-      disk_cleaned_keys = delete_from_disk(keys)
+      delete_from_disk(keys)
+      s3_deleted_keys = delete_from_s3(keys)
 
-      if disk_cleaned_keys != [] do
-        delete_from_s3(disk_cleaned_keys)
-        delete_from_metadata(disk_cleaned_keys)
+      if s3_deleted_keys != [] do
+        delete_from_metadata(s3_deleted_keys)
       end
 
       :ok
@@ -43,8 +44,8 @@ defmodule Cache.CASCleanupWorker do
 
   defp filter_valid_hashes(hashes) do
     Enum.filter(hashes, fn hash ->
-      if String.length(hash) < @min_hash_length do
-        Logger.warning("Skipping CAS hash shorter than 4 characters: #{hash}")
+      if String.length(hash) < CASDisk.min_hash_length() do
+        Logger.warning("Skipping CAS hash shorter than #{CASDisk.min_hash_length()} characters: #{hash}")
         false
       else
         true
@@ -59,19 +60,16 @@ defmodule Cache.CASCleanupWorker do
   end
 
   defp delete_from_disk(keys) do
-    Enum.filter(keys, fn key ->
-      path = Disk.artifact_path(key)
-
-      case File.rm(path) do
+    Enum.each(keys, fn key ->
+      case Disk.delete_artifact(key) do
         :ok ->
-          true
+          :ok
 
         {:error, :enoent} ->
-          true
+          :ok
 
         {:error, reason} ->
-          Logger.error("Failed to delete CAS artifact from disk #{path}: #{inspect(reason)}")
-          false
+          Logger.error("Failed to delete CAS artifact from disk #{key}: #{inspect(reason)}")
       end
     end)
   end
@@ -81,13 +79,15 @@ defmodule Cache.CASCleanupWorker do
 
     keys
     |> Enum.chunk_every(1000)
-    |> Enum.each(fn chunk ->
+    |> Enum.flat_map(fn chunk ->
       case bucket |> ExAws.S3.delete_multiple_objects(chunk) |> ExAws.request() do
         {:ok, _} ->
           Logger.info("Deleted #{length(chunk)} CAS artifacts from S3")
+          chunk
 
         {:error, reason} ->
           Logger.error("Failed to delete S3 objects: #{inspect(reason)}")
+          []
       end
     end)
   end

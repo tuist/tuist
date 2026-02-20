@@ -6,12 +6,11 @@ defmodule Cache.KeyValueEvictionWorker do
 
   use Oban.Worker, queue: :maintenance, max_attempts: 1
 
+  alias Cache.CAS.Disk, as: CASDisk
   alias Cache.CASCleanupWorker
   alias Cache.KeyValueEntries
 
   require Logger
-
-  @min_hash_length 4
 
   @impl Oban.Worker
   def perform(_job) do
@@ -45,17 +44,12 @@ defmodule Cache.KeyValueEvictionWorker do
       entries_list
       |> Enum.map(&Map.get(&1, "value"))
       |> Enum.reject(&is_nil/1)
-      |> Enum.filter(&(String.length(&1) >= @min_hash_length))
+      |> Enum.filter(&(String.length(&1) >= CASDisk.min_hash_length()))
       |> Enum.map(fn hash -> {account, project, hash} end)
     else
       _ ->
         Logger.warning("Skipping CAS cleanup for entry with key: #{entry.key}")
         []
     end
-  rescue
-    error ->
-      Logger.warning("Failed to parse CAS cleanup data for entry with key: #{entry.key}, error: #{inspect(error)}")
-
-      []
   end
 end

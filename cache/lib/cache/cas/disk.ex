@@ -10,6 +10,10 @@ defmodule Cache.CAS.Disk do
 
   require Logger
 
+  @min_hash_length 4
+
+  def min_hash_length, do: @min_hash_length
+
   @doc """
   Constructs a sharded Xcode compilation cache (CAS) key from account handle, project handle, and artifact ID.
 
