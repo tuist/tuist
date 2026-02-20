@@ -2,6 +2,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   use ExUnit.Case, async: false
   use Oban.Testing, repo: Cache.Repo
 
+  import ExUnit.CaptureLog
+
   alias Cache.CASCleanupWorker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
@@ -31,7 +33,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: recent_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     entries = Repo.all(KeyValueEntry)
     assert length(entries) == 1
@@ -47,7 +51,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: now
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     entries = Repo.all(KeyValueEntry)
     assert length(entries) == 1
@@ -62,7 +68,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: old_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
     assert args["account_handle"] == "acme"
@@ -79,7 +87,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: old_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     assert [] = all_enqueued(worker: CASCleanupWorker)
   end
@@ -93,7 +103,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: old_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     assert [] = all_enqueued(worker: CASCleanupWorker)
   end
@@ -107,7 +119,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: old_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     assert [] = all_enqueued(worker: CASCleanupWorker)
   end
@@ -121,7 +135,9 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: old_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
     assert args["cas_hashes"] == ["ABCD1234"]
@@ -136,9 +152,85 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: old_time
     })
 
-    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
 
     assert [] = all_enqueued(worker: CASCleanupWorker)
+  end
+
+  test "groups CAS hashes by account and project into a single cleanup job" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: old_time
+    })
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT2",
+      json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+      last_accessed_at: old_time
+    })
+
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
+
+    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert args["account_handle"] == "acme"
+    assert args["project_handle"] == "ios"
+    assert Enum.sort(args["cas_hashes"]) == ["ABCD1234", "EFGH5678"]
+  end
+
+  test "enqueues separate cleanup jobs for different projects" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: old_time
+    })
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:android:ROOT2",
+      json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+      last_accessed_at: old_time
+    })
+
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
+
+    enqueued = all_enqueued(worker: CASCleanupWorker)
+    assert length(enqueued) == 2
+
+    projects = enqueued |> Enum.map(fn %{args: args} -> args["project_handle"] end) |> Enum.sort()
+    assert projects == ["android", "ios"]
+  end
+
+  test "deduplicates CAS hashes within the same account and project" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: old_time
+    })
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT2",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: old_time
+    })
+
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
+
+    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert args["cas_hashes"] == ["ABCD1234"]
   end
 
   test "respects configurable max age via delete_expired/1" do

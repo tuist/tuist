@@ -1,14 +1,18 @@
 defmodule Cache.CASCleanupWorker do
   @moduledoc """
   Oban worker that deletes CAS artifacts from disk, S3, and metadata.
+
+  Best-effort: failures are logged but do not cause retries.
+  Only deletes artifacts that are no longer referenced by any key-value entry.
   """
 
-  use Oban.Worker, queue: :clean, max_attempts: 3
+  use Oban.Worker, queue: :clean, max_attempts: 1
 
   alias Cache.CacheArtifacts
   alias Cache.CAS.Disk, as: CASDisk
   alias Cache.Config
   alias Cache.Disk
+  alias Cache.KeyValueEntries
 
   require Logger
 
@@ -19,15 +23,19 @@ defmodule Cache.CASCleanupWorker do
         args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
       }) do
     valid_hashes = filter_valid_hashes(cas_hashes)
+    still_referenced = KeyValueEntries.referenced_hashes(account_handle, project_handle, valid_hashes)
+    unreferenced = valid_hashes -- still_referenced
 
-    if Enum.empty?(valid_hashes) do
+    if unreferenced == [] do
       :ok
     else
-      keys = build_cas_keys(account_handle, project_handle, valid_hashes)
+      keys = build_cas_keys(account_handle, project_handle, unreferenced)
+      disk_cleaned_keys = delete_from_disk(keys)
 
-      delete_from_disk(keys)
-      delete_from_s3(keys)
-      delete_from_metadata(keys)
+      if disk_cleaned_keys != [] do
+        delete_from_s3(disk_cleaned_keys)
+        delete_from_metadata(disk_cleaned_keys)
+      end
 
       :ok
     end
@@ -51,18 +59,19 @@ defmodule Cache.CASCleanupWorker do
   end
 
   defp delete_from_disk(keys) do
-    Enum.each(keys, fn key ->
+    Enum.filter(keys, fn key ->
       path = Disk.artifact_path(key)
 
       case File.rm(path) do
         :ok ->
-          :ok
+          true
 
         {:error, :enoent} ->
-          :ok
+          true
 
         {:error, reason} ->
           Logger.error("Failed to delete CAS artifact from disk #{path}: #{inspect(reason)}")
+          false
       end
     end)
   end

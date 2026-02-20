@@ -140,7 +140,7 @@ defmodule Cache.KeyValueEntriesTest do
     assert length(expired_entries) == 10_000
 
     remaining = Repo.aggregate(KeyValueEntry, :count)
-    assert remaining < 100
+    assert remaining == 50
   end
 
   test "delete_expired returns entries with all required fields" do
@@ -159,6 +159,49 @@ defmodule Cache.KeyValueEntriesTest do
     assert returned_entry.key
     assert returned_entry.json_payload
     assert returned_entry.id
+  end
+
+  test "referenced_hashes returns hashes still present in other KV entries" do
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: DateTime.utc_now()
+    })
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT2",
+      json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+      last_accessed_at: DateTime.utc_now()
+    })
+
+    result = KeyValueEntries.referenced_hashes("acme", "ios", ["ABCD1234", "EFGH5678", "MISSING"])
+
+    assert Enum.sort(result) == ["ABCD1234", "EFGH5678"]
+  end
+
+  test "referenced_hashes returns empty list when no entries reference the hashes" do
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: DateTime.utc_now()
+    })
+
+    assert KeyValueEntries.referenced_hashes("acme", "ios", ["MISSING"]) == []
+  end
+
+  test "referenced_hashes scopes to account and project" do
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+      last_accessed_at: DateTime.utc_now()
+    })
+
+    assert KeyValueEntries.referenced_hashes("other_account", "ios", ["ABCD1234"]) == []
+    assert KeyValueEntries.referenced_hashes("acme", "android", ["ABCD1234"]) == []
+  end
+
+  test "referenced_hashes returns empty list for empty input" do
+    assert KeyValueEntries.referenced_hashes("acme", "ios", []) == []
   end
 
   test "delete_expired handles mixed old and fresh entries correctly" do
