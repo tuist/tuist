@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-02-18 13:25+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-02-20 07:20+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard-1/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -394,8 +393,9 @@ msgstr "创建项目"
 msgid "Cache"
 msgstr "缓存"
 
+#, fuzzy
 msgid "The preview APK doesn't exist or has expired."
-msgstr ""
+msgstr "预览版APK不存在或已过期。"
 
 #, fuzzy
 #~ msgid "Generate Runs"
