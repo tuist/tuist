@@ -19,15 +19,11 @@ defmodule Cache.CASCleanupWorker do
 
   require Logger
 
-  @min_hash_length 4
-
   @impl Oban.Worker
   def perform(%Oban.Job{
         args: %{"account_handle" => account_handle, "project_handle" => project_handle, "cas_hashes" => cas_hashes}
       }) do
-    case cas_hashes
-         |> filter_valid_hashes()
-         |> KeyValueEntries.unreferenced_hashes(account_handle, project_handle) do
+    case KeyValueEntries.unreferenced_hashes(cas_hashes, account_handle, project_handle) do
       [] ->
         :ok
 
@@ -42,16 +38,6 @@ defmodule Cache.CASCleanupWorker do
 
         :ok
     end
-  end
-
-  defp filter_valid_hashes(hashes) do
-    {valid, invalid} = Enum.split_with(hashes, &(String.length(&1) >= @min_hash_length))
-
-    Enum.each(invalid, fn hash ->
-      Logger.warning("Skipping CAS hash shorter than #{@min_hash_length} characters: #{hash}")
-    end)
-
-    valid
   end
 
   defp delete_from_disk(keys) do

@@ -11,8 +11,6 @@ defmodule Cache.KeyValueEvictionWorker do
 
   require Logger
 
-  @min_hash_length 4
-
   @impl Oban.Worker
   def perform(_job) do
     max_age_days = Application.get_env(:cache, :key_value_eviction_max_age_days, 30)
@@ -45,7 +43,6 @@ defmodule Cache.KeyValueEvictionWorker do
       entries_list
       |> Enum.map(&Map.get(&1, "value"))
       |> Enum.reject(&is_nil/1)
-      |> Enum.filter(&(String.length(&1) >= @min_hash_length))
       |> Enum.map(fn hash -> {account, project, hash} end)
     else
       _ ->

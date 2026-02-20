@@ -126,39 +126,6 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert [] = all_enqueued(worker: CASCleanupWorker)
   end
 
-  test "filters out CAS hashes shorter than 4 characters" do
-    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
-
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT_HASH",
-      json_payload: ~s({"entries":[{"value":"AB"},{"value":"ABCD1234"}]}),
-      last_accessed_at: old_time
-    })
-
-    capture_log(fn ->
-      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
-    end)
-
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
-    assert args["cas_hashes"] == ["ABCD1234"]
-  end
-
-  test "does not enqueue cleanup when all hashes are too short" do
-    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
-
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT_HASH",
-      json_payload: ~s({"entries":[{"value":"AB"},{"value":"CD"}]}),
-      last_accessed_at: old_time
-    })
-
-    capture_log(fn ->
-      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
-    end)
-
-    assert [] = all_enqueued(worker: CASCleanupWorker)
-  end
-
   test "groups CAS hashes by account and project into a single cleanup job" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
