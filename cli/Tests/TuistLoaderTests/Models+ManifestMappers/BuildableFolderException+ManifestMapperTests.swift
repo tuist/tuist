@@ -18,7 +18,8 @@ struct BuildableFolderExceptionManifestMapperTests {
                     excluded: ["Excluded.swift"],
                     compilerFlags: ["WithFlags.swift": "-flag"],
                     publicHeaders: ["Public.h"],
-                    privateHeaders: ["Private.h"]
+                    privateHeaders: ["Private.h"],
+                    platformFilters: ["Resources/ios_only.mp4": [.ios]]
                 ),
             buildableFolder: buildableFolder
         )
@@ -27,5 +28,11 @@ struct BuildableFolderExceptionManifestMapperTests {
         #expect(got.compilerFlags == [buildableFolder.appending(components: ["WithFlags.swift"]): "-flag"])
         #expect(got.publicHeaders == [buildableFolder.appending(components: ["Public.h"])])
         #expect(got.privateHeaders == [buildableFolder.appending(components: ["Private.h"])])
+        #expect(
+            got.platformFilters == [
+                buildableFolder.appending(components: ["Resources", "ios_only.mp4"]):
+                    XcodeGraph.PlatformCondition.when([.ios])!,
+            ]
+        )
     }
 }
