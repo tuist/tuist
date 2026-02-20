@@ -23,7 +23,7 @@ defmodule TuistWeb.TestRunLiveTest do
   } do
     # Given
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id)
+      RunsFixtures.test_run_fixture(project_id: project.id)
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
@@ -40,7 +40,7 @@ defmodule TuistWeb.TestRunLiveTest do
   } do
     # Given
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id)
+      RunsFixtures.test_run_fixture(project_id: project.id)
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
@@ -58,7 +58,7 @@ defmodule TuistWeb.TestRunLiveTest do
     alias TuistTestSupport.Fixtures.CommandEventsFixtures
     # Given
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id)
+      RunsFixtures.test_run_fixture(project_id: project.id)
 
     # Create a command event associated with this test run
     command_event =
@@ -85,7 +85,7 @@ defmodule TuistWeb.TestRunLiveTest do
   } do
     # Given
     {:ok, test_run} =
-      RunsFixtures.test_fixture(project_id: project.id)
+      RunsFixtures.test_run_fixture(project_id: project.id)
 
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
 
@@ -103,7 +103,7 @@ defmodule TuistWeb.TestRunLiveTest do
       project: project
     } do
       # Given
-      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_modules: [])
+      {:ok, test_run} = RunsFixtures.test_run_fixture(project_id: project.id)
 
       test_run_id = test_run.id
       test_module_run_id = UUIDv7.generate()
@@ -132,7 +132,7 @@ defmodule TuistWeb.TestRunLiveTest do
       project: project
     } do
       # Given
-      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_modules: [])
+      {:ok, test_run} = RunsFixtures.test_run_fixture(project_id: project.id)
 
       test_run_id = test_run.id
       test_module_run_id = UUIDv7.generate()
@@ -161,7 +161,7 @@ defmodule TuistWeb.TestRunLiveTest do
       project: project
     } do
       # Given
-      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, test_modules: [])
+      {:ok, test_run} = RunsFixtures.test_run_fixture(project_id: project.id)
 
       test_run_id = test_run.id
       test_module_run_id = UUIDv7.generate()

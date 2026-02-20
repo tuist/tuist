@@ -4,16 +4,10 @@ defmodule Tuist.TestsTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Tests
-  alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
-
-  setup do
-    mark_clickhouse_dirty()
-    :ok
-  end
 
   describe "get_test_case_run_by_id/2" do
     test "returns test case run when it exists" do
@@ -156,7 +150,7 @@ defmodule Tuist.TestsTest do
   describe "get_test/1" do
     test "returns test when it exists" do
       # Given
-      {:ok, test} = RunsFixtures.test_fixture()
+      {:ok, test} = RunsFixtures.test_run_fixture()
       test_id = test.id
 
       # When
@@ -196,7 +190,7 @@ defmodule Tuist.TestsTest do
       {:ok, build} = RunsFixtures.build_fixture()
 
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           build_run_id: build.id,
           ran_at: ~N[2024-03-04 01:00:00]
         )
@@ -215,13 +209,13 @@ defmodule Tuist.TestsTest do
       {:ok, build} = RunsFixtures.build_fixture()
 
       {:ok, _older_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           build_run_id: build.id,
           ran_at: ~N[2024-03-04 01:00:00]
         )
 
       {:ok, latest_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           build_run_id: build.id,
           ran_at: ~N[2024-03-04 02:00:00]
         )
@@ -252,7 +246,7 @@ defmodule Tuist.TestsTest do
       gradle_build_id = UUIDv7.generate()
 
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           gradle_build_id: gradle_build_id,
           build_system: "gradle",
           ran_at: ~N[2024-03-04 01:00:00]
@@ -272,14 +266,14 @@ defmodule Tuist.TestsTest do
       gradle_build_id = UUIDv7.generate()
 
       {:ok, _older_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           gradle_build_id: gradle_build_id,
           build_system: "gradle",
           ran_at: ~N[2024-03-04 01:00:00]
         )
 
       {:ok, latest_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           gradle_build_id: gradle_build_id,
           build_system: "gradle",
           ran_at: ~N[2024-03-04 02:00:00]
@@ -309,16 +303,16 @@ defmodule Tuist.TestsTest do
       project_two = ProjectsFixtures.project_fixture()
 
       {:ok, test_one} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           duration: 1000,
           ran_at: ~N[2024-03-04 01:00:00]
         )
 
-      RunsFixtures.test_fixture(project_id: project_two.id)
+      RunsFixtures.test_run_fixture(project_id: project_two.id)
 
       {:ok, test_two} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           duration: 2000,
           ran_at: ~N[2024-03-04 02:00:00]
@@ -348,13 +342,13 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
 
       {:ok, _success_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           status: "success"
         )
 
       {:ok, failure_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           status: "failure"
         )
@@ -392,21 +386,38 @@ defmodule Tuist.TestsTest do
   describe "list_test_case_runs/1" do
     test "lists test case runs with pagination" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testCase1", status: "success", duration: 100},
-                %{name: "testCase2", status: "failure", duration: 200},
-                %{name: "testCase3", status: "success", duration: 300}
-              ]
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "testCase1",
+        module_name: "TestModule",
+        status: "success",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "testCase2",
+        module_name: "TestModule",
+        status: "failure",
+        duration: 200
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "testCase3",
+        module_name: "TestModule",
+        status: "success",
+        duration: 300
+      )
 
       # When
       {test_cases_first_page, meta_first_page} =
@@ -428,21 +439,38 @@ defmodule Tuist.TestsTest do
 
     test "filters by status" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "successTest", status: "success", duration: 100},
-                %{name: "failureTest", status: "failure", duration: 200},
-                %{name: "skippedTest", status: "skipped", duration: 0}
-              ]
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "successTest",
+        module_name: "TestModule",
+        status: "success",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "failureTest",
+        module_name: "TestModule",
+        status: "failure",
+        duration: 200
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "skippedTest",
+        module_name: "TestModule",
+        status: "skipped",
+        duration: 0
+      )
 
       # When
       {test_cases, _meta} =
@@ -460,17 +488,8 @@ defmodule Tuist.TestsTest do
 
     test "returns empty list when no test cases exist for test run" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "EmptyModule",
-              status: "success",
-              duration: 0,
-              test_cases: []
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "EmptyModule")
 
       # When
       {test_cases, meta} =
@@ -487,50 +506,56 @@ defmodule Tuist.TestsTest do
   describe "get_test_run_failures_count/1" do
     test "returns count of failed test case runs" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "failure",
-              duration: 1000,
-              test_cases: [
-                %{
-                  name: "testWithFailure",
-                  status: "failure",
-                  duration: 200,
-                  failures: [
-                    %{
-                      message: "Assertion failed",
-                      path: "/path/to/test.swift",
-                      line_number: 42,
-                      issue_type: "assertion"
-                    },
-                    %{
-                      message: "Another failure",
-                      path: "/path/to/test.swift",
-                      line_number: 50,
-                      issue_type: "assertion"
-                    }
-                  ]
-                },
-                %{
-                  name: "testWithSingleFailure",
-                  status: "failure",
-                  duration: 100,
-                  failures: [
-                    %{
-                      message: "Test failed",
-                      path: "/path/to/test.swift",
-                      line_number: 30,
-                      issue_type: "error"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
+      {:ok, test} = RunsFixtures.test_run_fixture(status: "failure")
+
+      module_run =
+        RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule", status: "failure")
+
+      run1 =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "testWithFailure",
+          module_name: "TestModule",
+          status: "failure",
+          duration: 200
         )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run1.id,
+        message: "Assertion failed",
+        path: "/path/to/test.swift",
+        line_number: 42,
+        issue_type: "assertion"
+      )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run1.id,
+        message: "Another failure",
+        path: "/path/to/test.swift",
+        line_number: 50,
+        issue_type: "assertion"
+      )
+
+      run2 =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "testWithSingleFailure",
+          module_name: "TestModule",
+          status: "failure",
+          duration: 100
+        )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run2.id,
+        message: "Test failed",
+        path: "/path/to/test.swift",
+        line_number: 30,
+        issue_type: "error"
+      )
 
       # When
       count = Tests.get_test_run_failures_count(test.id)
@@ -541,19 +566,18 @@ defmodule Tuist.TestsTest do
 
     test "returns 0 when no failures exist for test run" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "successTest", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "successTest",
+        module_name: "TestModule",
+        status: "success",
+        duration: 100
+      )
 
       # When
       count = Tests.get_test_run_failures_count(test.id)
@@ -564,35 +588,43 @@ defmodule Tuist.TestsTest do
 
     test "does not count retried test cases that ultimately passed" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{
-                  name: "testFlaky",
-                  status: "success",
-                  duration: 300,
-                  failures: [
-                    %{
-                      message: "Flaky failure",
-                      path: "/path/to/test.swift",
-                      line_number: 10,
-                      issue_type: "assertion"
-                    }
-                  ],
-                  repetitions: [
-                    %{repetition_number: 1, name: "Run 1", status: "failure", duration: 100},
-                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 200}
-                  ]
-                }
-              ]
-            }
-          ]
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      run =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "testFlaky",
+          module_name: "TestModule",
+          status: "success",
+          duration: 300
         )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run.id,
+        message: "Flaky failure",
+        path: "/path/to/test.swift",
+        line_number: 10,
+        issue_type: "assertion"
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: run.id,
+        repetition_number: 1,
+        name: "Run 1",
+        status: "failure",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: run.id,
+        repetition_number: 2,
+        name: "Retry 1",
+        status: "success",
+        duration: 200
+      )
 
       # When
       count = Tests.get_test_run_failures_count(test.id)
@@ -605,50 +637,56 @@ defmodule Tuist.TestsTest do
   describe "list_test_case_runs/2 with failure filter and preloads" do
     test "lists failed test case runs with preloaded failures and crash reports" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "failure",
-              duration: 1000,
-              test_cases: [
-                %{
-                  name: "testCase1",
-                  status: "failure",
-                  duration: 200,
-                  failures: [
-                    %{
-                      message: "Failure 1",
-                      path: "/path/to/test.swift",
-                      line_number: 10,
-                      issue_type: "assertion"
-                    }
-                  ]
-                },
-                %{
-                  name: "testCase2",
-                  status: "failure",
-                  duration: 300,
-                  failures: [
-                    %{
-                      message: "Failure 2",
-                      path: "/path/to/test.swift",
-                      line_number: 20,
-                      issue_type: "error"
-                    },
-                    %{
-                      message: "Failure 3",
-                      path: "/path/to/test.swift",
-                      line_number: 30,
-                      issue_type: "assertion"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
+      {:ok, test} = RunsFixtures.test_run_fixture(status: "failure")
+
+      module_run =
+        RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule", status: "failure")
+
+      run1 =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "testCase1",
+          module_name: "TestModule",
+          status: "failure",
+          duration: 200
         )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run1.id,
+        message: "Failure 1",
+        path: "/path/to/test.swift",
+        line_number: 10,
+        issue_type: "assertion"
+      )
+
+      run2 =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "testCase2",
+          module_name: "TestModule",
+          status: "failure",
+          duration: 300
+        )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run2.id,
+        message: "Failure 2",
+        path: "/path/to/test.swift",
+        line_number: 20,
+        issue_type: "error"
+      )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run2.id,
+        message: "Failure 3",
+        path: "/path/to/test.swift",
+        line_number: 30,
+        issue_type: "assertion"
+      )
 
       # When
       {failed_runs, meta} =
@@ -670,38 +708,29 @@ defmodule Tuist.TestsTest do
 
     test "preloads crash reports with attachments for failed runs" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "failure",
-              duration: 1000,
-              test_cases: [
-                %{
-                  name: "testCrash",
-                  status: "failure",
-                  duration: 200,
-                  failures: [
-                    %{
-                      message: "Crash",
-                      path: "/path/to/test.swift",
-                      line_number: 10,
-                      issue_type: "assertion"
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
+      {:ok, test} = RunsFixtures.test_run_fixture(status: "failure")
+
+      module_run =
+        RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule", status: "failure")
+
+      run =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "testCrash",
+          module_name: "TestModule",
+          status: "failure",
+          duration: 200
         )
 
-      {runs, _meta} =
-        Tests.list_test_case_runs(%{
-          filters: [%{field: :test_run_id, op: :==, value: test.id}]
-        })
-
-      run = hd(runs)
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: run.id,
+        message: "Crash",
+        path: "/path/to/test.swift",
+        line_number: 10,
+        issue_type: "assertion"
+      )
 
       attachment =
         RunsFixtures.test_case_run_attachment_fixture(
@@ -740,19 +769,18 @@ defmodule Tuist.TestsTest do
 
     test "returns empty list when no failures exist for test run" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "successTest", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "successTest",
+        module_name: "TestModule",
+        status: "success",
+        duration: 100
+      )
 
       # When
       {failed_runs, meta} =
@@ -770,22 +798,32 @@ defmodule Tuist.TestsTest do
   describe "list_test_suite_runs/1" do
     test "lists test suite runs with pagination" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_suites: [
-                %{name: "Suite1", status: "success", duration: 300},
-                %{name: "Suite2", status: "failure", duration: 400},
-                %{name: "Suite3", status: "success", duration: 300}
-              ],
-              test_cases: []
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_suite_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        name: "Suite1",
+        status: "success",
+        duration: 300
+      )
+
+      RunsFixtures.test_suite_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        name: "Suite2",
+        status: "failure",
+        duration: 400
+      )
+
+      RunsFixtures.test_suite_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        name: "Suite3",
+        status: "success",
+        duration: 300
+      )
 
       # When
       {suites_page1, meta_page1} =
@@ -807,21 +845,24 @@ defmodule Tuist.TestsTest do
 
     test "filters by status" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_suites: [
-                %{name: "SuccessSuite", status: "success", duration: 200},
-                %{name: "FailureSuite", status: "failure", duration: 300}
-              ],
-              test_cases: []
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_suite_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        name: "SuccessSuite",
+        status: "success",
+        duration: 200
+      )
+
+      RunsFixtures.test_suite_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        name: "FailureSuite",
+        status: "failure",
+        duration: 300
+      )
 
       # When
       {suites, _meta} =
@@ -840,17 +881,8 @@ defmodule Tuist.TestsTest do
 
     test "returns empty list when no test suites exist for test run" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: []
-            }
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
 
       # When
       {suites, meta} =
@@ -1230,14 +1262,10 @@ defmodule Tuist.TestsTest do
   describe "list_test_module_runs/1" do
     test "lists test module runs with pagination" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{name: "ModuleA", status: "success", duration: 300, test_cases: []},
-            %{name: "ModuleB", status: "failure", duration: 400, test_cases: []},
-            %{name: "ModuleC", status: "success", duration: 500, test_cases: []}
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "ModuleA", status: "success", duration: 300)
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "ModuleB", status: "failure", duration: 400)
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "ModuleC", status: "success", duration: 500)
 
       # When
       {modules_page1, meta_page1} =
@@ -1259,13 +1287,9 @@ defmodule Tuist.TestsTest do
 
     test "filters by status" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{name: "SuccessModule", status: "success", duration: 200, test_cases: []},
-            %{name: "FailureModule", status: "failure", duration: 300, test_cases: []}
-          ]
-        )
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "SuccessModule", status: "success", duration: 200)
+      RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "FailureModule", status: "failure", duration: 300)
 
       # When
       {modules, _meta} =
@@ -1302,7 +1326,7 @@ defmodule Tuist.TestsTest do
     test "returns GitHub Actions URL for GitHub provider" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "github",
           ci_run_id: "123456789",
           ci_project_handle: "owner/repo"
@@ -1318,7 +1342,7 @@ defmodule Tuist.TestsTest do
     test "returns GitLab CI URL for GitLab provider with default host" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "gitlab",
           ci_run_id: "987654321",
           ci_project_handle: "namespace/project",
@@ -1335,7 +1359,7 @@ defmodule Tuist.TestsTest do
     test "returns GitLab CI URL for GitLab provider with custom host" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "gitlab",
           ci_run_id: "987654321",
           ci_project_handle: "namespace/project",
@@ -1352,7 +1376,7 @@ defmodule Tuist.TestsTest do
     test "returns Bitrise URL for Bitrise provider" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "bitrise",
           ci_run_id: "build-slug-123",
           ci_project_handle: "app-slug-456"
@@ -1368,7 +1392,7 @@ defmodule Tuist.TestsTest do
     test "returns CircleCI URL for CircleCI provider" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "circleci",
           ci_run_id: "42",
           ci_project_handle: "owner/project"
@@ -1384,7 +1408,7 @@ defmodule Tuist.TestsTest do
     test "returns Buildkite URL for Buildkite provider" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "buildkite",
           ci_run_id: "1234",
           ci_project_handle: "org/pipeline"
@@ -1400,7 +1424,7 @@ defmodule Tuist.TestsTest do
     test "returns Codemagic URL for Codemagic provider" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "codemagic",
           ci_run_id: "build-id-123",
           ci_project_handle: "project-id-456"
@@ -1416,7 +1440,7 @@ defmodule Tuist.TestsTest do
     test "returns nil when ci_run_id is empty" do
       # Given
       {:ok, test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           ci_provider: "github",
           ci_run_id: "",
           ci_project_handle: "owner/repo"
@@ -1447,22 +1471,9 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testA", status: "success", duration: 100},
-                %{name: "testB", status: "success", duration: 200},
-                %{name: "testC", status: "success", duration: 300}
-              ]
-            }
-          ]
-        )
+      RunsFixtures.test_case_fixture(project_id: project.id, name: "testA", last_duration: 100)
+      RunsFixtures.test_case_fixture(project_id: project.id, name: "testB", last_duration: 200)
+      RunsFixtures.test_case_fixture(project_id: project.id, name: "testC", last_duration: 300)
 
       # When
       {page1, meta} = Tests.list_test_cases(project.id, %{page: 1, page_size: 2})
@@ -1479,22 +1490,9 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "slowTest", status: "success", duration: 500},
-                %{name: "fastTest", status: "success", duration: 100},
-                %{name: "mediumTest", status: "success", duration: 300}
-              ]
-            }
-          ]
-        )
+      RunsFixtures.test_case_fixture(project_id: project.id, name: "slowTest", last_duration: 500)
+      RunsFixtures.test_case_fixture(project_id: project.id, name: "fastTest", last_duration: 100)
+      RunsFixtures.test_case_fixture(project_id: project.id, name: "mediumTest", last_duration: 300)
 
       # When - sort by last_duration ascending
       {test_cases_asc, _meta} =
@@ -1516,10 +1514,21 @@ defmodule Tuist.TestsTest do
     test "preserves is_quarantined when a new test run is ingested" do
       # Given
       project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, _test_run} =
-        RunsFixtures.test_fixture(
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
           project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
           test_modules: [
             %{
               name: "TestModule",
@@ -1530,7 +1539,7 @@ defmodule Tuist.TestsTest do
               ]
             }
           ]
-        )
+        })
 
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
       assert test_case.is_quarantined == false
@@ -1539,8 +1548,18 @@ defmodule Tuist.TestsTest do
       {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
 
       {:ok, _test_run2} =
-        RunsFixtures.test_fixture(
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
           project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "def456",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
           test_modules: [
             %{
               name: "TestModule",
@@ -1551,7 +1570,7 @@ defmodule Tuist.TestsTest do
               ]
             }
           ]
-        )
+        })
 
       # Then - the test case should still be quarantined
       {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
@@ -1564,25 +1583,13 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
+      test_case =
+        RunsFixtures.test_case_fixture(
           project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_suites: [
-                %{name: "TestSuite", status: "success", duration: 500}
-              ],
-              test_cases: [
-                %{name: "testOne", test_suite_name: "TestSuite", status: "success", duration: 100}
-              ]
-            }
-          ]
+          name: "testOne",
+          module_name: "TestModule",
+          suite_name: "TestSuite"
         )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
 
       # When
       result = Tests.get_test_case_by_id(test_case.id)
@@ -2041,29 +2048,56 @@ defmodule Tuist.TestsTest do
   describe "list_test_case_runs/1 with flaky filter" do
     test "filters by is_flaky" do
       # Given
-      {:ok, test} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "successTest", status: "success", duration: 100},
-                %{name: "failureTest", status: "failure", duration: 200},
-                %{
-                  name: "flakyTest",
-                  status: "success",
-                  duration: 300,
-                  repetitions: [
-                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 150},
-                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 150}
-                  ]
-                }
-              ]
-            }
-          ]
+      {:ok, test} = RunsFixtures.test_run_fixture()
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "successTest",
+        module_name: "TestModule",
+        status: "success",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test.id,
+        test_module_run_id: module_run.id,
+        project_id: test.project_id,
+        name: "failureTest",
+        module_name: "TestModule",
+        status: "failure",
+        duration: 200
+      )
+
+      flaky_run =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test.id,
+          test_module_run_id: module_run.id,
+          project_id: test.project_id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          status: "success",
+          duration: 300,
+          is_flaky: true
         )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: flaky_run.id,
+        repetition_number: 1,
+        name: "First Run",
+        status: "failure",
+        duration: 150
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: flaky_run.id,
+        repetition_number: 2,
+        name: "Retry 1",
+        status: "success",
+        duration: 150
+      )
 
       # When
       {test_cases, _meta} =
@@ -2163,7 +2197,7 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      # Force ClickHouse to merge and deduplicate rows
+      # Force ClickHouse to merge and deduplicate rows (ReplacingMergeTree)
       RunsFixtures.optimize_test_case_runs()
 
       # Get the second test case run
@@ -2208,39 +2242,54 @@ defmodule Tuist.TestsTest do
       end
 
       {:ok, first_test} =
-        RunsFixtures.test_fixture(
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
-          git_commit_sha: commit_sha,
-          is_ci: true,
+          duration: 1000,
           status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
           ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          is_ci: true,
           test_modules: test_modules.("success")
-        )
+        })
 
       {:ok, second_test} =
-        RunsFixtures.test_fixture(
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
-          git_commit_sha: commit_sha,
-          is_ci: true,
+          duration: 1000,
           status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
           ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
           test_modules: test_modules.("success")
-        )
+        })
 
       {:ok, third_test} =
-        RunsFixtures.test_fixture(
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
-          git_commit_sha: commit_sha,
-          is_ci: true,
+          duration: 1000,
           status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
           ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
           test_modules: test_modules.("failure")
-        )
+        })
 
-      # Force ClickHouse to merge and deduplicate rows
+      # Force ClickHouse to merge and deduplicate rows (ReplacingMergeTree)
       RunsFixtures.optimize_test_case_runs()
 
       # All three runs should be marked as flaky
@@ -2428,23 +2477,7 @@ defmodule Tuist.TestsTest do
     test "marks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testOne", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "testOne")
       assert test_case.is_flaky == false
 
       # When
@@ -2474,23 +2507,7 @@ defmodule Tuist.TestsTest do
     test "keeps test case flaky if already flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testOne", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "testOne")
 
       # Mark as flaky first
       {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
@@ -2506,23 +2523,7 @@ defmodule Tuist.TestsTest do
     test "unmarks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testOne", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "testOne")
 
       # Mark as flaky first
       {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
@@ -2556,23 +2557,7 @@ defmodule Tuist.TestsTest do
     test "keeps test case not flaky if already not flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testOne", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "testOne")
       assert test_case.is_flaky == false
 
       # When - unmark when already not flaky
@@ -2587,23 +2572,7 @@ defmodule Tuist.TestsTest do
   describe "update_test_case/3 quarantine" do
     test "marks a test case as quarantined" do
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testOne", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "testOne")
       assert test_case.is_quarantined == false
 
       result = Tests.update_test_case(test_case.id, %{is_quarantined: true})
@@ -2626,23 +2595,7 @@ defmodule Tuist.TestsTest do
 
     test "unquarantines a test case" do
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _test_run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{name: "testOne", status: "success", duration: 100}
-              ]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: "testOne")
 
       {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
       {:ok, quarantined_test_case} = Tests.get_test_case_by_id(test_case.id)
@@ -2673,47 +2626,67 @@ defmodule Tuist.TestsTest do
     test "returns flaky test cases for a project" do
       project = ProjectsFixtures.project_fixture()
 
-      test_modules = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
-          }
-        ]
-      end
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
       {:ok, first_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "abc123",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
 
-      {:ok, _second_test} =
-        RunsFixtures.test_fixture(
+      module_run1 = RunsFixtures.test_module_run_fixture(test_run_id: first_test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: first_test.id,
+        test_module_run_id: module_run1.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "abc123",
+        duration: 250
+      )
+
+      {:ok, second_test} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "abc123",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      # Get the actual test_case_id from the created test_case_run
-      {[test_case_run | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+      module_run2 = RunsFixtures.test_module_run_fixture(test_run_id: second_test.id, name: "TestModule")
 
-      # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Tests.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
-
-      RunsFixtures.optimize_test_case_runs()
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: second_test.id,
+        test_module_run_id: module_run2.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "abc123",
+        duration: 250
+      )
 
       {flaky_tests, meta} = Tests.list_flaky_test_cases(project.id, %{})
 
@@ -2729,54 +2702,69 @@ defmodule Tuist.TestsTest do
     test "supports pagination" do
       project = ProjectsFixtures.project_fixture()
 
-      test_case_ids =
-        for i <- 1..3 do
-          test_modules = fn status ->
-            [
-              %{
-                name: "TestModule",
-                status: status,
-                duration: 500,
-                test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250}]
-              }
-            ]
-          end
+      for i <- 1..3 do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "flakyTest#{i}",
+            module_name: "TestModule",
+            is_flaky: true
+          )
 
-          {:ok, first_test} =
-            RunsFixtures.test_fixture(
-              project_id: project.id,
-              account_id: project.account_id,
-              git_commit_sha: "commit#{i}",
-              is_ci: true,
-              status: "success",
-              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-              test_modules: test_modules.("success")
-            )
+        {:ok, first_test} =
+          RunsFixtures.test_run_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+          )
 
-          {:ok, _} =
-            RunsFixtures.test_fixture(
-              project_id: project.id,
-              account_id: project.account_id,
-              git_commit_sha: "commit#{i}",
-              is_ci: true,
-              status: "failure",
-              ran_at: NaiveDateTime.utc_now(),
-              test_modules: test_modules.("failure")
-            )
+        module_run1 = RunsFixtures.test_module_run_fixture(test_run_id: first_test.id, name: "TestModule")
 
-          # Get the actual test_case_id from the created test_case_run
-          {[test_case_run | _], _} =
-            Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: first_test.id,
+          test_module_run_id: module_run1.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: "flakyTest#{i}",
+          module_name: "TestModule",
+          status: "success",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250
+        )
 
-          test_case_run.test_case_id
-        end
+        {:ok, second_test} =
+          RunsFixtures.test_run_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now()
+          )
 
-      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      for test_case_id <- test_case_ids do
-        {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true})
+        module_run2 = RunsFixtures.test_module_run_fixture(test_run_id: second_test.id, name: "TestModule")
+
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: second_test.id,
+          test_module_run_id: module_run2.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: "flakyTest#{i}",
+          module_name: "TestModule",
+          status: "failure",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250
+        )
       end
-
-      RunsFixtures.optimize_test_case_runs()
 
       {page1, meta1} = Tests.list_flaky_test_cases(project.id, %{page: 1, page_size: 2})
       assert length(page1) == 2
@@ -2792,54 +2780,69 @@ defmodule Tuist.TestsTest do
     test "supports search filtering by name" do
       project = ProjectsFixtures.project_fixture()
 
-      test_case_ids =
-        for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
-          test_modules = fn status ->
-            [
-              %{
-                name: "TestModule",
-                status: status,
-                duration: 500,
-                test_cases: [%{name: name, status: status, duration: 250}]
-              }
-            ]
-          end
+      for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            module_name: "TestModule",
+            is_flaky: true
+          )
 
-          {:ok, first_test} =
-            RunsFixtures.test_fixture(
-              project_id: project.id,
-              account_id: project.account_id,
-              git_commit_sha: "commit#{i}",
-              is_ci: true,
-              status: "success",
-              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-              test_modules: test_modules.("success")
-            )
+        {:ok, first_test} =
+          RunsFixtures.test_run_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+          )
 
-          {:ok, _} =
-            RunsFixtures.test_fixture(
-              project_id: project.id,
-              account_id: project.account_id,
-              git_commit_sha: "commit#{i}",
-              is_ci: true,
-              status: "failure",
-              ran_at: NaiveDateTime.utc_now(),
-              test_modules: test_modules.("failure")
-            )
+        module_run1 = RunsFixtures.test_module_run_fixture(test_run_id: first_test.id, name: "TestModule")
 
-          # Get the actual test_case_id from the created test_case_run
-          {[test_case_run | _], _} =
-            Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: first_test.id,
+          test_module_run_id: module_run1.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: name,
+          module_name: "TestModule",
+          status: "success",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250
+        )
 
-          test_case_run.test_case_id
-        end
+        {:ok, second_test} =
+          RunsFixtures.test_run_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now()
+          )
 
-      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      for test_case_id <- test_case_ids do
-        {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true})
+        module_run2 = RunsFixtures.test_module_run_fixture(test_run_id: second_test.id, name: "TestModule")
+
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: second_test.id,
+          test_module_run_id: module_run2.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: name,
+          module_name: "TestModule",
+          status: "failure",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250
+        )
       end
-
-      RunsFixtures.optimize_test_case_runs()
 
       {results, meta} =
         Tests.list_flaky_test_cases(project.id, %{
@@ -2856,54 +2859,69 @@ defmodule Tuist.TestsTest do
     test "supports ordering by name" do
       project = ProjectsFixtures.project_fixture()
 
-      test_case_ids =
-        for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
-          test_modules = fn status ->
-            [
-              %{
-                name: "TestModule",
-                status: status,
-                duration: 500,
-                test_cases: [%{name: name, status: status, duration: 250}]
-              }
-            ]
-          end
+      for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            module_name: "TestModule",
+            is_flaky: true
+          )
 
-          {:ok, first_test} =
-            RunsFixtures.test_fixture(
-              project_id: project.id,
-              account_id: project.account_id,
-              git_commit_sha: "commit#{i}",
-              is_ci: true,
-              status: "success",
-              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-              test_modules: test_modules.("success")
-            )
+        {:ok, first_test} =
+          RunsFixtures.test_run_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+          )
 
-          {:ok, _} =
-            RunsFixtures.test_fixture(
-              project_id: project.id,
-              account_id: project.account_id,
-              git_commit_sha: "commit#{i}",
-              is_ci: true,
-              status: "failure",
-              ran_at: NaiveDateTime.utc_now(),
-              test_modules: test_modules.("failure")
-            )
+        module_run1 = RunsFixtures.test_module_run_fixture(test_run_id: first_test.id, name: "TestModule")
 
-          # Get the actual test_case_id from the created test_case_run
-          {[test_case_run | _], _} =
-            Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: first_test.id,
+          test_module_run_id: module_run1.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: name,
+          module_name: "TestModule",
+          status: "success",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250
+        )
 
-          test_case_run.test_case_id
-        end
+        {:ok, second_test} =
+          RunsFixtures.test_run_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now()
+          )
 
-      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      for test_case_id <- test_case_ids do
-        {:ok, _} = Tests.update_test_case(test_case_id, %{is_flaky: true})
+        module_run2 = RunsFixtures.test_module_run_fixture(test_run_id: second_test.id, name: "TestModule")
+
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: second_test.id,
+          test_module_run_id: module_run2.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: name,
+          module_name: "TestModule",
+          status: "failure",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250
+        )
       end
-
-      RunsFixtures.optimize_test_case_runs()
 
       {asc_results, _} =
         Tests.list_flaky_test_cases(project.id, %{order_by: [:name], order_directions: [:asc]})
@@ -2920,47 +2938,67 @@ defmodule Tuist.TestsTest do
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
 
-      test_modules = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
-          }
-        ]
-      end
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project1.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
       {:ok, first_test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project1.id,
           account_id: project1.account_id,
           git_commit_sha: "abc123",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      module_run1 = RunsFixtures.test_module_run_fixture(test_run_id: first_test.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: first_test.id,
+        test_module_run_id: module_run1.id,
+        project_id: project1.id,
+        account_id: project1.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "abc123",
+        duration: 250
+      )
+
+      {:ok, second_test} =
+        RunsFixtures.test_run_fixture(
           project_id: project1.id,
           account_id: project1.account_id,
           git_commit_sha: "abc123",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      # Get the actual test_case_id from the created test_case_run
-      {[test_case_run | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+      module_run2 = RunsFixtures.test_module_run_fixture(test_run_id: second_test.id, name: "TestModule")
 
-      # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Tests.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
-
-      RunsFixtures.optimize_test_case_runs()
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: second_test.id,
+        test_module_run_id: module_run2.id,
+        project_id: project1.id,
+        account_id: project1.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "abc123",
+        duration: 250
+      )
 
       {project1_results, _} = Tests.list_flaky_test_cases(project1.id, %{})
       assert length(project1_results) == 1
@@ -2974,22 +3012,32 @@ defmodule Tuist.TestsTest do
     test "returns 0 when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      test_case =
+        RunsFixtures.test_case_fixture(
           project_id: project.id,
-          account_id: project.account_id,
-          status: "success",
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 500,
-              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
-            }
-          ]
+          name: "testSomething",
+          module_name: "TestModule"
         )
 
-      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      {:ok, test_run} =
+        RunsFixtures.test_run_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success"
+        )
+
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test_run.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test_run.id,
+        test_module_run_id: module_run.id,
+        project_id: project.id,
+        test_case_id: test_case.id,
+        name: "testSomething",
+        module_name: "TestModule",
+        status: "success",
+        duration: 250
+      )
 
       count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
       assert count == 0
@@ -2997,68 +3045,129 @@ defmodule Tuist.TestsTest do
 
     test "returns count of unique scheme + commit_sha groups" do
       project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
-      test_modules = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
-          }
-        ]
-      end
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
       # Create flaky runs on commit1
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      {:ok, test1} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit1",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      module_run1 = RunsFixtures.test_module_run_fixture(test_run_id: test1.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test1.id,
+        test_module_run_id: module_run1.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit1",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200)
+      )
+
+      {:ok, test2} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit1",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
+
+      module_run2 = RunsFixtures.test_module_run_fixture(test_run_id: test2.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test2.id,
+        test_module_run_id: module_run2.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit1",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      )
 
       # Create flaky runs on commit2
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      {:ok, test3} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit2",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      module_run3 = RunsFixtures.test_module_run_fixture(test_run_id: test3.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test3.id,
+        test_module_run_id: module_run3.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit2",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800)
+      )
+
+      {:ok, test4} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit2",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      module_run4 = RunsFixtures.test_module_run_fixture(test_run_id: test4.id, name: "TestModule")
 
-      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test4.id,
+        test_module_run_id: module_run4.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit2",
+        duration: 250,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
       count = Tests.get_flaky_runs_groups_count_for_test_case(test_case.id)
 
       # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
@@ -3075,212 +3184,349 @@ defmodule Tuist.TestsTest do
     test "returns empty map when no flaky runs exist for given test_case_ids" do
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, test} =
-        RunsFixtures.test_fixture(
+      test_case =
+        RunsFixtures.test_case_fixture(
           project_id: project.id,
-          account_id: project.account_id,
-          status: "success",
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 500,
-              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
-            }
-          ]
+          name: "testSomething",
+          module_name: "TestModule"
         )
 
-      {[test_case_run | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+      {:ok, test_run} =
+        RunsFixtures.test_run_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success"
+        )
 
-      result = Tests.get_flaky_runs_groups_counts_for_test_cases([test_case_run.test_case_id])
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test_run.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test_run.id,
+        test_module_run_id: module_run.id,
+        project_id: project.id,
+        test_case_id: test_case.id,
+        name: "testSomething",
+        module_name: "TestModule",
+        status: "success",
+        duration: 250
+      )
+
+      result = Tests.get_flaky_runs_groups_counts_for_test_cases([test_case.id])
       assert result == %{}
     end
 
     test "returns correct counts for multiple test cases" do
       project = ProjectsFixtures.project_fixture()
 
-      # Create flaky runs for test_case_1 on 2 commits
-      test_modules_1 = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest1", status: status, duration: 250}]
-          }
-        ]
-      end
+      # Create flaky test_case_1
+      test_case_1 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest1",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
-      {:ok, test1} =
-        RunsFixtures.test_fixture(
+      # Create flaky runs for test_case_1 on commit1
+      {:ok, run1} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit1",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
-          test_modules: test_modules_1.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr1 = RunsFixtures.test_module_run_fixture(test_run_id: run1.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run1.id,
+        test_module_run_id: mr1.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case_1.id,
+        name: "flakyTest1",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit1",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200)
+      )
+
+      {:ok, run2} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit1",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules_1.("failure")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr2 = RunsFixtures.test_module_run_fixture(test_run_id: run2.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run2.id,
+        test_module_run_id: mr2.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case_1.id,
+        name: "flakyTest1",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit1",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      )
+
+      # Create flaky runs for test_case_1 on commit2
+      {:ok, run3} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit2",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
-          test_modules: test_modules_1.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr3 = RunsFixtures.test_module_run_fixture(test_run_id: run3.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run3.id,
+        test_module_run_id: mr3.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case_1.id,
+        name: "flakyTest1",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit2",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800)
+      )
+
+      {:ok, run4} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit2",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900),
-          test_modules: test_modules_1.("failure")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900)
         )
 
-      # Create flaky runs for test_case_2 on 1 commit
-      test_modules_2 = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest2", status: status, duration: 250}]
-          }
-        ]
-      end
+      mr4 = RunsFixtures.test_module_run_fixture(test_run_id: run4.id, name: "TestModule")
 
-      {:ok, test2} =
-        RunsFixtures.test_fixture(
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run4.id,
+        test_module_run_id: mr4.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case_1.id,
+        name: "flakyTest1",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit2",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900)
+      )
+
+      # Create flaky test_case_2 on commit3
+      test_case_2 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest2",
+          module_name: "TestModule",
+          is_flaky: true
+        )
+
+      {:ok, run5} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit3",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -600),
-          test_modules: test_modules_2.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -600)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr5 = RunsFixtures.test_module_run_fixture(test_run_id: run5.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run5.id,
+        test_module_run_id: mr5.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case_2.id,
+        name: "flakyTest2",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit3",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -600)
+      )
+
+      {:ok, run6} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit3",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules_2.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      mr6 = RunsFixtures.test_module_run_fixture(test_run_id: run6.id, name: "TestModule")
 
-      {[test_case_run_1 | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test1.id}]})
-
-      {[test_case_run_2 | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test2.id}]})
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run6.id,
+        test_module_run_id: mr6.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case_2.id,
+        name: "flakyTest2",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit3",
+        duration: 250,
+        ran_at: NaiveDateTime.utc_now()
+      )
 
       result =
         Tests.get_flaky_runs_groups_counts_for_test_cases([
-          test_case_run_1.test_case_id,
-          test_case_run_2.test_case_id
+          test_case_1.id,
+          test_case_2.id
         ])
 
-      assert result[test_case_run_1.test_case_id] == 2
-      assert result[test_case_run_2.test_case_id] == 1
+      assert result[test_case_1.id] == 2
+      assert result[test_case_2.id] == 1
     end
 
     test "only includes test_case_ids that have flaky runs" do
       project = ProjectsFixtures.project_fixture()
 
       # Create flaky test case
-      test_modules_flaky = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
-          }
-        ]
-      end
+      flaky_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
-      {:ok, flaky_test} =
-        RunsFixtures.test_fixture(
+      {:ok, run1} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit1",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules_flaky.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr1 = RunsFixtures.test_module_run_fixture(test_run_id: run1.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run1.id,
+        test_module_run_id: mr1.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: flaky_test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit1",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      )
+
+      {:ok, run2} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit1",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules_flaky.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
+      mr2 = RunsFixtures.test_module_run_fixture(test_run_id: run2.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run2.id,
+        test_module_run_id: mr2.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: flaky_test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "commit1",
+        duration: 250,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
       # Create non-flaky test case (all runs succeed)
-      {:ok, non_flaky_test} =
-        RunsFixtures.test_fixture(
+      non_flaky_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "stableTest",
+          module_name: "TestModule"
+        )
+
+      {:ok, run3} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "commit2",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 500,
-              test_cases: [%{name: "stableTest", status: "success", duration: 250}]
-            }
-          ]
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      mr3 = RunsFixtures.test_module_run_fixture(test_run_id: run3.id, name: "TestModule")
 
-      {[flaky_run | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: flaky_test.id}]})
-
-      {[non_flaky_run | _], _} =
-        Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: non_flaky_test.id}]})
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run3.id,
+        test_module_run_id: mr3.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: non_flaky_test_case.id,
+        name: "stableTest",
+        module_name: "TestModule",
+        status: "success",
+        is_ci: true,
+        git_commit_sha: "commit2",
+        duration: 250
+      )
 
       result =
         Tests.get_flaky_runs_groups_counts_for_test_cases([
-          flaky_run.test_case_id,
-          non_flaky_run.test_case_id
+          flaky_test_case.id,
+          non_flaky_test_case.id
         ])
 
-      assert Map.has_key?(result, flaky_run.test_case_id)
-      refute Map.has_key?(result, non_flaky_run.test_case_id)
-      assert result[flaky_run.test_case_id] == 1
+      assert Map.has_key?(result, flaky_test_case.id)
+      refute Map.has_key?(result, non_flaky_test_case.id)
+      assert result[flaky_test_case.id] == 1
     end
   end
 
@@ -3288,22 +3534,32 @@ defmodule Tuist.TestsTest do
     test "returns empty list with meta when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      test_case =
+        RunsFixtures.test_case_fixture(
           project_id: project.id,
-          account_id: project.account_id,
-          status: "success",
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 500,
-              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
-            }
-          ]
+          name: "testSomething",
+          module_name: "TestModule"
         )
 
-      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      {:ok, test_run} =
+        RunsFixtures.test_run_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success"
+        )
+
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test_run.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test_run.id,
+        test_module_run_id: module_run.id,
+        project_id: project.id,
+        test_case_id: test_case.id,
+        name: "testSomething",
+        module_name: "TestModule",
+        status: "success",
+        duration: 250
+      )
 
       {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
 
@@ -3314,44 +3570,71 @@ defmodule Tuist.TestsTest do
 
     test "returns flaky runs grouped by scheme and commit_sha" do
       project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
-      test_modules = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
-          }
-        ]
-      end
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      {:ok, run1} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "abc123",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr1 = RunsFixtures.test_module_run_fixture(test_run_id: run1.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run1.id,
+        test_module_run_id: mr1.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "abc123",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      )
+
+      {:ok, run2} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "abc123",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      mr2 = RunsFixtures.test_module_run_fixture(test_run_id: run2.id, name: "TestModule")
 
-      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run2.id,
+        test_module_run_id: mr2.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "abc123",
+        duration: 250,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
       {groups, meta} = Tests.list_flaky_runs_for_test_case(test_case.id)
 
       assert length(groups) == 1
@@ -3366,47 +3649,73 @@ defmodule Tuist.TestsTest do
 
     test "supports pagination on groups" do
       project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
-      test_modules = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
-          }
-        ]
-      end
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
       # Create 3 groups (3 different commits)
       for i <- 1..3 do
-        {:ok, _} =
-          RunsFixtures.test_fixture(
+        {:ok, run1} =
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             account_id: project.account_id,
             git_commit_sha: "commit#{i}",
             is_ci: true,
             status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i),
-            test_modules: test_modules.("success")
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i)
           )
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
+        mr1 = RunsFixtures.test_module_run_fixture(test_run_id: run1.id, name: "TestModule")
+
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: run1.id,
+          test_module_run_id: mr1.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          status: "success",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i)
+        )
+
+        {:ok, run2} =
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             account_id: project.account_id,
             git_commit_sha: "commit#{i}",
             is_ci: true,
             status: "failure",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i + 1800),
-            test_modules: test_modules.("failure")
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i + 1800)
           )
+
+        mr2 = RunsFixtures.test_module_run_fixture(test_run_id: run2.id, name: "TestModule")
+
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: run2.id,
+          test_module_run_id: mr2.id,
+          project_id: project.id,
+          account_id: project.account_id,
+          test_case_id: test_case.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          status: "failure",
+          is_flaky: true,
+          is_ci: true,
+          git_commit_sha: "commit#{i}",
+          duration: 250,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i + 1800)
+        )
       end
-
-      RunsFixtures.optimize_test_case_runs()
-
-      {[test_case], _} = Tests.list_test_cases(project.id, %{})
 
       {page1, meta1} = Tests.list_flaky_runs_for_test_case(test_case.id, %{page: 1, page_size: 2})
       assert length(page1) == 2
@@ -3421,68 +3730,129 @@ defmodule Tuist.TestsTest do
 
     test "orders groups by latest_ran_at descending" do
       project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
-      test_modules = fn status ->
-        [
-          %{
-            name: "TestModule",
-            status: status,
-            duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
-          }
-        ]
-      end
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "flakyTest",
+          module_name: "TestModule",
+          is_flaky: true
+        )
 
       # Create older group first
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      {:ok, run1} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "older_commit",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr1 = RunsFixtures.test_module_run_fixture(test_run_id: run1.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run1.id,
+        test_module_run_id: mr1.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "older_commit",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200)
+      )
+
+      {:ok, run2} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "older_commit",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
         )
+
+      mr2 = RunsFixtures.test_module_run_fixture(test_run_id: run2.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run2.id,
+        test_module_run_id: mr2.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "older_commit",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600)
+      )
 
       # Create newer group
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      {:ok, run3} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "newer_commit",
           is_ci: true,
           status: "success",
-          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
-          test_modules: test_modules.("success")
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800)
         )
 
-      {:ok, _} =
-        RunsFixtures.test_fixture(
+      mr3 = RunsFixtures.test_module_run_fixture(test_run_id: run3.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run3.id,
+        test_module_run_id: mr3.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "success",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "newer_commit",
+        duration: 250,
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800)
+      )
+
+      {:ok, run4} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_commit_sha: "newer_commit",
           is_ci: true,
           status: "failure",
-          ran_at: NaiveDateTime.utc_now(),
-          test_modules: test_modules.("failure")
+          ran_at: NaiveDateTime.utc_now()
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      mr4 = RunsFixtures.test_module_run_fixture(test_run_id: run4.id, name: "TestModule")
 
-      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: run4.id,
+        test_module_run_id: mr4.id,
+        project_id: project.id,
+        account_id: project.account_id,
+        test_case_id: test_case.id,
+        name: "flakyTest",
+        module_name: "TestModule",
+        status: "failure",
+        is_flaky: true,
+        is_ci: true,
+        git_commit_sha: "newer_commit",
+        duration: 250,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
       {groups, _} = Tests.list_flaky_runs_for_test_case(test_case.id)
 
       assert length(groups) == 2
@@ -3495,20 +3865,32 @@ defmodule Tuist.TestsTest do
     test "returns empty list when no flaky runs exist for the test run" do
       project = ProjectsFixtures.project_fixture()
 
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "testSomething",
+          module_name: "TestModule"
+        )
+
       {:ok, test_run} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
-          status: "success",
-          test_modules: [
-            %{
-              name: "TestModule",
-              status: "success",
-              duration: 500,
-              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
-            }
-          ]
+          status: "success"
         )
+
+      module_run = RunsFixtures.test_module_run_fixture(test_run_id: test_run.id, name: "TestModule")
+
+      RunsFixtures.test_case_run_fixture(
+        test_run_id: test_run.id,
+        test_module_run_id: module_run.id,
+        project_id: project.id,
+        test_case_id: test_case.id,
+        name: "testSomething",
+        module_name: "TestModule",
+        status: "success",
+        duration: 250
+      )
 
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
@@ -3550,8 +3932,6 @@ defmodule Tuist.TestsTest do
             }
           ]
         })
-
-      RunsFixtures.optimize_test_case_runs()
 
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
@@ -3607,8 +3987,6 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      RunsFixtures.optimize_test_case_runs()
-
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
       assert length(result) == 1
@@ -3658,8 +4036,6 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      RunsFixtures.optimize_test_case_runs()
-
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
       assert length(result) == 1
@@ -3707,8 +4083,6 @@ defmodule Tuist.TestsTest do
             }
           ]
         })
-
-      RunsFixtures.optimize_test_case_runs()
 
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
@@ -3772,8 +4146,6 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      RunsFixtures.optimize_test_case_runs()
-
       result = Tests.get_flaky_runs_for_test_run(second_run.id)
 
       assert length(result) == 1
@@ -3828,8 +4200,6 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      RunsFixtures.optimize_test_case_runs()
-
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
       assert length(result) == 2
@@ -3883,8 +4253,6 @@ defmodule Tuist.TestsTest do
             }
           ]
         })
-
-      RunsFixtures.optimize_test_case_runs()
 
       result = Tests.get_flaky_runs_for_test_run(test_run.id)
 
@@ -3966,8 +4334,6 @@ defmodule Tuist.TestsTest do
           ]
         })
 
-      RunsFixtures.optimize_test_case_runs()
-
       # Query for first run - should only get flaky runs from first run
       result_first = Tests.get_flaky_runs_for_test_run(first_run.id)
       assert length(result_first) == 1
@@ -3985,14 +4351,11 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       test_case_id = Ecto.UUID.generate()
 
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      RunsFixtures.test_case_fixture(
+        id: test_case_id,
+        project_id: project.id,
+        is_flaky: true
+      )
 
       # Create a recent flaky run (within 14 days)
       RunsFixtures.test_case_run_fixture(
@@ -4001,8 +4364,6 @@ defmodule Tuist.TestsTest do
         is_flaky: true,
         inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
       )
-
-      RunsFixtures.optimize_test_case_runs()
 
       {:ok, _count} = Tests.clear_stale_flaky_flags()
 
@@ -4014,14 +4375,11 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       test_case_id = Ecto.UUID.generate()
 
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      RunsFixtures.test_case_fixture(
+        id: test_case_id,
+        project_id: project.id,
+        is_flaky: true
+      )
 
       # Create an old flaky run (more than 14 days ago)
       RunsFixtures.test_case_run_fixture(
@@ -4030,8 +4388,6 @@ defmodule Tuist.TestsTest do
         is_flaky: true,
         inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
       )
-
-      RunsFixtures.optimize_test_case_runs()
 
       {:ok, count} = Tests.clear_stale_flaky_flags()
 
@@ -4045,14 +4401,11 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       test_case_id = Ecto.UUID.generate()
 
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: test_case_id,
-          project_id: project.id,
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      RunsFixtures.test_case_fixture(
+        id: test_case_id,
+        project_id: project.id,
+        is_flaky: true
+      )
 
       # Create a non-flaky run
       RunsFixtures.test_case_run_fixture(
@@ -4061,8 +4414,6 @@ defmodule Tuist.TestsTest do
         is_flaky: false,
         inserted_at: NaiveDateTime.utc_now()
       )
-
-      RunsFixtures.optimize_test_case_runs()
 
       {:ok, count} = Tests.clear_stale_flaky_flags()
 
@@ -4078,27 +4429,20 @@ defmodule Tuist.TestsTest do
       recent_test_case_id = Ecto.UUID.generate()
 
       # Create a test case with stale flaky runs
-      stale_test_case =
-        RunsFixtures.test_case_fixture(
-          id: stale_test_case_id,
-          project_id: project.id,
-          name: "staleTest",
-          is_flaky: true
-        )
+      RunsFixtures.test_case_fixture(
+        id: stale_test_case_id,
+        project_id: project.id,
+        name: "staleTest",
+        is_flaky: true
+      )
 
       # Create a test case with recent flaky runs
-      recent_test_case =
-        RunsFixtures.test_case_fixture(
-          id: recent_test_case_id,
-          project_id: project.id,
-          name: "recentTest",
-          is_flaky: true
-        )
-
-      IngestRepo.insert_all(TestCase, [
-        stale_test_case |> Map.from_struct() |> Map.delete(:__meta__),
-        recent_test_case |> Map.from_struct() |> Map.delete(:__meta__)
-      ])
+      RunsFixtures.test_case_fixture(
+        id: recent_test_case_id,
+        project_id: project.id,
+        name: "recentTest",
+        is_flaky: true
+      )
 
       # Old flaky run for stale test case
       RunsFixtures.test_case_run_fixture(
@@ -4116,8 +4460,6 @@ defmodule Tuist.TestsTest do
         inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
       )
 
-      RunsFixtures.optimize_test_case_runs()
-
       {:ok, count} = Tests.clear_stale_flaky_flags()
 
       assert count >= 1
@@ -4133,14 +4475,11 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       non_flaky_test_case_id = Ecto.UUID.generate()
 
-      test_case =
-        RunsFixtures.test_case_fixture(
-          id: non_flaky_test_case_id,
-          project_id: project.id,
-          is_flaky: false
-        )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      RunsFixtures.test_case_fixture(
+        id: non_flaky_test_case_id,
+        project_id: project.id,
+        is_flaky: false
+      )
 
       {:ok, _count} = Tests.clear_stale_flaky_flags()
 
@@ -4544,7 +4883,6 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -4566,7 +4904,6 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -4586,7 +4923,6 @@ defmodule Tuist.TestsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
@@ -4603,7 +4939,6 @@ defmodule Tuist.TestsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -4644,8 +4979,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "quarantined"
@@ -4674,8 +5007,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true,
           is_flaky: true
         )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Create both events with the same timestamp (as update_test_case does)
       now = NaiveDateTime.utc_now()
@@ -4716,8 +5047,6 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
           event_type: "quarantined"
@@ -4745,8 +5074,6 @@ defmodule Tuist.TestsTest do
             name: name,
             is_quarantined: true
           )
-
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -4777,8 +5104,6 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
           event_type: "quarantined"
@@ -4807,8 +5132,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "quarantined"
@@ -4833,8 +5156,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [tuist_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: tuist_test_case.id,
         event_type: "quarantined",
@@ -4848,8 +5169,6 @@ defmodule Tuist.TestsTest do
           name: "userQuarantinedTest",
           is_quarantined: true
         )
-
-      IngestRepo.insert_all(TestCase, [user_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user_test_case.id,
@@ -4880,8 +5199,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [user1_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: user1_test_case.id,
         event_type: "quarantined",
@@ -4895,8 +5212,6 @@ defmodule Tuist.TestsTest do
           name: "user2QuarantinedTest",
           is_quarantined: true
         )
-
-      IngestRepo.insert_all(TestCase, [user2_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: user2_test_case.id,
@@ -4929,8 +5244,6 @@ defmodule Tuist.TestsTest do
             module_name: module_name,
             is_quarantined: true
           )
-
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -4967,8 +5280,6 @@ defmodule Tuist.TestsTest do
             is_quarantined: true
           )
 
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
           event_type: "quarantined"
@@ -4993,7 +5304,7 @@ defmodule Tuist.TestsTest do
       test_case_id = UUIDv7.generate()
 
       # Old version: quarantined
-      old_version =
+      _old_version =
         RunsFixtures.test_case_fixture(
           id: test_case_id,
           project_id: project.id,
@@ -5002,10 +5313,8 @@ defmodule Tuist.TestsTest do
           inserted_at: ~N[2024-01-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [old_version |> Map.from_struct() |> Map.delete(:__meta__)])
-
       # Newer version: no longer quarantined (e.g. after unquarantine or re-ingestion)
-      new_version =
+      _new_version =
         RunsFixtures.test_case_fixture(
           id: test_case_id,
           project_id: project.id,
@@ -5013,8 +5322,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: false,
           inserted_at: ~N[2024-01-02 00:00:00.000000]
         )
-
-      IngestRepo.insert_all(TestCase, [new_version |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case_id,
@@ -5054,8 +5361,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "quarantined",
@@ -5077,8 +5382,6 @@ defmodule Tuist.TestsTest do
           name: "userQuarantinedTest",
           is_quarantined: true
         )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -5103,8 +5406,6 @@ defmodule Tuist.TestsTest do
             name: "quarantinedTest#{i}",
             is_quarantined: true
           )
-
-        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
         RunsFixtures.test_case_event_fixture(
           test_case_id: test_case.id,
@@ -5132,8 +5433,6 @@ defmodule Tuist.TestsTest do
           is_quarantined: true
         )
 
-      IngestRepo.insert_all(TestCase, [test_case1 |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case1.id,
         event_type: "quarantined",
@@ -5147,8 +5446,6 @@ defmodule Tuist.TestsTest do
           name: "user2QuarantinedTest",
           is_quarantined: true
         )
-
-      IngestRepo.insert_all(TestCase, [test_case2 |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case2.id,
@@ -5175,8 +5472,6 @@ defmodule Tuist.TestsTest do
           name: "quarantinedTest",
           is_quarantined: true
         )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,

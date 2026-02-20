@@ -30,7 +30,7 @@ defmodule Tuist.Slack.ReportsTest do
         )
 
       {:ok, _test} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: account.id,
           duration: 2000,

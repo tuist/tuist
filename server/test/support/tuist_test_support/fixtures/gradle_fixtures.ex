@@ -3,13 +3,13 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
   Fixtures for Gradle builds and cache events.
   """
 
+  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
+
   alias Tuist.Gradle
   alias Tuist.Gradle.CacheEvent
   alias Tuist.IngestRepo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-
-  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
 
   def build_fixture(attrs \\ []) do
     mark_clickhouse_dirty()

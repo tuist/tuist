@@ -1,6 +1,6 @@
 defmodule Tuist.Tests do
   @moduledoc """
-    Module for interacting with test runs.
+  Module for interacting with test runs.
 
     ## ClickHouse and deduplication
 
@@ -308,7 +308,7 @@ defmodule Tuist.Tests do
     |> Map.new(fn row -> {row.id, row} end)
   end
 
-  defp generate_test_case_id(project_id, name, module_name, suite_name) do
+  def generate_test_case_id(project_id, name, module_name, suite_name) do
     identity = "#{project_id}:#{name}:#{module_name}:#{suite_name}"
 
     <<a::32, b::16, c::16, d::16, e::48>> =

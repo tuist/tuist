@@ -126,7 +126,7 @@ defmodule Tuist.AlertsTest do
       # Create 5 "current" tests with duration 2300 (15% higher)
       for i <- 1..5 do
         {:ok, _} =
-          RunsFixtures.test_fixture(
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             account_id: user.account.id,
             duration: 2300,
@@ -137,7 +137,7 @@ defmodule Tuist.AlertsTest do
       # Create 5 "previous" tests with duration 2000
       for i <- 6..10 do
         {:ok, _} =
-          RunsFixtures.test_fixture(
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             account_id: user.account.id,
             duration: 2000,
@@ -172,7 +172,7 @@ defmodule Tuist.AlertsTest do
       # Create 5 "current" tests with same duration as previous
       for i <- 1..10 do
         {:ok, _} =
-          RunsFixtures.test_fixture(
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             account_id: user.account.id,
             duration: 1000,

@@ -5,7 +5,6 @@ defmodule Tuist.Tests.AnalyticsTest do
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
-  alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -1360,7 +1359,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Create tests with different durations (newest first)
       for {duration, i} <- [{3000, 1}, {2000, 2}, {1000, 3}] do
         {:ok, _} =
-          RunsFixtures.test_fixture(
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             duration: duration,
             ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
@@ -1381,7 +1380,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       # Create 5 tests with durations
       for {duration, i} <- [{5000, 1}, {4000, 2}, {3000, 3}, {2000, 4}, {1000, 5}] do
         {:ok, _} =
-          RunsFixtures.test_fixture(
+          RunsFixtures.test_run_fixture(
             project_id: project.id,
             duration: duration,
             ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
@@ -1546,8 +1545,6 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
         event_type: "quarantined",
@@ -1585,8 +1582,6 @@ defmodule Tuist.Tests.AnalyticsTest do
           is_quarantined: false,
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Quarantine on April 10
       RunsFixtures.test_case_event_fixture(
@@ -1648,8 +1643,6 @@ defmodule Tuist.Tests.AnalyticsTest do
           is_quarantined: true,
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # First quarantine on April 5
       RunsFixtures.test_case_event_fixture(
@@ -1720,8 +1713,6 @@ defmodule Tuist.Tests.AnalyticsTest do
           inserted_at: ~N[2024-03-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
       # Quarantine BEFORE the period (March 15)
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -1762,11 +1753,6 @@ defmodule Tuist.Tests.AnalyticsTest do
           is_quarantined: true,
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
-
-      IngestRepo.insert_all(TestCase, [
-        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
-        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
-      ])
 
       # Quarantine test 1 on April 10
       RunsFixtures.test_case_event_fixture(
@@ -1838,8 +1824,6 @@ defmodule Tuist.Tests.AnalyticsTest do
           is_quarantined: true,
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
-
-      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # First quarantine event
       RunsFixtures.test_case_event_fixture(

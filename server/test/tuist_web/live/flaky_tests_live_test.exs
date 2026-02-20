@@ -6,8 +6,6 @@ defmodule TuistWeb.FlakyTestsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.IngestRepo
-  alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
@@ -95,10 +93,6 @@ defmodule TuistWeb.FlakyTestsLiveTest do
   end
 
   defp create_flaky_test_case(project, name) do
-    test_case = RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
-
-    IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
-
-    test_case
+    RunsFixtures.test_case_fixture(project_id: project.id, name: name, is_flaky: true)
   end
 end

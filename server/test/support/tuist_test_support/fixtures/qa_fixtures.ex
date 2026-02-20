@@ -1,6 +1,8 @@
 defmodule TuistTestSupport.Fixtures.QAFixtures do
   @moduledoc false
 
+  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
+
   alias Tuist.ClickHouseRepo
   alias Tuist.QA
   alias Tuist.QA.LaunchArgumentGroup
@@ -11,8 +13,6 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-
-  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
 
   def qa_run_fixture(opts \\ []) do
     app_build =

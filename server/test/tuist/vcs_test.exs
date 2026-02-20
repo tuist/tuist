@@ -1277,46 +1277,80 @@ defmodule Tuist.VCSTest do
         )
 
       {:ok, test_run} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           scheme: "test",
           ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: [
-            %{
-              name: "MyModule",
-              status: "success",
-              duration: 1000,
-              test_suites: [
-                %{
-                  name: "MySuite",
-                  status: "success",
-                  duration: 1000
-                }
-              ],
-              test_cases: [
-                %{
-                  name: "test_flaky_behavior",
-                  test_suite_name: "MySuite",
-                  status: "success",
-                  duration: 250,
-                  repetitions: [
-                    %{repetition_number: 1, name: "test_flaky_behavior", status: "failure", duration: 100},
-                    %{repetition_number: 2, name: "test_flaky_behavior", status: "success", duration: 150}
-                  ]
-                }
-              ]
-            }
-          ]
+          is_flaky: true
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      module_run =
+        RunsFixtures.test_module_run_fixture(
+          test_run_id: test_run.id,
+          name: "MyModule",
+          status: "success",
+          duration: 1000,
+          is_flaky: true
+        )
 
-      # Get the test case ID from the created flaky test data
-      [flaky_test] = Tests.get_flaky_runs_for_test_run(test_run.id)
-      test_case_id = flaky_test.test_case_id
+      _suite_run =
+        RunsFixtures.test_suite_run_fixture(
+          test_run_id: test_run.id,
+          test_module_run_id: module_run.id,
+          name: "MySuite",
+          status: "success",
+          duration: 1000
+        )
+
+      test_case_id =
+        Tests.generate_test_case_id(project.id, "test_flaky_behavior", "MyModule", "MySuite")
+
+      RunsFixtures.test_case_fixture(
+        id: test_case_id,
+        project_id: project.id,
+        name: "test_flaky_behavior",
+        module_name: "MyModule",
+        suite_name: "MySuite"
+      )
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test_run.id,
+          test_module_run_id: module_run.id,
+          test_case_id: test_case_id,
+          project_id: project.id,
+          name: "test_flaky_behavior",
+          module_name: "MyModule",
+          suite_name: "MySuite",
+          status: "success",
+          duration: 250,
+          is_flaky: true,
+          scheme: "test",
+          git_commit_sha: @git_commit_sha,
+          ran_at: ~N[2024-04-30 03:00:00.000000],
+          is_ci: false,
+          account_id: project.account_id,
+          git_branch: "main"
+        )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 1,
+        name: "test_flaky_behavior",
+        status: "failure",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 2,
+        name: "test_flaky_behavior",
+        status: "success",
+        duration: 150
+      )
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -1384,39 +1418,75 @@ defmodule Tuist.VCSTest do
           ]
         )
 
-      # Create 7 flaky test cases
-      flaky_test_cases =
-        for i <- 1..7 do
-          %{
-            name: "test_flaky_#{i}",
-            status: "success",
-            duration: 250,
-            repetitions: [
-              %{repetition_number: 1, name: "test_flaky_#{i}", status: "failure", duration: 100},
-              %{repetition_number: 2, name: "test_flaky_#{i}", status: "success", duration: 150}
-            ]
-          }
-        end
-
+      # Create test run with 7 flaky test cases
       {:ok, test_run} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           scheme: "test",
           ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: [
-            %{
-              name: "MyModule",
-              status: "success",
-              duration: 1000,
-              test_cases: flaky_test_cases
-            }
-          ]
+          is_flaky: true
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      module_run =
+        RunsFixtures.test_module_run_fixture(
+          test_run_id: test_run.id,
+          name: "MyModule",
+          status: "success",
+          duration: 1000,
+          is_flaky: true
+        )
+
+      for i <- 1..7 do
+        test_case_id =
+          Tests.generate_test_case_id(project.id, "test_flaky_#{i}", "MyModule", nil)
+
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "test_flaky_#{i}",
+          module_name: "MyModule",
+          suite_name: ""
+        )
+
+        test_case_run =
+          RunsFixtures.test_case_run_fixture(
+            test_run_id: test_run.id,
+            test_module_run_id: module_run.id,
+            test_case_id: test_case_id,
+            project_id: project.id,
+            name: "test_flaky_#{i}",
+            module_name: "MyModule",
+            suite_name: "",
+            status: "success",
+            duration: 250,
+            is_flaky: true,
+            scheme: "test",
+            git_commit_sha: @git_commit_sha,
+            ran_at: ~N[2024-04-30 03:00:00.000000],
+            is_ci: false,
+            account_id: project.account_id,
+            git_branch: "main"
+          )
+
+        RunsFixtures.test_case_run_repetition_fixture(
+          test_case_run_id: test_case_run.id,
+          repetition_number: 1,
+          name: "test_flaky_#{i}",
+          status: "failure",
+          duration: 100
+        )
+
+        RunsFixtures.test_case_run_repetition_fixture(
+          test_case_run_id: test_case_run.id,
+          repetition_number: 2,
+          name: "test_flaky_#{i}",
+          status: "success",
+          duration: 150
+        )
+      end
 
       # Get flaky tests and take first 5 (same as production code)
       flaky_tests = Tests.get_flaky_runs_for_test_run(test_run.id)
@@ -1494,81 +1564,188 @@ defmodule Tuist.VCSTest do
           ]
         )
 
+      # Shared test case used by both runs
+      shared_test_case_id =
+        Tests.generate_test_case_id(project.id, "test_shared_flaky", "SharedModule", nil)
+
+      RunsFixtures.test_case_fixture(
+        id: shared_test_case_id,
+        project_id: project.id,
+        name: "test_shared_flaky",
+        module_name: "SharedModule",
+        suite_name: ""
+      )
+
       # First test run has one flaky test (shared)
-      {:ok, _test_run_one} =
-        RunsFixtures.test_fixture(
+      {:ok, test_run_one} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           scheme: "test1",
           ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: [
-            %{
-              name: "SharedModule",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{
-                  name: "test_shared_flaky",
-                  status: "success",
-                  duration: 250,
-                  repetitions: [
-                    %{repetition_number: 1, name: "test_shared_flaky", status: "failure", duration: 100},
-                    %{repetition_number: 2, name: "test_shared_flaky", status: "success", duration: 150}
-                  ]
-                }
-              ]
-            }
-          ]
+          is_flaky: true
         )
 
+      module_run_one =
+        RunsFixtures.test_module_run_fixture(
+          test_run_id: test_run_one.id,
+          name: "SharedModule",
+          status: "success",
+          duration: 1000,
+          is_flaky: true
+        )
+
+      test_case_run_shared_one =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test_run_one.id,
+          test_module_run_id: module_run_one.id,
+          test_case_id: shared_test_case_id,
+          project_id: project.id,
+          name: "test_shared_flaky",
+          module_name: "SharedModule",
+          suite_name: "",
+          status: "success",
+          duration: 250,
+          is_flaky: true,
+          scheme: "test1",
+          git_commit_sha: @git_commit_sha,
+          ran_at: ~N[2024-04-30 03:00:00.000000],
+          is_ci: false,
+          account_id: project.account_id,
+          git_branch: "main"
+        )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run_shared_one.id,
+        repetition_number: 1,
+        name: "test_shared_flaky",
+        status: "failure",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run_shared_one.id,
+        repetition_number: 2,
+        name: "test_shared_flaky",
+        status: "success",
+        duration: 150
+      )
+
       # Second test run has the same flaky test (shared) plus a unique one
-      {:ok, _test_run_two} =
-        RunsFixtures.test_fixture(
+      {:ok, test_run_two} =
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
           scheme: "test2",
           ran_at: ~N[2024-04-30 04:00:00],
-          test_modules: [
-            %{
-              name: "SharedModule",
-              status: "success",
-              duration: 500,
-              test_cases: [
-                %{
-                  name: "test_shared_flaky",
-                  status: "success",
-                  duration: 250,
-                  repetitions: [
-                    %{repetition_number: 1, name: "test_shared_flaky", status: "failure", duration: 100},
-                    %{repetition_number: 2, name: "test_shared_flaky", status: "success", duration: 150}
-                  ]
-                }
-              ]
-            },
-            %{
-              name: "UniqueModule",
-              status: "success",
-              duration: 500,
-              test_cases: [
-                %{
-                  name: "test_unique_flaky",
-                  status: "success",
-                  duration: 250,
-                  repetitions: [
-                    %{repetition_number: 1, name: "test_unique_flaky", status: "failure", duration: 100},
-                    %{repetition_number: 2, name: "test_unique_flaky", status: "success", duration: 150}
-                  ]
-                }
-              ]
-            }
-          ]
+          is_flaky: true
         )
 
-      RunsFixtures.optimize_test_case_runs()
+      module_run_two_shared =
+        RunsFixtures.test_module_run_fixture(
+          test_run_id: test_run_two.id,
+          name: "SharedModule",
+          status: "success",
+          duration: 500,
+          is_flaky: true
+        )
+
+      test_case_run_shared_two =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test_run_two.id,
+          test_module_run_id: module_run_two_shared.id,
+          test_case_id: shared_test_case_id,
+          project_id: project.id,
+          name: "test_shared_flaky",
+          module_name: "SharedModule",
+          suite_name: "",
+          status: "success",
+          duration: 250,
+          is_flaky: true,
+          scheme: "test2",
+          git_commit_sha: @git_commit_sha,
+          ran_at: ~N[2024-04-30 04:00:00.000000],
+          is_ci: false,
+          account_id: project.account_id,
+          git_branch: "main"
+        )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run_shared_two.id,
+        repetition_number: 1,
+        name: "test_shared_flaky",
+        status: "failure",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run_shared_two.id,
+        repetition_number: 2,
+        name: "test_shared_flaky",
+        status: "success",
+        duration: 150
+      )
+
+      # Unique flaky test in second run
+      unique_test_case_id =
+        Tests.generate_test_case_id(project.id, "test_unique_flaky", "UniqueModule", nil)
+
+      RunsFixtures.test_case_fixture(
+        id: unique_test_case_id,
+        project_id: project.id,
+        name: "test_unique_flaky",
+        module_name: "UniqueModule",
+        suite_name: ""
+      )
+
+      module_run_two_unique =
+        RunsFixtures.test_module_run_fixture(
+          test_run_id: test_run_two.id,
+          name: "UniqueModule",
+          status: "success",
+          duration: 500,
+          is_flaky: true
+        )
+
+      test_case_run_unique =
+        RunsFixtures.test_case_run_fixture(
+          test_run_id: test_run_two.id,
+          test_module_run_id: module_run_two_unique.id,
+          test_case_id: unique_test_case_id,
+          project_id: project.id,
+          name: "test_unique_flaky",
+          module_name: "UniqueModule",
+          suite_name: "",
+          status: "success",
+          duration: 250,
+          is_flaky: true,
+          scheme: "test2",
+          git_commit_sha: @git_commit_sha,
+          ran_at: ~N[2024-04-30 04:00:00.000000],
+          is_ci: false,
+          account_id: project.account_id,
+          git_branch: "main"
+        )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run_unique.id,
+        repetition_number: 1,
+        name: "test_unique_flaky",
+        status: "failure",
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run_unique.id,
+        repetition_number: 2,
+        name: "test_unique_flaky",
+        status: "success",
+        duration: 150
+      )
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}

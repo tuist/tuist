@@ -632,7 +632,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       # Create a test run first
       {:ok, existing_test_run} =
-        RunsFixtures.test_fixture(
+        RunsFixtures.test_run_fixture(
           project_id: project.id,
           account_id: account.id,
           status: "success"
