@@ -403,6 +403,9 @@ msgstr "Utwórz projekt"
 msgid "Cache"
 msgstr "Buforowanie"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Generuj przebiegi"

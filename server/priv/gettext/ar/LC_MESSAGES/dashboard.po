@@ -397,6 +397,9 @@ msgstr "إنشاء مشروع"
 msgid "Cache"
 msgstr "ذاكرة التخزين المؤقت"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "إنشاء عمليات تشغيل"

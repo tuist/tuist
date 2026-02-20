@@ -394,6 +394,9 @@ msgstr "创建项目"
 msgid "Cache"
 msgstr "缓存"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "生成运行"

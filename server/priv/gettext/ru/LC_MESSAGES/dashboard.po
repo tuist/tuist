@@ -404,6 +404,9 @@ msgstr "Создать проект"
 msgid "Cache"
 msgstr "Кэш"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Запуски генерации"
