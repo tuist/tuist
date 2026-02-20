@@ -5,7 +5,7 @@ defmodule Cache.CASCleanupWorkerTest do
   import ExUnit.CaptureLog
 
   alias Cache.CacheArtifacts
-  alias Cache.CAS.Disk, as: CASDisk
+  alias Cache.CAS
   alias Cache.CASCleanupWorker
   alias Cache.Config
   alias Cache.Disk
@@ -20,11 +20,11 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
       end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
         "test_account/test_project/cas/ef/gh/efgh5678"
       end)
 
@@ -70,7 +70,7 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
       end)
 
@@ -113,7 +113,7 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
       end)
 
@@ -156,7 +156,7 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ^cas_hashes -> [] end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
       end)
 
@@ -210,7 +210,7 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(KeyValueEntries, :referenced_hashes, fn ^account_handle, ^project_handle, ["abcd1234"] -> [] end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
       end)
 
@@ -253,7 +253,7 @@ defmodule Cache.CASCleanupWorkerTest do
         ["efgh5678"]
       end)
 
-      expect(CASDisk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
         "test_account/test_project/cas/ab/cd/abcd1234"
       end)
 

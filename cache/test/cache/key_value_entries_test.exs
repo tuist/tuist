@@ -209,7 +209,11 @@ defmodule Cache.KeyValueEntriesTest do
 
     assert KeyValueEntries.referenced_hashes("acme", "ios", ["SECOND"]) == ["SECOND"]
     assert KeyValueEntries.referenced_hashes("acme", "ios", ["THIRD"]) == ["THIRD"]
-    assert Enum.sort(KeyValueEntries.referenced_hashes("acme", "ios", ["FIRST", "THIRD", "MISSING"])) == ["FIRST", "THIRD"]
+
+    assert Enum.sort(KeyValueEntries.referenced_hashes("acme", "ios", ["FIRST", "THIRD", "MISSING"])) == [
+             "FIRST",
+             "THIRD"
+           ]
   end
 
   test "referenced_hashes returns empty list for empty input" do

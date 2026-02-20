@@ -12,12 +12,14 @@ defmodule Cache.CASCleanupWorker do
     unique: [keys: [:account_handle, :project_handle], period: 300]
 
   alias Cache.CacheArtifacts
-  alias Cache.CAS.Disk, as: CASDisk
+  alias Cache.CAS
   alias Cache.Config
   alias Cache.Disk
   alias Cache.KeyValueEntries
 
   require Logger
+
+  @min_hash_length 4
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -25,38 +27,32 @@ defmodule Cache.CASCleanupWorker do
       }) do
     valid_hashes = filter_valid_hashes(cas_hashes)
     still_referenced = KeyValueEntries.referenced_hashes(account_handle, project_handle, valid_hashes)
-    unreferenced = valid_hashes -- still_referenced
 
-    if unreferenced == [] do
-      :ok
-    else
-      keys = build_cas_keys(account_handle, project_handle, unreferenced)
-      delete_from_disk(keys)
-      s3_deleted_keys = delete_from_s3(keys)
+    case valid_hashes -- still_referenced do
+      [] ->
+        :ok
 
-      if s3_deleted_keys != [] do
-        delete_from_metadata(s3_deleted_keys)
-      end
+      unreferenced ->
+        keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
+        delete_from_disk(keys)
 
-      :ok
+        case delete_from_s3(keys) do
+          [] -> :ok
+          s3_deleted_keys -> delete_from_metadata(s3_deleted_keys)
+        end
+
+        :ok
     end
   end
 
   defp filter_valid_hashes(hashes) do
-    Enum.filter(hashes, fn hash ->
-      if String.length(hash) < CASDisk.min_hash_length() do
-        Logger.warning("Skipping CAS hash shorter than #{CASDisk.min_hash_length()} characters: #{hash}")
-        false
-      else
-        true
-      end
-    end)
-  end
+    {valid, invalid} = Enum.split_with(hashes, &(String.length(&1) >= @min_hash_length))
 
-  defp build_cas_keys(account_handle, project_handle, hashes) do
-    Enum.map(hashes, fn hash ->
-      CASDisk.key(account_handle, project_handle, hash)
+    Enum.each(invalid, fn hash ->
+      Logger.warning("Skipping CAS hash shorter than #{@min_hash_length} characters: #{hash}")
     end)
+
+    valid
   end
 
   defp delete_from_disk(keys) do
