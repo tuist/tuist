@@ -42,7 +42,8 @@ config :cache, Oban,
     clean: 10,
     maintenance: 1,
     s3_transfers: 1,
-    registry_sync: 1
+    registry_sync: 1,
+    registry_release: 5
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
@@ -51,7 +52,7 @@ config :cache, Oban,
        {"*/10 * * * *", Cache.DiskEvictionWorker},
        {"0 */6 * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
-       {"0 * * * *", Cache.Registry.SyncWorker},
+       {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]
@@ -68,7 +69,8 @@ config :cache,
   disk_usage_target_percent: 70.0,
   events_batch_size: 100,
   events_batch_timeout: 5_000,
-  key_value_eviction_max_age_days: 30
+  key_value_eviction_max_age_days: 30,
+  registry_sync_limit: 1_000
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
 

@@ -17,8 +17,6 @@ defmodule Cache.Registry.SyncWorker do
 
   @github_opts [finch: Cache.Finch, retry: false]
 
-  @default_limit 350
-  @default_sync_interval_seconds 21_600
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
 
@@ -85,27 +83,23 @@ defmodule Cache.Registry.SyncWorker do
   end
 
   defp do_sync_package(scope, name, full_handle, token) do
-    {metadata, should_sync?} =
+    metadata =
       case Metadata.get_package(scope, name) do
-        {:ok, metadata} -> {metadata, not recently_synced?(metadata)}
-        {:error, :not_found} -> {empty_metadata(scope, name, full_handle), true}
+        {:ok, metadata} -> metadata
+        {:error, :not_found} -> empty_metadata(scope, name, full_handle)
       end
 
-    if should_sync? do
-      case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
-        {:ok, tags} ->
-          missing_versions = missing_versions(tags, metadata)
-          updated_metadata = update_metadata(metadata, scope, name, full_handle)
-          :ok = Metadata.put_package(scope, name, updated_metadata)
-          enqueue_release_workers(scope, name, full_handle, missing_versions)
-          :ok
+    case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
+      {:ok, tags} ->
+        missing_versions = missing_versions(tags, metadata)
+        updated_metadata = update_metadata(metadata, scope, name, full_handle)
+        :ok = Metadata.put_package(scope, name, updated_metadata)
+        enqueue_release_workers(scope, name, full_handle, missing_versions)
+        :ok
 
-        {:error, reason} ->
-          Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
-          :ok
-      end
-    else
-      :ok
+      {:error, reason} ->
+        Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
+        :ok
     end
   end
 
@@ -156,18 +150,6 @@ defmodule Cache.Registry.SyncWorker do
     )
   end
 
-  defp recently_synced?(%{"updated_at" => updated_at}) when is_binary(updated_at) do
-    case DateTime.from_iso8601(updated_at) do
-      {:ok, datetime, _offset} ->
-        DateTime.diff(DateTime.utc_now(), datetime) < registry_sync_min_interval_seconds()
-
-      _ ->
-        false
-    end
-  end
-
-  defp recently_synced?(_), do: false
-
   defp apply_allowlist(packages, nil), do: packages
   defp apply_allowlist(packages, []), do: packages
 
@@ -210,10 +192,6 @@ defmodule Cache.Registry.SyncWorker do
   end
 
   defp registry_sync_limit do
-    Application.get_env(:cache, :registry_sync_limit, @default_limit)
-  end
-
-  defp registry_sync_min_interval_seconds do
-    Application.get_env(:cache, :registry_sync_min_interval_seconds, @default_sync_interval_seconds)
+    Application.get_env(:cache, :registry_sync_limit)
   end
 end

@@ -121,9 +121,11 @@ if config_env() == :prod do
     disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
     api_key: System.get_env("TUIST_CACHE_API_KEY"),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
-    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
-    registry_sync_limit: Cache.Config.int_env("REGISTRY_SYNC_LIMIT", 350),
-    registry_sync_min_interval_seconds: Cache.Config.int_env("REGISTRY_SYNC_MIN_INTERVAL_SECONDS", 21_600)
+    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST")
+
+  if sync_limit = System.get_env("REGISTRY_SYNC_LIMIT") do
+    config :cache, registry_sync_limit: String.to_integer(sync_limit)
+  end
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level
