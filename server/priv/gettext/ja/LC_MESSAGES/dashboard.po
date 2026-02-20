@@ -397,6 +397,9 @@ msgstr "プロジェクトを作成"
 msgid "Cache"
 msgstr "キャッシュ"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "実行を生成"

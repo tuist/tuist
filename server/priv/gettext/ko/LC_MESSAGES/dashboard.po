@@ -317,5 +317,8 @@ msgstr "프로젝트 만들기"
 msgid "Cache"
 msgstr "캐시"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #~ msgid "Generate Runs"
 #~ msgstr "Generate 실행 내역"

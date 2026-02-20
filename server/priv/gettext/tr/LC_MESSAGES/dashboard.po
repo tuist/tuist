@@ -401,6 +401,9 @@ msgstr "Proje oluştur"
 msgid "Cache"
 msgstr "Önbellek"
 
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Çalıştırmalar Oluştur"

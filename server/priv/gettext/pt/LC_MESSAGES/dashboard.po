@@ -305,3 +305,6 @@ msgstr "Create a new project"
 #, fuzzy
 msgid "Cache"
 msgstr "Cache"
+
+msgid "The preview APK doesn't exist or has expired."
+msgstr ""
