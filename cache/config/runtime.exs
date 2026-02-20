@@ -123,10 +123,6 @@ if config_env() == :prod do
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
     registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST")
 
-  if sync_limit = System.get_env("REGISTRY_SYNC_LIMIT") do
-    config :cache, registry_sync_limit: String.to_integer(sync_limit)
-  end
-
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level
   config :ex_aws, :req_opts, []
