@@ -376,6 +376,8 @@ struct InitCommandServiceTests {
                 try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
                     temporaryDirectory in
                     let projectName = temporaryDirectory.basename
+                    given(prompter).promptProjectName(defaultName: .value(projectName))
+                        .willReturn(projectName)
                     given(getProjectService).getProject(
                         fullHandle: .value("account/\(projectName)"),
                         serverURL: .value(Constants.URLs.production)

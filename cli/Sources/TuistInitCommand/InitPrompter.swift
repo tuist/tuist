@@ -80,6 +80,7 @@ protocol InitPrompting {
     func promptNewOrganizationAccountHandle() -> String
     func promptGeneratedProjectPlatform() -> String
     func promptGeneratedProjectName() -> String
+    func promptProjectName(defaultName: String) -> String
 }
 
 struct InitPrompter: InitPrompting {
@@ -168,6 +169,15 @@ struct InitPrompter: InitPrompting {
             title: "Name",
             prompt: "How would you like to name the project?",
             description: "The name of the project and its main target",
+            collapseOnAnswer: true
+        )
+    }
+
+    func promptProjectName(defaultName: String) -> String {
+        Noora.current.textPrompt(
+            title: "Name",
+            prompt: "How would you like to name the project?",
+            defaultValue: defaultName,
             collapseOnAnswer: true
         )
     }

@@ -19,7 +19,7 @@ rootProject.name = "SimpleAndroidApp"
 include(":app")
 
 plugins {
-    id("dev.tuist") version "0.1.0"
+    id("dev.tuist") version "0.2.1"
 }
 
 tuist {

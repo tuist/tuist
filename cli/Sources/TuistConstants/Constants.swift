@@ -28,6 +28,7 @@ public enum Constants {
 
     public static let tuistManifestFileName = "Tuist.swift"
     public static let tuistTomlFileName = "tuist.toml"
+    public static let gradlePluginVersion = "0.2.1"
 
     /// The cache version.
     /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
