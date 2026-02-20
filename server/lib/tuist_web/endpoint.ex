@@ -5,9 +5,11 @@ defmodule TuistWeb.Endpoint do
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  alias TuistWeb.Plugs.SlackWebhookPlug
   alias TuistWeb.Plugs.WebhookPlug
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
+  alias TuistWeb.Webhooks.SlackController
 
   @session_options [
     store: :cookie,
@@ -82,6 +84,11 @@ defmodule TuistWeb.Endpoint do
     handler: TuistWeb.Webhooks.GradleCacheController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
+
+  plug SlackWebhookPlug,
+    at: "/webhooks/slack",
+    handler: SlackController,
+    secret: {Tuist.Environment, :slack_signing_secret, []}
 
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.

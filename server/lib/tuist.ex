@@ -102,6 +102,7 @@ defmodule Tuist do
       Slack.Client,
       Slack.Installation,
       Slack.Reports,
+      Slack.Unfurl,
       Slack.Workers.ReportWorker,
       # Support
       # -----
