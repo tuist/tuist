@@ -10,6 +10,11 @@ defmodule Tuist.TestsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "get_test_case_run_by_id/2" do
     test "returns test case run when it exists" do
       # Given

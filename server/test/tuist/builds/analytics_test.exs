@@ -8,6 +8,11 @@ defmodule Tuist.Builds.AnalyticsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "build_duration_analytics_by_category/3" do
     test "returns duration analytics grouped by xcode_version" do
       # Given

@@ -9,7 +9,11 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
+
   def build_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
         ProjectsFixtures.project_fixture().id
@@ -45,6 +49,8 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
   end
 
   def cache_event_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
         ProjectsFixtures.project_fixture().id

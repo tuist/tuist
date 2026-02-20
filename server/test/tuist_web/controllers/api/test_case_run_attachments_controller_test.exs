@@ -1,5 +1,5 @@
 defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   alias Tuist.Storage

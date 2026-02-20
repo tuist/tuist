@@ -105,5 +105,7 @@ Mimic.copy(Slipstream)
 Mimic.copy(WebDriverClient)
 Mimic.copy(Port)
 
+:ets.new(:clickhouse_dirty_pids, [:set, :public, :named_table])
+
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)

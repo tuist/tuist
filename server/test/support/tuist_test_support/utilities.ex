@@ -10,6 +10,7 @@ defmodule TuistTestSupport.Utilities do
   Flushes the ingestion buffers after running the callback function.
   """
   def with_flushed_ingestion_buffers(fun) when is_function(fun, 0) do
+    mark_clickhouse_dirty()
     result = fun.()
     Tuist.CommandEvents.Buffer.flush()
     Tuist.Gradle.Build.Buffer.flush()
@@ -21,26 +22,32 @@ defmodule TuistTestSupport.Utilities do
     result
   end
 
-  def truncate_clickhouse_tables do
-    commands = [
-      "TRUNCATE TABLE IF EXISTS command_events",
-      "TRUNCATE TABLE IF EXISTS xcode_graphs",
-      "TRUNCATE TABLE IF EXISTS xcode_projects",
-      "TRUNCATE TABLE IF EXISTS xcode_targets",
-      "TRUNCATE TABLE IF EXISTS cacheable_tasks",
-      "TRUNCATE TABLE IF EXISTS cas_outputs",
-      "TRUNCATE TABLE IF EXISTS cas_events",
-      "TRUNCATE TABLE IF EXISTS build_files",
-      "TRUNCATE TABLE IF EXISTS build_issues",
-      "TRUNCATE TABLE IF EXISTS build_targets",
-      "TRUNCATE TABLE IF EXISTS build_runs",
-      "TRUNCATE TABLE IF EXISTS gradle_builds",
-      "TRUNCATE TABLE IF EXISTS gradle_tasks",
-      "TRUNCATE TABLE IF EXISTS gradle_cache_events"
-    ]
+  def mark_clickhouse_dirty do
+    :ets.insert(:clickhouse_dirty_pids, {self(), true})
+  end
 
-    for command <- commands do
-      Tuist.IngestRepo.query!(command)
+  def truncate_clickhouse_tables(test_pid) do
+    if :ets.take(:clickhouse_dirty_pids, test_pid) != [] do
+      commands = [
+        "TRUNCATE TABLE IF EXISTS command_events",
+        "TRUNCATE TABLE IF EXISTS xcode_graphs",
+        "TRUNCATE TABLE IF EXISTS xcode_projects",
+        "TRUNCATE TABLE IF EXISTS xcode_targets",
+        "TRUNCATE TABLE IF EXISTS cacheable_tasks",
+        "TRUNCATE TABLE IF EXISTS cas_outputs",
+        "TRUNCATE TABLE IF EXISTS cas_events",
+        "TRUNCATE TABLE IF EXISTS build_files",
+        "TRUNCATE TABLE IF EXISTS build_issues",
+        "TRUNCATE TABLE IF EXISTS build_targets",
+        "TRUNCATE TABLE IF EXISTS build_runs",
+        "TRUNCATE TABLE IF EXISTS gradle_builds",
+        "TRUNCATE TABLE IF EXISTS gradle_tasks",
+        "TRUNCATE TABLE IF EXISTS gradle_cache_events"
+      ]
+
+      for command <- commands do
+        Tuist.IngestRepo.query!(command)
+      end
     end
   end
 end

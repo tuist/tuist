@@ -9,6 +9,11 @@ defmodule TuistWeb.API.GradleControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "POST /api/projects/:account_handle/:project_handle/gradle/builds" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])

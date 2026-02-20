@@ -1,5 +1,5 @@
 defmodule Tuist.Registry.Swift.Packages.PackageReleaseTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Registry.Swift.Packages.PackageRelease
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures

@@ -12,6 +12,8 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
+
   def qa_run_fixture(opts \\ []) do
     app_build =
       Keyword.get_lazy(opts, :app_build, fn ->
@@ -67,6 +69,8 @@ defmodule TuistTestSupport.Fixtures.QAFixtures do
   end
 
   def qa_log_fixture(opts \\ []) do
+    mark_clickhouse_dirty()
+
     qa_run =
       Keyword.get_lazy(opts, :qa_run, fn ->
         qa_run_fixture()

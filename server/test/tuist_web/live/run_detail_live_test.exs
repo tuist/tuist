@@ -11,6 +11,7 @@ defmodule TuistWeb.RunDetailLiveTest do
   alias TuistTestSupport.Fixtures.XcodeFixtures
 
   setup %{conn: conn} do
+    mark_clickhouse_dirty()
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
     %{conn: conn, user: user}

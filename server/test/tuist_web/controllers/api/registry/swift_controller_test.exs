@@ -1,5 +1,5 @@
 defmodule TuistWeb.API.Registry.SwiftControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   import TelemetryTest

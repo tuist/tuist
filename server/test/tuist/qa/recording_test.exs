@@ -1,5 +1,5 @@
 defmodule Tuist.QA.RecordingTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.QA.Recording
   alias TuistTestSupport.Fixtures.QAFixtures

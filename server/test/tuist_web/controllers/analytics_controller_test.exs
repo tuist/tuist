@@ -21,6 +21,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias TuistWeb.Authentication
 
   setup do
+    mark_clickhouse_dirty()
     user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
 
     stub(Environment, :github_app_configured?, fn -> true end)

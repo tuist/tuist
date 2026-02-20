@@ -37,8 +37,10 @@ defmodule TuistTestSupport.Cases.DataCase do
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
 
+    test_pid = self()
+
     on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
+      TuistTestSupport.Utilities.truncate_clickhouse_tables(test_pid)
     end)
 
     :ok
@@ -50,5 +52,6 @@ defmodule TuistTestSupport.Cases.DataCase do
   def setup_sandbox(tags) do
     pid = Sandbox.start_owner!(Tuist.Repo, shared: not tags[:async])
     on_exit(fn -> Sandbox.stop_owner(pid) end)
+    pid
   end
 end

@@ -1,5 +1,5 @@
 defmodule Tuist.QA.StepTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.QA.Step
   alias TuistTestSupport.Fixtures.QAFixtures

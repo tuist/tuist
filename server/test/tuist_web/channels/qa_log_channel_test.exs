@@ -1,5 +1,5 @@
 defmodule TuistWeb.QALogChannelTest do
-  use TuistWeb.ChannelCase
+  use TuistWeb.ChannelCase, async: true
 
   import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures

@@ -10,6 +10,11 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
   alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "quarantined tests page" do
     test "renders quarantined tests page with empty state", %{
       conn: conn,

@@ -1,5 +1,5 @@
 defmodule Tuist.QA.LaunchArgumentGroupTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.Account
   alias Tuist.QA.LaunchArgumentGroup

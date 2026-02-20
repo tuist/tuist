@@ -8,6 +8,11 @@ defmodule TuistWeb.TestCaseLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "mount with personal account" do
     setup %{conn: conn} do
       # Create a user with a personal account (not an organization)

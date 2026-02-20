@@ -1,5 +1,5 @@
 defmodule Tuist.GitHub.ClientTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Tuist.GitHub.App

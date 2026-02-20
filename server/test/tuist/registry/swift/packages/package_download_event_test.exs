@@ -1,5 +1,5 @@
 defmodule Tuist.Registry.Swift.Packages.PackageDownloadEventTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Registry.Swift.Packages.PackageDownloadEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures

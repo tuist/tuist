@@ -31,8 +31,10 @@ defmodule TuistWeb.ChannelCase do
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
 
+    test_pid = self()
+
     on_exit(fn ->
-      TuistTestSupport.Utilities.truncate_clickhouse_tables()
+      TuistTestSupport.Utilities.truncate_clickhouse_tables(test_pid)
     end)
 
     :ok

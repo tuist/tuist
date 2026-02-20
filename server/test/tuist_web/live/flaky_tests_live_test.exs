@@ -10,6 +10,11 @@ defmodule TuistWeb.FlakyTestsLiveTest do
   alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "flaky tests page" do
     test "renders flaky tests page with empty state", %{
       conn: conn,

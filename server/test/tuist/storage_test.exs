@@ -1,5 +1,5 @@
 defmodule Tuist.StorageTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias ExAws.Operation.S3

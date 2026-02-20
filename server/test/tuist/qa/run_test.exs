@@ -1,5 +1,5 @@
 defmodule Tuist.QA.RunTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.QA.Run
   alias TuistTestSupport.Fixtures.AppBuildsFixtures

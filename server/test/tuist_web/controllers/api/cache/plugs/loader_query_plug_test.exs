@@ -1,5 +1,5 @@
 defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlugTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.API.Cache.Plugs.LoaderQueryPlug

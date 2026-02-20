@@ -11,6 +11,11 @@ defmodule Tuist.Tests.AnalyticsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  setup do
+    mark_clickhouse_dirty()
+    :ok
+  end
+
   describe "get_test_run_metrics/1" do
     test "returns correct metrics when test run has test cases" do
       # Given

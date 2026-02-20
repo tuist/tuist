@@ -1,5 +1,5 @@
 defmodule Tuist.OAuth.OktaTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.Organization
   alias Tuist.OAuth.Okta

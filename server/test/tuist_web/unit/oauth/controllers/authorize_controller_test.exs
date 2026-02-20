@@ -1,5 +1,5 @@
 defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   import Phoenix.ConnTest

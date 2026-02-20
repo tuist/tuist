@@ -12,6 +12,7 @@ defmodule TuistWeb.Webhooks.GradleCacheControllerTest do
   @cache_api_key "test-cache-api-key"
 
   setup %{conn: conn} do
+    mark_clickhouse_dirty()
     user = AccountsFixtures.user_fixture(preload: [:account])
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 

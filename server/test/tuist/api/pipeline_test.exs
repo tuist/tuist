@@ -1,5 +1,5 @@
 defmodule Tuist.API.PipelineTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems

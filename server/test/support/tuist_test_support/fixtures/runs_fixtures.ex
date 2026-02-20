@@ -16,11 +16,15 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  import TuistTestSupport.Utilities, only: [mark_clickhouse_dirty: 0]
+
   def optimize_test_case_runs do
     SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
   end
 
   def build_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
         ProjectsFixtures.project_fixture().id
@@ -70,6 +74,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def test_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
         ProjectsFixtures.project_fixture().id
@@ -131,6 +137,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def cas_output_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     build_run_id =
       Keyword.get_lazy(attrs, :build_run_id, fn ->
         {:ok, build} = build_fixture()
@@ -175,6 +183,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def test_case_run_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
         ProjectsFixtures.project_fixture().id
@@ -204,6 +214,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def test_case_failure_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     test_case_failure = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
@@ -220,6 +232,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def test_case_run_repetition_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     test_case_run_repetition = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
@@ -236,6 +250,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def crash_report_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     test_case_run_id = Keyword.fetch!(attrs, :test_case_run_id)
 
     crash_report = %{
@@ -260,6 +276,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def test_case_run_attachment_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     attachment = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
@@ -273,6 +291,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def test_case_event_fixture(attrs \\ []) do
+    mark_clickhouse_dirty()
+
     test_case_event = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.fetch!(attrs, :test_case_id),

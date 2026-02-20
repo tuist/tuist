@@ -25,8 +25,8 @@ defmodule TuistWeb.API.RunsControllerTest do
   end
 
   setup do
+    mark_clickhouse_dirty()
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
-    TuistTestSupport.Utilities.truncate_clickhouse_tables()
     :ok
   end
 
