@@ -8,6 +8,12 @@ defmodule Cache.KeyValueEntries do
   alias Cache.KeyValueEntry
   alias Cache.Repo
 
+  # Deletes expired entries and returns them for downstream CAS cleanup.
+  #
+  # Uses a two-phase approach: SELECT expired entries first, then DELETE by ID
+  # with a re-check of the cutoff condition. An entry that gets accessed between
+  # the SELECT and the DELETE will survive the DELETE but still appear in the
+  # returned list — the CASCleanupWorker's reference check handles this safely.
   def delete_expired(max_age_days \\ 30) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
 
@@ -40,14 +46,33 @@ defmodule Cache.KeyValueEntries do
   def referenced_hashes(_account_handle, _project_handle, []), do: []
 
   def referenced_hashes(account_handle, project_handle, hashes) when is_list(hashes) do
-    key_prefix = "keyvalue:#{account_handle}:#{project_handle}:%"
+    hash_set = MapSet.new(hashes)
+    key_prefix = "keyvalue:#{escape_like(account_handle)}:#{escape_like(project_handle)}:%"
 
     from(e in KeyValueEntry,
-      where: like(e.key, ^key_prefix),
-      where: fragment("json_extract(?, '$.entries[0].value')", e.json_payload) in ^hashes,
-      select: fragment("json_extract(?, '$.entries[0].value')", e.json_payload)
+      where: fragment("? LIKE ? ESCAPE '!'", e.key, ^key_prefix),
+      select: e.json_payload
     )
     |> Repo.all()
+    |> Enum.flat_map(fn payload ->
+      case Jason.decode(payload) do
+        {:ok, %{"entries" => entries}} when is_list(entries) ->
+          entries
+          |> Enum.map(&Map.get(&1, "value"))
+          |> Enum.reject(&is_nil/1)
+
+        _ ->
+          []
+      end
+    end)
     |> Enum.uniq()
+    |> Enum.filter(&MapSet.member?(hash_set, &1))
+  end
+
+  defp escape_like(str) do
+    str
+    |> String.replace("!", "!!")
+    |> String.replace("%", "!%")
+    |> String.replace("_", "!_")
   end
 end

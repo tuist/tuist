@@ -200,6 +200,18 @@ defmodule Cache.KeyValueEntriesTest do
     assert KeyValueEntries.referenced_hashes("acme", "android", ["ABCD1234"]) == []
   end
 
+  test "referenced_hashes checks all entries in the payload, not just the first" do
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: ~s({"entries":[{"value":"FIRST"},{"value":"SECOND"},{"value":"THIRD"}]}),
+      last_accessed_at: DateTime.utc_now()
+    })
+
+    assert KeyValueEntries.referenced_hashes("acme", "ios", ["SECOND"]) == ["SECOND"]
+    assert KeyValueEntries.referenced_hashes("acme", "ios", ["THIRD"]) == ["THIRD"]
+    assert Enum.sort(KeyValueEntries.referenced_hashes("acme", "ios", ["FIRST", "THIRD", "MISSING"])) == ["FIRST", "THIRD"]
+  end
+
   test "referenced_hashes returns empty list for empty input" do
     assert KeyValueEntries.referenced_hashes("acme", "ios", []) == []
   end

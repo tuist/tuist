@@ -79,13 +79,17 @@ defmodule Cache.CASCleanupWorker do
   defp delete_from_s3(keys) do
     bucket = Config.cache_bucket()
 
-    case bucket |> ExAws.S3.delete_multiple_objects(keys) |> ExAws.request() do
-      {:ok, _} ->
-        Logger.info("Deleted #{length(keys)} CAS artifacts from S3")
+    keys
+    |> Enum.chunk_every(1000)
+    |> Enum.each(fn chunk ->
+      case bucket |> ExAws.S3.delete_multiple_objects(chunk) |> ExAws.request() do
+        {:ok, _} ->
+          Logger.info("Deleted #{length(chunk)} CAS artifacts from S3")
 
-      {:error, reason} ->
-        Logger.error("Failed to delete S3 objects: #{inspect(reason)}")
-    end
+        {:error, reason} ->
+          Logger.error("Failed to delete S3 objects: #{inspect(reason)}")
+      end
+    end)
   end
 
   defp delete_from_metadata(keys) do
