@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.play.publisher)
 }
 
 android {
@@ -19,6 +20,19 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+                ?: rootProject.file("release.keystore").takeIf { it.exists() }?.absolutePath
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "tuist"
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "SERVER_URL", "\"http://localhost:8080\"")
@@ -31,6 +45,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
             buildConfigField("String", "SERVER_URL", "\"https://tuist.dev\"")
             buildConfigField("String", "OAUTH_CLIENT_ID", "\"b3298a92-3deb-4f5e-a526-b7ad324979b5\"")
         }
@@ -49,6 +64,16 @@ android {
         compose = true
         buildConfig = true
     }
+}
+
+play {
+    val serviceAccountJsonPath = System.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")
+        ?: rootProject.file("service-account.json").takeIf { it.exists() }?.absolutePath
+    if (serviceAccountJsonPath != null) {
+        serviceAccountCredentials.set(file(serviceAccountJsonPath))
+    }
+    track.set("internal")
+    defaultToAppBundles.set(true)
 }
 
 dependencies {

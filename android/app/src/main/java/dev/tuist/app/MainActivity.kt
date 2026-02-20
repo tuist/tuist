@@ -35,7 +35,9 @@ class MainActivity : ComponentActivity() {
         )
 
         intent?.data?.let { uri ->
-            Log.d(TAG, "onCreate intent data: $uri")
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "onCreate intent data: $uri")
+            }
             handleDeepLink(uri)
         }
 
@@ -48,7 +50,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Log.d(TAG, "onNewIntent data: ${intent.data}")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "onNewIntent data: ${intent.data}")
+        }
         intent.data?.let { uri -> handleDeepLink(uri) }
     }
 

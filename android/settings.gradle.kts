@@ -21,4 +21,9 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Tuist"
+
+plugins {
+    id("dev.tuist") version "0.2.1"
+}
+
 include(":app")

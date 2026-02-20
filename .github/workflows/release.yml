@@ -680,6 +680,52 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
+  release-android:
+    name: Release Android App
+    needs: check-releases
+    if: needs.check-releases.outputs.app-should-release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+
+      - uses: jdx/mise-action@v2
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Update version
+        working-directory: android
+        run: |
+          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
+          VERSION_NUMBER="${VERSION_NUMBER#app@}"
+          sed -i "s/versionCode = .*/versionCode = ${{ github.run_number }}/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION_NUMBER\"/" app/build.gradle.kts
+
+      - name: Setup signing and credentials
+        run: |
+          op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore --force
+          op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json --force
+
+      - name: Publish to Google Play
+        working-directory: android
+        run: |
+          export ANDROID_KEYSTORE_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          export ANDROID_KEY_ALIAS=tuist
+          export ANDROID_KEY_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          ./gradlew publishReleaseBundle
+
   release-server:
     name: Release Server
     needs: check-releases
@@ -1049,6 +1095,7 @@ jobs:
         release-cli-linux,
         release-app,
         release-ios,
+        release-android,
         release-server,
         release-cache,
         release-gradle,

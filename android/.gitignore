@@ -8,3 +8,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.keystore
+*.jks
+service-account.json

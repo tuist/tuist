@@ -2,6 +2,7 @@ package dev.tuist.app.data.auth
 
 import android.app.Activity
 import android.net.Uri
+import android.util.Base64
 import android.util.Log
 import androidx.browser.customtabs.CustomTabsIntent
 import dev.tuist.app.BuildConfig
@@ -9,7 +10,8 @@ import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -17,6 +19,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,13 +29,14 @@ class AuthRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) {
     private var pendingCodeVerifier: String? = null
-    private val _authenticating = kotlinx.coroutines.flow.MutableStateFlow(false)
+    private var pendingState: String? = null
+    private val _authenticating = MutableStateFlow(false)
 
     private val serverUrl: String get() = BuildConfig.SERVER_URL
     private val clientId: String get() = BuildConfig.OAUTH_CLIENT_ID
     private val redirectUri = "tuist://oauth-callback"
 
-    val authState: Flow<AuthState> = kotlinx.coroutines.flow.combine(
+    val authState: Flow<AuthState> = combine(
         tokenStorage.accessTokenFlow,
         _authenticating,
     ) { token, authenticating ->
@@ -50,25 +54,39 @@ class AuthRepository @Inject constructor(
         val codeVerifier = generateCodeVerifier()
         pendingCodeVerifier = codeVerifier
         val codeChallenge = generateCodeChallenge(codeVerifier)
+        val state = UUID.randomUUID().toString()
+        pendingState = state
 
         val uri = Uri.parse("$serverUrl$path").buildUpon()
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("client_id", clientId)
             .appendQueryParameter("redirect_uri", redirectUri)
-            .appendQueryParameter("state", java.util.UUID.randomUUID().toString())
+            .appendQueryParameter("state", state)
             .appendQueryParameter("code_challenge", codeChallenge)
             .appendQueryParameter("code_challenge_method", "S256")
             .build()
 
-        Log.d(TAG, "Starting OAuth flow: $uri")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "Starting OAuth flow: $uri")
+        }
         CustomTabsIntent.Builder().build().launchUrl(activity, uri)
     }
 
     suspend fun handleOAuthCallback(uri: Uri): Result<Account> = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Handling OAuth callback: $uri")
+        if (BuildConfig.DEBUG) {
+            Log.d(TAG, "Handling OAuth callback: $uri")
+        }
         _authenticating.value = true
 
         try {
+            val returnedState = uri.getQueryParameter("state")
+            val expectedState = pendingState
+            if (expectedState != null && returnedState != expectedState) {
+                return@withContext Result.failure(Exception("OAuth state mismatch").also {
+                    Log.e(TAG, "State mismatch: expected=$expectedState returned=$returnedState")
+                })
+            }
+
             val code = uri.getQueryParameter("code")
                 ?: return@withContext Result.failure(Exception("Missing authorization code").also {
                     Log.e(TAG, "Missing authorization code in callback URI: $uri")
@@ -80,6 +98,7 @@ class AuthRepository @Inject constructor(
                 })
 
             pendingCodeVerifier = null
+            pendingState = null
 
             val body = FormBody.Builder()
                 .add("grant_type", "authorization_code")
@@ -133,17 +152,17 @@ class AuthRepository @Inject constructor(
     private fun generateCodeVerifier(): String {
         val bytes = ByteArray(32)
         SecureRandom().nextBytes(bytes)
-        return android.util.Base64.encodeToString(
+        return Base64.encodeToString(
             bytes,
-            android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP,
+            Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP,
         )
     }
 
     private fun generateCodeChallenge(verifier: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray())
-        return android.util.Base64.encodeToString(
+        return Base64.encodeToString(
             digest,
-            android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP,
+            Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP,
         )
     }
 }
