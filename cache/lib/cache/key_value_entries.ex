@@ -11,13 +11,28 @@ defmodule Cache.KeyValueEntries do
   def delete_expired(max_age_days \\ 30) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
 
-    ids_to_delete =
+    select_query =
       from(e in KeyValueEntry,
         where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
+        order_by: e.id,
         limit: 10_000,
-        select: e.id
+        select: e
       )
 
-    Repo.delete_all(from(e in KeyValueEntry, where: e.id in subquery(ids_to_delete)))
+    expired_entries = Repo.all(select_query)
+
+    if Enum.empty?(expired_entries) do
+      {[], 0}
+    else
+      ids_to_delete = Enum.map(expired_entries, & &1.id)
+
+      delete_query =
+        from(e in KeyValueEntry,
+          where: e.id in ^ids_to_delete
+        )
+
+      {count, _} = Repo.delete_all(delete_query)
+      {expired_entries, count}
+    end
   end
 end

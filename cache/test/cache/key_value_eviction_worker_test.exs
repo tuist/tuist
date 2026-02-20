@@ -68,7 +68,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       last_accessed_at: five_days_ago
     })
 
-    {count, _} = KeyValueEntries.delete_expired(7)
+    {_entries, count} = KeyValueEntries.delete_expired(7)
     assert count == 1
 
     entries = Repo.all(KeyValueEntry)
