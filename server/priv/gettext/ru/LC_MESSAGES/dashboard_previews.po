@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-20 07:19+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_previews/ru/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -173,16 +173,22 @@ msgstr "Поиск..."
 msgid "Track"
 msgstr "Отслеживание"
 
+#, fuzzy
 msgid "Package name"
-msgstr ""
+msgstr "Название пакета"
 
+#, fuzzy
 msgid ""
 "Scan this QR code on your Android device to download and install this "
 "version of the app"
 msgstr ""
+"Отсканируйте этот QR-код на своем Android-устройстве, чтобы загрузить и "
+"установить эту версию приложения."
 
+#, fuzzy
 msgid "The APK for this preview is no longer available"
-msgstr ""
+msgstr "APK для этой предварительной версии больше не доступен."
 
+#, fuzzy
 msgid "This preview isn't available for download"
-msgstr ""
+msgstr "Этот предварительный просмотр недоступен для скачивания."
