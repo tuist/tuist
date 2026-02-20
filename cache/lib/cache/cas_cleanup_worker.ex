@@ -30,12 +30,7 @@ defmodule Cache.CASCleanupWorker do
       unreferenced ->
         keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
         delete_from_disk(keys)
-
-        case delete_from_s3(keys) do
-          [] -> :ok
-          s3_deleted_keys -> delete_from_metadata(s3_deleted_keys)
-        end
-
+        keys |> delete_from_s3() |> delete_from_metadata()
         :ok
     end
   end
