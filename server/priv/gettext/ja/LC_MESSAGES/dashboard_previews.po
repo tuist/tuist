@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-20 07:19+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_previews/ja/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -170,16 +170,22 @@ msgstr "検索..."
 msgid "Track"
 msgstr "Track"
 
+#, fuzzy
 msgid "Package name"
-msgstr ""
+msgstr "パッケージ名"
 
+#, fuzzy
 msgid ""
 "Scan this QR code on your Android device to download and install this "
 "version of the app"
 msgstr ""
+"Android端末でこのQRコードをスキャンして、このバージョンのアプリをダウンロード"
+"してインストールしてください"
 
+#, fuzzy
 msgid "The APK for this preview is no longer available"
-msgstr ""
+msgstr "このプレビューのAPKは利用できなくなりました"
 
+#, fuzzy
 msgid "This preview isn't available for download"
-msgstr ""
+msgstr "このプレビューはダウンロードできません"
