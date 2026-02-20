@@ -4,7 +4,7 @@ defmodule Tuist.Tests do
 
   ## ClickHouse and deduplication
 
-    This module uses ClickHouse with ReplacingMergeTree tables to store test data.
+  This module uses ClickHouse with ReplacingMergeTree tables to store test data.
     ClickHouse doesn't support in-place updates - to "update" a row (e.g., setting `is_flaky`),
     we insert a new row with the updated values. ClickHouse eventually deduplicates rows with
     the same primary key by keeping the most recent one (based on `inserted_at`).
