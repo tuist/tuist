@@ -132,3 +132,17 @@ msgstr "Search"
 
 msgid "Track"
 msgstr ""
+
+msgid "Package name"
+msgstr ""
+
+msgid ""
+"Scan this QR code on your Android device to download and install this "
+"version of the app"
+msgstr ""
+
+msgid "The APK for this preview is no longer available"
+msgstr ""
+
+msgid "This preview isn't available for download"
+msgstr ""
