@@ -21,10 +21,10 @@ stopniowe spowolnienie testów lub sporadyczne awarie. Tuist Test Insights
 zapewnia widoczność niezbędną do utrzymania szybkiego i niezawodnego zestawu
 testów.
 
-Dzięki Test Insights możesz odpowiedzieć na pytania takie jak:
+Dzięki Test Insights możesz odpowiedzieć na takie pytania, jak:
 - Czy moje testy stały się wolniejsze? Które z nich?
 - Które testy są niestabilne i wymagają uwagi?
-- Dlaczego moje CI nie zadziałało?
+- Dlaczego moje CI nie działa?
 
 ## Konfiguracja {#setup}
 
@@ -59,7 +59,7 @@ zmieniają się one w czasie:
 ![Pulpit nawigacyjny z wynikami
 testów](/images/guides/features/insights/tests-dashboard.png)
 
-Oprócz ogólnych trendów można również zagłębić się w każdy test z osobna, na
+Oprócz ogólnych trendów możesz również zagłębić się w każdy test z osobna, na
 przykład podczas debugowania błędów lub powolnych testów w CI:
 
 ![Szczegóły testu](/images/guides/features/insights/test-detail.png)
@@ -132,7 +132,7 @@ Aby śledzić informacje o kompilacji w CI, należy upewnić się, że CI jest
 Dodatkowo należy:
 - Użyj polecenia <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> podczas wywoływania akcji `xcodebuild`.
-- Dodaj `-resultBundlePath` do wywołania `xcodebuild`.
+- Dodaj `-resultBundlePath` do swojego wywołania `xcodebuild`.
 
 Gdy `xcodebuild` testuje projekt bez `-resultBundlePath`, wymagane pliki pakietu
 wyników nie są generowane. `tuist inspect test` post-action wymaga tych plików
