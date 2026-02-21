@@ -5,17 +5,17 @@
   "description": "Learn how to use the Tuist Registry in a Swift package."
 }
 ---
-# Swift paketi {#swift-package}
+# Swift package {#swift-package}
 
-Swift paketi üzerinde çalışıyorsanız, Kayıt’tan bağımlılıkları çözmek için
-`--replace-scm-with-registry` bayrağını kullanabilirsiniz:
+Swift package üzerinde çalışıyorsanız, kayıttan bağımlılıkları çözmek için
+`--replace-scm-with-registry` bayrağını kullanabilirsiniz (kullanılabilirse):
 
 ```bash
 swift package --replace-scm-with-registry resolve
 ```
 
 Bağımlılıkları her çözdüğünüzde kayıt defterinin kullanılmasını sağlamak
-istiyorsanız, `dependencies` adresindeki `Package.swift` dosyanızı güncelleyerek
+istiyorsanız, `dependencies` adresindeki `Package.swift` dosyasını güncelleyerek
 URL yerine kayıt defteri tanımlayıcısını kullanmanız gerekir. Kayıt defteri
 tanımlayıcısı her zaman `{organization}.{repository}` biçimindedir. Örneğin,
 `swift-composable-architecture` paketinin kayıt defterini kullanmak için
