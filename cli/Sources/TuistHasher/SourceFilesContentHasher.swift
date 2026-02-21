@@ -26,7 +26,7 @@ public struct SourceFilesContentHasher: SourceFilesContentHashing {
 
     // MARK: - SourceFilesContentHashing
 
-    /// Returns a unique hash that identifies an arry of sourceFiles
+    /// Returns a unique hash that identifies an array of sourceFiles
     /// First it hashes the content of every file and append to every hash the compiler flags of the file. It assumes the files
     /// are always sorted the same way.
     /// Then it hashes again all partial hashes to get a unique identifier that represents a group of source files together with

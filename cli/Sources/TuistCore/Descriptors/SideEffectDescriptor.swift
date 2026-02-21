@@ -2,7 +2,7 @@
 ///
 /// Describes a side effect that needs to take place without performing it
 /// immediately within a component. This allows components to be side effect free,
-/// determenistic and much easier to test.
+/// deterministic and much easier to test.
 ///
 /// When part of a `ProjectDescriptor` or `WorkspaceDescriptor`, it
 /// can be used in conjunction with `XcodeProjWriter` to perform side effects.

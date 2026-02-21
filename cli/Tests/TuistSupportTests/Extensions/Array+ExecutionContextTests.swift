@@ -45,10 +45,10 @@ final class ArrayExecutionContextTests: XCTestCase {
         numbers.forEach(context: .concurrent, perform)
 
         // Then
-        let resuls = queue.sync {
+        let results = queue.sync {
             performedNumbers
         }
-        XCTAssertEqual(resuls, Set(numbers))
+        XCTAssertEqual(results, Set(numbers))
     }
 
     func test_concurrentForEach_error() {
