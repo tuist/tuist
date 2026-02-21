@@ -8,9 +8,12 @@ extension XcodeGraph.BuildableFolderExceptions {
     static func from(
         manifest: ProjectDescription.BuildableFolderExceptions,
         buildableFolder: AbsolutePath
-    ) throws -> Self {
-        return Self(exceptions: try manifest.exceptions.map {
-            try XcodeGraph.BuildableFolderException.from(manifest: $0, buildableFolder: buildableFolder)
-        })
+    ) async throws -> Self {
+        var exceptions: [XcodeGraph.BuildableFolderException] = []
+        for exception in manifest.exceptions {
+            let mapped = try await XcodeGraph.BuildableFolderException.from(manifest: exception, buildableFolder: buildableFolder)
+            exceptions.append(mapped)
+        }
+        return Self(exceptions: exceptions)
     }
 }

@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -10,23 +11,48 @@ extension XcodeGraph.BuildableFolder {
         generatorPaths: GeneratorPaths
     ) async throws -> XcodeGraph.BuildableFolder {
         let path = try generatorPaths.resolve(path: manifest.path)
-        let exceptions = try XcodeGraph.BuildableFolderExceptions.from(
+        let fileSystem = FileSystem()
+
+        let exclusionPatterns = manifest.exceptions.exceptions.flatMap(\.excluded)
+
+        var exclusions = Set<AbsolutePath>()
+        for pattern in exclusionPatterns {
+            let expandedPaths = try await fileSystem.glob(directory: path, include: [pattern]).collect()
+            exclusions.formUnion(expandedPaths)
+        }
+
+        let exceptions = try await XcodeGraph.BuildableFolderExceptions.from(
             manifest: manifest.exceptions,
             buildableFolder: path
         )
-        let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
-        let fileSystem = FileSystem()
-        let resolvedFiles = try await fileSystem
+        let allPaths = try await fileSystem
             .glob(directory: path, include: ["**/*"]).collect()
-            .compactMap { path -> BuildableFolderFile? in
-                if exclusions.contains(path) { return nil }
-                return BuildableFolderFile(
-                    path: path,
-                    compilerFlags: compilerFlagsByPath[path]
-                )
+            .sorted()
+
+        let opaqueFolderExtensions: Set<String> = Set(
+            Target.validResourceCompatibleFolderExtensions + Target.validSourceCompatibleFolderExtensions
+        )
+
+        var opaqueBundleRoots = Set<AbsolutePath>()
+
+        let resolvedFiles = allPaths.compactMap { filePath -> BuildableFolderFile? in
+            if exclusions.contains(filePath) { return nil }
+
+            if opaqueBundleRoots.contains(where: { filePath.isDescendant(of: $0) }) {
+                return nil
             }
+
+            if let ext = filePath.extension, opaqueFolderExtensions.contains(ext) {
+                opaqueBundleRoots.insert(filePath)
+            }
+
+            return BuildableFolderFile(
+                path: filePath,
+                compilerFlags: compilerFlagsByPath[filePath]
+            )
+        }
 
         return XcodeGraph.BuildableFolder(
             path: path,
