@@ -133,7 +133,7 @@ Ayrıca, şunlardan birini yapmanız gerekecektir:
 - `xcodebuild` eylemlerini çağırırken
   <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> komutunu kullanın.
-- `-resultBundlePath` ekleyin. `xcodebuild` çağrısına.
+- `-resultBundlePath` ekleyin. `xcodebuild` çağrısına ekleyin.
 
 `xcodebuild` komutları, `-resultBundlePath` olmadan projenizi test ettiğinde,
 gerekli sonuç paketi dosyaları oluşturulmaz. `tuist inspect test` post-action,
