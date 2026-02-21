@@ -22,7 +22,7 @@ herramienta se encargaba de instalar y activar las versiones de Tuist,
 garantizando el determinismo en todos los entornos. Con el objetivo de reducir
 la superficie de características de Tuist, decidimos eliminar `tuistenv` en
 favor de [Mise](https://mise.jdx.dev/), una herramienta que hace el mismo
-trabajo pero es más flexible y se puede utilizar en diferentes herramientas. Si
+trabajo, pero es más flexible y se puede utilizar en diferentes herramientas. Si
 utilizabas `tuistenv`, tendrás que desinstalar la versión actual de Tuist
 ejecutando `curl -Ls https://uninstall.tuist.io | bash` y, a continuación,
 instalarla utilizando el método de instalación que prefieras. Recomendamos
@@ -75,10 +75,10 @@ modelo `Target` es `Target.target`.
 
 ### Se ha cambiado el nombre de `--no-cache` a `--no-binary-cache.` {#renamed-nocache-to-nobinarycache}
 
-Debido a que el indicador `--no-cache` era ambiguo, decidimos cambiarle el
-nombre a `--no-binary-cache` para dejar claro que se refiere a la caché binaria.
-Si utilizabas el indicador `--no-cache`, tendrás que actualizar tu proyecto para
-utilizar el indicador `--no-binary-cache` en su lugar.
+Debido a que la bandera `--no-cache` era ambigua, decidimos cambiarle el nombre
+a `--no-binary-cache` para dejar claro que se refiere a la caché binaria. Si
+estabas utilizando la bandera `--no-cache`, tendrás que actualizar tu proyecto
+para utilizar la bandera `--no-binary-cache` en su lugar.
 
 ### Renombrado `tuist fetch` a `tuist install` {#renamed-tuist-fetch-to-tuist-install}
 
@@ -123,10 +123,10 @@ tendrás que actualizar tu proyecto para utilizar el indicador `tuist cache
 
 Antes de Tuist 4, se podían definir perfiles de almacenamiento en caché en
 `Tuist/Config.swift`, que contenía una configuración para la caché. Decidimos
-eliminar esta función porque podía generar confusión al utilizarla en el proceso
-de generación con un perfil distinto al que se utilizó para generar el proyecto.
-Además, podía llevar a los usuarios a utilizar un perfil de depuración para
-crear una versión de lanzamiento de la aplicación, lo que podía dar lugar a
+eliminar esta función porque podía dar lugar a confusión al utilizarla en el
+proceso de generación con un perfil distinto al que se utilizó para generar el
+proyecto. Además, podía llevar a los usuarios a utilizar un perfil de depuración
+para crear una versión de lanzamiento de la aplicación, lo que podía dar lugar a
 resultados inesperados. En su lugar, hemos introducido la opción
 `--configuration`, que se puede utilizar para especificar la configuración que
 se desea utilizar al generar el proyecto. Si utilizabas perfiles de
@@ -202,7 +202,7 @@ Carthage, ahora es Carthage.
 <!-- -->
 :::
 
-### Se ha eliminado `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
+### Se ha eliminado `TargetDependency.packagePlugin API` {#dropped-the-targetdependencypackageplugin-api}
 
 Antes de Tuist 4, se podía definir una dependencia de complemento de paquete
 utilizando el caso `TargetDependency.packagePlugin`. Después de ver que Swift
