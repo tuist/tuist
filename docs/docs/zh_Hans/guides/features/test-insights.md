@@ -42,7 +42,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 <!-- -->
 :::
 
-只要登录Tuist账户，您的测试运行情况就会被持续追踪。您可在Tuist仪表盘查看测试洞察，并观察其随时间的变化趋势：
+只要登录Tuist账户，您的测试运行情况就会被追踪记录。您可在Tuist仪表盘查看测试洞察，并观察其随时间的变化趋势：
 
 ![测试洞察仪表盘](/images/guides/features/insights/tests-dashboard.png)
 
@@ -58,11 +58,11 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 <!-- -->
 :::
 > 
-> 若您不希望在自动生成的方案中追踪测试洞察，可通过
+> 若您不希望在自动生成的方案中追踪测试洞察，请通过
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> 生成选项禁用该功能。
+> 生成的选项禁用该功能。
 
-若使用自定义方案的生成项目，可为测试洞察设置后置操作：
+若使用自定义方案生成的项目，可为测试洞察设置后置操作：
 
 ```swift
 let project = Project(
@@ -116,7 +116,7 @@ testAction: .testAction(
 - 调用`xcodebuild` 操作时，请使用
   <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> 命令。
-- `在调用 ``` 时添加 `xcodebuild` ` 参数 `-resultBundlePath` `。
+- `` 在调用 ``` 时添加 `xcodebuild` 参数 `-resultBundlePath` `。
 
-` `` 当执行 ``` 时，若 `xcodebuild` 通过 `` ` 测试项目却未指定 ``` 参数，则不会生成必需的结果包文件。而 `tuist
+` `` 当执行 ``` 时，若 `xcodebuild` 通过 `` ` 测试项目但未指定 ``` 参数，则不会生成必需的结果包文件。而 `tuist
 inspect test` 的 `post-action` 阶段（详见 `
