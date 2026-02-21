@@ -1,6 +1,5 @@
 import FileSystem
 import Foundation
-import Path
 import ProjectDescription
 import TuistCore
 import XcodeGraph
@@ -21,32 +20,15 @@ extension XcodeGraph.BuildableFolder {
         let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
-        let allPaths = try await fileSystem
+        let resolvedFiles = try await fileSystem
             .glob(directory: path, include: ["**/*"]).collect()
-            .sorted()
-
-        let opaqueFolderExtensions: Set<String> = Set(
-            Target.validResourceCompatibleFolderExtensions + Target.validSourceCompatibleFolderExtensions
-        )
-
-        var opaqueBundleRoots = Set<AbsolutePath>()
-
-        let resolvedFiles = allPaths.compactMap { filePath -> BuildableFolderFile? in
-            if exclusions.contains(filePath) { return nil }
-
-            if opaqueBundleRoots.contains(where: { filePath.isDescendant(of: $0) }) {
-                return nil
+            .compactMap { path -> BuildableFolderFile? in
+                if exclusions.contains(path) { return nil }
+                return BuildableFolderFile(
+                    path: path,
+                    compilerFlags: compilerFlagsByPath[path]
+                )
             }
-
-            if let ext = filePath.extension, opaqueFolderExtensions.contains(ext) {
-                opaqueBundleRoots.insert(filePath)
-            }
-
-            return BuildableFolderFile(
-                path: filePath,
-                compilerFlags: compilerFlagsByPath[filePath]
-            )
-        }
 
         return XcodeGraph.BuildableFolder(
             path: path,

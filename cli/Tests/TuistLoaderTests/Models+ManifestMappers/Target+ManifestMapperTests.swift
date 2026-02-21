@@ -118,8 +118,8 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                         ]),
                     ],
                     resolvedFiles: [
-                        BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
                         BuildableFolderFile(path: buildableFlagsFile, compilerFlags: "-print-stats"),
+                        BuildableFolderFile(path: buildableSourceFile, compilerFlags: nil),
                     ]
                 ),
             ]

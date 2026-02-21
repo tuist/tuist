@@ -5,7 +5,6 @@ import Path
 import ProjectDescription
 import Testing
 import TuistCore
-import TuistSupport
 import XcodeGraph
 @testable import TuistLoader
 @testable import TuistTesting
@@ -73,54 +72,6 @@ struct BuildableFolderManifestMapperTests {
 
         #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "File.swift")))
         #expect(!resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "Excluded.swift")))
-    }
-
-    @Test(.inTemporaryDirectory) func from_withOpaqueBundles_excludesFilesInsideBundles() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-
-        try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "Sources"))
-        try await fileSystem.touch(temporaryDirectory.appending(components: "Sources", "File.swift"))
-        try await fileSystem.makeDirectory(at: temporaryDirectory.appending(
-            components: "Resources",
-            "Images.xcassets",
-            "AppIcon.imageset"
-        ))
-        try await fileSystem.touch(
-            temporaryDirectory.appending(components: "Resources", "Images.xcassets", "Contents.json")
-        )
-        try await fileSystem.touch(
-            temporaryDirectory.appending(components: "Resources", "Images.xcassets", "AppIcon.imageset", "icon.png")
-        )
-
-        let manifest = ProjectDescription.BuildableFolder.folder(
-            .path(temporaryDirectory.pathString),
-            exceptions: .exceptions([])
-        )
-
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryDirectory,
-            rootDirectory: temporaryDirectory
-        )
-
-        let got = try await XcodeGraph.BuildableFolder.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths
-        )
-
-        let resolvedPaths = Set(got.resolvedFiles.map(\.path))
-
-        #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "File.swift")))
-        #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Resources", "Images.xcassets")))
-        #expect(!resolvedPaths.contains(temporaryDirectory.appending(
-            components: "Resources",
-            "Images.xcassets",
-            "Contents.json"
-        )))
-        #expect(
-            !resolvedPaths.contains(
-                temporaryDirectory.appending(components: "Resources", "Images.xcassets", "AppIcon.imageset", "icon.png")
-            )
-        )
     }
 
     @Test(.inTemporaryDirectory) func from_withNoExclusions_includesAllFiles() async throws {
@@ -215,37 +166,5 @@ struct BuildableFolderManifestMapperTests {
         #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "Tests", "TestFile.swift")))
         #expect(!resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "Tests", "Fixtures", "data.json")))
         #expect(!resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "Tests", "Fixtures", "nested.json")))
-    }
-
-    @Test(.inTemporaryDirectory) func from_withBundleFolder_excludesFilesInsideBundle() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-
-        try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "Sources"))
-        try await fileSystem.makeDirectory(at: temporaryDirectory.appending(components: "Resources", "Data.bundle"))
-        try await fileSystem.touch(temporaryDirectory.appending(components: "Sources", "File.swift"))
-        try await fileSystem.touch(temporaryDirectory.appending(components: "Resources", "Data.bundle", "data.json"))
-        try await fileSystem.touch(temporaryDirectory.appending(components: "Resources", "Data.bundle", "info.plist"))
-
-        let manifest = ProjectDescription.BuildableFolder.folder(
-            .path(temporaryDirectory.pathString),
-            exceptions: .exceptions([])
-        )
-
-        let generatorPaths = GeneratorPaths(
-            manifestDirectory: temporaryDirectory,
-            rootDirectory: temporaryDirectory
-        )
-
-        let got = try await XcodeGraph.BuildableFolder.from(
-            manifest: manifest,
-            generatorPaths: generatorPaths
-        )
-
-        let resolvedPaths = Set(got.resolvedFiles.map(\.path))
-
-        #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "File.swift")))
-        #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Resources", "Data.bundle")))
-        #expect(!resolvedPaths.contains(temporaryDirectory.appending(components: "Resources", "Data.bundle", "data.json")))
-        #expect(!resolvedPaths.contains(temporaryDirectory.appending(components: "Resources", "Data.bundle", "info.plist")))
     }
 }

@@ -176,11 +176,8 @@ struct TargetGenerator: TargetGenerating {
             pbxTarget.fileSystemSynchronizedGroups?.append(synchronizedGroup)
 
             for exception in buildableFolder.exceptions {
-                let sourceExtensions = Set(Target.validSourceExtensions + Target.validSourceCompatibleFolderExtensions)
-                let membershipExceptions = exception.excluded.compactMap { path -> String? in
-                    guard path.isDescendant(of: buildableFolder.path) else { return nil }
-                    guard let ext = path.extension, sourceExtensions.contains(ext) else { return nil }
-                    return path.relative(to: buildableFolder.path).pathString
+                let membershipExceptions = exception.excluded.compactMap {
+                    $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
                 }
                 let additionalCompilerFlagsByRelativePath = Dictionary(uniqueKeysWithValues: exception.compilerFlags
                     .compactMap { path, compilerFlags -> (
