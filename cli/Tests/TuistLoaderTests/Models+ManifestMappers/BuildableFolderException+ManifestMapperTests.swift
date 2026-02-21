@@ -32,7 +32,8 @@ struct BuildableFolderExceptionManifestMapperTests {
                     privateHeaders: ["Private.h"],
                     platformFilters: ["Resources/ios_only.mp4": [.ios]]
                 ),
-            buildableFolder: buildableFolder
+            buildableFolder: buildableFolder,
+            fileSystem: fileSystem
         )
 
         #expect(got.excluded == [buildableFolder.appending(components: ["Excluded.swift"])])
@@ -58,7 +59,8 @@ struct BuildableFolderExceptionManifestMapperTests {
         let got = try await XcodeGraph.BuildableFolderException.from(
             manifest: ProjectDescription.BuildableFolderException
                 .exception(excluded: ["**/*.json"]),
-            buildableFolder: buildableFolder
+            buildableFolder: buildableFolder,
+            fileSystem: fileSystem
         )
 
         let excludedSet = Set(got.excluded)

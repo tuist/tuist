@@ -9,10 +9,9 @@ import XcodeGraph
 extension XcodeGraph.BuildableFolderException {
     static func from(
         manifest: ProjectDescription.BuildableFolderException,
-        buildableFolder: AbsolutePath
+        buildableFolder: AbsolutePath,
+        fileSystem: FileSysteming
     ) async throws -> Self {
-        let fileSystem = FileSystem()
-
         var excluded: [AbsolutePath] = []
         for pattern in manifest.excluded {
             let expandedPaths = try await fileSystem.glob(directory: buildableFolder, include: [pattern]).collect()

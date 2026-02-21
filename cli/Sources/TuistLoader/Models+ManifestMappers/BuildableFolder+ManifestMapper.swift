@@ -13,18 +13,12 @@ extension XcodeGraph.BuildableFolder {
         let path = try generatorPaths.resolve(path: manifest.path)
         let fileSystem = FileSystem()
 
-        let exclusionPatterns = manifest.exceptions.exceptions.flatMap(\.excluded)
-
-        var exclusions = Set<AbsolutePath>()
-        for pattern in exclusionPatterns {
-            let expandedPaths = try await fileSystem.glob(directory: path, include: [pattern]).collect()
-            exclusions.formUnion(expandedPaths)
-        }
-
         let exceptions = try await XcodeGraph.BuildableFolderExceptions.from(
             manifest: manifest.exceptions,
-            buildableFolder: path
+            buildableFolder: path,
+            fileSystem: fileSystem
         )
+        let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
         let allPaths = try await fileSystem
