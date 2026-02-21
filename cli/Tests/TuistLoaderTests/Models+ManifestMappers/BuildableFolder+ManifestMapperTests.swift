@@ -24,7 +24,7 @@ struct BuildableFolderManifestMapperTests {
         let manifest = ProjectDescription.BuildableFolder.folder(
             .path(temporaryDirectory.pathString),
             exceptions: .exceptions([
-                .exception(excluded: ["**/*.json"])
+                .exception(excluded: ["**/*.json"]),
             ])
         )
 
@@ -55,7 +55,7 @@ struct BuildableFolderManifestMapperTests {
         let manifest = ProjectDescription.BuildableFolder.folder(
             .path(temporaryDirectory.pathString),
             exceptions: .exceptions([
-                .exception(excluded: ["Sources/Excluded.swift"])
+                .exception(excluded: ["Sources/Excluded.swift"]),
             ])
         )
 
@@ -80,7 +80,11 @@ struct BuildableFolderManifestMapperTests {
 
         try await fileSystem.makeDirectory(at: temporaryDirectory.appending(component: "Sources"))
         try await fileSystem.touch(temporaryDirectory.appending(components: "Sources", "File.swift"))
-        try await fileSystem.makeDirectory(at: temporaryDirectory.appending(components: "Resources", "Images.xcassets", "AppIcon.imageset"))
+        try await fileSystem.makeDirectory(at: temporaryDirectory.appending(
+            components: "Resources",
+            "Images.xcassets",
+            "AppIcon.imageset"
+        ))
         try await fileSystem.touch(
             temporaryDirectory.appending(components: "Resources", "Images.xcassets", "Contents.json")
         )
@@ -107,7 +111,11 @@ struct BuildableFolderManifestMapperTests {
 
         #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Sources", "File.swift")))
         #expect(resolvedPaths.contains(temporaryDirectory.appending(components: "Resources", "Images.xcassets")))
-        #expect(!resolvedPaths.contains(temporaryDirectory.appending(components: "Resources", "Images.xcassets", "Contents.json")))
+        #expect(!resolvedPaths.contains(temporaryDirectory.appending(
+            components: "Resources",
+            "Images.xcassets",
+            "Contents.json"
+        )))
         #expect(
             !resolvedPaths.contains(
                 temporaryDirectory.appending(components: "Resources", "Images.xcassets", "AppIcon.imageset", "icon.png")
@@ -154,7 +162,7 @@ struct BuildableFolderManifestMapperTests {
         let manifest = ProjectDescription.BuildableFolder.folder(
             .path(temporaryDirectory.pathString),
             exceptions: .exceptions([
-                .exception(compilerFlags: ["Sources/File.swift": "-O0"])
+                .exception(compilerFlags: ["Sources/File.swift": "-O0"]),
             ])
         )
 
@@ -187,7 +195,7 @@ struct BuildableFolderManifestMapperTests {
         let manifest = ProjectDescription.BuildableFolder.folder(
             .path(temporaryDirectory.pathString),
             exceptions: .exceptions([
-                .exception(excluded: ["**/Fixtures/**/*.json"])
+                .exception(excluded: ["**/Fixtures/**/*.json"]),
             ])
         )
 

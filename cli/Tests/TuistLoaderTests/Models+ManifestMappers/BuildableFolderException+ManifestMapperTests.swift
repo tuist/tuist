@@ -13,7 +13,7 @@ import XcodeGraph
 struct BuildableFolderExceptionManifestMapperTests {
     private let fileSystem = FileSystem()
 
-    @Test(.inTemporaryDirectory) func test_from_withLiteralPaths() async throws {
+    @Test(.inTemporaryDirectory) func from_withLiteralPaths() async throws {
         let buildableFolder = try #require(FileSystem.temporaryTestDirectory)
 
         try await fileSystem.touch(buildableFolder.appending(component: "Excluded.swift"))
@@ -35,19 +35,19 @@ struct BuildableFolderExceptionManifestMapperTests {
             buildableFolder: buildableFolder
         )
 
-        #expect(got.excluded == [buildableFolder.appending(component: "Excluded.swift")])
-        #expect(got.compilerFlags == [buildableFolder.appending(component: "WithFlags.swift"): "-flag"])
-        #expect(got.publicHeaders == [buildableFolder.appending(component: "Public.h")])
-        #expect(got.privateHeaders == [buildableFolder.appending(component: "Private.h")])
+        #expect(got.excluded == [buildableFolder.appending(components: ["Excluded.swift"])])
+        #expect(got.compilerFlags == [buildableFolder.appending(components: ["WithFlags.swift"]): "-flag"])
+        #expect(got.publicHeaders == [buildableFolder.appending(components: ["Public.h"])])
+        #expect(got.privateHeaders == [buildableFolder.appending(components: ["Private.h"])])
         #expect(
             got.platformFilters == [
-                buildableFolder.appending(components: "Resources", "ios_only.mp4"):
+                buildableFolder.appending(components: ["Resources", "ios_only.mp4"]):
                     XcodeGraph.PlatformCondition.when([.ios])!,
             ]
         )
     }
 
-    @Test(.inTemporaryDirectory) func test_from_withGlobPattern() async throws {
+    @Test(.inTemporaryDirectory) func from_withGlobPattern() async throws {
         let buildableFolder = try #require(FileSystem.temporaryTestDirectory)
 
         try await fileSystem.makeDirectory(at: buildableFolder.appending(component: "Sources"))
