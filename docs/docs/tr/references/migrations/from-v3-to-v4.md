@@ -9,17 +9,17 @@
 
 [Tuist 4](https://github.com/tuist/tuist/releases/tag/4.0.0) sürümünün
 yayınlanmasıyla birlikte, projenin uzun vadede kullanımını ve bakımını
-kolaylaştıracağına inandığımız bazı önemli değişiklikleri projeye dahil ettik.
-Bu belge, Tuist 3'ten Tuist 4'e yükseltmek için projenizde yapmanız gereken
+kolaylaştıracağına inandığımız bazı önemli değişiklikleri projeye ekledik. Bu
+belge, Tuist 3'ten Tuist 4'e yükseltmek için projenizde yapmanız gereken
 değişiklikleri özetlemektedir.
 
 ### `aracılığıyla bırakılan sürüm yönetimi tuistenv` {#dropped-version-management-through-tuistenv}
 
 Tuist 4'ten önce, kurulum komut dosyası, kurulum sırasında `tuist` olarak
-yeniden adlandırılan `tuistenv` adlı bir araç yüklerdi. Bu araç, Tuist
+yeniden adlandırılacak olan `tuistenv` adlı bir araç yüklerdi. Bu araç, Tuist
 sürümlerinin kurulumunu ve etkinleştirilmesini sağlayarak ortamlar arasında
-belirginliği garanti ederdi. Tuist'in özellik yüzeyini azaltmak amacıyla, aynı
-işi yapan ancak daha esnek ve farklı araçlarda kullanılabilen
+belirleyiciliği garanti ederdi. Tuist'in özellik yüzeyini azaltmak amacıyla,
+aynı işi yapan ancak daha esnek ve farklı araçlarda kullanılabilen
 [Mise](https://mise.jdx.dev/) adlı aracı tercih ederek `tuistenv` 'yi kaldırmaya
 karar verdik. `tuistenv` kullanıyorsanız, `curl -Ls https://uninstall.tuist.io |
 bash` komutunu çalıştırarak Tuist'in mevcut sürümünü kaldırmanız ve ardından
@@ -80,7 +80,7 @@ bayrağını kullanacak şekilde güncellemeniz gerekecektir.
 `tuist fetch` komutunu, sektördeki genel uygulamaya uygun hale getirmek için
 `tuist install` olarak yeniden adlandırdık. `tuist fetch` komutunu
 kullanıyorsanız, projenizi `tuist install` komutunu kullanacak şekilde
-güncellemeniz gerekecektir.
+güncellemeniz gerekir.
 
 ### [ `'yi bağımlılıklar için DSL olarak benimseyin. Package.swift` ](https://github.com/tuist/tuist/pull/5862) {#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
@@ -88,16 +88,16 @@ Tuist 4'ten önce, bağımlılıkları `Dependencies.swift` dosyasında
 tanımlayabilirdiniz. Bu özel format, [Dependabot](https://github.com/dependabot)
 veya [Renovatebot](https://github.com/renovatebot/renovate) gibi araçların
 bağımlılıkları otomatik olarak güncelleme desteğini bozdu. Ayrıca, kullanıcılar
-için gereksiz dolaylı işlemler getirdi. Bu nedenle, Tuist'te bağımlılıkları
+için gereksiz dolaylılıklar getirdi. Bu nedenle, Tuist'te bağımlılıkları
 tanımlamanın tek yolu olarak `Package.swift` kullanmaya karar verdik.
 `Dependencies.swift` dosyasını kullanıyorsanız, içeriği
 `Tuist/Dependencies.swift` kök dizinindeki `Package.swift` dosyasına taşıyın ve
-entegrasyonu yapılandırmak için `#if TUIST` yönergesini kullanın. Swift paketi
+entegrasyonu yapılandırmak için `#if TUIST` yönergesini kullanın. Swift package
 bağımlılıklarını entegre etme hakkında daha fazla bilgiyi
 <LocalizedLink href="/guides/features/projects/dependencies#swift-packages">burada
 bulabilirsiniz.</LocalizedLink>
 
-### `tuist cache warm` adını `tuist cache olarak değiştirdi.` {#renamed-tuist-cache-warm-to-tuist-cache}
+### `tuist cache warm` adını `tuist cache olarak değiştirdik.` {#renamed-tuist-cache-warm-to-tuist-cache}
 
 Kısalık için, `tuist cache warm` komutunu `tuist cache` olarak yeniden
 adlandırmaya karar verdik. `tuist cache warm` komutunu kullanıyorsanız,
@@ -122,12 +122,12 @@ kullanıcıların hata ayıklama profilini kullanarak uygulamanın sürümünü
 oluşturmalarına yol açabilir ve bu da beklenmedik sonuçlara neden olabilir.
 Bunun yerine, projeyi oluştururken kullanmak istediğiniz yapılandırmayı
 belirtmek için kullanabileceğiniz `--configuration` seçeneğini ekledik. Önbellek
-profilleri kullanıyorsanız, projenizi `--configuration` seçeneğini kullanacak
+profillerini kullanıyorsanız, projenizi `--configuration` seçeneğini kullanacak
 şekilde güncellemeniz gerekir.
 
 ### `--skip-cache` argümanları lehine kaldırıldı. {#removed-skipcache-in-favor-of-arguments}
 
-`--skip-cache` bayrağını `generate` komutundan kaldırdık ve bunun yerine
+`--skip-cache` bayrağını `generate` komutundan kaldırdık. Bunun yerine,
 argümanları kullanarak ikili önbelleğin hangi hedefler için atlanacağını kontrol
 etmeyi tercih ettik. `--skip-cache` bayrağını kullanıyorsanız, projenizi
 argümanları kullanacak şekilde güncellemeniz gerekecektir.
@@ -175,12 +175,12 @@ için `cp` komutunu kullanabilirsiniz.
 
 Tuist 4'ten önce, Carthage bağımlılıkları `Dependencies.swift` dosyasında
 tanımlanabilirdi ve kullanıcılar `tuist fetch` komutunu çalıştırarak bu dosyayı
-alabilirdi. Ayrıca, özellikle Swift paketi'nin bağımlılıkları yönetmek için
-tercih edilen yöntem olacağı bir gelecek göz önüne alındığında, bunun Tuist için
-zor bir hedef olduğunu düşündük. Carthage bağımlılıkları kullanıyorsanız,
-`Carthage` adresini doğrudan kullanarak önceden derlenmiş çerçeveleri ve
-XCFrameworks'ü Carthage'ın standart dizinine çekmeniz ve ardından
-`TargetDependency.xcframework` ve `TargetDependency.framework` örneklerini
+alabilirdi. Ayrıca, özellikle Swift package Manager'ın bağımlılıkları yönetmek
+için tercih edilen yol olacağı bir gelecek göz önüne alındığında, bunun Tuist
+için zor bir hedef olduğunu düşündük. Carthage bağımlılıkları kullanıyorsanız,
+önceden derlenmiş çerçeveleri ve XCFrameworks'ü Carthage'ın standart dizinine
+çekmek için `Carthage` adresini doğrudan kullanmanız ve ardından
+`TargetDependency.xcframework` ve `TargetDependency.framework` durumlarını
 kullanarak hedeflerinizden bu ikili dosyalara referans vermeniz gerekir.
 
 ::: info CARTHAGE IS STILL SUPPORTED
@@ -196,9 +196,9 @@ aitti, şimdi ise Carthage'a ait.
 ### `TargetDependency.packagePlugin` API kaldırıldı. {#dropped-the-targetdependencypackageplugin-api}
 
 Tuist 4'ten önce, `TargetDependency.packagePlugin` durumunu kullanarak bir paket
-eklenti bağımlılığını tanımlayabilirdiniz. Swift paketi'nin yeni paket türleri
-tanıttığını gördükten sonra, API'yi daha esnek ve geleceğe dönük bir hale
-getirmek için yenilemeye karar verdik. `TargetDependency.packagePlugin`
+eklenti bağımlılığını tanımlayabilirdiniz. Swift package Yöneticisi'nin yeni
+paket türleri tanıttığını gördükten sonra, API'yi daha esnek ve geleceğe dönük
+bir hale getirmek için yenilemeye karar verdik. `TargetDependency.packagePlugin`
 kullanıyorsanız, bunun yerine `TargetDependency.package` kullanmanız ve
 kullanmak istediğiniz paket türünü argüman olarak geçirmeniz gerekecektir.
 
