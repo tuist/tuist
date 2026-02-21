@@ -124,4 +124,4 @@ CI에 대한 빌드 및 테스트 분석을 추적하려면 CI가
 - `xcodebuild` 호출에 `-resultBundlePath` 을 추가합니다.
 
 `xcodebuild` 명령을 `-resultBundlePath` 옵션 없이 프로젝트 테스트 시, 필요한 결과 번들 파일이 생성되지 않습니다.
-`tuist inspect test` 사후 작업은 테스트 분석을 위해 해당 파일을 요구합니다.
+`tuist inspect test` 사후 작업은 테스트 분석을 위해 이 파일들이 필요합니다.
