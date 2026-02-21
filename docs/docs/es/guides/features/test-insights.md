@@ -35,8 +35,8 @@ esquema:
 ![Acción posterior para inspeccionar
 pruebas](/images/guides/features/insights/inspect-test-scheme-post-action.png)
 
-Si utiliza [Mise](https://mise.jdx.dev/), su script deberá activar `tuist` en el
-entorno post-action:
+Si utilizas [Mise](https://mise.jdx.dev/), tu script deberá activar `tuist` en
+el entorno post-action:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
