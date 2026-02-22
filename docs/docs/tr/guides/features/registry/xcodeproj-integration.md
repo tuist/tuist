@@ -8,9 +8,9 @@
 # XcodeProj tabanlı paket entegrasyonu ile oluşturulmuş projele {#generated-project-with-xcodeproj-based-integration}
 
 <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj
-tabanlı entegrasyon</LocalizedLink> kullanırken, kayıtta mevcutsa bağımlılıkları
-çözmek için ``--replace-scm-with-registry`` bayrağını kullanabilirsiniz. Bunu
-`installOptions` dosyasına `Tuist.swift` dosyasına ekleyin:
+tabanlı entegrasyon</LocalizedLink> kullanırken, Kayıt’tan bağımlılıkları çözmek
+için ``--replace-scm-with-registry`` bayrağını kullanabilirsiniz. Bunu,
+`Tuist.swift` dosyanızdaki `installOptions` dosyasına ekleyin:
 ```swift
 import ProjectDescription
 
@@ -23,8 +23,8 @@ let tuist = Tuist(
 ```
 
 Bağımlılıkları her çözdüğünüzde kayıt defterinin kullanılmasını sağlamak
-istiyorsanız, `Tuist/Package.swift` dosyanızdaki `dependencies` bölümünü, URL
-yerine kayıt defteri tanımlayıcısını kullanacak şekilde güncellemeniz gerekir.
+istiyorsanız, `dependencies` adresindeki `Tuist/Package.swift` dosyanızı
+güncelleyerek URL yerine kayıt defteri tanımlayıcısını kullanmanız gerekir.
 Kayıt defteri tanımlayıcısı her zaman `{organization}.{repository}`
 biçimindedir. Örneğin, `swift-composable-architecture` paketinin kayıt defterini
 kullanmak için aşağıdakileri yapın:
