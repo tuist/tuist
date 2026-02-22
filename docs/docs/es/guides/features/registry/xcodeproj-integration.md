@@ -27,7 +27,7 @@ Si quieres asegurarte de que el registro se utiliza cada vez que resuelves
 dependencias, tendrás que actualizar `dependencies` en tu `Tuist/Package.swift`
 archivo para utilizar el identificador del registro en lugar de una URL. El
 identificador del registro siempre tiene el formato
-`{organization}.{repository}`. Por ejemplo, para utilizar el registro para el
+`{organización}.{repositorio}`. Por ejemplo, para utilizar el registro del
 paquete `swift-composable-architecture`, haz lo siguiente:
 ```diff
 dependencies: [
