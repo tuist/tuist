@@ -15,10 +15,10 @@
 :::
 
 Kararsız testler, aynı kodla birden çok kez çalıştırıldığında farklı sonuçlar
-(başarılı veya başarısız) veren testlerdir. Bu testler, test paketine olan
-güveni zedeler ve geliştiricilerin yanlış başarısızlıkları araştırmak için zaman
-kaybetmelerine neden olur. Tuist, kararsız testleri otomatik olarak algılar ve
-bunları zaman içinde takip etmenize yardımcı olur.
+(geçer veya kalır) üreten testlerdir. Test paketine olan güveni zedeler ve
+geliştiricilerin zamanını yanlış hataları araştırmakla harcamasına neden olur.
+Tuist, kararsız testleri otomatik olarak algılar ve zaman içinde bunları takip
+etmenize yardımcı olur.
 
 ![Flaky Tests
 sayfası](/images/guides/features/test-insights/flaky-tests-page.png)
@@ -31,7 +31,7 @@ Tuist, iki şekilde hatalı testleri algılar:
 
 Xcode'un yeniden deneme işlevini kullanarak testler yaptığınızda (
 `-retry-tests-on-failure` veya `-test-iterations` kullanarak), Tuist her
-denemenin sonuçlarını analiz eder. Bir test bazı denemelerde başarısız olurken
+denemenin sonucunu analiz eder. Bir test bazı denemelerde başarısız olurken
 diğerlerinde başarılı olursa, bu test "kararsız" olarak işaretlenir.
 
 Örneğin, bir test ilk denemede başarısız olur ancak yeniden denemede başarılı
@@ -51,7 +51,7 @@ detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
 Test tekrarları olmasa bile, Tuist aynı taahhütte farklı CI çalıştırmalarındaki
 sonuçları karşılaştırarak dengesiz testleri tespit edebilir. Bir test bir CI
-çalıştırmasında başarılı olurken, aynı taahhütte başka bir çalıştırmada
+çalıştırmasında başarılı olurken, aynı taahhüt için başka bir çalıştırmada
 başarısız olursa, her iki çalıştırma da dengesiz olarak işaretlenir.
 
 Bu, yeniden denemelerle yakalanamayacak kadar tutarlı bir şekilde başarısız
