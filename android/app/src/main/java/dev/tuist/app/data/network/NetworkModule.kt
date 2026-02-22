@@ -6,6 +6,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.data.EnvironmentConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -58,9 +59,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
+    fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi, environmentConfig: EnvironmentConfig): Retrofit =
         Retrofit.Builder()
-            .baseUrl(BuildConfig.SERVER_URL.trimEnd('/') + "/")
+            .baseUrl(environmentConfig.serverUrl.trimEnd('/') + "/")
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()

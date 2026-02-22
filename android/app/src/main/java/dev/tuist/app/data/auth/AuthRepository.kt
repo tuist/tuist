@@ -6,6 +6,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.browser.customtabs.CustomTabsIntent
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
 import kotlinx.coroutines.Dispatchers
@@ -27,13 +28,14 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val tokenStorage: TokenStorage,
     private val okHttpClient: OkHttpClient,
+    private val environmentConfig: EnvironmentConfig,
 ) {
     private var pendingCodeVerifier: String? = null
     private var pendingState: String? = null
     private val _authenticating = MutableStateFlow(false)
 
-    private val serverUrl: String get() = BuildConfig.SERVER_URL
-    private val clientId: String get() = BuildConfig.OAUTH_CLIENT_ID
+    private val serverUrl: String get() = environmentConfig.serverUrl
+    private val clientId: String get() = environmentConfig.oauthClientId
     private val redirectUri = "tuist://oauth-callback"
 
     val authState: Flow<AuthState> = combine(
