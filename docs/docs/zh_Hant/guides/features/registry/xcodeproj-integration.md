@@ -9,8 +9,8 @@
 
 使用
 <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj
-基礎整合</LocalizedLink>時，可透過``--replace-scm-with-registry``
-參數從註冊表解析可用依賴項。請將此參數加入`installOptions` 設定檔中的`Tuist.swift` 檔案：
+基礎整合</LocalizedLink> 時，可透過``--replace-scm-with-registry``
+參數從註冊表解析可用依賴項。請將此參數加入`installOptions` 設定中，位置位於`Tuist.swift` 檔案內：
 ```swift
 import ProjectDescription
 
@@ -23,7 +23,7 @@ let tuist = Tuist(
 ```
 
 若要確保每次解析依賴項時皆使用註冊表，您需在`Tuist/Package.swift` 檔案中更新`dependencies` 設定，改用註冊表識別碼取代
-URL。註冊表識別碼格式固定為`{組織}.{儲存庫}` 。例如欲使用`swift-composable-architecture`
+URL。註冊表識別碼格式固定為`{組織名稱}.{儲存庫名稱}` 。例如欲使用`swift-composable-architecture`
 套件的註冊表，請執行以下操作：
 ```diff
 dependencies: [
