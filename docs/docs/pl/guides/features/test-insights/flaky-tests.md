@@ -14,8 +14,8 @@
 <!-- -->
 :::
 
-Niespójne testy to testy, które dają różne wyniki (pozytywne lub negatywne) po
-wielokrotnym uruchomieniu tego samego kodu. Podważają one zaufanie do zestawu
+Niespójne testy to testy, które po wielokrotnym uruchomieniu tego samego kodu
+dają różne wyniki (pozytywne lub negatywne). Podważają one zaufanie do zestawu
 testów i powodują stratę czasu programistów na badanie fałszywych błędów. Tuist
 automatycznie wykrywa niespójne testy i pomaga je śledzić w czasie.
 
@@ -49,11 +49,11 @@ testowego](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
 ### Wykrywanie przekroczenia linii {#cross-run-detection}
 
-Nawet bez ponawiania testów Tuist może wykrywać niestabilne testy, porównując
-wyniki różnych przebiegów CI dla tego samego zatwierdzenia. Jeśli test zakończy
-się powodzeniem w jednym przebiegu CI, ale zakończy się niepowodzeniem w innym
-przebiegu dla tego samego zatwierdzenia, oba przebiegi zostaną oznaczone jako
-niestabilne.
+Nawet bez ponownych prób testów Tuist może wykrywać niestabilne testy,
+porównując wyniki różnych przebiegów CI dla tego samego zatwierdzenia. Jeśli
+test zakończy się powodzeniem w jednym przebiegu CI, ale zakończy się
+niepowodzeniem w innym przebiegu dla tego samego zatwierdzenia, oba przebiegi
+zostaną oznaczone jako niestabilne.
 
 Jest to szczególnie przydatne w przypadku wykrywania niestabilnych testów, które
 nie kończą się niepowodzeniem na tyle konsekwentnie, aby zostały wykryte przez
