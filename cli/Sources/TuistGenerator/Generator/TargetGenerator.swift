@@ -189,13 +189,25 @@ struct TargetGenerator: TargetGenerating {
                     }
                 )
 
+                let platformFiltersByRelativePath = Dictionary(
+                    uniqueKeysWithValues: exception.platformFilters
+                        .compactMap { path, condition -> (String, [String])? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (
+                                path.relative(to: buildableFolder.path).pathString,
+                                condition.platformFilters.xcodeprojValue
+                            )
+                        }
+                )
+
                 let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
                     target: pbxTarget,
                     membershipExceptions: membershipExceptions,
                     publicHeaders: exception.publicHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     privateHeaders: exception.privateHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
-                    attributesByRelativePath: nil
+                    attributesByRelativePath: nil,
+                    platformFiltersByRelativePath: platformFiltersByRelativePath.isEmpty ? nil : platformFiltersByRelativePath
                 )
                 pbxproj.add(object: exceptionSet)
                 synchronizedGroup.exceptions?.append(exceptionSet)

@@ -77,18 +77,32 @@ defmodule TuistWeb.PreviewLive do
   end
 
   defp run_button_href(preview, user_agent) do
-    case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do
-      {"iOS", %AppBuild{}} ->
-        {String.to_atom("itms-services"),
-         "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
+    android_only? = android_only?(preview)
 
-      {"iOS", _} ->
-        nil
+    if android_only? do
+      apk_build = AppBuilds.latest_apk_app_build_for_preview(preview)
 
-      _ ->
-        {:tuist,
-         "open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{preview.id}&full_handle=#{preview.project.account.name}/#{preview.project.name}"}
+      if apk_build do
+        url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/app.apk")
+      end
+    else
+      case {user_agent.os.family, AppBuilds.latest_ipa_app_build_for_preview(preview)} do
+        {"iOS", %AppBuild{}} ->
+          {String.to_atom("itms-services"),
+           "//?action=download-manifest&url=#{url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/manifest.plist")}"}
+
+        {"iOS", _} ->
+          nil
+
+        _ ->
+          {:tuist,
+           "open-preview?server_url=#{TuistWeb.Endpoint.url()}&preview_id=#{preview.id}&full_handle=#{preview.project.account.name}/#{preview.project.name}"}
+      end
     end
+  end
+
+  defp android_only?(preview) do
+    preview.supported_platforms == [:android]
   end
 
   def handle_event(

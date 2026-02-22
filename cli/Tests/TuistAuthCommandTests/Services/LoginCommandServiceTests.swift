@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Testing
+import TuistConfigLoader
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistOIDC
@@ -24,6 +25,7 @@ struct LoginCommandServiceTests {
     private let authenticateService: MockAuthenticateServicing
     private let ciOIDCAuthenticator: MockCIOIDCAuthenticating
     private let exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
+    private let configLoader: MockConfigLoading
     private let subject: LoginCommandService
 
     init() {
@@ -33,10 +35,15 @@ struct LoginCommandServiceTests {
         authenticateService = MockAuthenticateServicing()
         ciOIDCAuthenticator = MockCIOIDCAuthenticating()
         exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        configLoader = MockConfigLoading()
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(serverURL)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(url: serverURL))
 
         subject = LoginCommandService(
             serverEnvironmentService: serverEnvironmentService,
@@ -44,7 +51,8 @@ struct LoginCommandServiceTests {
             userInputReader: userInputReader,
             authenticateService: authenticateService,
             ciOIDCAuthenticator: ciOIDCAuthenticator,
-            exchangeOIDCTokenService: exchangeOIDCTokenService
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            configLoader: configLoader
         )
     }
 
@@ -255,6 +263,35 @@ struct LoginCommandServiceTests {
         // Then
         verify(serverEnvironmentService)
             .url(configServerURL: .value(URL(string: "https://env.tuist.dev")!))
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func run_uses_config_url_when_no_server_url_argument_and_no_env_variable() async throws {
+        // Given
+        given(serverSessionController)
+            .authenticate(
+                serverURL: .any,
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
+            .willReturn(())
+
+        // When
+        try await subject.run(
+            email: nil,
+            password: nil,
+            serverURL: nil
+        )
+
+        // Then
+        verify(configLoader)
+            .loadConfig(path: .any)
+            .called(1)
+
+        verify(serverEnvironmentService)
+            .url(configServerURL: .value(serverURL))
             .called(1)
     }
 

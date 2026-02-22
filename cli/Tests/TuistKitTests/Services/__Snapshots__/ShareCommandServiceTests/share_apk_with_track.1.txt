@@ -1,0 +1,4 @@
+ℹ︎ Uploading My App ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒   0%
+✔︎ My App uploaded [0.0s]
+✔ Success
+  Share My App with others using the following link: https://test.tuist.io

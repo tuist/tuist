@@ -1484,6 +1484,26 @@ defmodule Tuist.AppBuildsTest do
       assert app_build.type == :ipa
     end
 
+    test "creates an apk type app build" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      attrs = %{
+        preview_id: preview.id,
+        type: :apk,
+        built_by_account_id: project.account.id,
+        supported_platforms: [:android]
+      }
+
+      # When
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
+
+      # Then
+      assert app_build.type == :apk
+      assert app_build.supported_platforms == [:android]
+    end
+
     test "creates an app build with binary_id and build_version" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1654,6 +1674,31 @@ defmodule Tuist.AppBuildsTest do
       assert unique_platforms == [:ios, :macos, :watchos]
       assert length(unique_platforms) == 3
     end
+
+    test "adds android platform from apk app build" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          supported_platforms: []
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      # When
+      updated_preview = AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+      # Then
+      assert updated_preview.supported_platforms == [:android]
+    end
   end
 
   describe "platform_string/1" do
@@ -1691,6 +1736,10 @@ defmodule Tuist.AppBuildsTest do
 
     test "returns correct string for macos platform" do
       assert AppBuilds.platform_string(:macos) == "macOS"
+    end
+
+    test "returns correct string for android platform" do
+      assert AppBuilds.platform_string(:android) == "Android"
     end
   end
 
@@ -1804,6 +1853,80 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert result.id == ipa_build.id
+    end
+  end
+
+  describe "latest_apk_app_build_for_preview/1" do
+    test "returns the latest apk app build for a preview" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      _ipa_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :ipa
+        )
+
+      _apk_build_1 =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      _apk_build_2 =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      preview_with_builds = Repo.preload(preview, :app_builds)
+
+      # When
+      result = AppBuilds.latest_apk_app_build_for_preview(preview_with_builds)
+
+      # Then
+      assert result.type == :apk
+      assert result.id
+    end
+
+    test "returns nil when preview has no apk app builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      _ipa_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :ipa
+        )
+
+      preview_with_builds = Repo.preload(preview, :app_builds)
+
+      # When
+      result = AppBuilds.latest_apk_app_build_for_preview(preview_with_builds)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns nil when preview has no app builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      preview_with_builds = Repo.preload(preview, :app_builds)
+
+      # When
+      result = AppBuilds.latest_apk_app_build_for_preview(preview_with_builds)
+
+      # Then
+      assert result == nil
     end
   end
 

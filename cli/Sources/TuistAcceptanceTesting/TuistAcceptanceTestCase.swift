@@ -13,6 +13,8 @@ import TuistExtension
 import TuistInitCommand
 @_exported import TuistKit
 @_exported import TuistRegistryCommand
+@_exported import TuistRunCommand
+@_exported import TuistShareCommand
 @_exported import TuistTestCommand
 import XcodeProj
 import XCTest

@@ -15,11 +15,17 @@ extension XcodeGraph.BuildableFolderException {
         })
         let publicHeaders = try manifest.publicHeaders.map { buildableFolder.appending(try RelativePath(validating: $0)) }
         let privateHeaders = try manifest.privateHeaders.map { buildableFolder.appending(try RelativePath(validating: $0)) }
+        let platformFilters = Dictionary(uniqueKeysWithValues: try manifest.platformFilters.compactMap {
+            key, filters -> (AbsolutePath, XcodeGraph.PlatformCondition)? in
+            guard let condition = XcodeGraph.PlatformCondition.when(filters.asGraphFilters) else { return nil }
+            return (buildableFolder.appending(try RelativePath(validating: key)), condition)
+        })
         return Self(
             excluded: excluded,
             compilerFlags: compilerFlags,
             publicHeaders: publicHeaders,
-            privateHeaders: privateHeaders
+            privateHeaders: privateHeaders,
+            platformFilters: platformFilters
         )
     }
 }

@@ -15,6 +15,7 @@ defmodule TuistWeb.PreviewController do
               :download_icon,
               :download_preview,
               :download_archive,
+              :download_apk,
               :manifest
             ]
 
@@ -133,6 +134,31 @@ defmodule TuistWeb.PreviewController do
     end
 
     send_resp(conn, :ok, Storage.get_object_as_string(storage_key, account))
+  end
+
+  def download_apk(
+        %{assigns: %{current_preview: preview, selected_account: account}} = conn,
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
+      ) do
+    app_build = AppBuilds.latest_apk_app_build_for_preview(preview)
+
+    storage_key =
+      app_build &&
+        AppBuilds.storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          app_build_id: app_build.id
+        })
+
+    if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
+      raise NotFoundError, dgettext("dashboard", "The preview APK doesn't exist or has expired.")
+    end
+
+    url = Storage.generate_download_url(storage_key, account, expires_in: 3600)
+
+    conn
+    |> redirect(external: url)
+    |> halt()
   end
 
   def manifest(

@@ -21,7 +21,7 @@ msgstr ""
 msgid "%{display_name} · Tuist"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:142
+#: lib/tuist_web/live/preview_live.html.heex:152
 #: lib/tuist_web/live/previews_live.ex:173
 #: lib/tuist_web/live/previews_live.html.heex:84
 #, elixir-autogen, elixir-format
@@ -33,18 +33,18 @@ msgstr ""
 msgid "Built at"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:125
+#: lib/tuist_web/live/preview_live.html.heex:133
 #, elixir-autogen, elixir-format
 msgid "Bundle identifier"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:149
+#: lib/tuist_web/live/preview_live.html.heex:159
 #: lib/tuist_web/live/previews_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Commit SHA"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:119
+#: lib/tuist_web/live/preview_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Created by"
 msgstr ""
@@ -54,7 +54,7 @@ msgstr ""
 msgid "Delete preview"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:105
+#: lib/tuist_web/live/preview_live.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Details"
 msgstr ""
@@ -65,12 +65,12 @@ msgid "Don't have the Tuist app installed?"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:23
-#: lib/tuist_web/live/preview_live.html.heex:83
+#: lib/tuist_web/live/preview_live.html.heex:87
 #, elixir-autogen, elixir-format
 msgid "Download"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:169
+#: lib/tuist_web/live/preview_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Install App"
 msgstr ""
@@ -85,13 +85,13 @@ msgstr ""
 msgid "Name"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:145
+#: lib/tuist_web/live/preview_live.html.heex:155
 #: lib/tuist_web/live/previews_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:214
+#: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
 msgstr ""
@@ -109,12 +109,13 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:190
+#: lib/tuist_web/live/preview_live.html.heex:203
+#: lib/tuist_web/live/preview_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:131
+#: lib/tuist_web/live/preview_live.html.heex:141
 #, elixir-autogen, elixir-format
 msgid "Ran at"
 msgstr ""
@@ -124,7 +125,7 @@ msgstr ""
 msgid "Ran by"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:94
+#: lib/tuist_web/live/preview_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Run"
 msgstr ""
@@ -134,12 +135,13 @@ msgstr ""
 msgid "Run the following command to share app preview."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:177
+#: lib/tuist_web/live/preview_live.html.heex:190
+#: lib/tuist_web/live/preview_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:180
+#: lib/tuist_web/live/preview_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
 msgstr ""
@@ -149,17 +151,17 @@ msgstr ""
 msgid "Share app previews in one click"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:111
+#: lib/tuist_web/live/preview_live.html.heex:115
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:207
+#: lib/tuist_web/live/preview_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:201
+#: lib/tuist_web/live/preview_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
 msgstr ""
@@ -169,7 +171,7 @@ msgstr ""
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:77
+#: lib/tuist_web/live/preview_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "V %{version}"
 msgstr ""
@@ -184,9 +186,29 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:157
+#: lib/tuist_web/live/preview_live.html.heex:167
 #: lib/tuist_web/live/previews_live.ex:165
 #: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Track"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "Package name"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.html.heex:193
+#, elixir-autogen, elixir-format
+msgid "Scan this QR code on your Android device to download and install this version of the app"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.html.heex:221
+#, elixir-autogen, elixir-format
+msgid "The APK for this preview is no longer available"
+msgstr ""
+
+#: lib/tuist_web/live/preview_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "This preview isn't available for download"
 msgstr ""

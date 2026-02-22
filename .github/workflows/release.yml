@@ -771,7 +771,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -798,8 +798,6 @@ jobs:
           context: .
           file: ./server/Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -861,7 +859,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -888,8 +886,6 @@ jobs:
           context: .
           file: ./cache/Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             CACHE_VERSION=${{ needs.check-releases.outputs.cache-next-version-number }}
             MIX_ENV=prod
@@ -1315,9 +1311,11 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
+            sed -i 's/public static let gradlePluginVersion = ".*"/public static let gradlePluginVersion = "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' cli/Sources/TuistConstants/Constants.swift
             git add gradle/CHANGELOG.md
             git add gradle/settings.gradle.kts
             git add gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt || true
+            git add cli/Sources/TuistConstants/Constants.swift
             FILES_ADDED=true
           fi
 

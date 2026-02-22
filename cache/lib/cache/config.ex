@@ -99,6 +99,21 @@ defmodule Cache.Config do
   """
   def registry_enabled?, do: registry_bucket() != nil and registry_github_token() != nil
 
+  def s3_protocols do
+    case Application.get_env(:cache, :s3)[:protocols] do
+      protocols when is_list(protocols) and protocols != [] -> protocols
+      _ -> [:http2, :http1]
+    end
+  end
+
+  def s3_virtual_host do
+    if Application.get_env(:ex_aws, :s3)[:virtual_host] do
+      true
+    else
+      false
+    end
+  end
+
   defp parse_float(nil, default), do: default
 
   defp parse_float(value, default) do

@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -5,10 +6,12 @@ import Mockable
 import Path
 import SnapshotTesting
 import Testing
+import TuistAndroid
 import TuistAutomation
 import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistGit
 import TuistLoader
 import TuistNooraTesting
 import TuistServer
@@ -17,7 +20,8 @@ import TuistTesting
 import TuistUserInputReader
 import XcodeGraph
 
-@testable import TuistKit
+import TuistKit
+@testable import TuistShareCommand
 
 @Suite(.snapshots)
 struct ShareCommandServiceTests {
@@ -34,6 +38,8 @@ struct ShareCommandServiceTests {
     private let appBundleLoader: MockAppBundleLoading
     private let fileUnarchiver: MockFileUnarchiving
     private let fileArchiverFactory: MockFileArchivingFactorying
+    private let apkMetadataService: MockAPKMetadataServicing
+    private let gitController: MockGitControlling
     private let fileSystem = FileSystem()
     private let shareURL: URL = .test()
 
@@ -50,25 +56,33 @@ struct ShareCommandServiceTests {
         appBundleLoader = .init()
         fileUnarchiver = .init()
         fileArchiverFactory = MockFileArchivingFactorying()
+        apkMetadataService = .init()
+        gitController = .init()
 
         given(fileArchiverFactory)
             .makeFileUnarchiver(for: .any)
             .willReturn(fileUnarchiver)
 
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(GitInfo(ref: nil, branch: nil, sha: nil, remoteURLOrigin: nil))
+
         subject = ShareCommandService(
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
-            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
-            buildGraphInspector: buildGraphInspector,
-            previewsUploadService: previewsUploadService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
+            previewsUploadService: previewsUploadService,
+            apkMetadataService: apkMetadataService,
+            fileArchiverFactory: fileArchiverFactory,
+            gitController: gitController,
+            fileHandler: FileHandler.shared,
+            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
+            buildGraphInspector: buildGraphInspector,
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             userInputReader: userInputReader,
             defaultConfigurationFetcher: defaultConfigurationFetcher,
-            appBundleLoader: appBundleLoader,
-            fileArchiverFactory: fileArchiverFactory
+            appBundleLoader: appBundleLoader
         )
 
         given(configLoader)
@@ -86,9 +100,11 @@ struct ShareCommandServiceTests {
         given(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .any,
                 serverURL: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .any,
                 updateProgress: .any
             )
@@ -241,9 +257,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -447,9 +465,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -538,8 +558,8 @@ struct ShareCommandServiceTests {
             track: nil
         )
 
-        TuistTest.expectLogs(#""bundleIdentifier": "dev.tuist.app""#)
-        TuistTest.expectLogs(#""displayName": "App""#)
+        TuistTest.expectLogs(#""bundle_identifier": "dev.tuist.app""#)
+        TuistTest.expectLogs(#""display_name": "App""#)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -810,9 +830,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -958,9 +980,11 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -1025,9 +1049,11 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
                 updateProgress: .any
             )
@@ -1107,9 +1133,11 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value("beta"),
                 updateProgress: .any
             )
@@ -1165,14 +1193,225 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value("nightly"),
                 updateProgress: .any
             )
             .called(1)
 
         assertSnapshot(of: ui(), as: .lines)
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func share_apk() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath = tempPath.appending(component: "app.apk")
+        try await fileSystem.touch(apkPath)
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "42",
+            displayName: "Example App",
+            iconPath: try RelativePath(validating: "res/mipmap-xxxhdpi-v4/ic_launcher.png")
+        )
+        given(apkMetadataService)
+            .parseMetadata(at: .value(apkPath))
+            .willReturn(metadata)
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [apkPath.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: nil
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreview(
+                .matching {
+                    switch $0 {
+                    case let .apk(path, apkMetadata):
+                        return path == apkPath && apkMetadata == metadata
+                    default:
+                        return false
+                    }
+                },
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                track: .value(nil),
+                updateProgress: .any
+            )
+            .called(1)
+
+        assertSnapshot(of: ui(), as: .lines)
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func share_apk_with_track() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath = tempPath.appending(component: "app.apk")
+        try await fileSystem.touch(apkPath)
+
+        given(apkMetadataService)
+            .parseMetadata(at: .value(apkPath))
+            .willReturn(
+                APKMetadata(
+                    packageName: "com.example.app",
+                    versionName: "2.0.0",
+                    versionCode: "100",
+                    displayName: "My App"
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [apkPath.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: "beta"
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreview(
+                .matching {
+                    if case .apk = $0 { return true }
+                    return false
+                },
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                track: .value("beta"),
+                updateProgress: .any
+            )
+            .called(1)
+
+        assertSnapshot(of: ui(), as: .lines)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func share_multiple_apks() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath1 = tempPath.appending(component: "app1.apk")
+        let apkPath2 = tempPath.appending(component: "app2.apk")
+        try await fileSystem.touch(apkPath1)
+        try await fileSystem.touch(apkPath2)
+
+        // When / Then
+        await #expect(
+            throws: ShareCommandServiceError.multipleAppsSpecified([
+                apkPath1.pathString, apkPath2.pathString,
+            ])
+        ) {
+            try await subject.run(
+                path: nil,
+                apps: [
+                    apkPath1.pathString,
+                    apkPath2.pathString,
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false,
+                track: nil
+            )
+        }
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func share_apk_with_git_info() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath = tempPath.appending(component: "app.apk")
+        try await fileSystem.touch(apkPath)
+
+        given(apkMetadataService)
+            .parseMetadata(at: .value(apkPath))
+            .willReturn(
+                APKMetadata(
+                    packageName: "com.example.app",
+                    versionName: "1.0.0",
+                    versionCode: "1",
+                    displayName: "App",
+                    iconPath: try RelativePath(validating: "res/mipmap-xxxhdpi-v4/ic_launcher.png")
+                )
+            )
+
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(
+                GitInfo(
+                    ref: "refs/heads/feat/android",
+                    branch: "feat/android",
+                    sha: "abc123def456",
+                    remoteURLOrigin: "https://github.com/tuist/tuist.git"
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [apkPath.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: nil
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreview(
+                .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .value("feat/android"),
+                gitCommitSHA: .value("abc123def456"),
+                gitRef: .value("refs/heads/feat/android"),
+                track: .value(nil),
+                updateProgress: .any
+            )
+            .called(1)
     }
 }

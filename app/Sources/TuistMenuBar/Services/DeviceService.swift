@@ -156,10 +156,12 @@ final class DeviceService: DeviceServicing {
         )
 
         do {
-            let preview = try await getPreviewService.getPreview(
-                previewId,
-                fullHandle: fullHandle,
-                serverURL: serverURL
+            let preview = try await ServerPreview(
+                getPreviewService.getPreview(
+                    previewId,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
             )
 
             let app = try await downloadApp(

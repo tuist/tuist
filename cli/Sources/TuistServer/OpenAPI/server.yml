@@ -972,6 +972,7 @@ components:
     Project:
       properties:
         build_system:
+          default: xcode
           description: The build system used by the project.
           enum:
             - xcode
@@ -1308,6 +1309,7 @@ components:
         - visionos
         - visionos_simulator
         - macos
+        - android
       title: PreviewSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.PreviewSupportedPlatform
@@ -3048,6 +3050,15 @@ components:
           type: string
           x-struct:
           x-validate:
+        build_system:
+          default: xcode
+          description: The build system used by the project.
+          enum:
+            - xcode
+            - gradle
+          type: string
+          x-struct:
+          x-validate:
         ci_host:
           description: The CI host URL (optional, for self-hosted instances).
           type: string
@@ -3097,6 +3108,11 @@ components:
           x-validate:
         git_remote_url_origin:
           description: The git remote URL origin.
+          type: string
+          x-struct:
+          x-validate:
+        gradle_build_id:
+          description: The UUID of an associated Gradle build.
           type: string
           x-struct:
           x-validate:
@@ -3313,7 +3329,6 @@ components:
       required:
         - duration
         - test_modules
-        - macos_version
         - is_ci
       title: TestParams
       type: object
@@ -3754,6 +3769,7 @@ components:
           enum:
             - app_bundle
             - ipa
+            - apk
           type: string
           x-struct:
           x-validate:
@@ -5403,12 +5419,12 @@ paths:
             schema:
               properties:
                 binary_id:
-                  description: The Mach-O UUID of the binary
+                  description: A unique identifier for the binary (Mach-O UUID for Apple platforms, SHA256 hash for Android).
                   type: string
                   x-struct:
                   x-validate:
                 build_version:
-                  description: The CFBundleVersion of the app.
+                  description: The build version of the app (CFBundleVersion for Apple platforms, versionCode for Android).
                   type: string
                   x-struct:
                   x-validate:
@@ -5455,6 +5471,7 @@ paths:
                   enum:
                     - app_bundle
                     - ipa
+                    - apk
                   type: string
                   x-struct:
                   x-validate:
@@ -6345,7 +6362,8 @@ paths:
             schema:
               properties:
                 build_system:
-                  description: The build system used by the project. Defaults to xcode.
+                  default: xcode
+                  description: The build system used by the project.
                   enum:
                     - xcode
                     - gradle
@@ -9025,6 +9043,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                id:
+                  description: Client-provided build ID (UUID).
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
                 is_ci:
                   description: Whether the build ran on CI.
                   type: boolean
@@ -10533,7 +10557,7 @@ paths:
     get:
       callbacks: {}
       description: This endpoint returns a preview with a given id, including the url to download the preview.
-      operationId: downloadPreview
+      operationId: getPreview
       parameters:
         - description: The handle of the account.
           in: path
@@ -13283,6 +13307,15 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                build_system:
+                  default: xcode
+                  description: The build system used by the project.
+                  enum:
+                    - xcode
+                    - gradle
+                  type: string
+                  x-struct:
+                  x-validate:
                 ci_host:
                   description: The CI host URL (optional, for self-hosted instances).
                   type: string
@@ -13332,6 +13365,11 @@ paths:
                   x-validate:
                 git_remote_url_origin:
                   description: The git remote URL origin.
+                  type: string
+                  x-struct:
+                  x-validate:
+                gradle_build_id:
+                  description: The UUID of an associated Gradle build.
                   type: string
                   x-struct:
                   x-validate:
@@ -13548,7 +13586,6 @@ paths:
               required:
                 - duration
                 - test_modules
-                - macos_version
                 - is_ci
               title: TestParams
               type: object

@@ -6,7 +6,6 @@ import TuistCore
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting
-
 @testable import TuistLoader
 
 struct SwiftPackageManagerGraphLoaderTests {
@@ -219,6 +218,114 @@ struct SwiftPackageManagerGraphLoaderTests {
                 )
             }
         }
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_dependency_via_local_registry_and_scm() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let packageSettings = PackageSettings.test()
+
+        let workspacePath = temporaryDirectory.appending(components: [
+            ".build", "workspace-state.json",
+        ])
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+
+        let localPackagePath = temporaryDirectory.appending(component: "Alamofire")
+        try await fileSystem.makeDirectory(at: localPackagePath)
+
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "Alamofire.Alamofire",
+                      "kind" : "registry",
+                      "location" : "Alamofire.Alamofire",
+                      "name" : "Alamofire.Alamofire"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "5.10.2"
+                    },
+                    "subpath" : "Alamofire/Alamofire/5.10.2"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "Alamofire",
+                      "kind" : "remoteSourceControl",
+                      "location" : "https://github.com/Alamofire/Alamofire.git",
+                      "name" : "Alamofire"
+                    },
+                    "state" : {
+                      "checkoutState" : {
+                        "revision" : "540318ecedd63d883069ae7f1ed811a2df00b6ac",
+                        "version" : "2.4.0"
+                      },
+                      "name" : "sourceControlCheckout"
+                    },
+                    "subpath" : "alamofire"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "Alamofire",
+                      "kind" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)",
+                      "name" : "Alamofire"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)"
+                    },
+                    "subpath" : "Alamofire"
+                  },
+                ],
+              }
+            }
+            """,
+            at: workspacePath
+        )
+
+        try await fileSystem.makeDirectory(
+            at: temporaryDirectory.appending(components: [".build", "Derived"])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(components: [
+                ".build", "Derived", "Package.resolved",
+            ])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(component: "Package.resolved")
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any
+            )
+            .willReturn([:])
+
+        // When
+        let got = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: packageSettings,
+            disableSandbox: true
+        )
+
+        // Then
+        #expect(
+            got.externalProjects.values.map(\.hash) == [nil]
+        )
     }
 
     @Test

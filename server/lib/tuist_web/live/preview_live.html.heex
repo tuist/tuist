@@ -1,6 +1,6 @@
 <div id="preview">
   <.alert
-    :if={@user_agent.os.family != "iOS"}
+    :if={@user_agent.os.family != "iOS" and not (@preview.supported_platforms == [:android])}
     id="download-tuist-app-alert"
     phx-hook="DeeplinkValidation"
     data-deeplink-element-id="preview-run-button"
@@ -71,7 +71,11 @@
     <h1 data-part="title">{@preview.display_name}</h1>
     <div data-part="version">
       <div data-part="icon">
-        <.brand_apple />
+        <%= if @preview.supported_platforms == [:android] do %>
+          <.icon name="device_mobile" />
+        <% else %>
+          <.brand_apple />
+        <% end %>
       </div>
       <span data-part="label">
         {dgettext("dashboard_previews", "V %{version}", version: @preview.version)}
@@ -122,7 +126,13 @@
         </div>
         <div data-part="metadata-row">
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_previews", "Bundle identifier")}</div>
+            <div data-part="title">
+              <%= if @preview.supported_platforms == [:android] do %>
+                {dgettext("dashboard_previews", "Package name")}
+              <% else %>
+                {dgettext("dashboard_previews", "Bundle identifier")}
+              <% end %>
+            </div>
             <span data-part="label">
               {@preview.bundle_identifier}
             </span>
@@ -170,7 +180,56 @@
   >
     <.card_section data-part="install-app-card-section">
       <div
-        :if={not is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
+        :if={
+          @preview.supported_platforms == [:android] and
+            not is_nil(Tuist.AppBuilds.latest_apk_app_build_for_preview(@preview))
+        }
+        data-part="scan-qr-code"
+      >
+        <h2 data-part="title">
+          {dgettext("dashboard_previews", "Scan QR code")}
+        </h2>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_previews",
+            "Scan this QR code on your Android device to download and install this version of the app"
+          )}
+        </span>
+        <img
+          data-part="qr-code"
+          src={
+            ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/qr-code.svg"
+          }
+          alt={dgettext("dashboard_previews", "QR code")}
+        />
+      </div>
+      <div
+        :if={
+          @preview.supported_platforms == [:android] and
+            is_nil(Tuist.AppBuilds.latest_apk_app_build_for_preview(@preview))
+        }
+        data-part="device-not-available"
+      >
+        <div data-part="explanation">
+          <h2 data-part="title">
+            {dgettext(
+              "dashboard_previews",
+              "This preview isn't available for download"
+            )}
+          </h2>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_previews",
+              "The APK for this preview is no longer available"
+            )}
+          </span>
+        </div>
+      </div>
+      <div
+        :if={
+          @preview.supported_platforms != [:android] and
+            not is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))
+        }
         data-part="scan-qr-code"
       >
         <h2 data-part="title">
@@ -191,7 +250,10 @@
         />
       </div>
       <div
-        :if={is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
+        :if={
+          @preview.supported_platforms != [:android] and
+            is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))
+        }
         data-part="device-not-available"
       >
         <img data-theme="light" src="/images/macbook_preview_light.png" />

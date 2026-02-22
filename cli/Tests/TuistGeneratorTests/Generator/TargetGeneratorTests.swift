@@ -34,7 +34,11 @@ struct TargetGeneratorTests {
                         excluded: [path.appending(components: ["Sources", "Excluded.swift"])],
                         compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"],
                         publicHeaders: [path.appending(components: ["Sources", "Headers", "Public.h"])],
-                        privateHeaders: [path.appending(components: ["Sources", "Headers", "Private.h"])]
+                        privateHeaders: [path.appending(components: ["Sources", "Headers", "Private.h"])],
+                        platformFilters: [
+                            path.appending(components: ["Sources", "Resources", "ios_only.mp4"]):
+                                .when([.ios])!,
+                        ]
                     ),
                 ]), resolvedFiles: [
                     BuildableFolderFile(path: path.appending(components: ["Sources", "Included.swift"]), compilerFlags: nil),
@@ -91,6 +95,7 @@ struct TargetGeneratorTests {
         #expect(exception.additionalCompilerFlagsByRelativePath == ["CompilerFlags.swift": "-print-stats"])
         #expect(exception.publicHeaders == ["Headers/Public.h"])
         #expect(exception.privateHeaders == ["Headers/Private.h"])
+        #expect(exception.platformFiltersByRelativePath == ["Resources/ios_only.mp4": ["ios"]])
     }
 
     @Test func generateTarget_productName() async throws {

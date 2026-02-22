@@ -1,8 +1,11 @@
 defmodule Cache.KeyValueStoreTest do
   use ExUnit.Case, async: false
 
+  import Ecto.Query
+
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
+  alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueStore
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
@@ -247,6 +250,87 @@ defmodule Cache.KeyValueStoreTest do
 
       key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
       assert {:ok, ^json} = Cachex.get(:cache_keyvalue_store, key)
+    end
+  end
+
+  describe "access tracking" do
+    test "SQLite fallback read updates last_accessed_at" do
+      values = ["value1"]
+      assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
+      :ok = KeyValueBuffer.flush()
+
+      key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
+      old_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+      Repo.update_all(
+        from(e in KeyValueEntry, where: e.key == ^key),
+        set: [last_accessed_at: old_time]
+      )
+
+      Cachex.clear(:cache_keyvalue_store)
+
+      assert {:ok, _json} =
+               KeyValueStore.get_key_value(@cas_id, @account_handle, @project_handle)
+
+      :ok = KeyValueBuffer.flush()
+
+      record = Repo.get_by!(KeyValueEntry, key: key)
+      assert DateTime.after?(record.last_accessed_at, old_time)
+    end
+
+    test "Cachex hit does not update last_accessed_at" do
+      values = ["value1"]
+      assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
+      :ok = KeyValueBuffer.flush()
+
+      key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
+      old_time = DateTime.add(DateTime.utc_now(), -120, :second)
+
+      Repo.update_all(
+        from(e in KeyValueEntry, where: e.key == ^key),
+        set: [last_accessed_at: old_time]
+      )
+
+      assert {:ok, _json} =
+               KeyValueStore.get_key_value(@cas_id, @account_handle, @project_handle)
+
+      :ok = KeyValueBuffer.flush()
+
+      record = Repo.get_by!(KeyValueEntry, key: key)
+
+      assert DateTime.truncate(record.last_accessed_at, :second) ==
+               DateTime.truncate(old_time, :second)
+    end
+
+    test "full lifecycle: write, expire from Cachex, read, evict" do
+      values = ["value1"]
+      assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
+      :ok = KeyValueBuffer.flush()
+
+      key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
+      record = Repo.get_by!(KeyValueEntry, key: key)
+      assert record.last_accessed_at
+
+      Cachex.clear(:cache_keyvalue_store)
+
+      assert {:ok, _json} =
+               KeyValueStore.get_key_value(@cas_id, @account_handle, @project_handle)
+
+      :ok = KeyValueBuffer.flush()
+
+      updated_record = Repo.get_by!(KeyValueEntry, key: key)
+      assert DateTime.compare(updated_record.last_accessed_at, record.last_accessed_at) != :lt
+
+      old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      Repo.update_all(
+        from(e in KeyValueEntry, where: e.key == ^key),
+        set: [last_accessed_at: old_time]
+      )
+
+      KeyValueEvictionWorker.perform(%Oban.Job{})
+
+      assert Repo.get_by(KeyValueEntry, key: key) == nil
     end
   end
 end

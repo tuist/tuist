@@ -725,6 +725,7 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/app.apk", PreviewController, :download_apk
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do

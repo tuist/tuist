@@ -3,7 +3,7 @@
     import TuistSimulator
 
     extension DestinationType {
-        init(_ supportedPlatform: Components.Schemas.PreviewSupportedPlatform) {
+        init?(_ supportedPlatform: Components.Schemas.PreviewSupportedPlatform) {
             switch supportedPlatform {
             case .ios:
                 self = .device(.iOS)
@@ -23,6 +23,8 @@
                 self = .simulator(.visionOS)
             case .macos:
                 self = .device(.macOS)
+            case .android:
+                self = .android
             }
         }
     }

@@ -1,21 +1,33 @@
+import Crypto
+import FileSystem
+import Foundation
+import Mockable
+import Path
+import TuistAndroid
+import TuistEnvironment
+
 #if canImport(TuistCore)
     import Command
-    import FileSystem
-    import Foundation
-    import Mockable
-    import Path
     import TuistAutomation
     import TuistCore
-    import TuistEnvironment
-    import TuistGit
     import TuistSimulator
-    import TuistSupport
+#endif
 
-    public enum PreviewUploadType: Equatable {
+#if canImport(TuistSupport)
+    import TuistSupport
+#endif
+
+// MARK: - Types
+
+public enum PreviewUploadType: Equatable {
+    case apk(path: AbsolutePath, metadata: APKMetadata)
+    #if canImport(TuistCore)
         case ipa(AppBundle)
         case appBundles([AppBundle])
-    }
+    #endif
+}
 
+#if canImport(TuistCore)
     public enum PreviewsUploadServiceError: LocalizedError, Equatable {
         case appBundleNotFound(AbsolutePath)
         case binaryIdNotFound(AbsolutePath)
@@ -29,19 +41,28 @@
             }
         }
     }
+#endif
 
-    @Mockable
-    public protocol PreviewsUploadServicing {
-        func uploadPreview(
-            _ previewUploadType: PreviewUploadType,
-            path: AbsolutePath,
-            fullHandle: String,
-            serverURL: URL,
-            track: String?,
-            updateProgress: @escaping (Double) -> Void
-        ) async throws -> ServerPreview
-    }
+// MARK: - Protocol
 
+@Mockable
+public protocol PreviewsUploadServicing {
+    func uploadPreview(
+        _ previewUploadType: PreviewUploadType,
+        fullHandle: String,
+        serverURL: URL,
+        gitBranch: String?,
+        gitCommitSHA: String?,
+        gitRef: String?,
+        track: String?,
+        updateProgress: @escaping (Double) -> Void
+    ) async throws -> Components.Schemas.Preview
+}
+
+// MARK: - Implementation
+
+#if canImport(TuistSupport)
+    // swiftlint:disable:next type_body_length
     public struct PreviewsUploadService: PreviewsUploadServicing {
         private let fileSystem: FileSysteming
         private let fileArchiver: FileArchivingFactorying
@@ -52,121 +73,227 @@
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
         private let multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing
         private let uploadPreviewIconService: UploadPreviewIconServicing
-        private let gitController: GitControlling
-        private let commandRunner: CommandRunning
-        private let precompiledMetadataProvider: PrecompiledMetadataProviding
+
+        #if canImport(TuistCore)
+            private let commandRunner: CommandRunning
+            private let precompiledMetadataProvider: PrecompiledMetadataProviding
+        #endif
 
         public init() {
-            self.init(
-                fileSystem: FileSystem(),
-                fileArchiver: FileArchivingFactory(),
-                retryProvider: RetryProvider(),
-                multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
-                multipartUploadGenerateURLPreviewsService:
-                MultipartUploadGenerateURLPreviewsService(),
-                multipartUploadArtifactService: MultipartUploadArtifactService(),
-                multipartUploadCompletePreviewsService:
-                MultipartUploadCompletePreviewsService(),
-                uploadPreviewIconService: UploadPreviewIconService(),
-                gitController: GitController(),
-                commandRunner: CommandRunner(),
-                precompiledMetadataProvider: PrecompiledMetadataProvider()
-            )
+            #if canImport(TuistCore)
+                self.init(
+                    fileSystem: FileSystem(),
+                    fileArchiver: FileArchivingFactory(),
+                    retryProvider: RetryProvider(),
+                    multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
+                    multipartUploadGenerateURLPreviewsService:
+                    MultipartUploadGenerateURLPreviewsService(),
+                    multipartUploadArtifactService: MultipartUploadArtifactService(),
+                    multipartUploadCompletePreviewsService:
+                    MultipartUploadCompletePreviewsService(),
+                    uploadPreviewIconService: UploadPreviewIconService(),
+                    commandRunner: CommandRunner(),
+                    precompiledMetadataProvider: PrecompiledMetadataProvider()
+                )
+            #else
+                self.init(
+                    fileSystem: FileSystem(),
+                    fileArchiver: FileArchivingFactory(),
+                    retryProvider: RetryProvider(),
+                    multipartUploadStartPreviewsService: MultipartUploadStartPreviewsService(),
+                    multipartUploadGenerateURLPreviewsService:
+                    MultipartUploadGenerateURLPreviewsService(),
+                    multipartUploadArtifactService: MultipartUploadArtifactService(),
+                    multipartUploadCompletePreviewsService:
+                    MultipartUploadCompletePreviewsService(),
+                    uploadPreviewIconService: UploadPreviewIconService()
+                )
+            #endif
         }
 
-        init(
-            fileSystem: FileSysteming,
-            fileArchiver: FileArchivingFactorying,
-            retryProvider: RetryProviding,
-            multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
-            multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
-            multipartUploadArtifactService: MultipartUploadArtifactServicing,
-            multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
-            uploadPreviewIconService: UploadPreviewIconServicing,
-            gitController: GitControlling,
-            commandRunner: CommandRunning,
-            precompiledMetadataProvider: PrecompiledMetadataProviding
-        ) {
-            self.fileSystem = fileSystem
-            self.fileArchiver = fileArchiver
-            self.retryProvider = retryProvider
-            self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
-            self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
-            self.multipartUploadArtifactService = multipartUploadArtifactService
-            self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
-            self.uploadPreviewIconService = uploadPreviewIconService
-            self.gitController = gitController
-            self.commandRunner = commandRunner
-            self.precompiledMetadataProvider = precompiledMetadataProvider
-        }
+        #if canImport(TuistCore)
+            init(
+                fileSystem: FileSysteming,
+                fileArchiver: FileArchivingFactorying,
+                retryProvider: RetryProviding,
+                multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
+                multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
+                multipartUploadArtifactService: MultipartUploadArtifactServicing,
+                multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
+                uploadPreviewIconService: UploadPreviewIconServicing,
+                commandRunner: CommandRunning,
+                precompiledMetadataProvider: PrecompiledMetadataProviding
+            ) {
+                self.fileSystem = fileSystem
+                self.fileArchiver = fileArchiver
+                self.retryProvider = retryProvider
+                self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
+                self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
+                self.multipartUploadArtifactService = multipartUploadArtifactService
+                self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
+                self.uploadPreviewIconService = uploadPreviewIconService
+                self.commandRunner = commandRunner
+                self.precompiledMetadataProvider = precompiledMetadataProvider
+            }
+        #else
+            init(
+                fileSystem: FileSysteming,
+                fileArchiver: FileArchivingFactorying,
+                retryProvider: RetryProviding,
+                multipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing,
+                multipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing,
+                multipartUploadArtifactService: MultipartUploadArtifactServicing,
+                multipartUploadCompletePreviewsService: MultipartUploadCompletePreviewsServicing,
+                uploadPreviewIconService: UploadPreviewIconServicing
+            ) {
+                self.fileSystem = fileSystem
+                self.fileArchiver = fileArchiver
+                self.retryProvider = retryProvider
+                self.multipartUploadStartPreviewsService = multipartUploadStartPreviewsService
+                self.multipartUploadGenerateURLPreviewsService = multipartUploadGenerateURLPreviewsService
+                self.multipartUploadArtifactService = multipartUploadArtifactService
+                self.multipartUploadCompletePreviewsService = multipartUploadCompletePreviewsService
+                self.uploadPreviewIconService = uploadPreviewIconService
+            }
+        #endif
 
+        // swiftlint:disable:next function_body_length
         public func uploadPreview(
             _ previewUploadType: PreviewUploadType,
-            path: AbsolutePath,
             fullHandle: String,
             serverURL: URL,
+            gitBranch: String?,
+            gitCommitSHA: String?,
+            gitRef: String?,
             track: String?,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> ServerPreview {
-            let gitInfo = try gitController.gitInfo(workingDirectory: path)
-
+        ) async throws -> Components.Schemas.Preview {
             switch previewUploadType {
-            case let .ipa(bundle):
-                let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
-                let binaryId = try await ipaBinaryId(at: bundle.path)
-                let preview = try await uploadPreview(
-                    buildPath: bundle.path,
-                    previewType: .ipa,
-                    displayName: bundle.infoPlist.name,
-                    version: bundle.infoPlist.version,
+            case let .apk(apkPath, metadata):
+                let bundleArchivePath = try await fileArchiver
+                    .makeFileArchiver(for: [apkPath])
+                    .zip(name: apkPath.basename)
+                let buildVersion = resolvedBuildVersion(metadata.versionCode)
+                let binaryId = try await apkBinaryId(at: apkPath)
+
+                let preview = try await uploadPreviewBuild(
+                    buildPath: bundleArchivePath,
+                    previewType: .apk,
+                    displayName: metadata.displayName,
+                    version: metadata.versionName,
                     buildVersion: buildVersion,
-                    bundleIdentifier: bundle.infoPlist.bundleId,
-                    icon: iconPaths(for: previewUploadType).first,
-                    supportedPlatforms: bundle.infoPlist.supportedPlatforms,
-                    gitInfo: gitInfo,
+                    bundleIdentifier: metadata.packageName,
+                    supportedPlatforms: [.android],
+                    gitBranch: gitBranch,
+                    gitCommitSHA: gitCommitSHA,
+                    gitRef: gitRef,
                     binaryId: binaryId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     track: track,
                     updateProgress: updateProgress
                 )
+
+                if let iconPath = metadata.iconPath {
+                    let unarchiver = try fileArchiver.makeFileUnarchiver(for: apkPath)
+                    let unzippedPath = try unarchiver.unzip()
+                    let iconAbsolutePath = unzippedPath.appending(iconPath)
+                    if try await fileSystem.exists(iconAbsolutePath) {
+                        try await uploadPreviewIconService.uploadPreviewIcon(
+                            iconAbsolutePath,
+                            previewId: preview.id,
+                            serverURL: serverURL,
+                            fullHandle: fullHandle
+                        )
+                    }
+                }
+
                 return preview
 
-            case let .appBundles(bundles):
-                var preview: ServerPreview!
-
-                for (index, bundle) in bundles.enumerated() {
-                    let progressOffset = Double(index) / Double(bundles.count)
-                    let progressScale = 1.0 / Double(bundles.count)
-                    let bundleArchivePath = try await fileArchiver
-                        .makeFileArchiver(for: [bundle.path])
-                        .zip(name: bundle.path.basename)
+            #if canImport(TuistCore)
+                case let .ipa(bundle):
                     let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
-                    let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
-
-                    preview = try await uploadPreview(
-                        buildPath: bundleArchivePath,
-                        previewType: .appBundle,
+                    let binaryId = try await ipaBinaryId(at: bundle.path)
+                    let icon = try await iconPaths(for: previewUploadType).first
+                    let preview = try await uploadPreviewBuild(
+                        buildPath: bundle.path,
+                        previewType: .ipa,
                         displayName: bundle.infoPlist.name,
                         version: bundle.infoPlist.version,
                         buildVersion: buildVersion,
                         bundleIdentifier: bundle.infoPlist.bundleId,
-                        icon: iconPaths(for: bundle).first,
-                        supportedPlatforms: bundle.infoPlist.supportedPlatforms,
-                        gitInfo: gitInfo,
+                        supportedPlatforms: bundle.infoPlist.supportedPlatforms
+                            .map(Components.Schemas.PreviewSupportedPlatform.init),
+                        gitBranch: gitBranch,
+                        gitCommitSHA: gitCommitSHA,
+                        gitRef: gitRef,
                         binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
                         track: track,
-                        updateProgress: { progress in
-                            updateProgress(progressOffset + progress * progressScale)
-                        }
+                        updateProgress: updateProgress
                     )
-                }
 
-                return preview
+                    if let icon {
+                        try await uploadPreviewIconService.uploadPreviewIcon(
+                            icon,
+                            previewId: preview.id,
+                            serverURL: serverURL,
+                            fullHandle: fullHandle
+                        )
+                    }
+
+                    return preview
+
+                case let .appBundles(bundles):
+                    var preview: Components.Schemas.Preview!
+
+                    for (index, bundle) in bundles.enumerated() {
+                        let progressOffset = Double(index) / Double(bundles.count)
+                        let progressScale = 1.0 / Double(bundles.count)
+                        let bundleArchivePath = try await fileArchiver
+                            .makeFileArchiver(for: [bundle.path])
+                            .zip(name: bundle.path.basename)
+                        let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
+                        let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
+
+                        preview = try await uploadPreviewBuild(
+                            buildPath: bundleArchivePath,
+                            previewType: .appBundle,
+                            displayName: bundle.infoPlist.name,
+                            version: bundle.infoPlist.version,
+                            buildVersion: buildVersion,
+                            bundleIdentifier: bundle.infoPlist.bundleId,
+                            supportedPlatforms: bundle.infoPlist.supportedPlatforms
+                                .map(Components.Schemas.PreviewSupportedPlatform.init),
+                            gitBranch: gitBranch,
+                            gitCommitSHA: gitCommitSHA,
+                            gitRef: gitRef,
+                            binaryId: binaryId,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            track: track,
+                            updateProgress: { progress in
+                                updateProgress(progressOffset + progress * progressScale)
+                            }
+                        )
+                    }
+
+                    if let icon = try await iconPaths(for: previewUploadType).first {
+                        try await uploadPreviewIconService.uploadPreviewIcon(
+                            icon,
+                            previewId: preview.id,
+                            serverURL: serverURL,
+                            fullHandle: fullHandle
+                        )
+                    }
+
+                    return preview
+            #endif
             }
         }
+
+        // MARK: - Shared
 
         private func resolvedBuildVersion(_ buildVersion: String) -> String {
             let variables = Environment.current.variables
@@ -179,25 +306,26 @@
             return buildVersion
         }
 
-        private func uploadPreview(
+        private func uploadPreviewBuild(
             buildPath: AbsolutePath,
             previewType: PreviewType,
             displayName: String,
             version: String?,
             buildVersion: String,
             bundleIdentifier: String?,
-            icon: AbsolutePath?,
-            supportedPlatforms: [DestinationType],
-            gitInfo: GitInfo,
+            supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
+            gitBranch: String?,
+            gitCommitSHA: String?,
+            gitRef: String?,
             binaryId: String,
             fullHandle: String,
             serverURL: URL,
             track: String?,
             updateProgress: @escaping (Double) -> Void
-        ) async throws -> ServerPreview {
+        ) async throws -> Components.Schemas.Preview {
             updateProgress(0.1)
 
-            let preview = try await retryProvider.runWithRetries {
+            return try await retryProvider.runWithRetries {
                 let previewUpload =
                     try await multipartUploadStartPreviewsService.startPreviewsMultipartUpload(
                         type: previewType,
@@ -206,9 +334,9 @@
                         buildVersion: buildVersion,
                         bundleIdentifier: bundleIdentifier,
                         supportedPlatforms: supportedPlatforms,
-                        gitBranch: gitInfo.branch,
-                        gitCommitSHA: gitInfo.sha,
-                        gitRef: gitInfo.ref,
+                        gitBranch: gitBranch,
+                        gitCommitSHA: gitCommitSHA,
+                        gitRef: gitRef,
                         binaryId: binaryId,
                         fullHandle: fullHandle,
                         serverURL: serverURL,
@@ -242,93 +370,97 @@
                     serverURL: serverURL
                 )
             }
-
-            if let icon {
-                try await uploadPreviewIconService.uploadPreviewIcon(
-                    icon,
-                    preview: preview,
-                    serverURL: serverURL,
-                    fullHandle: fullHandle
-                )
-            }
-
-            return preview
         }
 
-        private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
-            switch previewUploadType {
-            case let .appBundles(appBundles):
-                return try await appBundles.concurrentMap { try await iconPaths(for: $0) }.flatMap { $0 }
-            case let .ipa(appBundle):
-                let unarchiver = try fileArchiver.makeFileUnarchiver(for: appBundle.path)
-                guard let appPath = try await fileSystem.glob(directory: unarchiver.unzip(), include: ["*.app", "Payload/*.app"])
+        // MARK: - APK (cross-platform)
+
+        private func apkBinaryId(at path: AbsolutePath) async throws -> String {
+            let data = try Data(contentsOf: URL(fileURLWithPath: path.pathString))
+            let digest = SHA256.hash(data: data)
+            return digest.map { String(format: "%02x", $0) }.joined()
+        }
+
+        // MARK: - Apple (macOS-only)
+
+        #if canImport(TuistCore)
+            private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
+                switch previewUploadType {
+                case .apk:
+                    return []
+                case let .appBundles(appBundles):
+                    return try await appBundles.concurrentMap { try await iconPaths(for: $0) }.flatMap { $0 }
+                case let .ipa(appBundle):
+                    let unarchiver = try fileArchiver.makeFileUnarchiver(for: appBundle.path)
+                    guard let appPath = try await fileSystem.glob(
+                        directory: unarchiver.unzip(),
+                        include: ["*.app", "Payload/*.app"]
+                    )
                     .collect()
                     .first
-                else {
-                    return []
-                }
+                    else {
+                        return []
+                    }
 
-                return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
-                    // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
-                    .map { appPath.appending(component: $0 + "@2x.png") }
+                    return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                        .map { appPath.appending(component: $0 + "@2x.png") }
+                        .concurrentFilter {
+                            try await fileSystem.exists($0)
+                        }
+                        .concurrentMap { icon in
+                            let outputPath = appPath.appending(component: icon.basenameWithoutExt + "-reverted.png")
+                            try await revertiPhoneOptimizations(of: icon, to: outputPath)
+                            return outputPath
+                        }
+                }
+            }
+
+            private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
+                try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                    .map { appBundle.path.appending(component: $0 + "@2x.png") }
                     .concurrentFilter {
                         try await fileSystem.exists($0)
                     }
-                    .concurrentMap { icon in
-                        let outputPath = appPath.appending(component: icon.basenameWithoutExt + "-reverted.png")
-                        try await revertiPhoneOptimizations(of: icon, to: outputPath)
-                        return outputPath
-                    }
             }
-        }
 
-        private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
-            try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
-                // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
-                .map { appBundle.path.appending(component: $0 + "@2x.png") }
-                .concurrentFilter {
-                    try await fileSystem.exists($0)
+            private func revertiPhoneOptimizations(
+                of image: AbsolutePath,
+                to outputPath: AbsolutePath
+            ) async throws {
+                try await commandRunner
+                    .run(arguments: [
+                        "/usr/bin/xcrun",
+                        "pngcrush",
+                        "-revert-iphone-optimizations",
+                        image.pathString,
+                        outputPath.pathString,
+                    ])
+                    .awaitCompletion()
+            }
+
+            private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
+                let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
+                let unzippedPath = try unarchiver.unzip()
+
+                guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
+                    .collect()
+                    .first
+                else {
+                    throw PreviewsUploadServiceError.appBundleNotFound(path)
                 }
-        }
 
-        private func revertiPhoneOptimizations(
-            of image: AbsolutePath,
-            to outputPath: AbsolutePath
-        ) async throws {
-            try await commandRunner
-                .run(arguments: [
-                    "/usr/bin/xcrun",
-                    "pngcrush",
-                    "-revert-iphone-optimizations",
-                    image.pathString,
-                    outputPath.pathString,
-                ])
-                .awaitCompletion()
-        }
-
-        private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
-            let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
-            let unzippedPath = try unarchiver.unzip()
-
-            guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
-                .collect()
-                .first
-            else {
-                throw PreviewsUploadServiceError.appBundleNotFound(path)
+                let appName = appPath.basenameWithoutExt
+                return try appBundleBinaryId(at: appPath, name: appName)
             }
 
-            let appName = appPath.basenameWithoutExt
-            return try appBundleBinaryId(at: appPath, name: appName)
-        }
-
-        private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {
-            let executablePath = path.appending(component: name)
-            guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
-                  let uuid = uuids.first
-            else {
-                throw PreviewsUploadServiceError.binaryIdNotFound(executablePath)
+            private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {
+                let executablePath = path.appending(component: name)
+                guard let uuids = try? precompiledMetadataProvider.uuids(binaryPath: executablePath),
+                      let uuid = uuids.first
+                else {
+                    throw PreviewsUploadServiceError.binaryIdNotFound(executablePath)
+                }
+                return uuid.uuidString
             }
-            return uuid.uuidString
-        }
+        #endif
     }
 #endif
