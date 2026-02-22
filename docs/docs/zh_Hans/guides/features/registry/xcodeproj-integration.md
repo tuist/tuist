@@ -20,9 +20,9 @@ let tuist = Tuist(
 )
 ```
 
-若需确保每次解析依赖时都使用注册库，请在`Tuist/Package.swift` 文件中将`dependencies`
+若需确保每次解析依赖项时都使用注册库，您需要在`Tuist/Package.swift` 文件中将`dependencies`
 修改为使用注册库标识符替代URL。注册库标识符始终采用`{organization}.{repository}`
-格式。例如，要为`swift-composable-architecture` 包启用注册库，请执行以下操作：
+格式。例如，要为`swift-composable-architecture` 包使用注册库，请执行以下操作：
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
