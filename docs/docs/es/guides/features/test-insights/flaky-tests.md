@@ -45,8 +45,8 @@ tuist xcodebuild test \
   -test-iterations 3
 ```
 
-![Detalle del caso de prueba poco
-fiable](/images/guides/features/test-insights/flaky-test-case-detail.png)
+![Detalle del caso de prueba
+inestable](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
 ### Detección de cruces {#cross-run-detection}
 
@@ -58,7 +58,7 @@ inestables.
 
 Esto resulta especialmente útil para detectar pruebas inestables que no fallan
 con la suficiente consistencia como para ser detectadas por los reintentos, pero
-que siguen provocando fallos intermitentes en la integración continua.
+que siguen causando fallos intermitentes en la integración continua.
 
 ## Gestión de pruebas inestables {#managing-flaky-tests}
 
