@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-02-23 16:46+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -601,19 +602,27 @@ msgstr "예시: main"
 msgid "%{scheme} %{unit}"
 msgstr "%{scheme} %{unit}"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"최 <strong>%{rolling_window_size} %{unit}</strong> 의 <strong>%"
+"{metric_category}</strong> 이 이전 <strong>%{rolling_window_size} %{unit}</"
+"strong> 에 비해 <strong>%{deviation}%</strong> 감소한 경우 알림을 보냅니다."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"최근 <strong>%{rolling_window_size} %{unit}</strong> 의 <strong>%"
+"{metric_category}</strong> 이 이전 <strong>%{rolling_window_size} %{unit}</"
+"strong> 에 비해 <strong>%{deviation}%</strong> 증가하면 알림을 보냅니다."
 
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest "
@@ -622,8 +631,9 @@ msgid ""
 "previous bundle."
 msgstr ""
 
+#, fuzzy
 msgid "Scheme"
-msgstr ""
+msgstr "빌드 Scheme"
 
 #, fuzzy
 msgid "e.g. MyApp (optional)"
