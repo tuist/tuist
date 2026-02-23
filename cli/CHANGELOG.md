@@ -1,7 +1,67 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.147.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.151.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* expand glob patterns in buildable folder exclusions by [@InderKumarRathore](https://github.com/InderKumarRathore) in [#9552](https://github.com/tuist/tuist/pull/9552)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.150.1...4.151.0
+
+## What's Changed in 4.150.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* expanding folder to input inner files when used as input in foreign build phase script by [@scarayaa](https://github.com/scarayaa) in [#9556](https://github.com/tuist/tuist/pull/9556)
+* place precompiled dependencies from SPM build directory in frameworks group by [@JanC](https://github.com/JanC) in [#9555](https://github.com/tuist/tuist/pull/9555)
+
+## New Contributors
+* [@scarayaa](https://github.com/scarayaa) made their first contribution in [#9556](https://github.com/tuist/tuist/pull/9556)
+* [@JanC](https://github.com/JanC) made their first contribution in [#9555](https://github.com/tuist/tuist/pull/9555)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.150.0...4.150.1
+
+## What's Changed in 4.150.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add platformFilters for buildable folder exceptions by [@fortmarek](https://github.com/fortmarek) in [#9545](https://github.com/tuist/tuist/pull/9545)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.149.1...4.150.0
+
+## What's Changed in 4.149.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Use latest Gradle plugin version in init and add takeaways by [@fortmarek](https://github.com/fortmarek) in [#9543](https://github.com/tuist/tuist/pull/9543)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.149.0...4.149.1
+
+## What's Changed in 4.149.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Android APK previews with cross-platform share and run by [@fortmarek](https://github.com/fortmarek) in [#9509](https://github.com/tuist/tuist/pull/9509)
+### 🐛 Bug Fixes
+
+* Prioritize local packages over registry versions by [@fdiaz](https://github.com/fdiaz) in [#9540](https://github.com/tuist/tuist/pull/9540)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.148.4...4.149.0
+
+## What's Changed in 4.148.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* apply PackageSettings.baseSettings.defaultSettings to SPM targets by [@hiltonc](https://github.com/hiltonc) in [#9301](https://github.com/tuist/tuist/pull/9301)
+* restore SRCROOT path resolution for cached target settings by [@fortmarek](https://github.com/fortmarek) in [#9531](https://github.com/tuist/tuist/pull/9531)
+* respect custom server url by [@yusufozgul](https://github.com/yusufozgul) in [#9524](https://github.com/tuist/tuist/pull/9524)
+* include buildable folder resources in Target.containsResources by [@hiltonc](https://github.com/hiltonc) in [#9290](https://github.com/tuist/tuist/pull/9290)
+* use product name as module name for SPM wrapper targets by [@pepicrft](https://github.com/pepicrft) in [#9370](https://github.com/tuist/tuist/pull/9370)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.148.1...4.148.4
+
+## What's Changed in 4.148.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -19,7 +79,7 @@ All notable changes to this project will be documented in this file.
 * resolve static ObjC xcframework search paths without Package.swift by [@pepicrft](https://github.com/pepicrft) in [#9440](https://github.com/tuist/tuist/pull/9440)
 * enable HTTP logging and server warnings on Linux by [@fortmarek](https://github.com/fortmarek) in [#9479](https://github.com/tuist/tuist/pull/9479)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.1...4.147.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.1...4.148.1
 
 ## What's Changed in 4.146.1<!-- RELEASE NOTES START -->
 

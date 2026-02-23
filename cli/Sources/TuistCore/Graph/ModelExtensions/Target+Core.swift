@@ -144,7 +144,11 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        !resources.resources.isEmpty || !coreDataModels.isEmpty
+        if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
+        let resourceExtensions = Self.validResourceExtensions + Self.validResourceCompatibleFolderExtensions
+        return buildableFolders.contains { folder in
+            folder.resolvedFiles.contains { resourceExtensions.contains($0.path.extension ?? "") }
+        }
     }
 
     /// Returns if target is a generated resources bundle.

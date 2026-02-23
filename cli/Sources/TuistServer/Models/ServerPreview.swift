@@ -69,7 +69,7 @@
             gitCommitSHA = preview.git_commit_sha
             gitBranch = preview.git_branch
             appBuilds = preview.builds.compactMap(AppBuild.init)
-            supportedPlatforms = preview.supported_platforms.map(DestinationType.init)
+            supportedPlatforms = preview.supported_platforms.compactMap(DestinationType.init)
             createdFromCI = preview.created_from_ci
             if let createdBy = preview.created_by {
                 self.createdBy = ServerAccount(createdBy)

@@ -111,7 +111,6 @@ struct ShareCommandService {
                 previewsUploadService: PreviewsUploadService(),
                 apkMetadataService: APKMetadataService(),
                 fileArchiverFactory: FileArchivingFactory(),
-                commandRunner: CommandRunner(),
                 gitController: GitController()
             )
         #endif

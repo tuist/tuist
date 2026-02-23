@@ -38,14 +38,21 @@ defaults:
 jobs:
   gettext_marketing:
     name: Gettext (Marketing)
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -53,18 +60,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - name: Install dependencies
+        run: mix deps.get
       - name: Check marketing gettext template is up-to-date
         run: |
           # Extract only (without --merge) to check if marketing.pot changes
@@ -102,14 +99,21 @@ jobs:
           echo "✅ All marketing translations present"
   gettext_dashboard:
     name: Gettext (Dashboard)
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -117,18 +121,8 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - name: Install dependencies
+        run: mix deps.get
       - name: Check dashboard gettext templates are up-to-date
         run: |
           # Dashboard domains to check
@@ -185,7 +179,7 @@ jobs:
           echo "✅ All dashboard translation templates present"
   translation_protection:
     name: Translation Protection
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
     steps:
@@ -242,7 +236,7 @@ jobs:
           fi
   test:
     name: Test
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
@@ -260,9 +254,16 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir clickhouse"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -270,32 +271,31 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Start ClickHouse
+        run: mise run --no-prepare clickhouse:start
+      - name: Setup database
+        run: mise run --no-prepare db:reset
       - name: Run tests
         run: mix test --warnings-as-errors
   credo:
     name: Credo
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -303,29 +303,26 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - name: Install dependencies
+        run: mix deps.get
       - name: Run Credo
         run: mix credo
   format:
     name: Format
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir node pnpm npm:prettier"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -335,28 +332,31 @@ jobs:
             mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
-        id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - name: Install dependencies
+        run: mix deps.get && pnpm install --ignore-workspace
       - name: Check format
-        run: mise run format --check
+        run: mise run --no-prepare format --check
   esbuild:
     name: esbuild
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v4 # v4
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir node pnpm"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -366,16 +366,12 @@ jobs:
             mix-
       - name: Restore PNPM Cache
         uses: actions/cache@v4
-        id: pnpm-cache
         with:
           path: |
             ~/.pnpm/store
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - name: Install dependencies
+        run: mix deps.get && pnpm install --ignore-workspace
       - name: Install esbuild
         run: mix esbuild.install
       - name: Check esbuild output
@@ -396,14 +392,21 @@ jobs:
           fi
   security:
     name: Security
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir ubi:aquasecurity/trivy"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -411,55 +414,21 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - name: Install dependencies
+        run: mix deps.get
       - name: Check
-        run: mise run security
+        run: mise run --no-prepare security
   docker_build:
     name: Docker build
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      # We move it so that we can copy it inside the Docker image for
-      # reproducibility of dependency resolution.
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
@@ -467,8 +436,6 @@ jobs:
           file: ./server/Dockerfile
           push: false
           tags: tuist/tuist
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
@@ -476,7 +443,7 @@ jobs:
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
-  #   runs-on: namespace-profile-default
+  #   runs-on: namespace-profile-default-with-volume
   #   timeout-minutes: 15
   #   services:
   #     postgres:
@@ -493,25 +460,12 @@ jobs:
   #         --health-retries 5
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - name: Restore Mix Cache
-  #       uses: actions/cache@v4
-  #       id: mix-cache
+  #     - uses: namespacelabs/nscloud-cache-action@v1
   #       with:
-  #         path: |
-  #           deps
-  #           _build
-  #           _site
-  #         key: mix-${{ hashFiles('mix.lock') }}
-  #     - name: Restore PNPM Cache
-  #       uses: actions/cache@v4
-  #       id: pnpm-cache
-  #       with:
-  #         path: |
-  #           ~/.pnpm/store
-  #         key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+  #         cache: mise
   #     - uses: jdx/mise-action@v3.2.0
   #       with:
-  #         cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+  #         cache: "false"
   #     - run: mise run install
   #     - run: mise run clickhouse:start
   #     - run: mise run db:reset
@@ -531,7 +485,7 @@ jobs:
   #         fi
   seed:
     name: Seed
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
@@ -549,9 +503,16 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "erlang elixir clickhouse"
+          cache: "false"
+          working_directory: server
       - name: Restore Mix Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
             server/deps
@@ -559,34 +520,39 @@ jobs:
           key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
             mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Start ClickHouse
+        run: mise run --no-prepare clickhouse:start
+      - name: Setup database
+        run: mise run --no-prepare db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
-    runs-on: namespace-profile-default-macos
-    timeout-minutes: 30
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       MIX_ENV: dev
       DATABASE_HOST: localhost
-      DATABASE_USERNAME: runner
-      DATABASE_PASSWORD: ""
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
       TUIST_SECRET_KEY_BASE: ci-test-secret-key-base-must-be-at-least-64-characters-long-for-phoenix-to-work
       TUIST_SECRET_KEY_PASSWORD: ci-test-secret-key-password
       TUIST_SECRET_KEY_TOKENS: ci-test-secret-key-tokens
@@ -594,62 +560,40 @@ jobs:
       TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat $GITHUB_WORKSPACE/.xcode-version).app
-      - name: Set up PostgreSQL
-        run: |
-          brew install postgresql@17
-          brew services start postgresql@17
-          # Wait for PostgreSQL to start (check via TCP)
-          for i in {1..30}; do
-            if /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432; then
-              echo "PostgreSQL is ready"
-              break
-            fi
-            echo "Waiting for PostgreSQL to start... ($i/30)"
-            sleep 2
-          done
-          # Create runner user for database access
-          /opt/homebrew/opt/postgresql@17/bin/createuser -h localhost -s runner || true
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
+          cache: "false"
           working_directory: .
       - uses: jdx/mise-action@v3.2.0
         with:
+          cache: "false"
           working_directory: server
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          working_directory: cache
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          working_directory: gradle
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
-      - name: Start ClickHouse
-        working-directory: server
-        run: mise run clickhouse:start
-      - name: Install tuist dependencies
-        working-directory: .
-        run: tuist install
-      - name: Generate Xcode project
-        working-directory: .
-        run: tuist generate tuist
-      - name: Build tuist CLI
-        working-directory: .
-        run: xcodebuild build -scheme tuist -workspace Tuist.xcworkspace -configuration Debug -quiet
       - name: Restore server deps
         uses: actions/cache@v4
         with:
-          path: server/deps
-          key: server-deps-${{ hashFiles('server/mix.lock') }}
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
-            server-deps-
+            mix-
       - name: Install server deps
         working-directory: server
         run: mix deps.get
+      - name: Compile server
+        working-directory: server
+        run: mix compile
+      - name: Start ClickHouse
+        working-directory: server
+        run: mise run --no-prepare clickhouse:start
       - name: Setup main server
         working-directory: server
         run: |
@@ -661,10 +605,12 @@ jobs:
       - name: Restore cache deps
         uses: actions/cache@v4
         with:
-          path: cache/deps
-          key: cache-deps-${{ hashFiles('cache/mix.lock') }}
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
           restore-keys: |
-            cache-deps-
+            cache-mix-
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
@@ -692,15 +638,8 @@ jobs:
             echo "Waiting for cache server... ($i/30)"
             sleep 2
           done
-      - name: Resolve tuist binary path
-        id: tuist-binary
-        working-directory: .
-        run: |
-          BUILT_PRODUCTS_DIR=$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $NF}')
-          echo "path=${BUILT_PRODUCTS_DIR}/tuist" >> "$GITHUB_OUTPUT"
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
-          TUIST_EXECUTABLE: ${{ steps.tuist-binary.outputs.path }}
           SERVER_URL: http://localhost:8080
-        run: mise run e2e gradle_cache
+        run: mise run --no-prepare e2e gradle_cache

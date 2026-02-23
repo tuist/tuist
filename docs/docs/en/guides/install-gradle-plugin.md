@@ -7,25 +7,36 @@
 ---
 # Install the Gradle plugin {#install-the-gradle-plugin}
 
-::: warning NOT GENERALLY AVAILABLE
-<!-- -->
-This feature is not generally available yet. If you are interested in trying it out, please reach out to us at [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
-
 Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <LocalizedLink href="/guides/features/cache/gradle-cache">remote build caching</LocalizedLink> and <LocalizedLink href="/guides/features/insights/gradle-cache">build insights</LocalizedLink>. This guide walks you through installing and configuring the plugin.
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
-- Tuist CLI 4.138.1 or later
+- <LocalizedLink href="/guides/install-tuist">Tuist CLI</LocalizedLink> 4.138.1 or later
 - A Gradle project
 <!-- -->
 :::
 
-## 1. Apply the plugin {#apply-the-plugin}
+## 1. Initialize Tuist {#initialize-tuist}
 
-Add the Tuist plugin to your `settings.gradle.kts`:
+Run the following command in your Gradle project root:
+
+::: code-group
+
+```bash [Mise]
+mise x tuist@latest -- tuist init
+```
+
+```bash [Global Tuist (Homebrew)]
+tuist init
+```
+<!-- -->
+:::
+
+The command will walk you through authenticating, creating or selecting a Tuist project, and generating the configuration for your Gradle project.
+
+## 2. Apply the plugin {#apply-the-plugin}
+
+After running `tuist init`, you'll need to add the Tuist plugin to your `settings.gradle.kts` as instructed by the command output:
 
 ```kotlin
 plugins {
@@ -33,22 +44,17 @@ plugins {
 }
 ```
 
-## 2. Configure the project {#configure-the-project}
+## 3. Authenticate your team and CI {#authenticate}
 
-Create a `tuist.toml` file in your project root with your project handle:
+While `tuist init` authenticates you locally, your teammates and CI environments will need to authenticate separately.
 
-```toml
-project = "your-org/your-project" # Optional: can be set here or in settings.gradle.kts
+Each teammate should run the following to get access to the Tuist features on their machine:
+
+```bash
+tuist auth login
 ```
 
-The Gradle plugin reads this file through the Tuist CLI, so you only need to define your project handle in one place. If `project` is not set in `settings.gradle.kts`, the plugin falls back to `tuist.toml`.
-
-> [!NOTE]
-> You can also set `project` directly in the `tuist` block in `settings.gradle.kts` instead of using `tuist.toml`. However, we recommend `tuist.toml` so the configuration is shared across Tuist CLI commands and the Gradle plugin.
-
-## 3. Authenticate {#authenticate}
-
-The plugin uses the Tuist CLI authentication flow and reads credentials from the same sources as other Tuist tooling. Follow <LocalizedLink href="/guides/server/authentication#gradle-plugin-authentication">Gradle plugin authentication</LocalizedLink> for setup details, including CI and self-hosted server configuration.
+For CI, follow the <LocalizedLink href="/guides/integrations/continuous-integration#authentication">CI authentication guide</LocalizedLink> to configure authentication for your environment.
 
 ## Configuration reference {#configuration-reference}
 
@@ -71,6 +77,7 @@ The recommended way to configure `project` (and optionally `url`) is through a `
 
 Once the plugin is installed and configured, you can enable:
 
-- <LocalizedLink href="/guides/features/cache/gradle-cache">Gradle remote build cache</LocalizedLink> to share build artifacts across your team and CI.
-- <LocalizedLink href="/guides/features/insights/gradle-cache">Gradle build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
-- <LocalizedLink href="/guides/features/test-insights/gradle">Gradle test insights</LocalizedLink> to track test performance and detect flaky tests.
+- <LocalizedLink href="/guides/features/cache/gradle-cache">Remote build cache</LocalizedLink> to share build artifacts across your team and CI.
+- <LocalizedLink href="/guides/features/insights/gradle-cache">Build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
+- <LocalizedLink href="/guides/features/test-insights/gradle">Test insights</LocalizedLink> to track test performance and detect flaky tests.
+- <LocalizedLink href="/guides/features/test-insights/flaky-tests">Flaky tests</LocalizedLink> to automatically detect, track, and quarantine flaky tests.

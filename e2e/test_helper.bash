@@ -24,8 +24,14 @@ require_env() {
 
 # Setup Android SDK if not set
 setup_android_sdk() {
-    if [[ -z "${ANDROID_HOME:-}" ]] && [[ -d ~/Library/Android/sdk ]]; then
-        export ANDROID_HOME=~/Library/Android/sdk
+    if [[ -z "${ANDROID_HOME:-}" ]]; then
+        # macOS default
+        if [[ -d ~/Library/Android/sdk ]]; then
+            export ANDROID_HOME=~/Library/Android/sdk
+        # Linux default
+        elif [[ -d /usr/local/lib/android/sdk ]]; then
+            export ANDROID_HOME=/usr/local/lib/android/sdk
+        fi
     fi
 
     if [[ -z "${ANDROID_HOME:-}" ]]; then

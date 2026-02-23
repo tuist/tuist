@@ -27,7 +27,7 @@ public enum DestinationType: Hashable, Sendable, Codable, Equatable, CustomStrin
         case let .device(platform), let .simulator(platform):
             return platform.caseValue
         case .android:
-            return "android"
+            return "Android"
         }
     }
 }

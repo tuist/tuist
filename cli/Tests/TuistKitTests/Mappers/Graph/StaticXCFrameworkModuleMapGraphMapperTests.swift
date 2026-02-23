@@ -1036,20 +1036,14 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         )
 
         // App gets CachedFramework's settings via combination.
-        // Ideally, the paths would be recalculated relative to App's project path,
-        // but the current implementation propagates $(SRCROOT)-relative paths as-is
-        // from the dependency's project. This means App gets CachedFramework's paths
-        // which are relative to .cache/.../HASH/ rather than Project/.
-        //
-        // TODO: In the future, the mapper should recalculate $(SRCROOT) paths when
-        // propagating settings across target boundaries with different project paths.
+        // The paths should be recalculated relative to App's project path.
         let appSettings = gotGraph.projects[appProjectPath]?.targets["App"]?.settings?.base
         let appHeaderSearchPaths = appSettings?["HEADER_SEARCH_PATHS"]
 
-        // App currently inherits CachedFramework's path (relative to .cache/.../HASH/)
+        // App's path should be relative to its own project (Project/), not to CachedFramework's project
         XCTAssertEqual(
             appHeaderSearchPaths,
-            .array(["\"$(SRCROOT)/../../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
+            .array(["\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""])
         )
     }
 

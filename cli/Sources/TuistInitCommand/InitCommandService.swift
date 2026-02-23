@@ -170,13 +170,22 @@ public struct InitCommandService {
         #endif
         case .connectGradleProject:
             projectDirectory = directory
+            let projectName = answers?.generatedProjectName
+                ?? prompter.promptProjectName(defaultName: projectDirectory.basename)
             let fullHandle = try await connectToServer(
-                named: projectDirectory.basename,
+                named: projectName,
                 answers: answers,
                 buildSystem: .gradle,
                 skipServerPrompt: true
             )
             try await writeTuistToml(fullHandle: fullHandle, at: projectDirectory)
+            if let fullHandle {
+                nextSteps.append(contentsOf: [
+                    "Your project dashboard is available at \(.link(title: fullHandle, href: "https://tuist.dev/\(fullHandle)"))",
+                    "Accelerate your builds with the \(.link(title: "Gradle remote cache", href: "https://docs.tuist.dev/en/guides/features/cache/gradle-cache"))",
+                    "Get insights into your \(.link(title: "builds", href: "https://docs.tuist.dev/en/guides/features/insights/gradle-cache")) and \(.link(title: "tests", href: "https://docs.tuist.dev/en/guides/features/test-insights/gradle"))",
+                ])
+            }
         }
 
         try await mise(path: projectDirectory, nextSteps: &nextSteps)
@@ -191,7 +200,7 @@ public struct InitCommandService {
 
         let successMessage: TerminalText = switch workflowType {
         case .connectGradleProject:
-            "Add the Tuist plugin to your \(.command("settings.gradle.kts")) to finish the Gradle integration:\n\n  \(.command("plugins { id(\"dev.tuist\") version \"0.1.0\" }"))"
+            "Add the Tuist plugin to your \(.command("settings.gradle.kts")) to finish the Gradle integration:\n\n  \(.command("plugins { id(\"dev.tuist\") version \"\(Constants.gradlePluginVersion)\" }"))"
         #if os(macOS)
             case .createGeneratedProject, .connectProjectOrSwiftPackage:
                 "You are all set to explore the Tuist universe"

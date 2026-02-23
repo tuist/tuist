@@ -23,17 +23,29 @@ defmodule TuistCommon.AWS.Client do
 
     finch_name = Application.get_env(:tuist_common, :finch_name)
 
-    [
-      method: method,
-      url: url,
-      body: body,
-      headers: headers,
-      decode_body: false,
-      finch: finch_name
-    ]
-    |> Keyword.merge(req_opts)
-    |> Keyword.merge(http_opts_list)
-    |> Keyword.delete(:follow_redirect)
+    opts =
+      [
+        method: method,
+        url: url,
+        body: body,
+        headers: headers,
+        decode_body: false,
+        finch: finch_name
+      ]
+      |> Keyword.merge(req_opts)
+      |> Keyword.merge(http_opts_list)
+      |> Keyword.delete(:follow_redirect)
+
+    opts =
+      if Keyword.get(opts, :finch) do
+        opts
+        |> Keyword.delete(:connect_options)
+        |> Keyword.delete(:inet6)
+      else
+        opts
+      end
+
+    opts
     |> Req.request()
     |> case do
       {:ok, %{status: status, headers: headers, body: body}} ->

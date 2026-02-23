@@ -853,6 +853,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "Rosalind", condition: .when([.macos])),
                     .external(name: "KeychainAccess"),
+                    .external(name: "Crypto"),
                 ]
             case .hasher:
                 [

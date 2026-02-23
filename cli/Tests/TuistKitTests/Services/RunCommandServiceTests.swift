@@ -642,6 +642,253 @@ struct RunCommandServiceTests {
         .withMockedDependencies(),
         .inTemporaryDirectory
     )
+    func run_preview_link_android_app() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let androidDevice = AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)
+
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(
+                builds: [.test(
+                    supportedPlatforms: [.android],
+                    type: .apk
+                )],
+                bundleIdentifier: "com.example.app",
+                supportedPlatforms: [.android]
+            ))
+
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([androidDevice])
+
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try await fileSystem.makeDirectory(at: unarchivedPath)
+        try await fileSystem.touch(unarchivedPath.appending(component: "app.apk"))
+
+        given(adbController)
+            .installApp(at: .any, device: .value(androidDevice))
+            .willReturn()
+
+        given(adbController)
+            .launchApp(packageName: .value("com.example.app"), device: .value(androidDevice))
+            .willReturn()
+
+        // When
+        try await subject.run(
+            runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+            device: "Pixel_6"
+        )
+
+        // Then
+        verify(adbController)
+            .installApp(at: .any, device: .value(androidDevice))
+            .called(1)
+
+        verify(adbController)
+            .launchApp(packageName: .value("com.example.app"), device: .value(androidDevice))
+            .called(1)
+    }
+
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
+    func run_preview_link_android_app_no_package_name() async throws {
+        // Given
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(
+                builds: [.test(
+                    supportedPlatforms: [.android],
+                    type: .apk
+                )],
+                bundleIdentifier: nil,
+                supportedPlatforms: [.android]
+            ))
+
+        let androidDevice = AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([androidDevice])
+
+        let downloadedArchive = try AbsolutePath(validating: "/tmp/archive")
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived")
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try await fileSystem.makeDirectory(at: unarchivedPath)
+        try await fileSystem.touch(unarchivedPath.appending(component: "app.apk"))
+
+        // When / Then
+        await #expect(
+            throws: RunCommandServiceError.missingPackageName
+        ) {
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                device: "Pixel_6"
+            )
+        }
+    }
+
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
+    func run_preview_link_android_apk_not_in_archive() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let androidDevice = AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator)
+
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(
+                builds: [.test(
+                    supportedPlatforms: [.android],
+                    type: .apk
+                )],
+                bundleIdentifier: "com.example.app",
+                supportedPlatforms: [.android]
+            ))
+
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([androidDevice])
+
+        let downloadedArchive = temporaryDirectory.appending(component: "archive")
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let fileUnarchiver = MockFileUnarchiving()
+        given(fileArchiverFactory)
+            .makeFileUnarchiver(for: .any)
+            .willReturn(fileUnarchiver)
+
+        let unarchivedPath = temporaryDirectory.appending(component: "unarchived-empty")
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        try await fileSystem.makeDirectory(at: unarchivedPath)
+
+        // When / Then
+        await #expect(
+            throws: RunCommandServiceError.apkNotFoundInArchive
+        ) {
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                device: "Pixel_6"
+            )
+        }
+    }
+
+    @Test
+    func run_preview_link_android_device_not_found() async throws {
+        // Given
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(
+                builds: [.test(
+                    supportedPlatforms: [.android],
+                    type: .apk
+                )],
+                supportedPlatforms: [.android]
+            ))
+
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([
+                AndroidDevice(id: "emulator-5554", name: "Pixel_6", type: .emulator),
+            ])
+
+        // When / Then
+        await #expect(
+            throws: RunCommandServiceError.deviceNotFound("NonExistentDevice")
+        ) {
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!),
+                device: "NonExistentDevice"
+            )
+        }
+    }
+
+    @Test
+    func run_preview_link_android_no_devices() async throws {
+        // Given
+        given(getPreviewService)
+            .getPreview(
+                .any,
+                fullHandle: .any,
+                serverURL: .any
+            )
+            .willReturn(.test(
+                builds: [.test(
+                    supportedPlatforms: [.android],
+                    type: .apk
+                )],
+                supportedPlatforms: [.android]
+            ))
+
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([])
+
+        // When / Then
+        await #expect(
+            throws: RunCommandServiceError.noDevicesFound
+        ) {
+            try await subject.run(
+                runnable: .url(URL(string: "https://tuist.io/tuist/tuist/preview/some-id")!)
+            )
+        }
+    }
+
+    @Test(
+        .withMockedDependencies(),
+        .inTemporaryDirectory
+    )
     func run_share_link_runs_with_destination_and_version() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

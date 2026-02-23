@@ -7,6 +7,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Metadata
   alias Cache.Registry.RepositoryURL
+  alias Cache.RegistryDownloadEventsPipeline
   alias Cache.S3
   alias Cache.S3Transfers
 
@@ -166,6 +167,15 @@ defmodule CacheWeb.RegistryController do
 
     if Registry.Disk.exists?(scope, name, normalized_version, "source_archive.zip") do
       :ok = CacheArtifacts.track_artifact_access(key)
+
+      if Config.analytics_enabled?() do
+        RegistryDownloadEventsPipeline.async_push(%{
+          scope: scope,
+          name: name,
+          version: normalized_version
+        })
+      end
+
       local_path = Registry.Disk.local_accel_path(scope, name, normalized_version, "source_archive.zip")
 
       conn
@@ -178,6 +188,14 @@ defmodule CacheWeb.RegistryController do
       if S3.exists?(key, type: :registry) do
         S3Transfers.enqueue_registry_download(key)
         :ok = CacheArtifacts.track_artifact_access(key)
+
+        if Config.analytics_enabled?() do
+          RegistryDownloadEventsPipeline.async_push(%{
+            scope: scope,
+            name: name,
+            version: normalized_version
+          })
+        end
 
         case S3.presign_download_url(key, type: :registry) do
           {:ok, url} ->

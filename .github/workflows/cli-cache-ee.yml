@@ -117,32 +117,31 @@ jobs:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
-        run: mise run cli:ee
+        run: mise run --no-prepare cli:ee
       - name: Run tests
-        run: mise x -- tuist inspect dependencies --only implicit
+        run: tuist inspect dependencies --only implicit
         env:
           TUIST_EE: 1
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
@@ -167,32 +166,31 @@ jobs:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
-        run: mise run cli:ee
+        run: mise run --no-prepare cli:ee
       - name: Run tests
-        run: mise x -- tuist test TuistCacheEEAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_EE: 1
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
   unit-tests:
     name: Unit Tests
     runs-on: namespace-profile-default-macos
@@ -217,29 +215,28 @@ jobs:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: actions/cache/restore@v4
+        id: cache
         with:
           path: .build
-          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+          key: ${{ runner.os }}-cli-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
       - name: Initialize TuistCacheEE submodule
-        run: mise run cli:ee
+        run: mise run --no-prepare cli:ee
       - name: Run tests
-        run: mise x -- tuist test TuistCacheEEUnitTests -- -retry-tests-on-failure -test-iterations 4
+        run: tuist test TuistCacheEEUnitTests -- -retry-tests-on-failure -test-iterations 4
         env:
           TUIST_EE: 1
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

@@ -44,6 +44,58 @@ defmodule Cache.SQLiteBufferTest do
 
     record = Repo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload_two
+    assert record.last_accessed_at
+  end
+
+  test "write then access for same key keeps pending write" do
+    key = "keyvalue:write-then-access:account:project"
+    payload = Jason.encode!(%{entries: [%{"value" => "write"}]})
+
+    :ok = KeyValueBuffer.enqueue(key, payload)
+    :ok = KeyValueBuffer.enqueue_access(key)
+
+    assert %{key_values: 1, total: 1} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
+
+    record = Repo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+    assert record.last_accessed_at
+  end
+
+  test "access-only entry updates last_accessed_at without changing payload" do
+    key = "keyvalue:access-only:account:project"
+    payload = Jason.encode!(%{entries: [%{"value" => "original"}]})
+
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+
+    Repo.insert!(%KeyValueEntry{
+      key: key,
+      json_payload: payload,
+      last_accessed_at: initial_time,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.flush()
+
+    record = Repo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+    assert DateTime.after?(record.last_accessed_at, initial_time)
+  end
+
+  test "multiple accesses for same key are de-duplicated in queue" do
+    key = "keyvalue:access-dedup:account:project"
+    write_key = "keyvalue:access-dedup:write"
+
+    :ok = KeyValueBuffer.enqueue(write_key, Jason.encode!(%{value: "write"}))
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.enqueue_access(key)
+
+    assert %{key_values: 2, total: 2} = KeyValueBuffer.queue_stats()
   end
 
   test "flush writes and deletes cas artifacts" do
@@ -85,7 +137,7 @@ defmodule Cache.SQLiteBufferTest do
     {:ok, pid} = SQLiteBuffer.start_link(name: :sqlite_buffer_test, buffer_module: KeyValueBuffer)
 
     Sandbox.allow(Repo, self(), pid)
-    true = :ets.insert(:sqlite_buffer_test, {key, %{key: key, json_payload: payload}})
+    true = :ets.insert(:sqlite_buffer_test, {key, {:write, %{key: key, json_payload: payload}}})
 
     :ok = GenServer.stop(pid)
 

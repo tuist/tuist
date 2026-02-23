@@ -246,7 +246,11 @@ Some companies support our community and open source efforts with contributions 
           <img src="assets/companies/abb-logo-slogan.png" alt="abb_mobile_logo" height="75"/>
         </a>
       </td>
-      <td width="20%"></td>
+      <td width="20%" align="center">
+        <a href="https://kolesa.group" target="_blank">
+          <img src="assets/companies/kolesa_group.png" alt="kolesa_group_logo" height="75"/>
+        </a>
+      </td>
       <td width="20%"></td>
       <td width="20%"></td>
       <td width="20%"></td>

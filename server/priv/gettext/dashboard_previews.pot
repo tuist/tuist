@@ -91,7 +91,7 @@ msgstr ""
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:267
+#: lib/tuist_web/live/preview_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Or run using CLI"
 msgstr ""
@@ -109,8 +109,8 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:201
-#: lib/tuist_web/live/preview_live.html.heex:242
+#: lib/tuist_web/live/preview_live.html.heex:203
+#: lib/tuist_web/live/preview_live.html.heex:249
 #, elixir-autogen, elixir-format
 msgid "QR code"
 msgstr ""
@@ -135,13 +135,13 @@ msgstr ""
 msgid "Run the following command to share app preview."
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:188
-#: lib/tuist_web/live/preview_live.html.heex:229
+#: lib/tuist_web/live/preview_live.html.heex:190
+#: lib/tuist_web/live/preview_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Scan QR code"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:232
+#: lib/tuist_web/live/preview_live.html.heex:239
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your iOS device to install this version of the app"
 msgstr ""
@@ -156,12 +156,12 @@ msgstr ""
 msgid "Supported platforms"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:259
+#: lib/tuist_web/live/preview_live.html.heex:269
 #, elixir-autogen, elixir-format
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:253
+#: lib/tuist_web/live/preview_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for device installation"
 msgstr ""
@@ -198,17 +198,17 @@ msgstr ""
 msgid "Package name"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:191
+#: lib/tuist_web/live/preview_live.html.heex:193
 #, elixir-autogen, elixir-format
 msgid "Scan this QR code on your Android device to download and install this version of the app"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:216
+#: lib/tuist_web/live/preview_live.html.heex:221
 #, elixir-autogen, elixir-format
 msgid "The APK for this preview is no longer available"
 msgstr ""
 
-#: lib/tuist_web/live/preview_live.html.heex:210
+#: lib/tuist_web/live/preview_live.html.heex:215
 #, elixir-autogen, elixir-format
 msgid "This preview isn't available for download"
 msgstr ""

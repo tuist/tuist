@@ -3,6 +3,7 @@ defmodule Cache.Finch.Pools do
 
   def config do
     server_url = Application.get_env(:cache, :server_url)
+    s3_protocols = Cache.Config.s3_protocols()
 
     pools = %{
       :default => [size: 10, start_pool_metrics?: true],
@@ -24,12 +25,16 @@ defmodule Cache.Finch.Pools do
 
     case Application.fetch_env(:ex_aws, :s3) do
       {:ok, s3_config} ->
-        s3_url = "#{s3_config[:scheme]}#{s3_config[:host]}"
+        s3_url =
+          case s3_config[:port] do
+            nil -> "#{s3_config[:scheme]}#{s3_config[:host]}"
+            port -> "#{s3_config[:scheme]}#{s3_config[:host]}:#{port}"
+          end
 
         Map.put(pools, s3_url,
           conn_opts: [
             log: true,
-            protocols: [:http2, :http1],
+            protocols: s3_protocols,
             transport_opts: [
               cacertfile: CAStore.file_path(),
               verify: :verify_peer
@@ -37,7 +42,7 @@ defmodule Cache.Finch.Pools do
           ],
           size: 128,
           count: 8,
-          protocols: [:http2, :http1],
+          protocols: s3_protocols,
           start_pool_metrics?: true
         )
 

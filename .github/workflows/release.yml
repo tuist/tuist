@@ -725,7 +725,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -752,8 +752,6 @@ jobs:
           context: .
           file: ./server/Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -815,7 +813,7 @@ jobs:
           fi
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: namespacelabs/nscloud-setup-buildx-action@v0
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -842,8 +840,6 @@ jobs:
           context: .
           file: ./cache/Dockerfile
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             CACHE_VERSION=${{ needs.check-releases.outputs.cache-next-version-number }}
             MIX_ENV=prod
@@ -919,6 +915,10 @@ jobs:
             git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
+      - name: Update version in settings.gradle.kts
+        run: |
+          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
+
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
         run: |
@@ -964,6 +964,7 @@ jobs:
           name: gradle-artifacts
           path: |
             gradle/CHANGELOG.md
+            gradle/settings.gradle.kts
             gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt
           retention-days: 1
 
@@ -1263,8 +1264,11 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
+            sed -i 's/public static let gradlePluginVersion = ".*"/public static let gradlePluginVersion = "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' cli/Sources/TuistConstants/Constants.swift
             git add gradle/CHANGELOG.md
+            git add gradle/settings.gradle.kts
             git add gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt || true
+            git add cli/Sources/TuistConstants/Constants.swift
             FILES_ADDED=true
           fi
 

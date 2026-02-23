@@ -279,7 +279,17 @@ final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: 
         try await setUpFixture("generated_multiplatform_app_with_macros_and_embedded_watchos_app")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+        do {
+            try await run(BuildCommand.self, "App", "--platform", "ios")
+        } catch {
+            let message = String(describing: error)
+            if message.contains("must be installed in order to run the scheme"),
+               message.contains("watchOS")
+            {
+                throw XCTSkip("Skipping because the required watchOS simulator runtime is not installed.")
+            }
+            throw error
+        }
     }
 }
 

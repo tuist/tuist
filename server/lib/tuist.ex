@@ -38,6 +38,7 @@ defmodule Tuist do
       CacheActionItems,
       CommandEvents,
       CommandEvents.Event,
+      Registry,
       Registry.Swift.Packages,
       Registry.Swift.Packages.Package,
       Registry.Swift.Packages.PackageManifest,

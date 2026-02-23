@@ -1,4 +1,4 @@
-import CryptoKit
+import Crypto
 import FileSystem
 import Foundation
 import Mockable

@@ -590,6 +590,45 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         XCTAssertNil(fileReference?.name)
     }
 
+    func test_generateDependencies_whenPrecompiledNodeFromSPMBuildDirectory() throws {
+        let pbxproj = PBXProj()
+        let sourceRootPath = try AbsolutePath(validating: "/path/to/project")
+        let target = Target.test()
+        let projectGroupName = "Project"
+        let projectGroup: ProjectGroup = .group(name: projectGroupName)
+        let project = Project.test(
+            path: sourceRootPath,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj"),
+            filesGroup: projectGroup,
+            targets: [target]
+        )
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        var dependencies: Set<GraphDependencyReference> = Set()
+        let xcframeworkPath = try AbsolutePath(validating: "/path/to/project/.build/artifacts/stytch-ios/StytchCore.xcframework")
+        let precompiledNode = GraphDependencyReference.testXCFramework(path: xcframeworkPath)
+        dependencies.insert(precompiledNode)
+
+        try subject.generate(
+            dependencyReferences: dependencies,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: sourceRootPath,
+            filesGroup: project.filesGroup
+        )
+
+        let frameworksGroup = groups.frameworks
+        let fileReference = frameworksGroup.children.first as? PBXFileReference
+        XCTAssertEqual(fileReference?.name, "StytchCore.xcframework")
+        XCTAssertEqual(fileReference?.sourceTree, .absolute)
+
+        let projectGroupChildren = groups.sortedMain.group(named: projectGroupName)?.children ?? []
+        let projectGroupHasXCFramework = projectGroupChildren.contains { element in
+            (element as? PBXFileReference)?.name == "StytchCore.xcframework"
+        }
+        XCTAssertFalse(projectGroupHasXCFramework, "XCFramework from .build/ should not appear in the project group")
+    }
+
     func test_generatePath_whenGroupIsSpecified() throws {
         // Given
         let pbxproj = PBXProj()

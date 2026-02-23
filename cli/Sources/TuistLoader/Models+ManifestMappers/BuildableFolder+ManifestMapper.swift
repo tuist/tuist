@@ -10,14 +10,16 @@ extension XcodeGraph.BuildableFolder {
         generatorPaths: GeneratorPaths
     ) async throws -> XcodeGraph.BuildableFolder {
         let path = try generatorPaths.resolve(path: manifest.path)
-        let exceptions = try XcodeGraph.BuildableFolderExceptions.from(
+        let fileSystem = FileSystem()
+
+        let exceptions = try await XcodeGraph.BuildableFolderExceptions.from(
             manifest: manifest.exceptions,
-            buildableFolder: path
+            buildableFolder: path,
+            fileSystem: fileSystem
         )
         let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
-        let fileSystem = FileSystem()
         let resolvedFiles = try await fileSystem
             .glob(directory: path, include: ["**/*"]).collect()
             .compactMap { path -> BuildableFolderFile? in

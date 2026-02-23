@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
-import TuistConstants
+import Path
+import TuistConfigLoader
 import TuistEnvironment
 import TuistOIDC
 import TuistServer
@@ -44,6 +45,7 @@ public struct LoginCommandService: LoginCommandServicing {
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let retryProvider: RetryProviding
+    private let configLoader: ConfigLoading
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -52,7 +54,8 @@ public struct LoginCommandService: LoginCommandServicing {
         authenticateService: AuthenticateServicing = AuthenticateService(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
         exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
-        retryProvider: RetryProviding = RetryProvider()
+        retryProvider: RetryProviding = RetryProvider(),
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverSessionController = serverSessionController
@@ -61,6 +64,7 @@ public struct LoginCommandService: LoginCommandServicing {
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
         self.exchangeOIDCTokenService = exchangeOIDCTokenService
         self.retryProvider = retryProvider
+        self.configLoader = configLoader
     }
 
     public func run(
@@ -81,7 +85,9 @@ public struct LoginCommandService: LoginCommandServicing {
         {
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
         } else {
-            resolvedServerURL = Constants.URLs.production
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
         }
 
         if email != nil || password != nil {
