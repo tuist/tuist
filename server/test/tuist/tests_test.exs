@@ -5296,4 +5296,67 @@ defmodule Tuist.TestsTest do
       assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
     end
   end
+
+  describe "project_test_schemes/1" do
+    test "returns distinct schemes for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "Framework",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: nil,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: other_project.id,
+        scheme: "OtherApp",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      old_date = NaiveDateTime.add(NaiveDateTime.utc_now(), -31, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "OldScheme",
+        ran_at: old_date
+      )
+
+      # When
+      schemes = Tests.project_test_schemes(project)
+
+      # Then
+      assert Enum.sort(schemes) == ["App", "Framework"]
+    end
+
+    test "returns an empty list when no tests exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      schemes = Tests.project_test_schemes(project)
+
+      # Then
+      assert schemes == []
+    end
+  end
 end

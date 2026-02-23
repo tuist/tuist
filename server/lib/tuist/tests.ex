@@ -47,7 +47,7 @@ defmodule Tuist.Tests do
       from(t in Test,
         where: t.project_id == ^project.id,
         where: t.scheme != "",
-        where: t.inserted_at > ^thirty_days_ago,
+        where: t.ran_at > ^thirty_days_ago,
         distinct: true,
         select: t.scheme
       )
