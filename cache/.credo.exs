@@ -1,5 +1,6 @@
 alias Credo.Checks.DisallowSpec
 alias Credo.Checks.TimestampsType
+alias Credo.Checks.DisallowGlobalStateMutation
 
 %{
   configs: [
@@ -23,7 +24,8 @@ alias Credo.Checks.TimestampsType
            [
              files: %{excluded: ["priv/repo/migrations/"]},
              modules: [[:Cache, :Repo], [:Repo], [:Oban]]
-           ]}
+           ]},
+          {DisallowGlobalStateMutation, files: %{included: ["test/"]}}
         ],
         disabled: [
           {Credo.Check.Design.TagTODO, []}
