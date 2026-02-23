@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-04 13:21+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"PO-Revision-Date: 2026-02-23 08:45+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ko/>\n"
 "Language: ko\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -751,31 +751,24 @@ msgstr "지난 기간 이후"
 msgid "since yesterday"
 msgstr "어제부터"
 
-#, fuzzy
 msgid "Cache Endpoint"
 msgstr "캐시 주소"
 
-#, fuzzy
 msgid "All"
 msgstr "전체"
 
-#, fuzzy
 msgid "Custom metadata"
 msgstr "사용자 정의 메타데이터"
 
-#, fuzzy
 msgid "Generations"
-msgstr "세대"
+msgstr "Generation 내역"
 
-#, fuzzy
 msgid "Tag:"
 msgstr "Tag:"
 
-#, fuzzy
 msgid "Tags"
-msgstr "Tags"
+msgstr "태그"
 
-#, fuzzy
 msgid "Value"
 msgstr "값"
 
