@@ -593,20 +593,20 @@ defmodule TuistWeb.ProjectNotificationsLive do
         size_label = bundle_size_metric_label(metric)
 
         text =
-          if app_bundle_id != "" do
+          if app_bundle_id == "" do
             dgettext(
               "dashboard_projects",
-              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{app_bundle_id}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
               size_label: size_label,
-              app_bundle_id: app_bundle_id,
               git_branch: git_branch,
               deviation: deviation
             )
           else
             dgettext(
               "dashboard_projects",
-              "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{app_bundle_id}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
               size_label: size_label,
+              app_bundle_id: app_bundle_id,
               git_branch: git_branch,
               deviation: deviation
             )
@@ -620,10 +620,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
         scheme = Keyword.get(opts, :scheme, "")
 
         current_unit =
-          if scheme != "" do
-            dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
-          else
+          if scheme == "" do
             unit
+          else
+            dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
           end
 
         text =
