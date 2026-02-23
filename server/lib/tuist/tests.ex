@@ -23,6 +23,7 @@ defmodule Tuist.Tests do
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
@@ -38,6 +39,20 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestSuiteRun
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
+  def project_test_schemes(%Project{} = project) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    ClickHouseRepo.all(
+      from(t in Test,
+        where: t.project_id == ^project.id,
+        where: t.scheme != "",
+        where: t.inserted_at > ^thirty_days_ago,
+        distinct: true,
+        select: t.scheme
+      )
+    )
+  end
 
   def upload_crash_report(attrs) do
     %CrashReport{}
