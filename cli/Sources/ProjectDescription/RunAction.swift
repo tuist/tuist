@@ -17,8 +17,8 @@ public struct RunAction: Equatable, Codable, Sendable {
     /// A list of actions that are executed after the run process.
     public var postActions: [ExecutionAction]
 
-    /// The name of the executable or target to run.
-    public var executable: TargetReference?
+    /// The executable configuration for the run action.
+    public var executable: Executable
 
     /// Custom working directory path for the run action. When set, the executable
     /// will be launched from this directory instead of the default location.
@@ -43,9 +43,6 @@ public struct RunAction: Equatable, Codable, Sendable {
     /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
     public var expandVariableFromTarget: TargetReference?
 
-    /// Whether to present the "Ask on Launch" dialog when running.
-    public var askForAppToLaunch: Bool
-
     /// The launch style of the action
     public var launchStyle: LaunchStyle
 
@@ -58,7 +55,7 @@ public struct RunAction: Equatable, Codable, Sendable {
         customLLDBInitFile: Path? = nil,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
-        executable: TargetReference? = nil,
+        executable: Executable = .executable(nil),
         customWorkingDirectory: Path? = nil,
         filePath: Path? = nil,
         arguments: Arguments? = nil,
@@ -66,7 +63,6 @@ public struct RunAction: Equatable, Codable, Sendable {
         diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
         metalOptions: MetalOptions = .options(),
         expandVariableFromTarget: TargetReference? = nil,
-        askForAppToLaunch: Bool = false,
         launchStyle: LaunchStyle = .automatically,
         appClipInvocationURLString: String? = nil
     ) {
@@ -83,7 +79,6 @@ public struct RunAction: Equatable, Codable, Sendable {
         self.diagnosticsOptions = diagnosticsOptions
         self.metalOptions = metalOptions
         self.expandVariableFromTarget = expandVariableFromTarget
-        self.askForAppToLaunch = askForAppToLaunch
         self.launchStyle = launchStyle
         self.appClipInvocationURLString = appClipInvocationURLString
     }
@@ -131,7 +126,7 @@ public struct RunAction: Equatable, Codable, Sendable {
             customLLDBInitFile: customLLDBInitFile,
             preActions: preActions,
             postActions: postActions,
-            executable: executable,
+            executable: .executable(executable),
             customWorkingDirectory: customWorkingDirectory,
             filePath: filePath,
             arguments: arguments,
@@ -179,23 +174,13 @@ public struct RunAction: Equatable, Codable, Sendable {
         launchStyle: LaunchStyle = .automatically,
         appClipInvocationURLString: String? = nil
     ) -> RunAction {
-        let askForAppToLaunch: Bool
-        let targetReference: TargetReference?
-        switch executable {
-        case .askOnLaunch:
-            askForAppToLaunch = true
-            targetReference = nil
-        case let .executable(reference):
-            askForAppToLaunch = false
-            targetReference = reference
-        }
-        return RunAction(
+        RunAction(
             configuration: configuration,
             attachDebugger: attachDebugger,
             customLLDBInitFile: customLLDBInitFile,
             preActions: preActions,
             postActions: postActions,
-            executable: targetReference,
+            executable: executable,
             customWorkingDirectory: customWorkingDirectory,
             filePath: filePath,
             arguments: arguments,
@@ -203,7 +188,6 @@ public struct RunAction: Equatable, Codable, Sendable {
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariableFromTarget,
-            askForAppToLaunch: askForAppToLaunch,
             launchStyle: launchStyle,
             appClipInvocationURLString: appClipInvocationURLString
         )

@@ -52,11 +52,17 @@ extension XcodeGraph.RunAction {
         let arguments = manifest.arguments.map { XcodeGraph.Arguments.from(manifest: $0) }
 
         var executableResolved: XcodeGraph.TargetReference?
-        if let executable = manifest.executable {
-            executableResolved = TargetReference(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
-                name: executable.targetName
-            )
+        var askForAppToLaunch = false
+        switch manifest.executable {
+        case .askOnLaunch:
+            askForAppToLaunch = true
+        case let .executable(reference):
+            if let reference {
+                executableResolved = TargetReference(
+                    projectPath: try generatorPaths.resolveSchemeActionProjectPath(reference.projectPath),
+                    name: reference.targetName
+                )
+            }
         }
 
         var filePathResolved: AbsolutePath?
@@ -109,7 +115,7 @@ extension XcodeGraph.RunAction {
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariablesFromTarget,
-            askForAppToLaunch: manifest.askForAppToLaunch,
+            askForAppToLaunch: askForAppToLaunch,
             launchStyle: launchStyle,
             appClipInvocationURL: appClipInvocationURL,
             customWorkingDirectory: customWorkingDirectoryResolved,

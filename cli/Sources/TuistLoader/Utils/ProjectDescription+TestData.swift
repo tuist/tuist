@@ -201,12 +201,11 @@ import TuistSupport
         ) -> RunAction {
             RunAction(
                 configuration: configuration,
-                executable: executable,
+                executable: askForAppToLaunch ? .askOnLaunch : .executable(executable),
                 customWorkingDirectory: customWorkingDirectory,
                 filePath: filePath,
                 arguments: arguments,
                 options: options,
-                askForAppToLaunch: askForAppToLaunch,
                 appClipInvocationURLString: appClipInvocationURLString
             )
         }

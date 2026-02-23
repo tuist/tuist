@@ -11,11 +11,8 @@ public struct ProfileAction: Equatable, Codable, Sendable {
     /// A list of actions that are executed after the profile process.
     public var postActions: [ExecutionAction]
 
-    /// The name of the executable or target to profile.
-    public var executable: TargetReference?
-
-    /// Whether to present the "Ask on Launch" dialog when profiling.
-    public var askForAppToLaunch: Bool
+    /// The executable configuration for the profile action.
+    public var executable: Executable
 
     /// Command line arguments passed on launch and environment variables.
     public var arguments: Arguments?
@@ -24,15 +21,13 @@ public struct ProfileAction: Equatable, Codable, Sendable {
         configuration: ConfigurationName = .release,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
-        executable: TargetReference? = nil,
-        askForAppToLaunch: Bool = false,
+        executable: Executable = .executable(nil),
         arguments: Arguments? = nil
     ) {
         self.configuration = configuration
         self.preActions = preActions
         self.postActions = postActions
         self.executable = executable
-        self.askForAppToLaunch = askForAppToLaunch
         self.arguments = arguments
     }
 
@@ -55,7 +50,7 @@ public struct ProfileAction: Equatable, Codable, Sendable {
             configuration: configuration,
             preActions: preActions,
             postActions: postActions,
-            executable: executable,
+            executable: .executable(executable),
             arguments: arguments
         )
     }
@@ -75,22 +70,11 @@ public struct ProfileAction: Equatable, Codable, Sendable {
         executable: Executable,
         arguments: Arguments? = nil
     ) -> ProfileAction {
-        let askForAppToLaunch: Bool
-        let targetReference: TargetReference?
-        switch executable {
-        case .askOnLaunch:
-            askForAppToLaunch = true
-            targetReference = nil
-        case let .executable(reference):
-            askForAppToLaunch = false
-            targetReference = reference
-        }
-        return ProfileAction(
+        ProfileAction(
             configuration: configuration,
             preActions: preActions,
             postActions: postActions,
-            executable: targetReference,
-            askForAppToLaunch: askForAppToLaunch,
+            executable: executable,
             arguments: arguments
         )
     }
