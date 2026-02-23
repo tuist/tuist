@@ -452,20 +452,6 @@ msgstr ""
 msgid "Create alert rule"
 msgstr ""
 
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has increased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-
 msgid "Connect your Slack account before selecting channels."
 msgstr ""
 
@@ -549,4 +535,34 @@ msgid "Size metric"
 msgstr ""
 
 msgid "e.g. main"
+msgstr ""
+
+msgid "%{scheme} %{unit}"
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest "
+"<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
+"strong> has increased by <strong>%{deviation}%</strong> compared to the "
+"previous bundle."
+msgstr ""
+
+msgid "Scheme"
+msgstr ""
+
+msgid "e.g. MyApp (optional)"
 msgstr ""

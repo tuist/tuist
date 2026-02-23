@@ -595,28 +595,6 @@ msgid "Create alert rule"
 msgstr "Uyarı kuralı oluşturun"
 
 #, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
-"%{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
-"karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında uyarı verin."
-
-#, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has increased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
-"%{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
-"karşılaştırıldığında <strong>%{deviation}%</strong> arttığında uyarı verin."
-
-#, fuzzy
 msgid "Connect your Slack account before selecting channels."
 msgstr "Kanalları seçmeden önce Slack hesabınızı bağlayın."
 
@@ -732,6 +710,60 @@ msgstr "Boyut ölçüsü"
 #, fuzzy
 msgid "e.g. main"
 msgstr "Örnek: main"
+
+msgid "%{scheme} %{unit}"
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest "
+"<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
+"strong> has increased by <strong>%{deviation}%</strong> compared to the "
+"previous bundle."
+msgstr ""
+
+msgid "Scheme"
+msgstr ""
+
+msgid "e.g. MyApp (optional)"
+msgstr ""
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
+#~ "%{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> "
+#~ "ile karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında uyarı "
+#~ "verin."
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
+#~ "%{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> "
+#~ "ile karşılaştırıldığında <strong>%{deviation}%</strong> arttığında uyarı "
+#~ "verin."
 
 #, fuzzy
 #~ msgid "Only people with access"

@@ -586,28 +586,6 @@ msgid "Create alert rule"
 msgstr "建立警示規則"
 
 #, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} "
-"%{unit}</strong> 期間，相較於先前<strong>%{rolling_window_size} %{unit}</"
-"strong> 的數值下降達<strong>%{deviation}%</strong> 時發出警示。"
-
-#, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has increased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} "
-"%{unit}</strong> 期間，相較於前次<strong>%{rolling_window_size} %{unit}</"
-"strong> 的數值增加<strong>%{deviation}%</strong> 時發出警示。"
-
-#, fuzzy
 msgid "Connect your Slack account before selecting channels."
 msgstr "請先連結您的 Slack 帳戶，再選擇頻道。"
 
@@ -717,6 +695,60 @@ msgstr "尺寸指標"
 #, fuzzy
 msgid "e.g. main"
 msgstr "例如：main"
+
+msgid "%{scheme} %{unit}"
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest "
+"<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
+"strong> has increased by <strong>%{deviation}%</strong> compared to the "
+"previous bundle."
+msgstr ""
+
+msgid "Scheme"
+msgstr ""
+
+msgid "e.g. MyApp (optional)"
+msgstr ""
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "當<strong>%{metric_category}</strong> 於過去"
+#~ "<strong>%{rolling_window_size} %{unit}</strong> 期間，相較於先前"
+#~ "<strong>%{rolling_window_size} %{unit}</strong> 的數值下降達"
+#~ "<strong>%{deviation}%</strong> 時發出警示。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "當<strong>%{metric_category}</strong> 於過去"
+#~ "<strong>%{rolling_window_size} %{unit}</strong> 期間，相較於前次"
+#~ "<strong>%{rolling_window_size} %{unit}</strong> 的數值增加"
+#~ "<strong>%{deviation}%</strong> 時發出警示。"
 
 #, fuzzy
 #~ msgid "Only people with access"

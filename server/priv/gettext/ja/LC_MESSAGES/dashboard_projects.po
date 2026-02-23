@@ -592,28 +592,6 @@ msgid "Create alert rule"
 msgstr "アラートルールを作成する"
 
 #, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
-"%{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
-"比較して<strong>%{deviation}%</strong> 減少した場合にアラートを通知する。"
-
-#, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has increased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
-"%{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
-"比較して<strong>%{deviation}%</strong> 増加した場合にアラートを通知する。"
-
-#, fuzzy
 msgid "Connect your Slack account before selecting channels."
 msgstr "チャンネルを選択する前に、Slackアカウントを接続してください。"
 
@@ -726,6 +704,60 @@ msgstr "サイズ指標"
 #, fuzzy
 msgid "e.g. main"
 msgstr "例: main"
+
+msgid "%{scheme} %{unit}"
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest "
+"<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
+"strong> has increased by <strong>%{deviation}%</strong> compared to the "
+"previous bundle."
+msgstr ""
+
+msgid "Scheme"
+msgstr ""
+
+msgid "e.g. MyApp (optional)"
+msgstr ""
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
+#~ "%{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
+#~ "strong> と比較して<strong>%{deviation}%</strong> 減少した場合にアラートを"
+#~ "通知する。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
+#~ "%{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
+#~ "strong> と比較して<strong>%{deviation}%</strong> 増加した場合にアラートを"
+#~ "通知する。"
 
 #, fuzzy
 #~ msgid "Only people with access"
