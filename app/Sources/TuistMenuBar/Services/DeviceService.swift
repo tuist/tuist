@@ -87,7 +87,7 @@ final class DeviceService: DeviceServicing {
     private let appStorage: AppStoring
     private let deviceController: DeviceControlling
     private let simulatorController: SimulatorControlling
-    private let adbController: any AdbControlling
+    private let adbController: AdbControlling
     private let getPreviewService: GetPreviewServicing
     private let fileArchiverFactory: FileArchivingFactorying
     private let remoteArtifactDownloader: RemoteArtifactDownloading
@@ -100,7 +100,7 @@ final class DeviceService: DeviceServicing {
         appStorage: AppStoring = AppStorage(),
         deviceController: DeviceControlling = DeviceController(),
         simulatorController: SimulatorControlling = SimulatorController(),
-        adbController: any AdbControlling = AdbController(),
+        adbController: AdbControlling = AdbController(),
         getPreviewService: GetPreviewServicing = GetPreviewService(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
