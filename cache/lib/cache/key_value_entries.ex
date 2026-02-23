@@ -50,26 +50,16 @@ defmodule Cache.KeyValueEntries do
   def unreferenced_hashes(hashes, account_handle, project_handle) when is_list(hashes) do
     key_prefix = "keyvalue:#{escape_like(account_handle)}:#{escape_like(project_handle)}:%"
 
-    referenced =
-      from(e in KeyValueEntry,
-        where: fragment("? LIKE ? ESCAPE '!'", e.key, ^key_prefix),
-        select: e.json_payload
+    Enum.reject(hashes, fn hash ->
+      Repo.exists?(
+        from(e in KeyValueEntry,
+          where: fragment("? LIKE ? ESCAPE '!'", e.key, ^key_prefix),
+          where: fragment("instr(?, ?) > 0", e.json_payload, ^hash),
+          limit: 1,
+          select: true
+        )
       )
-      |> Repo.all()
-      |> Enum.flat_map(fn payload ->
-        case Jason.decode(payload) do
-          {:ok, %{"entries" => entries}} when is_list(entries) ->
-            entries
-            |> Enum.map(&Map.get(&1, "value"))
-            |> Enum.reject(&is_nil/1)
-
-          _ ->
-            []
-        end
-      end)
-      |> MapSet.new()
-
-    Enum.reject(hashes, &MapSet.member?(referenced, &1))
+    end)
   end
 
   defp escape_like(str) do

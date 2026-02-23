@@ -1,13 +1,16 @@
 defmodule Cache.CASCleanupWorker do
   @moduledoc """
-  Oban worker that deletes CAS artifacts from disk, S3, and metadata.
-
+  Oban worker that deletes CAS artifacts from disk and metadata.
   Only deletes artifacts that are no longer referenced by any key-value entry.
-  Artifacts flow through disk → S3 → metadata deletion. Each stage only
+  Artifacts flow through disk → metadata deletion. Each stage only
   receives keys that the previous stage successfully cleaned up, so a failure
   at any point leaves metadata intact for retries.
+  S3 is intentionally not touched here because the cache runs on multiple
+  independent nodes that share a single S3 bucket. A reference check against
+  one node's local database cannot guarantee that other nodes no longer need
+  the artifact, so S3 cleanup must be handled by a centralized process with
+  global visibility.
   """
-
   use Oban.Worker,
     queue: :clean,
     max_attempts: 3,
@@ -15,7 +18,6 @@ defmodule Cache.CASCleanupWorker do
 
   alias Cache.CacheArtifacts
   alias Cache.CAS
-  alias Cache.Config
   alias Cache.Disk
   alias Cache.KeyValueEntries
 
@@ -33,7 +35,6 @@ defmodule Cache.CASCleanupWorker do
         unreferenced
         |> Enum.map(&CAS.Disk.key(account_handle, project_handle, &1))
         |> delete_from_disk()
-        |> delete_from_s3()
         |> delete_from_metadata()
 
         :ok
@@ -52,24 +53,6 @@ defmodule Cache.CASCleanupWorker do
         {:error, reason} ->
           Logger.error("Failed to delete CAS artifact from disk #{key}: #{inspect(reason)}")
           false
-      end
-    end)
-  end
-
-  defp delete_from_s3(keys) do
-    bucket = Config.cache_bucket()
-
-    keys
-    |> Enum.chunk_every(1000)
-    |> Enum.flat_map(fn chunk ->
-      case bucket |> ExAws.S3.delete_multiple_objects(chunk) |> ExAws.request() do
-        {:ok, _} ->
-          Logger.info("Deleted #{length(chunk)} CAS artifacts from S3")
-          chunk
-
-        {:error, reason} ->
-          Logger.error("Failed to delete S3 objects: #{inspect(reason)}")
-          []
       end
     end)
   end

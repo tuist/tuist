@@ -7,13 +7,11 @@ defmodule Cache.CASCleanupWorkerTest do
   alias Cache.CacheArtifacts
   alias Cache.CAS
   alias Cache.CASCleanupWorker
-  alias Cache.Config
   alias Cache.Disk
   alias Cache.KeyValueEntries
-  alias ExAws.Operation.S3
 
   describe "perform/1" do
-    test "deletes CAS artifacts from disk, S3, and metadata" do
+    test "deletes CAS artifacts from disk and metadata" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234", "efgh5678"]
@@ -32,18 +30,6 @@ defmodule Cache.CASCleanupWorkerTest do
 
       expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
       expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ef/gh/efgh5678" -> :ok end)
-
-      expect(Config, :cache_bucket, fn -> "test-bucket" end)
-
-      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket",
-                                                    [
-                                                      "test_account/test_project/cas/ab/cd/abcd1234",
-                                                      "test_account/test_project/cas/ef/gh/efgh5678"
-                                                    ] ->
-        %S3{}
-      end)
-
-      expect(ExAws, :request, fn %S3{} -> {:ok, %{}} end)
 
       expect(CacheArtifacts, :delete_by_keys, fn [
                                                    "test_account/test_project/cas/ab/cd/abcd1234",
@@ -65,7 +51,7 @@ defmodule Cache.CASCleanupWorkerTest do
       end)
     end
 
-    test "skips S3 and metadata cleanup when disk deletion fails" do
+    test "skips metadata cleanup when disk deletion fails" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
@@ -98,7 +84,7 @@ defmodule Cache.CASCleanupWorkerTest do
       assert log =~ "Failed to delete CAS artifact"
     end
 
-    test "treats :enoent as successful disk cleanup and proceeds with S3 and metadata" do
+    test "treats :enoent as successful disk cleanup and proceeds with metadata" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
@@ -114,14 +100,6 @@ defmodule Cache.CASCleanupWorkerTest do
       expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" ->
         {:error, :enoent}
       end)
-
-      expect(Config, :cache_bucket, fn -> "test-bucket" end)
-
-      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", ["test_account/test_project/cas/ab/cd/abcd1234"] ->
-        %S3{}
-      end)
-
-      expect(ExAws, :request, fn %S3{} -> {:ok, %{}} end)
 
       expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
         :ok
@@ -141,45 +119,6 @@ defmodule Cache.CASCleanupWorkerTest do
         end)
 
       refute log =~ "Failed to delete CAS artifact"
-    end
-
-    test "skips metadata cleanup when S3 deletion fails" do
-      account_handle = "test_account"
-      project_handle = "test_project"
-      cas_hashes = ["abcd1234"]
-
-      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
-        cas_hashes
-      end)
-
-      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
-        "test_account/test_project/cas/ab/cd/abcd1234"
-      end)
-
-      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
-
-      expect(Config, :cache_bucket, fn -> "test-bucket" end)
-
-      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", ["test_account/test_project/cas/ab/cd/abcd1234"] ->
-        %S3{}
-      end)
-
-      expect(ExAws, :request, fn %S3{} -> {:error, :timeout} end)
-
-      job = %Oban.Job{
-        args: %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "cas_hashes" => cas_hashes
-        }
-      }
-
-      log =
-        capture_log(fn ->
-          assert :ok = CASCleanupWorker.perform(job)
-        end)
-
-      assert log =~ "Failed to delete S3 objects"
     end
 
     test "handles empty cas_hashes gracefully" do
@@ -213,14 +152,6 @@ defmodule Cache.CASCleanupWorkerTest do
       end)
 
       expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
-
-      expect(Config, :cache_bucket, fn -> "test-bucket" end)
-
-      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", ["test_account/test_project/cas/ab/cd/abcd1234"] ->
-        %S3{}
-      end)
-
-      expect(ExAws, :request, fn %S3{} -> {:ok, %{}} end)
 
       expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
         :ok
