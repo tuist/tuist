@@ -2,6 +2,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   use CacheWeb.ConnCase, async: false
   use Mimic
 
+  alias Cache.Config
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
@@ -11,11 +12,13 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :registry_github_token, "token")
-    on_exit(fn -> Application.delete_env(:cache, :registry_github_token) end)
+    stub(Config, :registry_github_token, fn -> "token" end)
+    stub(Config, :registry_bucket, fn -> "test-bucket" end)
+    stub(Config, :registry_enabled?, fn -> true end)
     stub(Lock, :release, fn _ -> :ok end)
     :ok
   end
+
 
   test "skips when release already exists" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ -> {:ok, :acquired} end)

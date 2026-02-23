@@ -11,8 +11,9 @@ defmodule CacheWeb.RegistryControllerTest do
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :registry_github_token, "test-token")
-    on_exit(fn -> Application.delete_env(:cache, :registry_github_token) end)
+    stub(Cache.Config, :registry_github_token, fn -> "test-token" end)
+    stub(Cache.Config, :registry_bucket, fn -> "test-bucket" end)
+    stub(Cache.Config, :registry_enabled?, fn -> true end)
     stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
     :ok
   end
