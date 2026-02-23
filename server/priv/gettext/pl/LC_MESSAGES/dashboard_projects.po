@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-16 18:02+0000\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/pl/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -273,7 +273,7 @@ msgstr "Przegląd"
 
 #, fuzzy
 msgid "Passed builds"
-msgstr "Zdałe kompilacje"
+msgstr "Zatwierdzone kompilacje"
 
 #, fuzzy
 msgid "Passed runs"
@@ -713,35 +713,52 @@ msgstr "Metryka rozmiaru"
 msgid "e.g. main"
 msgstr "np. main"
 
+#, fuzzy
 msgid "%{scheme} %{unit}"
-msgstr ""
+msgstr "%{scheme} %{unit}"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"Powiadom, gdy <strong>%{metric_category}</strong> ostatniego <strong>%"
+"{rolling_window_size} %{current_unit}</strong> spadło o <strong>%{deviation}"
+"%</strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
+"strong>."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"Powiadomienie, gdy <strong>%{metric_category}</strong> ostatniego <strong>%"
+"{rolling_window_size} %{current_unit}</strong> wzrosło o <strong>%{deviation}"
+"%</strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
+"strong>."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest "
 "<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
+"Powiadomienie, gdy <strong>%{size_label}</strong> najnowszego <strong>%"
+"{bundle_name}</strong> pakietu w gałęzi <strong>%{git_branch}</strong> "
+"wzrosło o <strong>%{deviation}%</strong> w porównaniu z poprzednim pakietem."
 
+#, fuzzy
 msgid "Scheme"
-msgstr ""
+msgstr "Schemat"
 
+#, fuzzy
 msgid "e.g. MyApp (optional)"
-msgstr ""
+msgstr "Np. MyApp (opcjonalnie)"
 
 #, fuzzy
 #~ msgid ""
