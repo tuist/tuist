@@ -3,10 +3,10 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-20 07:19+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
-"dashboard-1/ko/>\n"
+"PO-Revision-Date: 2026-02-23 08:45+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
+"1/ko/>\n"
 "Language: ko\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -280,45 +280,35 @@ msgstr "90 페이지"
 msgid "p99"
 msgstr "99 페이지"
 
-#, fuzzy
 msgid "Flaky Tests"
 msgstr "불안정한 테스트"
 
-#, fuzzy
 msgid "Ready to speed up your builds and unlock insights for your app?"
 msgstr "빌드 속도를 높이고 앱에 대한 통찰력을 얻으실 준비가 되셨나요?"
 
-#, fuzzy
 msgid "Talk to us"
 msgstr "연락하세요"
 
-#, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
 msgstr "이것은 tuist/tuist 프로젝트의 공개 대시보드입니다."
 
-#, fuzzy
 msgid "Quarantined Tests"
 msgstr "격리된 테스트"
 
-#, fuzzy
 msgid "Generations"
-msgstr "세대"
+msgstr "Generation 내역"
 
-#, fuzzy
 msgid "Gradle Cache"
 msgstr "Gradle 캐시"
 
-#, fuzzy
 msgid "Create project"
 msgstr "프로젝트 만들기"
 
-#, fuzzy
 msgid "Cache"
 msgstr "캐시"
 
-#, fuzzy
 msgid "The preview APK doesn't exist or has expired."
-msgstr "미리보기 IPA가 존재하지 않거나 만료되었습니다."
+msgstr "미리보기 APK가 존재하지 않거나 만료되었습니다."
 
 #~ msgid "Generate Runs"
 #~ msgstr "Generate 실행 내역"
