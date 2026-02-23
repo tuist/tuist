@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-17 16:30+0000\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
@@ -858,8 +858,9 @@ msgstr "Тестовые классы"
 msgid "Test Suite"
 msgstr "Набор тестов"
 
+#, fuzzy
 msgid "Scheme:"
-msgstr ""
+msgstr "Схема:"
 
 #, fuzzy
 #~ msgid "Test suite"
