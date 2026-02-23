@@ -1,6 +1,6 @@
+alias Credo.Checks.DisallowGlobalStateMutation
 alias Credo.Checks.DisallowSpec
 alias Credo.Checks.TimestampsType
-alias Credo.Checks.DisallowGlobalStateMutation
 
 %{
   configs: [

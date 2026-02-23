@@ -114,7 +114,6 @@ defmodule Cache.Config do
     end
   end
 
-
   def server_url, do: Application.get_env(:cache, :server_url)
 
   def s3_config do

@@ -22,7 +22,6 @@ defmodule Cache.Registry.SyncWorkerTest do
     :ok
   end
 
-
   test "enqueues release workers for missing versions" do
     expect(Lock, :try_acquire, 2, fn
       :sync, _ -> {:ok, :acquired}
