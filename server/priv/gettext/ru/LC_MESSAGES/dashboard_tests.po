@@ -858,6 +858,9 @@ msgstr "Тестовые классы"
 msgid "Test Suite"
 msgstr "Набор тестов"
 
+msgid "Scheme:"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Набор тестов"

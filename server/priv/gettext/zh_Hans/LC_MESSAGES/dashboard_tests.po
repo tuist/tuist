@@ -838,6 +838,9 @@ msgstr "测试类"
 msgid "Test Suite"
 msgstr "测试套件"
 
+msgid "Scheme:"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "测试套件"

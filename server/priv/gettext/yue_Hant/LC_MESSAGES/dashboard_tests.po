@@ -634,3 +634,6 @@ msgstr ""
 
 msgid "Test Suite"
 msgstr ""
+
+msgid "Scheme:"
+msgstr ""

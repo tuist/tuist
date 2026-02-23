@@ -856,6 +856,9 @@ msgstr "Klasy testowe"
 msgid "Test Suite"
 msgstr "Zestaw testów"
 
+msgid "Scheme:"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Zestaw testów"

@@ -851,6 +851,9 @@ msgstr "Test Sınıfları"
 msgid "Test Suite"
 msgstr "Test Seti"
 
+msgid "Scheme:"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Test paketi"

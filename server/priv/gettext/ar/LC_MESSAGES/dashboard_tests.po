@@ -850,6 +850,9 @@ msgstr "فصول الاختبار"
 msgid "Test Suite"
 msgstr "مجموعة الاختبارات"
 
+msgid "Scheme:"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "مجموعة الاختبارات"
