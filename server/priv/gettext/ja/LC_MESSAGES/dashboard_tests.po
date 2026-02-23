@@ -847,6 +847,9 @@ msgstr "テストクラス"
 msgid "Test Suite"
 msgstr "テストスイート"
 
+msgid "Scheme:"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "テストスイート"

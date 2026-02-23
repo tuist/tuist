@@ -698,6 +698,9 @@ msgstr "테스트 클래스"
 msgid "Test Suite"
 msgstr "테스트 Suite"
 
+msgid "Scheme:"
+msgstr ""
+
 #~ msgid "Test suite"
 #~ msgstr "테스트 suite"
 
