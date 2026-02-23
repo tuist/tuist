@@ -5,11 +5,6 @@ defmodule Cache.CASCleanupWorker do
   Artifacts flow through disk → metadata deletion. Each stage only
   receives keys that the previous stage successfully cleaned up, so a failure
   at any point leaves metadata intact for retries.
-  S3 is intentionally not touched here because the cache runs on multiple
-  independent nodes that share a single S3 bucket. A reference check against
-  one node's local database cannot guarantee that other nodes no longer need
-  the artifact, so S3 cleanup must be handled by a centralized process with
-  global visibility.
   """
   use Oban.Worker,
     queue: :clean,
