@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-17 16:30+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-02-23 08:45+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
 "Language: ko\n"
@@ -516,7 +516,6 @@ msgstr "불안정"
 msgid "Flaky Runs"
 msgstr "불안정 건수"
 
-#, fuzzy
 msgid "Flaky Tests"
 msgstr "불안정한 테스트"
 
@@ -644,7 +643,6 @@ msgstr "마지막 실행"
 msgid "No quarantined tests"
 msgstr "검역 중인 테스트 없음"
 
-#, fuzzy
 msgid "Quarantined Tests"
 msgstr "격리된 테스트"
 
