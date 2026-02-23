@@ -81,7 +81,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
 
     private func inputPaths(from inputs: [ForeignBuild.Input]) async throws -> [String] {
         var pathStrings: [String] = []
-        
+
         for input in inputs {
             switch input {
             case let .file(path):
@@ -96,7 +96,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 break
             }
         }
-        
+
         return pathStrings
     }
 }
