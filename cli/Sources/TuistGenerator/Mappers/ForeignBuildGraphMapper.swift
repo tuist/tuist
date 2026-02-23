@@ -89,7 +89,9 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             case let .folder(path):
                 let filePathStrings = try await fileSystem.glob(directory: path, include: ["**/*"])
                     .collect()
-                    .filter { !FileHandler.shared.isFolder($0) }
+                    .concurrentFilter {
+                        try await fileSystem.exists($0, isDirectory: false)
+                    }
                     .map(\.pathString)
                 pathStrings.append(contentsOf: filePathStrings)
             case .script:
