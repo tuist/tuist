@@ -27,6 +27,7 @@ public enum AdbControllerError: LocalizedError, Equatable {
 
 @Mockable
 public protocol AdbControlling: Sendable {
+    func isAdbAvailable() async -> Bool
     func findAvailableDevices() async throws -> [AndroidDevice]
     func installApp(at path: AbsolutePath, device: AndroidDevice) async throws
     func launchApp(packageName: String, device: AndroidDevice) async throws
@@ -45,6 +46,13 @@ public protocol AdbControlling: Sendable {
         ) {
             self.fileSystem = fileSystem
             self.commandRunner = commandRunner
+        }
+
+        public func isAdbAvailable() async -> Bool {
+            guard let path = try? await resolveAdbPath(),
+                  let absolutePath = try? AbsolutePath(validating: path)
+            else { return false }
+            return await (try? fileSystem.exists(absolutePath)) == true
         }
 
         public func findAvailableDevices() async throws -> [AndroidDevice] {

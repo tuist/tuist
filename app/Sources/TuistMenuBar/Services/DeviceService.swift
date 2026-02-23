@@ -126,10 +126,8 @@ final class DeviceService: DeviceServicing {
         let simulators = try await simulatorController.devicesAndRuntimes().sorted()
 
         var androidDevices: [AndroidDevice] = []
-        do {
+        if await adbController.isAdbAvailable() {
             androidDevices = try await adbController.findAvailableDevices()
-        } catch {
-            // ADB not installed or not available — silently ignore
         }
 
         let selectedDevice =
