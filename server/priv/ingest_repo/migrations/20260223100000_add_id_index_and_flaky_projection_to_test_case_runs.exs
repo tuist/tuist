@@ -16,9 +16,7 @@ defmodule Tuist.IngestRepo.Migrations.AddIdIndexAndFlakyProjectionToTestCaseRuns
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute(
-      "ALTER TABLE test_case_runs ADD INDEX idx_id (id) TYPE bloom_filter GRANULARITY 4"
-    )
+    execute("ALTER TABLE test_case_runs ADD INDEX idx_id (id) TYPE bloom_filter GRANULARITY 4")
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
