@@ -3,9 +3,9 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
   use Mimic
 
   alias Tuist.Storage
-  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
   describe "POST /api/projects/:account_handle/:project_handle/tests/attachments" do
@@ -27,18 +27,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       project: project
     } do
       # Given
-      test_case_run_id = UUIDv7.generate()
-
-      stub(Tests, :get_test_case_run_by_id, fn id ->
-        assert id == test_case_run_id
-        {:ok, %Tuist.Tests.TestCaseRun{id: id, project_id: project.id}}
-      end)
-
-      stub(Tests, :create_test_case_run_attachment, fn attrs ->
-        assert attrs.test_case_run_id == test_case_run_id
-        assert attrs.file_name == "crash-report.ips"
-        {:ok, %{id: attrs.id}}
-      end)
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
 
       stub(Storage, :generate_upload_url, fn _key, _account, _opts ->
         "https://s3.example.com/upload?signed=true"
@@ -50,7 +39,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
           conn,
           "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
           %{
-            test_case_run_id: test_case_run_id,
+            test_case_run_id: test_case_run.id,
             file_name: "crash-report.ips"
           }
         )
@@ -69,12 +58,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
     } do
       # Given
       other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
-      test_case_run_id = UUIDv7.generate()
-
-      stub(Tests, :get_test_case_run_by_id, fn id ->
-        assert id == test_case_run_id
-        {:ok, %Tuist.Tests.TestCaseRun{id: id, project_id: other_project.id}}
-      end)
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: other_project.id)
 
       # When
       conn =
@@ -82,7 +66,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
           conn,
           "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
           %{
-            test_case_run_id: test_case_run_id,
+            test_case_run_id: test_case_run.id,
             file_name: "crash-report.ips"
           }
         )
@@ -96,11 +80,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       user: user,
       project: project
     } do
-      # Given
-      stub(Tests, :get_test_case_run_by_id, fn _id ->
-        {:error, :not_found}
-      end)
-
       # When
       conn =
         post(
