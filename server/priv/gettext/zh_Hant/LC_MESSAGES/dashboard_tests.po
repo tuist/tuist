@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-17 16:30+0000\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hant/>\n"
@@ -206,7 +206,7 @@ msgstr "過濾器"
 
 #, fuzzy
 msgid "Hash"
-msgstr "井號"
+msgstr "Hash"
 
 #, fuzzy
 msgid "Hit"
@@ -509,7 +509,7 @@ msgstr "失敗的測試執行次數。"
 
 #, fuzzy
 msgid "The total number of test runs."
-msgstr "測試執行總次數。"
+msgstr "測試運行的總次數。"
 
 #, fuzzy
 msgid "Total modules"
@@ -839,8 +839,9 @@ msgstr "測試類別"
 msgid "Test Suite"
 msgstr "測試套件"
 
+#, fuzzy
 msgid "Scheme:"
-msgstr ""
+msgstr "方案："
 
 #, fuzzy
 #~ msgid "Test suite"
