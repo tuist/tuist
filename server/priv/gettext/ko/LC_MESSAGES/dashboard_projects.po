@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-16 18:02+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-02-23 08:45+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -13,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -200,7 +199,6 @@ msgstr "아직 미리보기 없음"
 msgid "No recent builds yet"
 msgstr "아직 최신 빌드가 없습니다"
 
-#, fuzzy
 msgid "Only organization members"
 msgstr "조직 구성원만"
 
@@ -331,15 +329,12 @@ msgstr "지난 기간 이후"
 msgid "since yesterday"
 msgstr "어제부터"
 
-#, fuzzy
 msgid "Channel"
 msgstr "채널"
 
-#, fuzzy
 msgid "Configure"
-msgstr "Configure"
+msgstr "설정"
 
-#, fuzzy
 msgid "Daily"
 msgstr "매일"
 
@@ -423,9 +418,8 @@ msgstr "일정 설정"
 msgid "Configure your report notifications"
 msgstr "보고서 알림 설정"
 
-#, fuzzy
 msgid "Connect Slack"
-msgstr "Slack 연결"
+msgstr "Slack에 연결"
 
 #, fuzzy
 msgid "Deviation (%)"
@@ -447,7 +441,6 @@ msgstr "보고서"
 msgid "Schedule"
 msgstr "일정"
 
-#, fuzzy
 msgid "Slack"
 msgstr "Slack"
 
@@ -539,9 +532,8 @@ msgstr "업데이트"
 msgid "Update alert rule"
 msgstr "알림 규칙 업데이트"
 
-#, fuzzy
 msgid "Metrics"
-msgstr "Metrics"
+msgstr "통계"
 
 #, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
@@ -587,13 +579,12 @@ msgstr "Slack 알림"
 msgid "Test quarantine"
 msgstr "테스트 격리"
 
-#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
-"지정된 횟수의 불안정 발생이 지난 30일 이내에 발생하면 테스트는 불안정(flaky)"
-"으로 표시됩니다."
+"지정된 횟수의 불안정 발생이 지난 30일 이내에 발생하면 테스트가 불안정(flaky)"
+"으로 표시됩니다"
 
 #, fuzzy
 msgid "Build system"
@@ -603,22 +594,20 @@ msgstr "빌드 시스템"
 msgid "Select build system"
 msgstr "빌드 시스템 선택"
 
-#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch "
 "<strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</"
 "strong> compared to the previous bundle."
 msgstr ""
-"<strong></strong> 의 %{size_label} 가 이전 번들에 비해 %{deviation}% 증가했습"
-"니다. %{size_label}의 최신 번들</strong> <strong> <strong></strong>"
+"브랜치 <strong>%{git_branch}</strong>에서 최신 번들의 <strong>%{size_label}</"
+"strong> 가 이전 번들에 비해 <strong>%{deviation}%</strong> 증가했을 때 알림."
 
 #, fuzzy
 msgid "Branch"
 msgstr "Branch"
 
-#, fuzzy
 msgid "Bundle size"
-msgstr "Bundle size"
+msgstr "Bundle 크기"
 
 #, fuzzy
 msgid "Download size"
