@@ -1700,29 +1700,23 @@ defmodule Tuist.Builds.Analytics do
     offset = Keyword.get(opts, :offset, 0)
     scheme = Keyword.get(opts, :scheme)
 
-    scheme_clause = if is_binary(scheme) and scheme != "", do: "AND scheme = {scheme:String}", else: ""
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        select: b.duration
+      )
 
-    query = """
-    SELECT duration
-    FROM build_runs
-    WHERE project_id = {project_id:Int64}
-    #{scheme_clause}
-    ORDER BY inserted_at DESC
-    LIMIT {limit:UInt32}
-    OFFSET {offset:UInt32}
-    """
+    query =
+      if is_binary(scheme) and scheme != "" do
+        where(query, [b], b.scheme == ^scheme)
+      else
+        query
+      end
 
-    params = %{
-      project_id: project_id,
-      limit: limit,
-      offset: offset
-    }
-
-    params = if is_binary(scheme) and scheme != "", do: Map.put(params, :scheme, scheme), else: params
-
-    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
-
-    durations = Enum.map(rows, fn [duration] -> duration end)
+    durations = ClickHouseRepo.all(query)
 
     calculate_metric_from_values(durations, metric)
   end
