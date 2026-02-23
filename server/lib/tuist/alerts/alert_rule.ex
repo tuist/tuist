@@ -29,8 +29,8 @@ defmodule Tuist.Alerts.AlertRule do
     field :git_branch, :string
     field :slack_channel_id, :string
     field :slack_channel_name, :string
-    field :scheme, :string
-    field :app_bundle_id, :string
+    field :scheme, :string, default: ""
+    field :app_bundle_id, :string, default: ""
 
     belongs_to :project, Project, type: :integer
     has_many :alerts, Alert

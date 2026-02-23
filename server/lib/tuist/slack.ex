@@ -363,7 +363,6 @@ defmodule Tuist.Slack do
       "Current: #{format_alert_bytes(alert.current_value)}"
   end
 
-  defp non_empty_qualifier(nil), do: ""
   defp non_empty_qualifier(""), do: ""
   defp non_empty_qualifier(value), do: "#{value} "
 

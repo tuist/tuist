@@ -429,8 +429,8 @@ CREATE TABLE public.alert_rules (
     inserted_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     git_branch character varying(255),
-    scheme character varying(255),
-    app_bundle_id character varying(255)
+    scheme character varying(255) DEFAULT ''::character varying NOT NULL,
+    app_bundle_id character varying(255) DEFAULT ''::character varying NOT NULL
 );
 
 

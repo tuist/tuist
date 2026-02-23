@@ -161,11 +161,9 @@ defmodule Tuist.Alerts do
   defp bundle_size_field(:install_size), do: :install_size
   defp bundle_size_field(:download_size), do: :download_size
 
-  defp maybe_add_scheme(opts, nil), do: opts
   defp maybe_add_scheme(opts, ""), do: opts
   defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
 
-  defp maybe_add_app_bundle_id(opts, nil), do: opts
   defp maybe_add_app_bundle_id(opts, ""), do: opts
   defp maybe_add_app_bundle_id(opts, app_bundle_id), do: Keyword.put(opts, :app_bundle_id, app_bundle_id)
 
