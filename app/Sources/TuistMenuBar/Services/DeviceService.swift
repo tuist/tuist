@@ -26,7 +26,7 @@ enum DeviceServiceError: FatalError, Equatable {
         case .apkNotFoundInArchive:
             return "Could not find APK file in the downloaded archive"
         case let .missingPackageName(id):
-            return "The preview \(id) does not have a bundle identifier (package name) set."
+            return "The preview \(id) does not have a package name set."
         }
     }
 
