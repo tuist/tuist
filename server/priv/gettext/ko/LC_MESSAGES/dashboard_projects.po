@@ -489,30 +489,6 @@ msgid "Create alert rule"
 msgstr "알림 규칙 만들기"
 
 #, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"최 <strong>%{rolling_window_size} %{unit}</strong> 의 "
-"<strong>%{metric_category}</strong> 이 이전 <strong>%{rolling_window_size} "
-"%{unit}</strong> 에 비해 <strong>%{deviation}%</strong> 감소한 경우 알림을 보"
-"냅니다."
-
-#, fuzzy
-msgid ""
-"Alert when the <strong>%{metric_category}</strong> of the last "
-"<strong>%{rolling_window_size} %{unit}</strong> has increased by "
-"<strong>%{deviation}%</strong> compared to the previous "
-"<strong>%{rolling_window_size} %{unit}</strong>."
-msgstr ""
-"최근 <strong>%{rolling_window_size} %{unit}</strong> 의 "
-"<strong>%{metric_category}</strong> 이 이전 <strong>%{rolling_window_size} "
-"%{unit}</strong> 에 비해 <strong>%{deviation}%</strong> 증가하면 알림을 보냅"
-"니다."
-
-#, fuzzy
 msgid "Connect your Slack account before selecting channels."
 msgstr "채널을 선택하기 전에 Slack 계정을 연결하세요."
 
@@ -620,6 +596,60 @@ msgstr "크기 측정 기준"
 #, fuzzy
 msgid "e.g. main"
 msgstr "예시: main"
+
+msgid "%{scheme} %{unit}"
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{metric_category}</strong> of the last "
+"<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
+"<strong>%{deviation}%</strong> compared to the previous "
+"<strong>%{rolling_window_size} %{unit}</strong>."
+msgstr ""
+
+msgid ""
+"Alert when the <strong>%{size_label}</strong> of the latest "
+"<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
+"strong> has increased by <strong>%{deviation}%</strong> compared to the "
+"previous bundle."
+msgstr ""
+
+msgid "Scheme"
+msgstr ""
+
+msgid "e.g. MyApp (optional)"
+msgstr ""
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "최 <strong>%{rolling_window_size} %{unit}</strong> 의 "
+#~ "<strong>%{metric_category}</strong> 이 이전 "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> 에 비해 "
+#~ "<strong>%{deviation}%</strong> 감소한 경우 알림을 보냅니다."
+
+#, fuzzy
+#~ msgid ""
+#~ "Alert when the <strong>%{metric_category}</strong> of the last "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
+#~ "<strong>%{deviation}%</strong> compared to the previous "
+#~ "<strong>%{rolling_window_size} %{unit}</strong>."
+#~ msgstr ""
+#~ "최근 <strong>%{rolling_window_size} %{unit}</strong> 의 "
+#~ "<strong>%{metric_category}</strong> 이 이전 "
+#~ "<strong>%{rolling_window_size} %{unit}</strong> 에 비해 "
+#~ "<strong>%{deviation}%</strong> 증가하면 알림을 보냅니다."
 
 #~ msgid "Only people with access"
 #~ msgstr "접근 권한이 있는 사람만 볼 수 있음"
