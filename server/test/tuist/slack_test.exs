@@ -305,6 +305,261 @@ defmodule Tuist.SlackTest do
       # Then
       assert result == :ok
     end
+
+    test "includes scheme in build_run_duration message" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          scheme: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "MyApp Build time"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "includes scheme in test_run_duration message" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :average,
+          scheme: "UITests",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 3000.0,
+          previous_value: 2000.0
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "UITests Test time"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "includes app_bundle_id in bundle_size message" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          app_bundle_id: "com.example.app",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1_500_000.0,
+          previous_value: 1_000_000.0
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "com.example.app Bundle"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "omits qualifier when scheme is empty" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "*Build time"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /builds for build_run_duration alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/builds"
+        assert footer_text =~ "View builds"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /tests for test_run_duration alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/tests"
+        assert footer_text =~ "View tests"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /xcode-cache for cache_hit_rate alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/xcode-cache"
+        assert footer_text =~ "View cache"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /bundles for bundle_size alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/bundles"
+        assert footer_text =~ "View bundles"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
   end
 
   describe "send_flaky_test_alert/4" do
