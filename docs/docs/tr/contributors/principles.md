@@ -66,7 +66,7 @@ karmaşıklıklarını desteklemek, Tuist'in benimsenmesini kolaylaştırır. Ar
 ekipler, örtüklüğü ortadan kaldırmak için biraz zaman ayırabilirler.
 
 Bağımlılıkların tanımı bunun iyi bir örneğidir. Geliştiriciler, derleme ayarları
-ve aşamaları aracılığıyla bağımlılıkları tanımlayabilirken, Tuist,
+ve aşamaları aracılığıyla bağımlılıkları tanımlayabilirken, Tuist, bunun
 benimsenmesini teşvik eden güzel bir API sağlar.
 
 **API'yi açık bir şekilde tasarlayarak, Tuist, aksi takdirde mümkün olmayacak
