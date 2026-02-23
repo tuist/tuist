@@ -28,16 +28,28 @@ When building for device, it is currently your responsibility to ensure the app 
 :::
 
 ::: code-group
-```bash [Tuist Project]
+```bash [Tuist Project (Debug)]
 tuist generate App
 xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
 xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App
 ```
-```bash [Xcode Project]
+```bash [Tuist Project (Release)]
+tuist generate App
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Release -sdk iphonesimulator # Build the app for the simulator
+xcodebuild build -scheme App -workspace App.xcworkspace -configuration Release -destination 'generic/platform=iOS' # Build the app for the device
+tuist share App --configuration Release
+```
+```bash [Xcode Project (Debug)]
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug # Build the app for the simulator
 xcodebuild -scheme App -project App.xcodeproj -configuration Debug -destination 'generic/platform=iOS' # Build the app for the device
 tuist share App --configuration Debug --platforms iOS
+tuist share App.ipa # Share an existing .ipa file
+```
+```bash [Xcode Project (Release)]
+xcodebuild -scheme App -project App.xcodeproj -configuration Release # Build the app for the simulator
+xcodebuild -scheme App -project App.xcodeproj -configuration Release -destination 'generic/platform=iOS' # Build the app for the device
+tuist share App --configuration Release --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
 <!-- -->
