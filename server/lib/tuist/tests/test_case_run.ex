@@ -14,6 +14,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :test_module_run_id,
       :test_suite_run_id,
       :test_case_id,
+      :project_id,
       :name,
       :status,
       :is_flaky,

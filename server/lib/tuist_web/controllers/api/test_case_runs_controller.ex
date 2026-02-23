@@ -77,10 +77,10 @@ defmodule TuistWeb.API.TestCaseRunsController do
   )
 
   def index(
-        %{assigns: %{selected_project: _selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
+        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
-    filters = build_run_filters(params)
+    filters = build_run_filters(params, selected_project)
     render_test_case_runs(conn, filters, page, page_size)
   end
 
@@ -149,13 +149,13 @@ defmodule TuistWeb.API.TestCaseRunsController do
 
   def index_by_test_case(
         %{
-          assigns: %{selected_project: _selected_project},
+          assigns: %{selected_project: selected_project},
           params: %{test_case_id: test_case_id, page_size: page_size, page: page} = params
         } = conn,
         _params
       ) do
     filters =
-      [%{field: :test_case_id, op: :==, value: test_case_id} | build_run_filters(params)]
+      [%{field: :test_case_id, op: :==, value: test_case_id} | build_run_filters(params, selected_project)]
 
     render_test_case_runs(conn, filters, page, page_size)
   end
@@ -213,12 +213,15 @@ defmodule TuistWeb.API.TestCaseRunsController do
 
   def index_by_test_run(
         %{
-          assigns: %{selected_project: _selected_project},
+          assigns: %{selected_project: selected_project},
           params: %{test_run_id: test_run_id, page_size: page_size, page: page}
         } = conn,
         _params
       ) do
-    filters = [%{field: :test_run_id, op: :==, value: test_run_id}]
+    filters = [
+      %{field: :project_id, op: :==, value: selected_project.id},
+      %{field: :test_run_id, op: :==, value: test_run_id}
+    ]
 
     render_test_case_runs(conn, filters, page, page_size)
   end
@@ -513,8 +516,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
 
   defp format_ran_at(%DateTime{} = ran_at), do: DateTime.to_iso8601(ran_at)
 
-  defp build_run_filters(params) do
-    filters = []
+  defp build_run_filters(params, selected_project) do
+    filters = [%{field: :project_id, op: :==, value: selected_project.id}]
 
     filters =
       case Map.get(params, :test_case_id) do

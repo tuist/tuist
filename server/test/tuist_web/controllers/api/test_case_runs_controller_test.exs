@@ -128,6 +128,37 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["pagination_metadata"]["has_previous_page"] == true
     end
 
+    test "scopes results to the requested project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      stub(Tests, :list_test_case_runs, fn options ->
+        assert %{field: :project_id, op: :==, value: project.id} in options.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs"
+        )
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
     test "lists all runs when no filters are provided", %{
       conn: conn,
       user: user,
@@ -135,7 +166,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
     } do
       # Given
       stub(Tests, :list_test_case_runs, fn options ->
-        assert options.filters == []
+        assert options.filters == [%{field: :project_id, op: :==, value: project.id}]
 
         {[],
          %{
@@ -207,6 +238,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
 
       stub(Tests, :list_test_case_runs, fn options ->
         assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
+        assert %{field: :project_id, op: :==, value: project.id} in options.filters
 
         {[%{struct(TestCaseRun, test_case_run) | status: :success}],
          %{
@@ -229,6 +261,51 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert length(response["test_case_runs"]) == 1
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/:test_run_id/test-case-runs (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "scopes results to the requested project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_run_id = UUIDv7.generate()
+
+      stub(Tests, :list_test_case_runs, fn options ->
+        assert %{field: :test_run_id, op: :==, value: test_run_id} in options.filters
+        assert %{field: :project_id, op: :==, value: project.id} in options.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/#{test_run_id}/test-case-runs"
+        )
+
+      # Then
+      assert json_response(conn, :ok)
     end
   end
 
