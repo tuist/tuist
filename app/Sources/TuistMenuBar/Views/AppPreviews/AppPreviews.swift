@@ -30,9 +30,11 @@ struct AppPreviews: View {
                                 }
                                 .buttonStyle(.plain)
                             }
+                            Spacer(minLength: 0)
                         }
-                        .padding(.vertical, 10)
-                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 14)
+                        .frame(minWidth: 270)
                     }
                     .fixedSize(horizontal: true, vertical: false)
                 }

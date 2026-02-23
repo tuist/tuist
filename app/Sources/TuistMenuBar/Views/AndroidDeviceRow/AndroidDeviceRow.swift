@@ -15,9 +15,9 @@ struct AndroidDeviceRow: View {
     private func deviceImage() -> some View {
         switch device.type {
         case .emulator:
-            Image(systemName: "play.display")
+            Image(systemName: "iphone")
         case .device:
-            Image(systemName: "smartphone")
+            Image(systemName: "iphone")
         }
     }
 
