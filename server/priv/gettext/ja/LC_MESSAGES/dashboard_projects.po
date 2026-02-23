@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-16 18:02+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ja/>\n"
 "Language: ja\n"
@@ -13,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -369,7 +368,7 @@ msgstr "お探しのページは存在しません、または移動されまし
 
 #, fuzzy
 msgid "This action cannot be undone."
-msgstr "この操作は取り消せません。"
+msgstr "この操作は元に戻せません。"
 
 #, fuzzy
 msgid "Tuist Logo"
@@ -705,35 +704,52 @@ msgstr "サイズ指標"
 msgid "e.g. main"
 msgstr "例: main"
 
+#, fuzzy
 msgid "%{scheme} %{unit}"
-msgstr ""
+msgstr "%{scheme} %{unit}"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
+"{current_unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
+"strong> と比較して<strong>%{deviation}%</strong> 減少した場合にアラートを通知"
+"する。"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
+"{current_unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
+"strong> と比較して<strong>%{deviation}%</strong> 増加した場合にアラートを通知"
+"する。"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest "
 "<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
+"<strong>%{size_label}</strong> の最新<strong>%{bundle_name}</strong> バンドル"
+"が、ブランチ<strong>%{git_branch}</strong> 上で、前回のバンドルと比較し"
+"て<strong>%{deviation}%</strong> 増加したことを警告します。"
 
+#, fuzzy
 msgid "Scheme"
-msgstr ""
+msgstr "Scheme"
 
+#, fuzzy
 msgid "e.g. MyApp (optional)"
-msgstr ""
+msgstr "例: MyApp (オプション)"
 
 #, fuzzy
 #~ msgid ""
