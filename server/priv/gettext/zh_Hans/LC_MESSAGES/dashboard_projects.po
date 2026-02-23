@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-16 18:02+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -13,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -697,35 +696,51 @@ msgstr "尺寸计量单位"
 msgid "e.g. main"
 msgstr "例如：main"
 
+#, fuzzy
 msgid "%{scheme} %{unit}"
-msgstr ""
+msgstr "%{scheme} %{unit}"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"当<strong> 的%{metric_category}</strong> 在最近<strong> 的%"
+"{rolling_window_size}内%{current_unit}</strong> 下降<strong>%{deviation}%</"
+"strong> 时，相较于前<strong> 的%{rolling_window_size}%{unit}</strong> 发出警"
+"报。"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>当<strong>%{metric_category}</strong> 在过去<strong>%"
+"{rolling_window_size}%{current_unit}</strong> 期间较前值 %{unit}</strong> 增"
+"加<strong>%{deviation}%</strong> 时触发警报。"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest "
 "<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
+"当分支<strong> 上的最新<strong>%{bundle_name}</strong> 捆绑包在分支 %"
+"{git_branch}</strong> 的<strong>%{size_label}</strong> 值较前次捆绑包增"
+"加<strong>%{deviation}%</strong> 时发出警报。"
 
+#, fuzzy
 msgid "Scheme"
-msgstr ""
+msgstr "Scheme"
 
+#, fuzzy
 msgid "e.g. MyApp (optional)"
-msgstr ""
+msgstr "例如：MyApp（可选）"
 
 #, fuzzy
 #~ msgid ""
