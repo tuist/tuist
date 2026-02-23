@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-17 16:30+0000\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hans/>\n"
@@ -186,7 +186,7 @@ msgstr "测试用例运行失败"
 msgid ""
 "Failed test case runs represents the number of individual test case "
 "executions that failed during a given period."
-msgstr "失败的测试用例运行次数表示在特定时间段内失败的独立测试用例执行次数。"
+msgstr "失败的测试用例运行次数指特定时间段内失败的独立测试用例执行次数。"
 
 #, fuzzy
 msgid "Failed test cases"
@@ -838,8 +838,9 @@ msgstr "测试类"
 msgid "Test Suite"
 msgstr "测试套件"
 
+#, fuzzy
 msgid "Scheme:"
-msgstr ""
+msgstr "方案："
 
 #, fuzzy
 #~ msgid "Test suite"
