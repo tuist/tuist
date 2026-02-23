@@ -29,6 +29,11 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       # Given
       test_case_run_id = UUIDv7.generate()
 
+      stub(Tests, :get_test_case_run_by_id, fn id ->
+        assert id == test_case_run_id
+        {:ok, %Tuist.Tests.TestCaseRun{id: id, project_id: project.id}}
+      end)
+
       stub(Tests, :create_test_case_run_attachment, fn attrs ->
         assert attrs.test_case_run_id == test_case_run_id
         assert attrs.file_name == "crash-report.ips"
@@ -55,6 +60,60 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["id"]
       assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
       assert response["expires_at"]
+    end
+
+    test "returns 404 when test case run belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      test_case_run_id = UUIDv7.generate()
+
+      stub(Tests, :get_test_case_run_by_id, fn id ->
+        assert id == test_case_run_id
+        {:ok, %Tuist.Tests.TestCaseRun{id: id, project_id: other_project.id}}
+      end)
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: test_case_run_id,
+            file_name: "crash-report.ips"
+          }
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case run does not exist", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      stub(Tests, :get_test_case_run_by_id, fn _id ->
+        {:error, :not_found}
+      end)
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: UUIDv7.generate(),
+            file_name: "crash-report.ips"
+          }
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
