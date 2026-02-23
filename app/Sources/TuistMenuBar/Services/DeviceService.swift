@@ -11,6 +11,20 @@ import TuistServer
 import TuistSimulator
 import TuistSupport
 
+private enum DownloadedApp {
+    case appBundle(AppBundle)
+    case apk(path: AbsolutePath, packageName: String, displayName: String)
+
+    var displayName: String {
+        switch self {
+        case let .appBundle(appBundle):
+            return appBundle.infoPlist.name
+        case let .apk(_, _, displayName):
+            return displayName
+        }
+    }
+}
+
 enum DeviceServiceError: FatalError, Equatable {
     case appDownloadFailed(String)
     case appBundleNotFoundInArchive
@@ -188,32 +202,24 @@ final class DeviceService: DeviceServicing {
                 )
             )
 
-            switch selectedDevice {
-            case .simulator, .device:
-                let app = try await downloadApp(
-                    for: preview,
-                    selectedDevice: selectedDevice
-                )
+            let app = try await downloadApp(
+                for: preview,
+                selectedDevice: selectedDevice
+            )
 
-                await status.update(
-                    state: .running(message: "Launching preview", progress: .indeterminate)
-                )
+            await status.update(
+                state: .running(message: "Launching preview", progress: .indeterminate)
+            )
 
-                try await launchApp(app, on: selectedDevice)
-                if let gitCommitSHA = preview.gitCommitSHA {
-                    await status.markAsDone(
-                        message: "Installed \(app.infoPlist.name)@\(gitCommitSHA.prefix(7))"
-                    )
-                } else {
-                    await status.markAsDone(message: "Installed \(app.infoPlist.name)")
-                }
+            try await launchApp(app, on: selectedDevice)
 
-            case let .androidDevice(androidDevice):
-                try await launchAndroidPreview(
-                    preview: preview,
-                    on: androidDevice,
-                    status: status
+            let displayName = app.displayName
+            if let gitCommitSHA = preview.gitCommitSHA {
+                await status.markAsDone(
+                    message: "Installed \(displayName)@\(gitCommitSHA.prefix(7))"
                 )
+            } else {
+                await status.markAsDone(message: "Installed \(displayName)")
             }
         } catch {
             await status.markAsDone(message: "Installation failed")
@@ -224,7 +230,7 @@ final class DeviceService: DeviceServicing {
     private func downloadApp(
         for preview: ServerPreview,
         selectedDevice: Device
-    ) async throws -> AppBundle {
+    ) async throws -> DownloadedApp {
         let destination: DestinationType
         switch selectedDevice {
         case let .device(physicalDevice):
@@ -232,7 +238,7 @@ final class DeviceService: DeviceServicing {
         case let .simulator(simulator):
             destination = .simulator(try simulator.runtime.platform())
         case .androidDevice:
-            fatalError("downloadApp should not be called for Android devices")
+            destination = .android
         }
         guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url
         else {
@@ -247,80 +253,57 @@ final class DeviceService: DeviceServicing {
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
 
-        guard let appPath = try await fileSystem.glob(
-            directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]
-        )
-        .collect()
-        .first
-        else { throw DeviceServiceError.appBundleNotFoundInArchive }
+        switch selectedDevice {
+        case .device, .simulator:
+            guard let appPath = try await fileSystem.glob(
+                directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]
+            )
+            .collect()
+            .first
+            else { throw DeviceServiceError.appBundleNotFoundInArchive }
 
-        return try await appBundleLoader.load(appPath)
+            return .appBundle(try await appBundleLoader.load(appPath))
+
+        case .androidDevice:
+            guard let packageName = preview.bundleIdentifier else {
+                throw DeviceServiceError.missingPackageName(preview.id)
+            }
+            guard let apkPath = try await fileSystem.glob(
+                directory: unarchivedDirectory, include: ["**/*.apk"]
+            )
+            .collect()
+            .first
+            else { throw DeviceServiceError.apkNotFoundInArchive }
+
+            return .apk(
+                path: apkPath,
+                packageName: packageName,
+                displayName: preview.displayName ?? packageName
+            )
+        }
     }
 
     private func launchApp(
-        _ app: AppBundle,
+        _ app: DownloadedApp,
         on device: Device
     ) async throws {
-        switch device {
-        case let .simulator(simulator):
+        switch (app, device) {
+        case let (.appBundle(appBundle), .simulator(simulator)):
             let bootedDevice = try simulatorController.booted(
                 device: simulator.device, forced: true
             )
-            try simulatorController.installApp(at: app.path, device: bootedDevice)
+            try simulatorController.installApp(at: appBundle.path, device: bootedDevice)
             try await simulatorController.launchApp(
-                bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: []
+                bundleId: appBundle.infoPlist.bundleId, device: bootedDevice, arguments: []
             )
-        case let .device(device):
-            try await deviceController.installApp(at: app.path, device: device)
-            try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)
-        case .androidDevice:
-            fatalError("launchApp should not be called for Android devices")
-        }
-    }
-
-    private func launchAndroidPreview(
-        preview: ServerPreview,
-        on androidDevice: AndroidDevice,
-        status: TaskStatus
-    ) async throws {
-        guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(.android) })?.url
-        else {
-            throw SimulatorsViewModelError.appNotFound(
-                .androidDevice(androidDevice),
-                preview.appBuilds.flatMap(\.supportedPlatforms)
-            )
-        }
-
-        guard let packageName = preview.bundleIdentifier else {
-            throw DeviceServiceError.missingPackageName(preview.id)
-        }
-
-        guard let archivePath = try await remoteArtifactDownloader.download(url: url)
-        else { throw DeviceServiceError.appDownloadFailed(preview.id) }
-        let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
-        let unarchivedDirectory = try fileUnarchiver.unzip()
-
-        guard let apkPath = try await fileSystem.glob(
-            directory: unarchivedDirectory, include: ["**/*.apk"]
-        )
-        .collect()
-        .first
-        else { throw DeviceServiceError.apkNotFoundInArchive }
-
-        await status.update(
-            state: .running(message: "Launching preview", progress: .indeterminate)
-        )
-
-        try await adbController.installApp(at: apkPath, device: androidDevice)
-        try await adbController.launchApp(packageName: packageName, device: androidDevice)
-
-        let displayName = preview.displayName ?? packageName
-        if let gitCommitSHA = preview.gitCommitSHA {
-            await status.markAsDone(
-                message: "Installed \(displayName)@\(gitCommitSHA.prefix(7))"
-            )
-        } else {
-            await status.markAsDone(message: "Installed \(displayName)")
+        case let (.appBundle(appBundle), .device(device)):
+            try await deviceController.installApp(at: appBundle.path, device: device)
+            try await deviceController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device)
+        case let (.apk(apkPath, packageName, _), .androidDevice(androidDevice)):
+            try await adbController.installApp(at: apkPath, device: androidDevice)
+            try await adbController.launchApp(packageName: packageName, device: androidDevice)
+        default:
+            break
         }
     }
 
