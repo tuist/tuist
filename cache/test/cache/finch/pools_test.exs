@@ -4,30 +4,14 @@ defmodule Cache.Finch.PoolsTest do
 
   alias Cache.Finch.Pools
 
+  setup :set_mimic_from_context
+
   describe "config/0 S3 pool protocols" do
     setup do
-      original_s3 = Application.get_env(:ex_aws, :s3)
-      original_server_url = Application.get_env(:cache, :server_url)
-      original_cache_s3 = Application.get_env(:cache, :s3)
+      stub(Cache.Config, :server_url, fn -> "https://tuist.dev" end)
 
-      Application.put_env(:cache, :server_url, "https://tuist.dev")
-
-      Application.put_env(:ex_aws, :s3,
-        scheme: "https://",
-        host: "s3.example.com",
-        region: "us-east-1"
-      )
-
-      on_exit(fn ->
-        if original_s3, do: Application.put_env(:ex_aws, :s3, original_s3), else: Application.delete_env(:ex_aws, :s3)
-
-        if original_server_url,
-          do: Application.put_env(:cache, :server_url, original_server_url),
-          else: Application.delete_env(:cache, :server_url)
-
-        if original_cache_s3,
-          do: Application.put_env(:cache, :s3, original_cache_s3),
-          else: Application.delete_env(:cache, :s3)
+      stub(Cache.Config, :s3_config, fn ->
+        {:ok, [scheme: "https://", host: "s3.example.com", region: "us-east-1"]}
       end)
 
       :ok

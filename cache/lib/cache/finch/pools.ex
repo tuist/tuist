@@ -2,7 +2,7 @@ defmodule Cache.Finch.Pools do
   @moduledoc false
 
   def config do
-    server_url = Application.get_env(:cache, :server_url)
+    server_url = Cache.Config.server_url()
     s3_protocols = Cache.Config.s3_protocols()
 
     pools = %{
@@ -23,7 +23,7 @@ defmodule Cache.Finch.Pools do
       ]
     }
 
-    case Application.fetch_env(:ex_aws, :s3) do
+    case Cache.Config.s3_config() do
       {:ok, s3_config} ->
         s3_url =
           case s3_config[:port] do
