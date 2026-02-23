@@ -2,7 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
-import TuistSupport
 import XcodeGraph
 
 /// Configures foreign build targets with script build phases and wires up linking dependencies.
