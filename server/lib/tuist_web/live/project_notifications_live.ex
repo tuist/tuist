@@ -80,7 +80,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_rolling_window_size: 100)
     |> assign(create_alert_form_git_branch: "")
     |> assign(create_alert_form_scheme: "")
-    |> assign(create_alert_form_app_bundle_id: "")
+    |> assign(create_alert_form_bundle_name: "")
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
     # Metric alert edit forms - one per alert rule
@@ -96,7 +96,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       rolling_window_size: rule.rolling_window_size,
       git_branch: rule.git_branch || "",
       scheme: rule.scheme || "",
-      app_bundle_id: rule.app_bundle_id || "",
+      bundle_name: rule.bundle_name || "",
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -244,7 +244,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_rolling_window_size: 100)
       |> assign(create_alert_form_git_branch: "")
       |> assign(create_alert_form_scheme: "")
-      |> assign(create_alert_form_app_bundle_id: "")
+      |> assign(create_alert_form_bundle_name: "")
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
 
@@ -297,8 +297,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, assign(socket, create_alert_form_scheme: scheme)}
   end
 
-  def handle_event("update_create_alert_form_app_bundle_id", %{"value" => app_bundle_id}, socket) do
-    {:noreply, assign(socket, create_alert_form_app_bundle_id: app_bundle_id)}
+  def handle_event("update_create_alert_form_bundle_name", %{"value" => bundle_name}, socket) do
+    {:noreply, assign(socket, create_alert_form_bundle_name: bundle_name)}
   end
 
   # Edit form handlers
@@ -349,8 +349,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, update_edit_alert_form(socket, id, :scheme, scheme)}
   end
 
-  def handle_event("update_edit_alert_form_app_bundle_id", %{"id" => id, "value" => app_bundle_id}, socket) do
-    {:noreply, update_edit_alert_form(socket, id, :app_bundle_id, app_bundle_id)}
+  def handle_event("update_edit_alert_form_bundle_name", %{"id" => id, "value" => bundle_name}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :bundle_name, bundle_name)}
   end
 
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
@@ -363,7 +363,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       rolling_window_size: assigns.create_alert_form_rolling_window_size,
       git_branch: assigns.create_alert_form_git_branch,
       scheme: assigns.create_alert_form_scheme,
-      app_bundle_id: assigns.create_alert_form_app_bundle_id,
+      bundle_name: assigns.create_alert_form_bundle_name,
       slack_channel_id: assigns.create_alert_form_channel_id,
       slack_channel_name: assigns.create_alert_form_channel_name
     }
@@ -393,7 +393,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
         rolling_window_size: form.rolling_window_size,
         git_branch: form.git_branch,
         scheme: form.scheme,
-        app_bundle_id: form.app_bundle_id,
+        bundle_name: form.bundle_name,
         slack_channel_id: form.channel_id,
         slack_channel_name: form.channel_name
       }
@@ -589,11 +589,11 @@ defmodule TuistWeb.ProjectNotificationsLive do
     case category do
       :bundle_size ->
         git_branch = Keyword.get(opts, :git_branch, "")
-        app_bundle_id = Keyword.get(opts, :app_bundle_id, "")
+        bundle_name = Keyword.get(opts, :bundle_name, "")
         size_label = bundle_size_metric_label(metric)
 
         text =
-          if app_bundle_id == "" do
+          if bundle_name == "" do
             dgettext(
               "dashboard_projects",
               "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
@@ -604,9 +604,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
           else
             dgettext(
               "dashboard_projects",
-              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{app_bundle_id}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
               size_label: size_label,
-              app_bundle_id: app_bundle_id,
+              bundle_name: bundle_name,
               git_branch: git_branch,
               deviation: deviation
             )

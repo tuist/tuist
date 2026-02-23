@@ -278,7 +278,7 @@
                 @create_alert_form_rolling_window_size,
                 git_branch: @create_alert_form_git_branch,
                 scheme: @create_alert_form_scheme,
-                app_bundle_id: @create_alert_form_app_bundle_id
+                bundle_name: @create_alert_form_bundle_name
               )}
             </p>
             <.alert
@@ -453,15 +453,15 @@
               </div>
               <div :if={@create_alert_form_category == :bundle_size} data-part="schedule-row">
                 <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Bundle ID")}
+                  {dgettext("dashboard_projects", "Name")}
                 </label>
                 <.text_input
                   type="basic"
-                  id="create-alert-app-bundle-id"
-                  name="app_bundle_id"
-                  value={@create_alert_form_app_bundle_id}
-                  placeholder={dgettext("dashboard_projects", "e.g. com.example.app (optional)")}
-                  phx-keyup="update_create_alert_form_app_bundle_id"
+                  id="create-alert-bundle-name"
+                  name="bundle_name"
+                  value={@create_alert_form_bundle_name}
+                  placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                  phx-keyup="update_create_alert_form_bundle_name"
                   phx-debounce="300"
                 />
               </div>
@@ -582,7 +582,7 @@
                       form[:rolling_window_size] || rule.rolling_window_size,
                       git_branch: form[:git_branch] || rule.git_branch || "",
                       scheme: form[:scheme] || rule.scheme || "",
-                      app_bundle_id: form[:app_bundle_id] || rule.app_bundle_id || ""
+                      bundle_name: form[:bundle_name] || rule.bundle_name || ""
                     )}
                   </p>
                   <.alert
@@ -784,17 +784,15 @@
                       data-part="schedule-row"
                     >
                       <label data-part="schedule-label">
-                        {dgettext("dashboard_projects", "Bundle ID")}
+                        {dgettext("dashboard_projects", "Name")}
                       </label>
                       <.text_input
                         type="basic"
-                        id={"edit-alert-app-bundle-id-#{rule.id}"}
-                        name="app_bundle_id"
-                        value={form[:app_bundle_id] || rule.app_bundle_id || ""}
-                        placeholder={
-                          dgettext("dashboard_projects", "e.g. com.example.app (optional)")
-                        }
-                        phx-keyup="update_edit_alert_form_app_bundle_id"
+                        id={"edit-alert-bundle-name-#{rule.id}"}
+                        name="bundle_name"
+                        value={form[:bundle_name] || rule.bundle_name || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                        phx-keyup="update_edit_alert_form_bundle_name"
                         phx-value-id={rule.id}
                         phx-debounce="300"
                       />

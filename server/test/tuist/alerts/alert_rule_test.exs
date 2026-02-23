@@ -382,7 +382,7 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert Ecto.Changeset.get_change(changeset, :scheme) == "MyApp"
     end
 
-    test "accepts app_bundle_id for bundle_size category" do
+    test "accepts bundle_name for bundle_size category" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -395,14 +395,14 @@ defmodule Tuist.Alerts.AlertRuleTest do
           metric: :install_size,
           deviation_percentage: 20.0,
           git_branch: "main",
-          app_bundle_id: "com.example.app",
+          bundle_name: "MyApp",
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
 
       # Then
       assert changeset.valid?
-      assert Ecto.Changeset.get_change(changeset, :app_bundle_id) == "com.example.app"
+      assert Ecto.Changeset.get_change(changeset, :bundle_name) == "MyApp"
     end
 
     test "defaults name to Untitled" do

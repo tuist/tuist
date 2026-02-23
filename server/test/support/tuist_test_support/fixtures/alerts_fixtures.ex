@@ -49,9 +49,9 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
           git_branch: Keyword.get(opts, :git_branch, "main")
         }
 
-        case Keyword.get(opts, :app_bundle_id) do
+        case Keyword.get(opts, :bundle_name) do
           nil -> attrs
-          app_bundle_id -> Map.put(attrs, :app_bundle_id, app_bundle_id)
+          bundle_name -> Map.put(attrs, :bundle_name, bundle_name)
         end
       else
         attrs = %{

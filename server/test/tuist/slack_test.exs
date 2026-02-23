@@ -306,7 +306,7 @@ defmodule Tuist.SlackTest do
       assert result == :ok
     end
 
-    test "includes scheme in build_run_duration message" do
+    test "includes scheme in build_run_duration title and message" do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
@@ -330,8 +330,11 @@ defmodule Tuist.SlackTest do
         )
 
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        header_block = Enum.at(blocks, 0)
+        assert header_block.text.text =~ "Alert: MyApp Build Time p90 Increased"
+
         metric_block = Enum.at(blocks, 3)
-        assert metric_block.text.text =~ "MyApp Build time"
+        assert metric_block.text.text =~ "MyApp build time"
         :ok
       end)
 
@@ -339,7 +342,7 @@ defmodule Tuist.SlackTest do
       assert Slack.send_alert(alert) == :ok
     end
 
-    test "includes scheme in test_run_duration message" do
+    test "includes scheme in test_run_duration title and message" do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
@@ -363,8 +366,11 @@ defmodule Tuist.SlackTest do
         )
 
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        header_block = Enum.at(blocks, 0)
+        assert header_block.text.text =~ "Alert: UITests Test Time Average Increased"
+
         metric_block = Enum.at(blocks, 3)
-        assert metric_block.text.text =~ "UITests Test time"
+        assert metric_block.text.text =~ "UITests test time"
         :ok
       end)
 
@@ -372,7 +378,7 @@ defmodule Tuist.SlackTest do
       assert Slack.send_alert(alert) == :ok
     end
 
-    test "includes app_bundle_id in bundle_size message" do
+    test "includes bundle_name in bundle_size message" do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
@@ -383,7 +389,7 @@ defmodule Tuist.SlackTest do
           project: project,
           category: :bundle_size,
           metric: :install_size,
-          app_bundle_id: "com.example.app",
+          bundle_name: "MyApp",
           slack_channel_id: "C12345",
           slack_channel_name: "alerts"
         )
@@ -397,7 +403,7 @@ defmodule Tuist.SlackTest do
 
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
         metric_block = Enum.at(blocks, 3)
-        assert metric_block.text.text =~ "com.example.app Bundle"
+        assert metric_block.text.text =~ "MyApp bundle"
         :ok
       end)
 
@@ -459,8 +465,39 @@ defmodule Tuist.SlackTest do
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
         footer_block = Enum.at(blocks, 4)
         footer_text = hd(footer_block.elements).text
-        assert footer_text =~ "/builds"
-        assert footer_text =~ "View builds"
+        assert footer_text =~ "/builds|View builds"
+        refute footer_text =~ "?"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /builds with scheme query param when scheme is set" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          scheme: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/builds?analytics-build-scheme=MyApp|View builds"
         :ok
       end)
 
@@ -490,8 +527,39 @@ defmodule Tuist.SlackTest do
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
         footer_block = Enum.at(blocks, 4)
         footer_text = hd(footer_block.elements).text
-        assert footer_text =~ "/tests"
-        assert footer_text =~ "View tests"
+        assert footer_text =~ "/tests|View tests"
+        refute footer_text =~ "?"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /tests with scheme query param when scheme is set" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :p90,
+          scheme: "UITests",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/tests?analytics-test-scheme=UITests|View tests"
         :ok
       end)
 
@@ -552,8 +620,39 @@ defmodule Tuist.SlackTest do
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
         footer_block = Enum.at(blocks, 4)
         footer_text = hd(footer_block.elements).text
-        assert footer_text =~ "/bundles"
-        assert footer_text =~ "View bundles"
+        assert footer_text =~ "/bundles|View bundles"
+        refute footer_text =~ "?"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /bundles with bundle_name filter when bundle_name is set" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          bundle_name: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/bundles?bundle-size-app=MyApp|View bundles"
         :ok
       end)
 

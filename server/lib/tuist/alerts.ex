@@ -99,7 +99,7 @@ defmodule Tuist.Alerts do
   def evaluate(%AlertRule{category: :bundle_size} = alert_rule) do
     project = %Project{id: alert_rule.project_id}
 
-    bundle_opts = maybe_add_app_bundle_id([git_branch: alert_rule.git_branch, fallback: false], alert_rule.app_bundle_id)
+    bundle_opts = maybe_add_bundle_name([git_branch: alert_rule.git_branch, fallback: false], alert_rule.bundle_name)
 
     with %Bundle{} = current_bundle <- Bundles.last_project_bundle(project, bundle_opts),
          %Bundle{} = previous_bundle <-
@@ -164,8 +164,8 @@ defmodule Tuist.Alerts do
   defp maybe_add_scheme(opts, ""), do: opts
   defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
 
-  defp maybe_add_app_bundle_id(opts, ""), do: opts
-  defp maybe_add_app_bundle_id(opts, app_bundle_id), do: Keyword.put(opts, :app_bundle_id, app_bundle_id)
+  defp maybe_add_bundle_name(opts, ""), do: opts
+  defp maybe_add_bundle_name(opts, bundle_name), do: Keyword.put(opts, :name, bundle_name)
 
   defp get_latest_alert(alert_rule_id) do
     Alert

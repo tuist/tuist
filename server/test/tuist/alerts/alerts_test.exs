@@ -573,7 +573,7 @@ defmodule Tuist.AlertsTest do
       assert result == :ok
     end
 
-    test "ignores bundles with different app_bundle_id" do
+    test "ignores bundles with different name" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -583,7 +583,7 @@ defmodule Tuist.AlertsTest do
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.other",
+          name: "OtherApp",
           install_size: 1_000_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
         )
@@ -593,7 +593,7 @@ defmodule Tuist.AlertsTest do
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.app",
+          name: "MyApp",
           install_size: 2_000_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
         )
@@ -604,28 +604,28 @@ defmodule Tuist.AlertsTest do
           category: :bundle_size,
           metric: :install_size,
           git_branch: "main",
+          bundle_name: "MyApp",
           deviation_percentage: 20.0
         )
 
       # When
       result = Alerts.evaluate(alert_rule)
 
-      # Then - only one bundle with app_bundle_id "com.example.app", so no previous to compare
+      # Then - only one bundle named "MyApp", so no previous to compare
       assert result == :ok
     end
 
-    test "filters by app_bundle_id when set" do
+    test "filters by bundle_name when set" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      # Create bundles for "com.example.app" with size increase
       _previous_bundle =
         BundlesFixtures.bundle_fixture(
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.app",
+          name: "MyApp",
           install_size: 1_000_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
         )
@@ -635,7 +635,7 @@ defmodule Tuist.AlertsTest do
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.app",
+          name: "MyApp",
           install_size: 1_500_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
         )
@@ -646,7 +646,7 @@ defmodule Tuist.AlertsTest do
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.other",
+          name: "OtherApp",
           install_size: 500_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -30, :minute)
         )
@@ -657,7 +657,7 @@ defmodule Tuist.AlertsTest do
           category: :bundle_size,
           metric: :install_size,
           git_branch: "main",
-          app_bundle_id: "com.example.app",
+          bundle_name: "MyApp",
           deviation_percentage: 20.0
         )
 
