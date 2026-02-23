@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-17 16:30+0000\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
@@ -208,7 +208,7 @@ msgstr "Błędy"
 
 #, fuzzy
 msgid "Filter"
-msgstr "Filtruj"
+msgstr "Filtr"
 
 #, fuzzy
 msgid "Hash"
@@ -856,8 +856,9 @@ msgstr "Klasy testowe"
 msgid "Test Suite"
 msgstr "Zestaw testów"
 
+#, fuzzy
 msgid "Scheme:"
-msgstr ""
+msgstr "Schemat:"
 
 #, fuzzy
 #~ msgid "Test suite"
