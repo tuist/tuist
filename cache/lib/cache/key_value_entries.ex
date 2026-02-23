@@ -59,6 +59,7 @@ defmodule Cache.KeyValueEntries do
           Enum.reduce(chunk, dynamic(false), fn hash, acc ->
             dynamic([e], ^acc or fragment("instr(?, ?) > 0", e.json_payload, ^hash))
           end)
+
         from(e in KeyValueEntry,
           where: fragment("? LIKE ? ESCAPE '!'", e.key, ^key_prefix),
           where: ^instr_filter,
