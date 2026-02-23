@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-16 18:02+0000\n"
+"PO-Revision-Date: 2026-02-23 16:46+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/tr/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -711,35 +711,52 @@ msgstr "Boyut ölçüsü"
 msgid "e.g. main"
 msgstr "Örnek: main"
 
+#, fuzzy
 msgid "%{scheme} %{unit}"
-msgstr ""
+msgstr "%{scheme} %{unit}"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
+"{current_unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</"
+"strong> ile karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında "
+"uyarı verin."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{current_unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
+"{current_unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</"
+"strong> ile karşılaştırıldığında <strong>%{deviation}%</strong> oranında "
+"arttığında uyarı verin."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{size_label}</strong> of the latest "
 "<strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</"
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
+"<strong>%{size_label}</strong> adresindeki en son <strong>%{bundle_name}</"
+"strong> bundle on branch <strong>%{git_branch}</strong> önceki bundle'a göre "
+"<strong>%{deviation}%</strong> oranında arttığında uyarı verin."
 
+#, fuzzy
 msgid "Scheme"
-msgstr ""
+msgstr "Şema"
 
+#, fuzzy
 msgid "e.g. MyApp (optional)"
-msgstr ""
+msgstr "Örnek: MyApp (isteğe bağlı)"
 
 #, fuzzy
 #~ msgid ""
