@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-08 08:21+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-02-23 08:45+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/ko/>\n"
 "Language: ko\n"
@@ -13,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -79,18 +78,14 @@ msgid ""
 msgstr ""
 "Repository에 대한 접근 권한은 GitHub 및 Tuist 통합 설정에 따라 다릅니다."
 
-#, fuzzy
 msgid "Connect Slack"
-msgstr "Slack 연결"
+msgstr "Slack에 연결"
 
-#, fuzzy
 msgid "Connect Slack to receive project analytics reports"
 msgstr "Slack을 연결하여 프로젝트 분석 보고서를 받으세요"
 
-#, fuzzy
 msgid "Disconnect from %{team_name}"
-msgstr "%{team_name}와 연결 해제"
+msgstr "%{team_name}와(과) 연결 해제"
 
-#, fuzzy
 msgid "Slack"
 msgstr "Slack"
