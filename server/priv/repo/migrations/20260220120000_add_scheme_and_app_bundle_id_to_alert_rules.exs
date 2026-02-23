@@ -1,0 +1,10 @@
+defmodule Tuist.Repo.Migrations.AddSchemeAndAppBundleIdToAlertRules do
+  use Ecto.Migration
+
+  def change do
+    alter table(:alert_rules) do
+      add :scheme, :string
+      add :app_bundle_id, :string
+    end
+  end
+end

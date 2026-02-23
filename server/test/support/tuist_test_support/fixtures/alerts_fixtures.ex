@@ -44,15 +44,25 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
 
     category_attrs =
       if category == :bundle_size do
-        %{
+        attrs = %{
           metric: Keyword.get(opts, :metric, :install_size),
           git_branch: Keyword.get(opts, :git_branch, "main")
         }
+
+        case Keyword.get(opts, :app_bundle_id) do
+          nil -> attrs
+          app_bundle_id -> Map.put(attrs, :app_bundle_id, app_bundle_id)
+        end
       else
-        %{
+        attrs = %{
           metric: Keyword.get(opts, :metric, :p90),
           rolling_window_size: Keyword.get(opts, :rolling_window_size, 100)
         }
+
+        case Keyword.get(opts, :scheme) do
+          nil -> attrs
+          scheme -> Map.put(attrs, :scheme, scheme)
+        end
       end
 
     %AlertRule{}

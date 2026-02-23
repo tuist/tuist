@@ -238,6 +238,15 @@ defmodule Tuist.Bundles do
         where(query, [b], b.inserted_at < ^inserted_before)
       end
 
+    app_bundle_id = Keyword.get(opts, :app_bundle_id)
+
+    query =
+      if is_nil(app_bundle_id) do
+        query
+      else
+        where(query, [b], b.app_bundle_id == ^app_bundle_id)
+      end
+
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
 

@@ -359,6 +359,52 @@ defmodule Tuist.Alerts.AlertRuleTest do
       end
     end
 
+    test "accepts scheme for build_run_duration category" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          scheme: "MyApp",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :scheme) == "MyApp"
+    end
+
+    test "accepts app_bundle_id for bundle_size category" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :bundle_size,
+          metric: :install_size,
+          deviation_percentage: 20.0,
+          git_branch: "main",
+          app_bundle_id: "com.example.app",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :app_bundle_id) == "com.example.app"
+    end
+
     test "defaults name to Untitled" do
       # Given
       project = ProjectsFixtures.project_fixture()

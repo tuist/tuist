@@ -267,7 +267,7 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp alert_footer_block(_alert, account_name, project_name) do
+  defp alert_footer_block(%Alert{alert_rule: %{category: :build_run_duration}}, account_name, project_name) do
     base_url = Environment.app_url()
 
     %{
@@ -275,7 +275,35 @@ defmodule Tuist.Slack do
       elements: [
         %{
           type: "mrkdwn",
-          text: "<#{base_url}/#{account_name}/#{project_name}|View project>"
+          text: "<#{base_url}/#{account_name}/#{project_name}/builds|View builds>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(%Alert{alert_rule: %{category: :test_run_duration}}, account_name, project_name) do
+    base_url = Environment.app_url()
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{base_url}/#{account_name}/#{project_name}/tests|View tests>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(%Alert{alert_rule: %{category: :cache_hit_rate}}, account_name, project_name) do
+    base_url = Environment.app_url()
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{base_url}/#{account_name}/#{project_name}/xcode-cache|View cache>"
         }
       ]
     }
@@ -297,18 +325,20 @@ defmodule Tuist.Slack do
   defp alert_metric_label(:average), do: "Average"
   defp alert_metric_label(nil), do: ""
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric}} = alert) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric, scheme: scheme}} = alert) do
     deviation = calculate_increase_deviation(alert)
+    qualifier = non_empty_qualifier(scheme)
 
-    "*Build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
+    "*#{qualifier}Build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric}} = alert) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric, scheme: scheme}} = alert) do
     deviation = calculate_increase_deviation(alert)
+    qualifier = non_empty_qualifier(scheme)
 
-    "*Test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
+    "*#{qualifier}Test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
@@ -321,14 +351,21 @@ defmodule Tuist.Slack do
       "Current: #{format_alert_percentage(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :bundle_size, metric: metric}} = alert) do
+  defp format_alert_message(
+         %Alert{alert_rule: %{category: :bundle_size, metric: metric, app_bundle_id: app_bundle_id}} = alert
+       ) do
     deviation = calculate_increase_deviation(alert)
     label = bundle_size_metric_label(metric)
+    qualifier = non_empty_qualifier(app_bundle_id)
 
-    "*Bundle #{label} increased by #{deviation}%*\n" <>
+    "*#{qualifier}Bundle #{label} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_bytes(alert.previous_value)}\n" <>
       "Current: #{format_alert_bytes(alert.current_value)}"
   end
+
+  defp non_empty_qualifier(nil), do: ""
+  defp non_empty_qualifier(""), do: ""
+  defp non_empty_qualifier(value), do: "#{value} "
 
   defp calculate_increase_deviation(%Alert{current_value: current, previous_value: previous}) do
     Float.round((current - previous) / previous * 100, 1)

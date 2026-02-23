@@ -950,17 +950,25 @@ defmodule Tuist.Tests.Analytics do
   def test_duration_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    scheme = Keyword.get(opts, :scheme)
 
-    durations =
-      ClickHouseRepo.all(
-        from(t in Test,
-          where: t.project_id == ^project_id,
-          order_by: [desc: t.ran_at],
-          limit: ^limit,
-          offset: ^offset,
-          select: t.duration
-        )
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        order_by: [desc: t.ran_at],
+        limit: ^limit,
+        offset: ^offset,
+        select: t.duration
       )
+
+    query =
+      if is_binary(scheme) and scheme != "" do
+        where(query, [t], t.scheme == ^scheme)
+      else
+        query
+      end
+
+    durations = ClickHouseRepo.all(query)
 
     calculate_metric_from_values(durations, metric)
   end
