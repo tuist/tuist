@@ -694,13 +694,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
-      - uses: jdx/mise-action@v2
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: jdx/mise-action@v3.2.0
         with:
-          distribution: temurin
-          java-version: 17
+          install_args: "java gradle 1password-cli"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
