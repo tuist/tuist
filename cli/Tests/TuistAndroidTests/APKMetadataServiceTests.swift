@@ -23,17 +23,20 @@
             let apkPath = temporaryDirectory.appending(component: "app.apk")
             try Data().write(to: URL(fileURLWithPath: apkPath.pathString))
 
-            let output = """
+            let aapt2Output = """
             package: name='com.example.myapp' versionCode='42' versionName='1.2.3' compileSdkVersion='34'
             application-label:'My Cool App'
-            application-icon-mdpi:'res/mipmap-mdpi-v4/ic_launcher.png'
-            application-icon-hdpi:'res/mipmap-hdpi-v4/ic_launcher.png'
-            application-icon-xhdpi:'res/mipmap-xhdpi-v4/ic_launcher.png'
-            application-icon-xxhdpi:'res/mipmap-xxhdpi-v4/ic_launcher.png'
-            application-icon-xxxhdpi:'res/mipmap-xxxhdpi-v4/ic_launcher.png'
             """
 
-            givenAapt2Output(output)
+            let zipInfoOutput = """
+            res/mipmap-mdpi-v4/ic_launcher.png
+            res/mipmap-hdpi-v4/ic_launcher.png
+            res/mipmap-xhdpi-v4/ic_launcher.png
+            res/mipmap-xxhdpi-v4/ic_launcher.png
+            res/mipmap-xxxhdpi-v4/ic_launcher.png
+            """
+
+            givenCommandOutputs(aapt2Output: aapt2Output, zipInfoOutput: zipInfoOutput)
 
             let metadata = try await subject.parseMetadata(at: apkPath)
 
@@ -50,14 +53,17 @@
             let apkPath = temporaryDirectory.appending(component: "app.apk")
             try Data().write(to: URL(fileURLWithPath: apkPath.pathString))
 
-            let output = """
+            let aapt2Output = """
             package: name='com.example.app' versionCode='1' versionName='1.0'
             application-label:'App'
-            application-icon-mdpi:'res/mipmap-mdpi/ic_launcher.png'
-            application-icon-xhdpi:'res/mipmap-xhdpi/ic_launcher.png'
             """
 
-            givenAapt2Output(output)
+            let zipInfoOutput = """
+            res/mipmap-mdpi/ic_launcher.png
+            res/mipmap-xhdpi/ic_launcher.png
+            """
+
+            givenCommandOutputs(aapt2Output: aapt2Output, zipInfoOutput: zipInfoOutput)
 
             let metadata = try await subject.parseMetadata(at: apkPath)
 
@@ -65,17 +71,17 @@
             #expect(metadata.iconPath == expectedIcon)
         }
 
-        @Test(.inTemporaryDirectory) func parseMetadata_returns_nil_icon_when_no_icon_lines() async throws {
+        @Test(.inTemporaryDirectory) func parseMetadata_returns_nil_icon_when_no_icons_in_apk() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let apkPath = temporaryDirectory.appending(component: "app.apk")
             try Data().write(to: URL(fileURLWithPath: apkPath.pathString))
 
-            let output = """
+            let aapt2Output = """
             package: name='com.example.app' versionCode='1' versionName='1.0'
             application-label:'App'
             """
 
-            givenAapt2Output(output)
+            givenCommandOutputs(aapt2Output: aapt2Output, zipInfoOutput: "")
 
             let metadata = try await subject.parseMetadata(at: apkPath)
 
@@ -87,11 +93,11 @@
             let apkPath = temporaryDirectory.appending(component: "app.apk")
             try Data().write(to: URL(fileURLWithPath: apkPath.pathString))
 
-            let output = """
+            let aapt2Output = """
             application-label:'App'
             """
 
-            givenAapt2Output(output)
+            givenCommandOutputs(aapt2Output: aapt2Output, zipInfoOutput: "")
 
             await #expect(throws: APKMetadataServiceError.parsingFailed(apkPath.pathString)) {
                 try await subject.parseMetadata(at: apkPath)
@@ -103,32 +109,60 @@
             let apkPath = temporaryDirectory.appending(component: "MyApp.apk")
             try Data().write(to: URL(fileURLWithPath: apkPath.pathString))
 
-            let output = """
+            let aapt2Output = """
             package: name='com.example.app' versionCode='1' versionName='1.0'
             """
 
-            givenAapt2Output(output)
+            givenCommandOutputs(aapt2Output: aapt2Output, zipInfoOutput: "")
 
             let metadata = try await subject.parseMetadata(at: apkPath)
 
             #expect(metadata.displayName == "MyApp")
         }
 
+        @Test(.inTemporaryDirectory) func parseMetadata_skips_adaptive_icon_xml_and_finds_raster() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let apkPath = temporaryDirectory.appending(component: "app.apk")
+            try Data().write(to: URL(fileURLWithPath: apkPath.pathString))
+
+            let aapt2Output = """
+            package: name='com.example.app' versionCode='1' versionName='1.0'
+            application-label:'App'
+            """
+
+            let zipInfoOutput = """
+            res/mipmap-anydpi-v26/ic_launcher.xml
+            res/mipmap-hdpi-v4/ic_launcher.png
+            res/mipmap-hdpi-v4/ic_launcher_foreground.png
+            res/mipmap-hdpi-v4/ic_launcher_background.png
+            res/mipmap-xxhdpi-v4/ic_launcher.png
+            res/mipmap-xxhdpi-v4/ic_launcher_round.png
+            """
+
+            givenCommandOutputs(aapt2Output: aapt2Output, zipInfoOutput: zipInfoOutput)
+
+            let metadata = try await subject.parseMetadata(at: apkPath)
+
+            let expectedIcon = try RelativePath(validating: "res/mipmap-xxhdpi-v4/ic_launcher.png")
+            #expect(metadata.iconPath == expectedIcon)
+        }
+
         // MARK: - Helpers
 
-        private func givenAapt2Output(_ output: String) {
+        private func givenCommandOutputs(aapt2Output: String, zipInfoOutput: String) {
             given(commandRunner)
                 .run(
                     arguments: .any,
                     environment: .any,
                     workingDirectory: .any
                 )
-                .willReturn(
-                    AsyncThrowingStream { continuation in
+                .willProduce { args, _, _ in
+                    let output = args.contains("zipinfo") ? zipInfoOutput : aapt2Output
+                    return AsyncThrowingStream { continuation in
                         continuation.yield(CommandEvent.standardOutput(Array(output.utf8)))
                         continuation.finish()
                     }
-                )
+                }
         }
     }
 #endif

@@ -54,7 +54,6 @@ public protocol APKMetadataServicing {
             var versionName: String?
             var versionCode: String?
             var applicationLabel: String?
-            var iconPaths: [(density: String, path: String)] = []
 
             for line in output.components(separatedBy: "\n") {
                 if line.hasPrefix("package:") {
@@ -66,14 +65,6 @@ public protocol APKMetadataServicing {
                         .replacingOccurrences(of: "application-label:", with: "")
                         .trimmingCharacters(in: .whitespaces)
                         .trimmingCharacters(in: CharacterSet(charactersIn: "'"))
-                } else if line.hasPrefix("application-icon-") {
-                    let parts = line.split(separator: ":", maxSplits: 1)
-                    guard parts.count == 2 else { continue }
-                    let density = String(parts[0]).replacingOccurrences(of: "application-icon-", with: "")
-                    let path = String(parts[1]).trimmingCharacters(in: CharacterSet(charactersIn: "'"))
-                    if !path.isEmpty {
-                        iconPaths.append((density: density, path: path))
-                    }
                 }
             }
 
@@ -81,14 +72,7 @@ public protocol APKMetadataServicing {
                 throw APKMetadataServiceError.parsingFailed(apkPath.pathString)
             }
 
-            var iconPath = try bestIconPath(from: iconPaths)
-                .map { try RelativePath(validating: $0) }
-
-            if iconPath == nil || iconPath?.extension == "xml" {
-                if let fallback = try await bestRasterIconFromAPK(at: apkPath) {
-                    iconPath = fallback
-                }
-            }
+            let iconPath = try await resolveIconPath(from: apkPath)
 
             return APKMetadata(
                 packageName: packageName,
@@ -110,26 +94,12 @@ public protocol APKMetadataServicing {
             "120": "ldpi",
         ]
 
-        private func bestIconPath(from iconPaths: [(density: String, path: String)]) -> String? {
-            guard !iconPaths.isEmpty else { return nil }
-
-            let rasterPaths = iconPaths.filter { $0.path.hasSuffix(".png") || $0.path.hasSuffix(".webp") }
-            let candidates = rasterPaths.isEmpty ? iconPaths : rasterPaths
-
-            let normalized = candidates.map { entry -> (density: String, path: String) in
-                let mapped = numericDensityMap[entry.density] ?? entry.density
-                return (density: mapped, path: entry.path)
-            }
-
-            for density in densityPriority {
-                if let match = normalized.first(where: { $0.density == density }) {
-                    return match.path
-                }
-            }
-            return candidates.last?.path
+        private func resolveIconPath(from apkPath: AbsolutePath) async throws -> RelativePath? {
+            guard let path = try await bestRasterPathFromAPK(at: apkPath) else { return nil }
+            return try RelativePath(validating: path)
         }
 
-        private func bestRasterIconFromAPK(at apkPath: AbsolutePath) async throws -> RelativePath? {
+        private func bestRasterPathFromAPK(at apkPath: AbsolutePath) async throws -> String? {
             let entries = try await listZipEntries(at: apkPath)
             var candidates: [(density: String, path: String)] = []
             for entry in entries {
@@ -148,8 +118,21 @@ public protocol APKMetadataServicing {
                     .replacingOccurrences(of: "-v4", with: "")
                 candidates.append((density: density, path: entry))
             }
-            guard let best = bestIconPath(from: candidates) else { return nil }
-            return try RelativePath(validating: best)
+            return bestPathByDensity(from: candidates)
+        }
+
+        private func bestPathByDensity(from iconPaths: [(density: String, path: String)]) -> String? {
+            guard !iconPaths.isEmpty else { return nil }
+            let normalized = iconPaths.map { entry -> (density: String, path: String) in
+                let mapped = numericDensityMap[entry.density] ?? entry.density
+                return (density: mapped, path: entry.path)
+            }
+            for density in densityPriority {
+                if let match = normalized.first(where: { $0.density == density }) {
+                    return match.path
+                }
+            }
+            return iconPaths.last?.path
         }
 
         private func listZipEntries(at path: AbsolutePath) async throws -> [String] {
