@@ -283,6 +283,11 @@ defmodule Tuist.Tests do
         {test_case, acc}
       end)
 
+    new_test_case_ids =
+      test_case_ids
+      |> Enum.reject(&Map.has_key?(existing_data, &1))
+      |> MapSet.new()
+
     IngestRepo.insert_all(TestCase, test_cases)
 
     test_case_id_map =
@@ -290,7 +295,7 @@ defmodule Tuist.Tests do
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    {test_case_id_map, test_cases_with_flaky_run}
+    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
   end
 
   defp get_project_test_cases(_project_id, []), do: %{}
@@ -724,7 +729,8 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
-    {test_case_id_map, test_case_ids_with_flaky_run} = create_test_cases(test.project_id, test_case_data_list)
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
+      create_test_cases(test.project_id, test_case_data_list)
 
     {test_case_runs, all_failures, all_repetitions} =
       Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
@@ -803,13 +809,16 @@ defmodule Tuist.Tests do
       IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
     end
 
-    create_first_run_events(test_case_runs)
+    create_first_run_events(test_case_runs, new_test_case_ids)
 
     {test_case_ids_with_flaky_run, test_case_runs}
   end
 
-  defp create_first_run_events(test_case_runs) do
-    new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
+  defp create_first_run_events(test_case_runs, new_test_case_ids) do
+    new_test_case_runs =
+      Enum.filter(test_case_runs, fn run ->
+        run.is_new and run.test_case_id in new_test_case_ids
+      end)
 
     if Enum.any?(new_test_case_runs) do
       now = NaiveDateTime.utc_now()
