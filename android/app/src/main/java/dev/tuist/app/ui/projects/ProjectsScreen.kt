@@ -38,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.tuist.app.R
 import dev.tuist.app.api.model.Project
+import dev.tuist.app.ui.noora.NooraSpacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +84,7 @@ fun ProjectsScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.error,
                             )
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(NooraSpacing.Spacing6))
                             TextButton(onClick = { viewModel.loadProjects() }) {
                                 Text(stringResource(R.string.retry))
                             }
@@ -102,8 +103,8 @@ fun ProjectsScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(NooraSpacing.Spacing4),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(NooraSpacing.Spacing6),
                         ) {
                             items(state.projects, key = { it.id }) { project ->
                                 ProjectCard(project)
@@ -124,7 +125,7 @@ private fun ProjectCard(project: Project) {
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(NooraSpacing.Spacing6)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -136,7 +137,7 @@ private fun ProjectCard(project: Project) {
                     modifier = Modifier.weight(1f),
                 )
                 if (project.visibility == Project.Visibility.`private`) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(NooraSpacing.Spacing4))
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = project.visibility.value,
@@ -146,9 +147,9 @@ private fun ProjectCard(project: Project) {
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(NooraSpacing.Spacing4))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(NooraSpacing.Spacing6)) {
                 Text(
                     text = project.defaultBranch,
                     style = MaterialTheme.typography.bodyMedium,

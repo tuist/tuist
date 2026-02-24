@@ -28,12 +28,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.tuist.app.R
 import dev.tuist.app.ui.components.SignInButtonStyle
 import dev.tuist.app.ui.components.SocialSignInButton
-import dev.tuist.app.ui.theme.TuistColors
+import dev.tuist.app.ui.noora.NooraSpacing
+import dev.tuist.app.ui.noora.NooraTheme
 
 @Composable
 fun LoginScreen(
@@ -58,38 +58,38 @@ fun LoginScreen(
             Image(
                 painter = painterResource(R.drawable.tuist_rounded_icon),
                 contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.size(80.dp),
+                modifier = Modifier.size(NooraSpacing.Spacing15),
             )
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(NooraSpacing.Spacing9))
 
             Text(
                 text = stringResource(R.string.login_title),
                 style = MaterialTheme.typography.headlineLarge,
-                color = TuistColors.NeutralLight1200,
+                color = NooraTheme.colors.surfaceLabelPrimary,
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(NooraSpacing.Spacing5))
 
             Text(
                 text = stringResource(R.string.login_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
-                color = TuistColors.NeutralLight1200,
+                color = NooraTheme.colors.surfaceLabelPrimary,
                 textAlign = TextAlign.Center,
             )
 
             Spacer(Modifier.weight(1f))
 
-            val cardShape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+            val cardShape = RoundedCornerShape(topStart = NooraSpacing.Spacing9, topEnd = NooraSpacing.Spacing9)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(cardShape)
                     .background(Color.White.copy(alpha = 0.6f))
-                    .border(2.dp, Color.White, cardShape)
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 32.dp)
-                    .padding(bottom = 32.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                    .border(NooraSpacing.Spacing1, Color.White, cardShape)
+                    .padding(horizontal = NooraSpacing.Spacing8)
+                    .padding(top = NooraSpacing.Spacing9)
+                    .padding(bottom = NooraSpacing.Spacing9 + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
             ) {
                 Column {
                     SocialSignInButton(
@@ -99,7 +99,7 @@ fun LoginScreen(
                         onClick = { viewModel.signIn(activity) },
                     )
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(NooraSpacing.Spacing5))
 
                     SocialSignInButton(
                         title = stringResource(R.string.sign_in_apple),
@@ -108,7 +108,7 @@ fun LoginScreen(
                         onClick = { viewModel.signInWithApple(activity) },
                     )
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(NooraSpacing.Spacing5))
 
                     SocialSignInButton(
                         title = stringResource(R.string.sign_in_google),
@@ -117,7 +117,7 @@ fun LoginScreen(
                         onClick = { viewModel.signInWithGoogle(activity) },
                     )
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(NooraSpacing.Spacing5))
 
                     SocialSignInButton(
                         title = stringResource(R.string.sign_in_github),

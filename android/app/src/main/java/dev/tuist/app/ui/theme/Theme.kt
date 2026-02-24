@@ -8,39 +8,44 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import dev.tuist.app.ui.noora.DarkSemanticColors
+import dev.tuist.app.ui.noora.LightSemanticColors
+import dev.tuist.app.ui.noora.LocalNooraColors
+import dev.tuist.app.ui.noora.NooraColors
 
 private val LightColorScheme = lightColorScheme(
-    primary = TuistColors.Purple500,
+    primary = NooraColors.Purple500,
     onPrimary = Color.White,
-    primaryContainer = TuistColors.Purple100,
-    onPrimaryContainer = TuistColors.Purple900,
-    secondary = TuistColors.Purple400,
+    primaryContainer = NooraColors.Purple100,
+    onPrimaryContainer = NooraColors.Purple900,
+    secondary = NooraColors.Purple400,
     onSecondary = Color.White,
-    background = TuistColors.NeutralLight50,
-    onBackground = TuistColors.NeutralLight1200,
-    surface = TuistColors.NeutralLight50,
-    onSurface = TuistColors.NeutralLight1200,
-    surfaceVariant = TuistColors.NeutralLight200,
-    onSurfaceVariant = TuistColors.NeutralLight800,
-    outline = TuistColors.NeutralLight800,
+    background = NooraColors.NeutralLight50,
+    onBackground = NooraColors.NeutralLight1200,
+    surface = NooraColors.NeutralLight50,
+    onSurface = NooraColors.NeutralLight1200,
+    surfaceVariant = NooraColors.NeutralLight200,
+    onSurfaceVariant = NooraColors.NeutralLight800,
+    outline = NooraColors.NeutralLight800,
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = TuistColors.Purple400,
+    primary = NooraColors.Purple400,
     onPrimary = Color.White,
-    primaryContainer = TuistColors.Purple800,
-    onPrimaryContainer = TuistColors.Purple100,
-    secondary = TuistColors.Purple300,
+    primaryContainer = NooraColors.Purple800,
+    onPrimaryContainer = NooraColors.Purple100,
+    secondary = NooraColors.Purple300,
     onSecondary = Color.White,
-    background = TuistColors.NeutralDark1200,
-    onBackground = TuistColors.NeutralLight50,
-    surface = TuistColors.NeutralDark1200,
-    onSurface = TuistColors.NeutralLight50,
-    surfaceVariant = TuistColors.NeutralDark1100,
-    onSurfaceVariant = TuistColors.NeutralDark500,
-    outline = TuistColors.NeutralDark500,
+    background = NooraColors.NeutralDark1200,
+    onBackground = NooraColors.NeutralLight50,
+    surface = NooraColors.NeutralDark1200,
+    onSurface = NooraColors.NeutralLight50,
+    surfaceVariant = NooraColors.NeutralDark1100,
+    onSurfaceVariant = NooraColors.NeutralDark500,
+    outline = NooraColors.NeutralDark500,
 )
 
 @Composable
@@ -58,9 +63,13 @@ fun TuistTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = TuistTypography,
-        content = content,
-    )
+    val semanticColors = if (darkTheme) DarkSemanticColors else LightSemanticColors
+
+    CompositionLocalProvider(LocalNooraColors provides semanticColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = TuistTypography,
+            content = content,
+        )
+    }
 }

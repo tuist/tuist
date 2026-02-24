@@ -24,7 +24,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.tuist.app.ui.theme.TuistColors
+import dev.tuist.app.ui.noora.Noora
+import dev.tuist.app.ui.noora.NooraSpacing
 
 enum class SignInButtonStyle { PRIMARY, SECONDARY }
 
@@ -36,7 +37,7 @@ fun SocialSignInButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(Noora.CornerRadius.Large)
 
     // Primary: iOS uses purple500 (#6F2CFF) with a white overlay at 16% opacity at top fading to clear.
     // #6F2CFF blended with 16% white ≈ #854DFF
@@ -44,25 +45,25 @@ fun SocialSignInButton(
         SignInButtonStyle.PRIMARY -> Brush.verticalGradient(
             colors = listOf(
                 Color(0xFF854DFF),
-                TuistColors.Purple500,
+                Noora.Colors.Purple500,
             ),
         )
         SignInButtonStyle.SECONDARY -> Brush.verticalGradient(
             colors = listOf(
-                Color(0xFFFDFDFD),
+                Noora.Colors.NeutralLight50,
                 Color(0xFFF7F7F8),
             ),
         )
     }
 
     val borderColor = when (style) {
-        SignInButtonStyle.PRIMARY -> Color(0xFF5F01E5).copy(alpha = 0.898f)
+        SignInButtonStyle.PRIMARY -> Noora.Colors.Purple600.copy(alpha = 0.898f)
         SignInButtonStyle.SECONDARY -> Color.Black.copy(alpha = 0.08f)
     }
 
     val textColor = when (style) {
-        SignInButtonStyle.PRIMARY -> Color(0xFFFDFDFD)
-        SignInButtonStyle.SECONDARY -> TuistColors.NeutralLight1200
+        SignInButtonStyle.PRIMARY -> Noora.Colors.NeutralLight50
+        SignInButtonStyle.SECONDARY -> Noora.Colors.NeutralLight1200
     }
 
     Box(
@@ -78,24 +79,24 @@ fun SocialSignInButton(
             .background(backgroundBrush)
             .border(1.dp, borderColor, shape)
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = NooraSpacing.Spacing5),
         contentAlignment = Alignment.Center,
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(NooraSpacing.Spacing1),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(NooraSpacing.Spacing7),
             )
             Text(
                 text = title,
                 color = textColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 4.dp),
+                modifier = Modifier.padding(horizontal = NooraSpacing.Spacing2),
             )
         }
     }
