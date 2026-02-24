@@ -168,7 +168,7 @@ defmodule Cache.KeyValueEntries do
       entries
       |> Enum.map(&Map.get(&1, "value"))
       |> Enum.reject(&is_nil/1)
-      |> MapSet.new()
+      |> Enum.uniq()
       |> Enum.map(fn cas_hash ->
         %{
           key_value_entry_id: entry.id,
