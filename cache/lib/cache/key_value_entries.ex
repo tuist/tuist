@@ -9,6 +9,8 @@ defmodule Cache.KeyValueEntries do
   alias Cache.KeyValueEntryHash
   alias Cache.Repo
 
+  @id_chunk_size 500
+
   @doc """
   Deletes expired entries and returns them for downstream CAS cleanup.
 
@@ -35,15 +37,15 @@ defmodule Cache.KeyValueEntries do
       expired_entries ->
         ids_to_delete = Enum.map(expired_entries, & &1.id)
 
-        delete_query =
-          from(e in KeyValueEntry,
-            where: e.id in ^ids_to_delete,
-            where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff
-          )
+        delete_expired_entries(ids_to_delete, cutoff)
 
-        {count, _} = Repo.delete_all(delete_query)
-        delete_hashes_for_deleted_entries(ids_to_delete)
-        {expired_entries, count}
+        deleted_ids = deleted_ids(ids_to_delete)
+        delete_hashes_for_deleted_entries(deleted_ids)
+
+        deleted_id_set = MapSet.new(deleted_ids)
+        deleted_entries = Enum.filter(expired_entries, &MapSet.member?(deleted_id_set, &1.id))
+
+        {deleted_entries, length(deleted_entries)}
     end
   end
 
@@ -91,21 +93,45 @@ defmodule Cache.KeyValueEntries do
   defp delete_hashes_for_deleted_entries([]), do: :ok
 
   defp delete_hashes_for_deleted_entries(ids_to_delete) do
-    existing_ids =
-      from(e in KeyValueEntry,
-        where: e.id in ^ids_to_delete,
-        select: e.id
-      )
-      |> Repo.all()
-      |> MapSet.new()
-
-    deleted_ids = Enum.reject(ids_to_delete, &MapSet.member?(existing_ids, &1))
-
-    if deleted_ids != [] do
-      Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^deleted_ids))
-    end
+    ids_to_delete
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.each(fn ids_chunk ->
+      Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
+    end)
 
     :ok
+  end
+
+  defp delete_expired_entries(ids_to_delete, cutoff) do
+    ids_to_delete
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.each(fn ids_chunk ->
+      Repo.delete_all(
+        from(e in KeyValueEntry,
+          where: e.id in ^ids_chunk,
+          where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff
+        )
+      )
+    end)
+
+    :ok
+  end
+
+  defp deleted_ids(ids_to_delete) do
+    existing_ids =
+      ids_to_delete
+      |> Enum.chunk_every(@id_chunk_size)
+      |> Enum.flat_map(fn ids_chunk ->
+        Repo.all(
+          from(e in KeyValueEntry,
+            where: e.id in ^ids_chunk,
+            select: e.id
+          )
+        )
+      end)
+      |> MapSet.new()
+
+    Enum.reject(ids_to_delete, &MapSet.member?(existing_ids, &1))
   end
 
   defp entry_hash_rows(entry) do

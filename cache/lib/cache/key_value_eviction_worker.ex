@@ -16,10 +16,10 @@ defmodule Cache.KeyValueEvictionWorker do
   @impl Oban.Worker
   def perform(_job) do
     max_age_days = Application.get_env(:cache, :key_value_eviction_max_age_days, 30)
-    {expired_entries, count} = KeyValueEntries.delete_expired(max_age_days)
+    {deleted_entries, count} = KeyValueEntries.delete_expired(max_age_days)
     Logger.info("Evicted #{count} expired key-value entries (older than #{max_age_days} days)")
 
-    expired_entries
+    deleted_entries
     |> group_hashes_by_scope()
     |> enqueue_cleanup_jobs()
 
