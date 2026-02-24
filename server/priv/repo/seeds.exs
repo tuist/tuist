@@ -747,7 +747,8 @@ test_case_definitions =
     }
   end
 
-{test_case_id_map, _test_cases_with_flaky_run} = Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions)
+{test_case_id_map, _test_cases_with_flaky_run, _new_test_case_ids} =
+  Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions)
 
 # Update flaky test cases to be marked as is_flaky
 # ~70% stay quarantined, ~30% get unquarantined (to show chart going down)

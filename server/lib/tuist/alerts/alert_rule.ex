@@ -29,6 +29,8 @@ defmodule Tuist.Alerts.AlertRule do
     field :git_branch, :string
     field :slack_channel_id, :string
     field :slack_channel_name, :string
+    field :scheme, :string, default: ""
+    field :bundle_name, :string, default: ""
 
     belongs_to :project, Project, type: :integer
     has_many :alerts, Alert
@@ -47,7 +49,9 @@ defmodule Tuist.Alerts.AlertRule do
       :rolling_window_size,
       :git_branch,
       :slack_channel_id,
-      :slack_channel_name
+      :slack_channel_name,
+      :scheme,
+      :bundle_name
     ])
     |> validate_required([
       :project_id,

@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.151.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* replace deprecated tuist build recommendation in previews by [@fortmarek](https://github.com/fortmarek) in [#9562](https://github.com/tuist/tuist/pull/9562)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.151.0...4.151.1
+
 ## What's Changed in 4.151.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

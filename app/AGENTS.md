@@ -15,8 +15,8 @@ This node covers the Tuist companion app under `app/`. The app provides a menu b
 
 ## Building and Testing
 - Generate the project: `tuist generate --no-open` (from `app/` directory)
-- Build: `xcodebuild build -project TuistApp.xcodeproj -scheme TuistApp`
-- Test: `xcodebuild test -project TuistApp.xcodeproj -scheme TuistApp`
+- Build: `xcodebuild build -workspace TuistApp.xcworkspace -scheme TuistApp`
+- Test: `xcodebuild test -workspace TuistApp.xcworkspace -scheme TuistApp`
 
 ## Dependencies
 The app depends on several CLI modules:

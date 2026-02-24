@@ -79,6 +79,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_deviation: 20.0)
     |> assign(create_alert_form_rolling_window_size: 100)
     |> assign(create_alert_form_git_branch: "")
+    |> assign(create_alert_form_scheme: "")
+    |> assign(create_alert_form_bundle_name: "")
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
     # Metric alert edit forms - one per alert rule
@@ -93,6 +95,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       deviation: rule.deviation_percentage,
       rolling_window_size: rule.rolling_window_size,
       git_branch: rule.git_branch || "",
+      scheme: rule.scheme || "",
+      bundle_name: rule.bundle_name || "",
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -239,6 +243,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_deviation: 20.0)
       |> assign(create_alert_form_rolling_window_size: 100)
       |> assign(create_alert_form_git_branch: "")
+      |> assign(create_alert_form_scheme: "")
+      |> assign(create_alert_form_bundle_name: "")
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
 
@@ -287,6 +293,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, assign(socket, create_alert_form_git_branch: git_branch)}
   end
 
+  def handle_event("update_create_alert_form_scheme", %{"value" => scheme}, socket) do
+    {:noreply, assign(socket, create_alert_form_scheme: scheme)}
+  end
+
+  def handle_event("update_create_alert_form_bundle_name", %{"value" => bundle_name}, socket) do
+    {:noreply, assign(socket, create_alert_form_bundle_name: bundle_name)}
+  end
+
   # Edit form handlers
   def handle_event("update_edit_alert_form_name", %{"id" => id, "value" => name}, socket) do
     {:noreply, update_edit_alert_form(socket, id, :name, name)}
@@ -331,6 +345,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, update_edit_alert_form(socket, id, :git_branch, git_branch)}
   end
 
+  def handle_event("update_edit_alert_form_scheme", %{"id" => id, "value" => scheme}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :scheme, scheme)}
+  end
+
+  def handle_event("update_edit_alert_form_bundle_name", %{"id" => id, "value" => bundle_name}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :bundle_name, bundle_name)}
+  end
+
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -340,6 +362,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       deviation_percentage: assigns.create_alert_form_deviation,
       rolling_window_size: assigns.create_alert_form_rolling_window_size,
       git_branch: assigns.create_alert_form_git_branch,
+      scheme: assigns.create_alert_form_scheme,
+      bundle_name: assigns.create_alert_form_bundle_name,
       slack_channel_id: assigns.create_alert_form_channel_id,
       slack_channel_name: assigns.create_alert_form_channel_name
     }
@@ -368,6 +392,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
         deviation_percentage: form.deviation,
         rolling_window_size: form.rolling_window_size,
         git_branch: form.git_branch,
+        scheme: form.scheme,
+        bundle_name: form.bundle_name,
         slack_channel_id: form.channel_id,
         slack_channel_name: form.channel_name
       }
@@ -563,31 +589,52 @@ defmodule TuistWeb.ProjectNotificationsLive do
     case category do
       :bundle_size ->
         git_branch = Keyword.get(opts, :git_branch, "")
+        bundle_name = Keyword.get(opts, :bundle_name, "")
         size_label = bundle_size_metric_label(metric)
 
         text =
-          dgettext(
-            "dashboard_projects",
-            "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
-            size_label: size_label,
-            git_branch: git_branch,
-            deviation: deviation
-          )
+          if bundle_name == "" do
+            dgettext(
+              "dashboard_projects",
+              "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              size_label: size_label,
+              git_branch: git_branch,
+              deviation: deviation
+            )
+          else
+            dgettext(
+              "dashboard_projects",
+              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              size_label: size_label,
+              bundle_name: bundle_name,
+              git_branch: git_branch,
+              deviation: deviation
+            )
+          end
 
         raw(text)
 
       _ ->
         metric_category = alert_metric_category_label(category, metric)
         unit = alert_unit_label(category)
+        scheme = Keyword.get(opts, :scheme, "")
+
+        current_unit =
+          if scheme == "" do
+            unit
+          else
+            dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
+          end
 
         text =
           case category do
             :cache_hit_rate ->
               dgettext(
                 "dashboard_projects",
-                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
                 metric_category: metric_category,
                 rolling_window_size: rolling_window_size,
+                current_unit: current_unit,
                 unit: unit,
                 deviation: deviation
               )
@@ -595,9 +642,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
             _ ->
               dgettext(
                 "dashboard_projects",
-                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
                 metric_category: metric_category,
                 rolling_window_size: rolling_window_size,
+                current_unit: current_unit,
                 unit: unit,
                 deviation: deviation
               )

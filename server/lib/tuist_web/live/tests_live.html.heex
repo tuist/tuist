@@ -2,6 +2,29 @@
   <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
     <:actions>
       <.dropdown
+        id="tests-analytics-scheme-dropdown"
+        label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
+        secondary_text={dgettext("dashboard_tests", "Scheme:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_tests", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-test-scheme", "any")}"}
+          data-selected={@analytics_test_scheme == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          :for={test_scheme <- @test_schemes}
+          value={test_scheme}
+          label={test_scheme}
+          patch={"?#{Query.put(@uri.query, "analytics-test-scheme", test_scheme)}"}
+          data-selected={@analytics_test_scheme == test_scheme}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.dropdown
         id="tests-analytics-environment-dropdown"
         label={@analytics_environment_label}
         secondary_text={dgettext("dashboard_tests", "Environment:")}

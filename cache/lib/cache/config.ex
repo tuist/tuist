@@ -114,6 +114,12 @@ defmodule Cache.Config do
     end
   end
 
+  def server_url, do: Application.get_env(:cache, :server_url)
+
+  def s3_config do
+    Application.fetch_env(:ex_aws, :s3)
+  end
+
   defp parse_float(nil, default), do: default
 
   defp parse_float(value, default) do

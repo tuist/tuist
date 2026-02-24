@@ -276,7 +276,9 @@
                 @create_alert_form_metric,
                 @create_alert_form_deviation,
                 @create_alert_form_rolling_window_size,
-                git_branch: @create_alert_form_git_branch
+                git_branch: @create_alert_form_git_branch,
+                scheme: @create_alert_form_scheme,
+                bundle_name: @create_alert_form_bundle_name
               )}
             </p>
             <.alert
@@ -432,6 +434,37 @@
                   phx-debounce="300"
                 />
               </div>
+              <div
+                :if={@create_alert_form_category in [:build_run_duration, :test_run_duration]}
+                data-part="schedule-row"
+              >
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Scheme")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-alert-scheme"
+                  name="scheme"
+                  value={@create_alert_form_scheme}
+                  placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                  phx-keyup="update_create_alert_form_scheme"
+                  phx-debounce="300"
+                />
+              </div>
+              <div :if={@create_alert_form_category == :bundle_size} data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Name")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-alert-bundle-name"
+                  name="bundle_name"
+                  value={@create_alert_form_bundle_name}
+                  placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                  phx-keyup="update_create_alert_form_bundle_name"
+                  phx-debounce="300"
+                />
+              </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Slack channel")}
@@ -547,7 +580,9 @@
                       form[:metric] || rule.metric,
                       form[:deviation] || rule.deviation_percentage,
                       form[:rolling_window_size] || rule.rolling_window_size,
-                      git_branch: form[:git_branch] || rule.git_branch || ""
+                      git_branch: form[:git_branch] || rule.git_branch || "",
+                      scheme: form[:scheme] || rule.scheme || "",
+                      bundle_name: form[:bundle_name] || rule.bundle_name || ""
                     )}
                   </p>
                   <.alert
@@ -717,6 +752,47 @@
                         name="rolling_window_size"
                         value={form[:rolling_window_size] || rule.rolling_window_size}
                         phx-keyup="update_edit_alert_form_rolling_window_size"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div
+                      :if={
+                        (form[:category] || rule.category) in [
+                          :build_run_duration,
+                          :test_run_duration
+                        ]
+                      }
+                      data-part="schedule-row"
+                    >
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Scheme")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-alert-scheme-#{rule.id}"}
+                        name="scheme"
+                        value={form[:scheme] || rule.scheme || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                        phx-keyup="update_edit_alert_form_scheme"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div
+                      :if={(form[:category] || rule.category) == :bundle_size}
+                      data-part="schedule-row"
+                    >
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Name")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-alert-bundle-name-#{rule.id}"}
+                        name="bundle_name"
+                        value={form[:bundle_name] || rule.bundle_name || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                        phx-keyup="update_edit_alert_form_bundle_name"
                         phx-value-id={rule.id}
                         phx-debounce="300"
                       />

@@ -2,6 +2,7 @@ defmodule Cache.Registry.SyncWorkerTest do
   use CacheWeb.ConnCase, async: false
   use Mimic
 
+  alias Cache.Config
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
@@ -12,8 +13,11 @@ defmodule Cache.Registry.SyncWorkerTest do
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :registry_github_token, "token")
-    on_exit(fn -> Application.delete_env(:cache, :registry_github_token) end)
+    stub(Config, :registry_github_token, fn -> "token" end)
+    stub(Config, :registry_bucket, fn -> "test-bucket" end)
+    stub(Config, :registry_enabled?, fn -> true end)
+    stub(Lock, :try_acquire, fn _, _ -> {:ok, :acquired} end)
+    stub(SwiftPackageIndex, :list_packages, fn _ -> {:ok, []} end)
     stub(Lock, :release, fn _ -> :ok end)
     :ok
   end
@@ -50,7 +54,8 @@ defmodule Cache.Registry.SyncWorkerTest do
 
   @tag capture_log: true
   test "skips sync when token is missing" do
-    Application.put_env(:cache, :registry_github_token, nil)
+    stub(Config, :registry_github_token, fn -> nil end)
+    stub(Config, :registry_enabled?, fn -> false end)
 
     assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
     refute_enqueued(worker: ReleaseWorker)

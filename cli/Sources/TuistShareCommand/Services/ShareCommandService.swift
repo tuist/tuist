@@ -44,7 +44,7 @@ enum ShareCommandServiceError: Equatable, LocalizedError {
             case let .projectOrWorkspaceNotFound(path):
                 return "Workspace or project not found at \(path)"
             case let .noAppsFound(app: app, configuration: configuration):
-                return "\(app) for the \(configuration) configuration was not found. You can build it by running `tuist build \(app)`"
+                return "\(app) for the \(configuration) configuration was not found. You can build it by running `xcodebuild build -scheme \(app) -configuration \(configuration)`"
             case .appNotSpecified:
                 return "If you're not using Tuist projects, you must specify the app name when sharing an app, such as `tuist share App --platforms ios`."
             case .platformsNotSpecified:

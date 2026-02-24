@@ -112,8 +112,8 @@ let project = Project(
                     "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
                     "SUFeedURL":
                         "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.24.1",
-                    "CFBundleVersion": "3512",
+                    "CFBundleShortVersionString": "0.24.2",
+                    "CFBundleVersion": "3746",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -151,7 +151,7 @@ let project = Project(
                     // Needed for the app notarization
                     "OTHER_CODE_SIGN_FLAGS": "--timestamp --deep",
                     "ENABLE_HARDENED_RUNTIME": true,
-                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": "Tuist App Ad Hoc",
+                    "PROVISIONING_PROFILE_SPECIFIER[sdk=iphone*]": Environment.appStoreBuild.getBoolean(default: false) ? "Tuist App Store Connect" : "Tuist App Ad Hoc",
                     "PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]": "Tuist macOS Distribution",
                 ]
             )
