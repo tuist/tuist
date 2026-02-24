@@ -1,6 +1,8 @@
 defmodule Cache.S3Test do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
+
+  setup :set_mimic_from_context
 
   import ExUnit.CaptureLog
 
