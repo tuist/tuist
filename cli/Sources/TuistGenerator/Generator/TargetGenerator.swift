@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -33,6 +34,7 @@ struct TargetGenerator: TargetGenerating {
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
     let buildRulesGenerator: BuildRulesGenerating
+    let fileSystem: FileSysteming
 
     // MARK: - Init
 
@@ -40,12 +42,14 @@ struct TargetGenerator: TargetGenerating {
         configGenerator: ConfigGenerating = ConfigGenerator(),
         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
         linkGenerator: LinkGenerating = LinkGenerator(),
-        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator()
+        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.configGenerator = configGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.linkGenerator = linkGenerator
         self.buildRulesGenerator = buildRulesGenerator
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TargetGenerating
@@ -94,7 +98,7 @@ struct TargetGenerator: TargetGenerating {
 
         // Buildable folders
         Logger.current.debug("TargetGenerator: Generating synchronized groups for \(target.name)")
-        generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
+        try await generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
 
         // Pre actions
         Logger.current.debug("TargetGenerator: Generating pre-scripts for \(target.name)")
@@ -166,7 +170,7 @@ struct TargetGenerator: TargetGenerating {
         fileElements: ProjectFileElements,
         pbxTarget: PBXTarget,
         pbxproj: PBXProj
-    ) {
+    ) async throws {
         for buildableFolder in target.buildableFolders {
             guard let fileElement = fileElements.elements[buildableFolder.path],
                   let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
@@ -175,10 +179,20 @@ struct TargetGenerator: TargetGenerating {
             }
             pbxTarget.fileSystemSynchronizedGroups?.append(synchronizedGroup)
 
+            var explicitFolders: [String] = []
+
             for exception in buildableFolder.exceptions {
                 let membershipExceptions = exception.excluded.compactMap {
                     $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
                 }
+
+                for excludedPath in exception.excluded {
+                    guard excludedPath.isDescendant(of: buildableFolder.path) else { continue }
+                    if try await fileSystem.exists(excludedPath, isDirectory: true) {
+                        explicitFolders.append(excludedPath.relative(to: buildableFolder.path).pathString)
+                    }
+                }
+
                 let additionalCompilerFlagsByRelativePath = Dictionary(uniqueKeysWithValues: exception.compilerFlags
                     .compactMap { path, compilerFlags -> (
                         String,
@@ -211,6 +225,10 @@ struct TargetGenerator: TargetGenerating {
                 )
                 pbxproj.add(object: exceptionSet)
                 synchronizedGroup.exceptions?.append(exceptionSet)
+            }
+
+            if !explicitFolders.isEmpty {
+                synchronizedGroup.explicitFolders = explicitFolders
             }
         }
     }
