@@ -21,5 +21,8 @@ Mimic.copy(TuistCommon.GitHub)
 Mimic.copy(Cache.Registry.Lock)
 Mimic.copy(Cache.Registry.SwiftPackageIndex)
 Mimic.copy(Cache.Registry.SyncCursor)
+Mimic.copy(Cache.KeyValueBuffer)
+Mimic.copy(Cache.CacheArtifactsBuffer)
+Mimic.copy(Cache.S3TransfersBuffer)
 
 ExUnit.start()
