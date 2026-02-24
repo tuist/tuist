@@ -93,25 +93,28 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp delete_expired_entries(ids_to_delete, cutoff) do
-    ids_to_delete
-    |> Enum.chunk_every(@id_chunk_size)
-    |> Enum.reduce({%{}, 0}, fn ids_chunk, {grouped_hashes_acc, deleted_count_acc} ->
-      hash_rows_by_entry_id = hash_rows_by_entry_id(ids_chunk)
+    {grouped_hash_sets, deleted_count} =
+      ids_to_delete
+      |> Enum.chunk_every(@id_chunk_size)
+      |> Enum.reduce({%{}, 0}, fn ids_chunk, {grouped_hash_sets_acc, deleted_count_acc} ->
+        hash_rows_by_entry_id = hash_rows_by_entry_id(ids_chunk)
 
-      {_, deleted_ids} =
-        Repo.delete_all(
-          from(e in KeyValueEntry,
-            where: e.id in ^ids_chunk,
-            where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
-            select: e.id
+        {_, deleted_ids} =
+          Repo.delete_all(
+            from(e in KeyValueEntry,
+              where: e.id in ^ids_chunk,
+              where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
+              select: e.id
+            )
           )
-        )
 
-      deleted_ids = deleted_ids || []
-      grouped_hashes = grouped_hashes(hash_rows_by_entry_id, deleted_ids)
+        deleted_ids = deleted_ids || []
+        grouped_hash_sets = grouped_hash_sets(hash_rows_by_entry_id, deleted_ids)
 
-      {merge_grouped_hashes(grouped_hashes_acc, grouped_hashes), deleted_count_acc + length(deleted_ids)}
-    end)
+        {merge_grouped_hash_sets(grouped_hash_sets_acc, grouped_hash_sets), deleted_count_acc + length(deleted_ids)}
+      end)
+
+    {to_sorted_hash_lists(grouped_hash_sets), deleted_count}
   end
 
   defp hash_rows_by_entry_id([]), do: %{}
@@ -130,9 +133,9 @@ defmodule Cache.KeyValueEntries do
     |> Enum.group_by(fn {entry_id, _account_handle, _project_handle, _cas_hash} -> entry_id end)
   end
 
-  defp grouped_hashes(_hash_rows_by_entry_id, []), do: %{}
+  defp grouped_hash_sets(_hash_rows_by_entry_id, []), do: %{}
 
-  defp grouped_hashes(hash_rows_by_entry_id, deleted_ids) do
+  defp grouped_hash_sets(hash_rows_by_entry_id, deleted_ids) do
     deleted_id_set = MapSet.new(deleted_ids)
 
     hash_rows_by_entry_id
@@ -152,17 +155,17 @@ defmodule Cache.KeyValueEntries do
         MapSet.put(hashes, cas_hash)
       end)
     end)
-    |> Map.new(fn {scope, hashes} ->
-      {scope, hashes |> MapSet.to_list() |> Enum.sort()}
+  end
+
+  defp merge_grouped_hash_sets(left, right) do
+    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
+      MapSet.union(left_hashes, right_hashes)
     end)
   end
 
-  defp merge_grouped_hashes(left, right) do
-    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      (left_hashes ++ right_hashes)
-      |> MapSet.new()
-      |> MapSet.to_list()
-      |> Enum.sort()
+  defp to_sorted_hash_lists(grouped_hash_sets) do
+    Map.new(grouped_hash_sets, fn {scope, hashes} ->
+      {scope, hashes |> MapSet.to_list() |> Enum.sort()}
     end)
   end
 
