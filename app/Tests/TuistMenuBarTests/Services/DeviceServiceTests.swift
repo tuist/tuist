@@ -83,6 +83,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .willReturn([])
 
         given(adbController)
+            .isAdbAvailable()
+            .willReturn(false)
+
+        given(adbController)
             .findAvailableDevices()
             .willReturn([])
 
@@ -708,6 +712,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         let physicalDevice = AndroidDevice(id: "R5CT900ABCD", name: "SM_S918B", type: .device)
 
         given(adbController)
+            .isAdbAvailable()
+            .willReturn(true)
+
+        given(adbController)
             .findAvailableDevices()
             .willReturn([emulator, physicalDevice])
 
@@ -723,8 +731,8 @@ final class DeviceServiceTests: TuistUnitTestCase {
         adbController.reset()
 
         given(adbController)
-            .findAvailableDevices()
-            .willThrow(AdbControllerError.adbNotFound)
+            .isAdbAvailable()
+            .willReturn(false)
 
         // When
         try await subject.loadDevices()
@@ -762,6 +770,10 @@ final class DeviceServiceTests: TuistUnitTestCase {
         adbController.reset()
 
         let emulator = AndroidDevice(id: "emulator-5554", name: "Pixel_6_API_34", type: .emulator)
+
+        given(adbController)
+            .isAdbAvailable()
+            .willReturn(true)
 
         given(adbController)
             .findAvailableDevices()
