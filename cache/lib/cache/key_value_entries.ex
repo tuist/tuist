@@ -49,25 +49,27 @@ defmodule Cache.KeyValueEntries do
   def replace_entry_hashes([]), do: :ok
 
   def replace_entry_hashes(entries) when is_list(entries) do
-    ids = Enum.map(entries, & &1.id)
-    rows = Enum.flat_map(entries, &entry_hash_rows/1)
+    entry_chunks = Enum.chunk_every(entries, @id_chunk_size)
 
     {:ok, _} =
       Repo.transaction(fn ->
-        ids
-        |> Enum.chunk_every(@id_chunk_size)
-        |> Enum.each(fn ids_chunk ->
+        Enum.each(entry_chunks, fn entries_chunk ->
+          ids_chunk = entries_chunk |> Enum.map(& &1.id) |> Enum.uniq()
+
           {_, _} = Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
         end)
 
-        rows
-        |> Enum.chunk_every(@insert_chunk_size)
-        |> Enum.each(fn rows_chunk ->
-          {_, _} =
-            Repo.insert_all(KeyValueEntryHash, rows_chunk,
-              on_conflict: :nothing,
-              conflict_target: [:key_value_entry_id, :cas_hash]
-            )
+        Enum.each(entry_chunks, fn entries_chunk ->
+          entries_chunk
+          |> Enum.flat_map(&entry_hash_rows/1)
+          |> Enum.chunk_every(@insert_chunk_size)
+          |> Enum.each(fn rows_chunk ->
+            {_, _} =
+              Repo.insert_all(KeyValueEntryHash, rows_chunk,
+                on_conflict: :nothing,
+                conflict_target: [:key_value_entry_id, :cas_hash]
+              )
+          end)
         end)
       end)
 
