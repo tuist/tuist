@@ -14,41 +14,12 @@ defmodule Cache.S3TransferWorkerTest do
 
   setup :set_mimic_from_context
 
-  setup do
+  setup context do
     :ok = Sandbox.checkout(Repo)
 
-    suffix = :erlang.unique_integer([:positive])
-    s3_name = :"s3_buf_test_#{suffix}"
-    s3_pid =
-      start_supervised!({Cache.SQLiteBuffer, [name: s3_name, buffer_module: Cache.S3TransfersBuffer]})
+    context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
 
-    Sandbox.allow(Repo, self(), s3_pid)
-
-    stub(S3TransfersBuffer, :enqueue, fn type, account_handle, project_handle, artifact_type, key ->
-      entry = %{
-        id: UUIDv7.generate(),
-        type: type,
-        account_handle: account_handle,
-        project_handle: project_handle,
-        artifact_type: artifact_type,
-        key: key,
-        inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
-      }
-
-      true = :ets.insert(s3_name, {{:insert, type, key}, entry})
-      :ok
-    end)
-
-    stub(S3TransfersBuffer, :enqueue_delete, fn id ->
-      true = :ets.insert(s3_name, {{:delete, id}, :delete})
-      :ok
-    end)
-
-    stub(S3TransfersBuffer, :flush, fn -> Cache.SQLiteBuffer.flush(s3_name) end)
-    stub(S3TransfersBuffer, :queue_stats, fn -> Cache.SQLiteBuffer.queue_stats(s3_name) end)
-    stub(S3TransfersBuffer, :reset, fn -> Cache.SQLiteBuffer.reset(s3_name) end)
-
-    {:ok, s3_name: s3_name}
+    {:ok, context}
   end
 
   describe "perform/1" do

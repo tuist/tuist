@@ -14,44 +14,15 @@ defmodule Cache.DiskEvictionWorkerTest do
 
   setup :set_mimic_from_context
 
-  setup do
+  setup context do
     :ok = Sandbox.checkout(Repo)
 
-    ca_name = :"cache_artifacts_buffer_#{System.unique_integer([:positive, :monotonic])}"
-
-    ca_pid =
-      start_supervised!({Cache.SQLiteBuffer, [name: ca_name, buffer_module: Cache.CacheArtifactsBuffer]})
-
-    Sandbox.allow(Repo, self(), ca_pid)
-
-    stub(CacheArtifactsBuffer, :enqueue_access, fn key, size_bytes, last_accessed_at ->
-      entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
-      true = :ets.insert(ca_name, {key, {:access, entry}})
-      :ok
-    end)
-
-    stub(CacheArtifactsBuffer, :enqueue_delete, fn key ->
-      true = :ets.insert(ca_name, {key, :delete})
-      :ok
-    end)
-
-    stub(CacheArtifactsBuffer, :flush, fn ->
-      Cache.SQLiteBuffer.flush(ca_name)
-    end)
-
-    stub(CacheArtifactsBuffer, :queue_stats, fn ->
-      Cache.SQLiteBuffer.queue_stats(ca_name)
-    end)
-
-    stub(CacheArtifactsBuffer, :reset, fn ->
-      Cache.SQLiteBuffer.reset(ca_name)
-    end)
+    context = Cache.BufferTestHelpers.setup_cache_artifacts_buffer(context)
 
     {:ok, storage_dir} = Briefly.create(directory: true)
-
     stub(Disk, :storage_dir, fn -> storage_dir end)
 
-    {:ok, storage_dir: storage_dir}
+    {:ok, Map.put(context, :storage_dir, storage_dir)}
   end
 
   test "skips eviction when usage is below threshold", %{storage_dir: storage_dir} do

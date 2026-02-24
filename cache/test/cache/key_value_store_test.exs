@@ -9,49 +9,27 @@ defmodule Cache.KeyValueStoreTest do
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueStore
   alias Cache.Repo
-  alias Cache.SQLiteBuffer
+  alias Ecto.Adapters.SQL.Sandbox
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
-  setup do
+  setup context do
     :ok = Sandbox.checkout(Repo)
 
-    suffix = :erlang.unique_integer([:positive])
-    account_handle = "test-account-#{suffix}"
-    project_handle = "test-project-#{suffix}"
-    cas_id = "test_cas_id_#{suffix}"
+    context = Cache.BufferTestHelpers.setup_key_value_buffer(context)
+    suffix = context.unique_suffix
 
     cache_name = :"kv_cache_test_#{suffix}"
     start_supervised!({Cachex, name: cache_name})
 
-    kv_name = :"kv_buf_test_#{suffix}"
-    kv_pid = start_supervised!({SQLiteBuffer, [name: kv_name, buffer_module: KeyValueBuffer]})
-
-    Sandbox.allow(Repo, self(), kv_pid)
-
-    stub(Cache.KeyValueBuffer, :enqueue, fn key, json_payload ->
-      entry = %{key: key, json_payload: json_payload}
-      true = :ets.insert(kv_name, {key, {:write, entry}})
-      :ok
-    end)
-
-    stub(Cache.KeyValueBuffer, :enqueue_access, fn key ->
-      entry = %{key: key}
-      _inserted? = :ets.insert_new(kv_name, {key, {:access, entry}})
-      :ok
-    end)
-
-    stub(Cache.KeyValueBuffer, :flush, fn -> SQLiteBuffer.flush(kv_name) end)
-    stub(Cache.KeyValueBuffer, :queue_stats, fn -> SQLiteBuffer.queue_stats(kv_name) end)
-    stub(Cache.KeyValueBuffer, :reset, fn -> SQLiteBuffer.reset(kv_name) end)
-
     {:ok,
-     cache_name: cache_name,
-     kv_name: kv_name,
-     account_handle: account_handle,
-     project_handle: project_handle,
-     cas_id: cas_id}
+     Map.merge(context, %{
+       cache_name: cache_name,
+       account_handle: "test-account-#{suffix}",
+       project_handle: "test-project-#{suffix}",
+       cas_id: "test_cas_id_#{suffix}"
+     })}
   end
 
   describe "put_key_value/4 and get_key_value/3" do
