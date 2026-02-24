@@ -13,6 +13,10 @@ defmodule Tuist.IngestRepo.Migrations.RecreateProjectionsAfterNonNullableColumns
   @disable_migration_lock true
 
   def up do
+    # Ensure all column mutations from the previous migration have fully completed.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "SYSTEM SYNC MUTATIONS test_case_runs"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     ALTER TABLE test_case_runs
