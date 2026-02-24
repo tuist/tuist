@@ -37,6 +37,10 @@ data class NooraSemanticColors(
     val badgeInformationLabel: Color,
     val badgeInformationBackground: Color,
 
+    // Card
+    val cardOverlayBackground: Color,
+    val cardOverlayBorder: Color,
+
     // Accent
     val accent: Color,
 )
@@ -63,6 +67,8 @@ val LightSemanticColors = NooraSemanticColors(
     buttonDisabledBackground = Color(0xFF787880).copy(alpha = 0.12f),
     badgeInformationLabel = NooraColors.Azure700,
     badgeInformationBackground = NooraColors.Azure50,
+    cardOverlayBackground = Color.White.copy(alpha = 0.6f),
+    cardOverlayBorder = Color.White,
     accent = NooraColors.Purple500,
 )
 
@@ -88,6 +94,8 @@ val DarkSemanticColors = NooraSemanticColors(
     buttonDisabledBackground = Color(0xFF787880).copy(alpha = 0.24f),
     badgeInformationLabel = NooraColors.Azure400,
     badgeInformationBackground = NooraColors.AzureAlpha,
+    cardOverlayBackground = NooraColors.NeutralDark1200.copy(alpha = 0.8f),
+    cardOverlayBorder = NooraColors.NeutralDark1100,
     accent = NooraColors.Purple400,
 )
 
