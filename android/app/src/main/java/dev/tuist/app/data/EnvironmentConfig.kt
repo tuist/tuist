@@ -59,6 +59,6 @@ class EnvironmentConfig @Inject constructor(
 
     companion object {
         private const val KEY_ENVIRONMENT = "selected_environment"
-        private val DEFAULT = TuistEnvironment.DEVELOPMENT
+        private val DEFAULT = TuistEnvironment.PRODUCTION
     }
 }

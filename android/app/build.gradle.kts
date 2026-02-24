@@ -36,8 +36,8 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("String", "SERVER_URL", "\"http://localhost:8080\"")
-            buildConfigField("String", "OAUTH_CLIENT_ID", "\"5339abf2-467c-4690-b816-17246ed149d2\"")
+            buildConfigField("String", "SERVER_URL", "\"https://tuist.dev\"")
+            buildConfigField("String", "OAUTH_CLIENT_ID", "\"b3298a92-3deb-4f5e-a526-b7ad324979b5\"")
         }
         release {
             isMinifyEnabled = true
