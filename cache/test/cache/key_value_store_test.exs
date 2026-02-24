@@ -10,7 +10,6 @@ defmodule Cache.KeyValueStoreTest do
   alias Cache.KeyValueStore
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
-  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 

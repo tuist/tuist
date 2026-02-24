@@ -9,7 +9,6 @@ defmodule Cache.S3TransfersTest do
   alias Cache.S3Transfers
   alias Cache.S3TransfersBuffer
   alias Ecto.Adapters.SQL.Sandbox
-  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
