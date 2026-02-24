@@ -2,6 +2,14 @@ defmodule Cache.OrphanCleanupWorker do
   @moduledoc """
   Oban worker that incrementally walks the disk storage tree, detects files
   with no matching cache_artifacts row, and deletes them.
+
+  Orphans occur because writing a file to disk and registering its metadata
+  in the cache_artifacts table are two separate, non-atomic operations.
+  In the upload path (CAS, module cache, Gradle), `Disk.put/4` writes the
+  file first, and `CacheArtifacts.track_artifact_access/1` enqueues a
+  metadata record to an ETS buffer that periodically flushes to SQLite.
+  If the process crashes, the VM restarts, or the buffer fails to flush
+  between those two steps, the file is left on disk with no metadata row.
   """
 
   use Oban.Worker, queue: :maintenance, max_attempts: 1
