@@ -27,7 +27,7 @@ This node covers the Tuist Android companion app under `android/`. The app provi
 
 ## Running on Emulator
 
-The debug build defaults to `localhost:8080` (development). Override the environment at launch time via an intent extra:
+The debug build defaults to production (`https://tuist.dev`). In debug builds you can override the environment at launch time via an intent extra:
 
 ```bash
 # Force-stop and launch with a specific environment
