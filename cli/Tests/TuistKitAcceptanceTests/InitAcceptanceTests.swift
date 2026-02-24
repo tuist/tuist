@@ -4,6 +4,7 @@ import Foundation
 import Testing
 import TuistBuildCommand
 import TuistGenerateCommand
+import TuistInitCommand
 import TuistSupport
 import TuistTesting
 @testable import TuistKit

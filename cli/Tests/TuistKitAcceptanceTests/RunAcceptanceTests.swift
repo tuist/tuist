@@ -1,4 +1,5 @@
 import Testing
+import TuistRunCommand
 import TuistSupport
 import TuistTesting
 

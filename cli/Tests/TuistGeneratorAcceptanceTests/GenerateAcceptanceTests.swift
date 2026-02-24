@@ -47,19 +47,19 @@ struct GeneratorAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
 
-    @Test(.withFixture("generated_local_spm_dependency_with_assets"), .withMockedLogger())
+    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .withMockedLogger())
     func local_spm_dependency_with_assets() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let workspacePath = fixtureDirectory.appending(component: "TuistSampleProject.xcworkspace")
+        let workspacePath = fixtureDirectory.appending(component: "App.xcworkspace")
 
         // When
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try await System.shared.run([
+        try System.shared.run([
             "/usr/bin/xcodebuild",
             "-scheme",
-            "TuistSampleProject",
+            "App",
             "-workspace",
             workspacePath.pathString,
             "-destination",
@@ -1107,7 +1107,7 @@ struct GenerateAcceptanceTestiOSAppWithCatalyst {
     func ios_app_with_catalyst() async throws {
         let osVersion = ProcessInfo.processInfo.operatingSystemVersion
         if osVersion.majorVersion >= 26 {
-            throw Skip("Mac Catalyst destinations are not available on macOS 26+")
+            return
         }
 
         try await run(GenerateCommand.self)
@@ -1463,8 +1463,11 @@ struct GenerateAcceptanceTestAppWithMacBundle {
     /// Tests that external local Swift packages configured as dynamic frameworks
     /// compile and run without crashing when accessing Bundle.module.
     /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
-    func test_app_with_external_dynamic_framework_with_resources() async throws {
-        try await setUpFixture("generated_app_with_mac_bundle")
+    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
+    func app_with_external_dynamic_framework_with_resources() async throws {
+        let fileSystem = FileSystem()
+        let fixturePath = try fixtureDirectory()
+        let derivedData = try derivedDataPath()
 
         // Modify the Tuist/Package.swift to use dynamic framework for ResourcesFramework
         let packageSwiftPath = fixturePath.appending(components: "Tuist", "Package.swift")
@@ -1517,7 +1520,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
             arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
         ).pipedStream().awaitCompletion()
 
-        let appPath = derivedDataPath
+        let appPath = derivedData
             .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
 
         try await commandRunner.run(
@@ -1947,7 +1950,7 @@ private func XCTAssertFrameworkEmbedded(
 ) async throws {
     let fixturePath = try fixtureDirectory(sourceLocation: sourceLocation)
     let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath, sourceLocation: sourceLocation)
-    try await TuistAcceptanceTest.expectFrameworkEmbedded(
+    try TuistAcceptanceTest.expectFrameworkEmbedded(
         framework,
         by: targetName,
         xcodeprojPath: xcodeprojPath,
@@ -2040,27 +2043,27 @@ private func XCTAssertContainsMetalOptions(
 
 private func XCTAssertTrue(
     _ expression: @autoclosure () throws -> Bool,
-    _ message: String = "",
+    _: String = "",
     sourceLocation: SourceLocation = #_sourceLocation
 ) rethrows {
-    #expect(try expression(), message, sourceLocation: sourceLocation)
+    #expect(try expression(), sourceLocation: sourceLocation)
 }
 
 private func XCTAssertFalse(
     _ expression: @autoclosure () throws -> Bool,
-    _ message: String = "",
+    _: String = "",
     sourceLocation: SourceLocation = #_sourceLocation
 ) rethrows {
-    #expect(try expression() == false, message, sourceLocation: sourceLocation)
+    #expect(try expression() == false, sourceLocation: sourceLocation)
 }
 
 private func XCTAssertEqual<T: Equatable>(
     _ first: @autoclosure () throws -> T,
     _ second: @autoclosure () throws -> T,
-    _ message: String = "",
+    _: String = "",
     sourceLocation: SourceLocation = #_sourceLocation
 ) rethrows {
-    #expect(try first() == second(), message, sourceLocation: sourceLocation)
+    #expect(try first() == second(), sourceLocation: sourceLocation)
 }
 
 private func XCTAssertEqualDictionaries<T: Hashable>(
@@ -2096,5 +2099,5 @@ private func XCTUnwrapTarget(
     in xcodeproj: XcodeProj,
     sourceLocation: SourceLocation = #_sourceLocation
 ) throws -> PBXTarget {
-    try await TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
+    try TuistAcceptanceTest.requireTarget(targetName, in: xcodeproj, sourceLocation: sourceLocation)
 }

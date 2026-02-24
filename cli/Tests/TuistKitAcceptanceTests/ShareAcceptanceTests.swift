@@ -11,6 +11,8 @@ import TuistCore
 import TuistEnvironment
 import TuistLoggerTesting
 import TuistNooraTesting
+import TuistRunCommand
+import TuistShareCommand
 import TuistSupport
 import TuistTesting
 
