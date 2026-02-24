@@ -25,7 +25,7 @@ extension Tuist {
             /// All warnings are promoted to errors.
             case all
             /// Only the specified warning categories are promoted to errors.
-            case only(Set<GenerationWarning>)
+            case only([GenerationWarning])
         }
 
         /// This is now deprecated.
