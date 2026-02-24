@@ -32,7 +32,7 @@ class AuthRepository @Inject constructor(
 ) {
     private var pendingCodeVerifier: String? = null
     private var pendingState: String? = null
-    private val _authenticating = MutableStateFlow(false)
+    private val authenticating = MutableStateFlow(false)
 
     private val serverUrl: String get() = environmentConfig.serverUrl
     private val clientId: String get() = environmentConfig.oauthClientId
@@ -40,14 +40,14 @@ class AuthRepository @Inject constructor(
 
     val authState: Flow<AuthState> = combine(
         tokenStorage.accessTokenFlow,
-        _authenticating,
-    ) { token, authenticating ->
+        authenticating,
+    ) { token, isAuthenticating ->
         when {
             token != null -> {
                 val account = JwtParser.parseAccount(token)
                 if (account != null) AuthState.LoggedIn(account) else AuthState.LoggedOut
             }
-            authenticating -> AuthState.Authenticating
+            isAuthenticating -> AuthState.Authenticating
             else -> AuthState.LoggedOut
         }
     }
@@ -78,7 +78,7 @@ class AuthRepository @Inject constructor(
         if (BuildConfig.DEBUG) {
             Log.d(TAG, "Handling OAuth callback: $uri")
         }
-        _authenticating.value = true
+        authenticating.value = true
 
         try {
             val returnedState = uri.getQueryParameter("state")
@@ -139,7 +139,7 @@ class AuthRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         } finally {
-            _authenticating.value = false
+            authenticating.value = false
         }
     }
 

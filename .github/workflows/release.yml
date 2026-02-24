@@ -739,8 +739,8 @@ jobs:
 
       - name: Setup signing and credentials
         run: |
-          op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore --force
-          op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json --force
+          op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore
+          op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json
 
       - name: Publish to Google Play
         working-directory: android
