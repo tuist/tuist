@@ -1,7 +1,7 @@
 package dev.tuist.app.ui.previews
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import android.content.SharedPreferences
 import dev.tuist.app.api.model.Preview
 import dev.tuist.app.api.model.Project
 import dev.tuist.app.data.auth.AuthRepository
@@ -27,11 +27,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@RunWith(RobolectricTestRunner::class)
 class PreviewsViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
@@ -44,7 +41,14 @@ class PreviewsViewModelTest {
         Dispatchers.setMain(testDispatcher)
         previewsRepository = mockk()
         authRepository = mockk()
-        context = ApplicationProvider.getApplicationContext()
+        val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+        val prefs = mockk<SharedPreferences> {
+            every { getString(any(), any()) } returns null
+            every { edit() } returns editor
+        }
+        context = mockk {
+            every { getSharedPreferences(any(), any()) } returns prefs
+        }
     }
 
     @After

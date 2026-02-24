@@ -1,5 +1,6 @@
 package dev.tuist.app.data.previews
 
+import com.squareup.moshi.Moshi
 import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.api.model.ListProjects200Response
@@ -21,13 +22,15 @@ class PreviewsRepositoryTest {
 
     private lateinit var previewsApi: PreviewsApi
     private lateinit var projectsApi: ProjectsApi
+    private lateinit var moshi: Moshi
     private lateinit var repository: PreviewsRepository
 
     @Before
     fun setUp() {
         previewsApi = mockk()
         projectsApi = mockk()
-        repository = PreviewsRepository(previewsApi, projectsApi)
+        moshi = Moshi.Builder().build()
+        repository = PreviewsRepository(previewsApi, projectsApi, moshi)
     }
 
     @Test
