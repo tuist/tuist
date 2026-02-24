@@ -1,24 +1,60 @@
 defmodule CacheWeb.CASControllerTest do
-  # async: false because the CASEventsPipeline Broadway processor runs in a
-  # shared process and needs Mimic stubs (e.g. Authentication.server_url) to be
-  # globally visible, which requires non-async mode.
-  use CacheWeb.ConnCase, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
+  import Phoenix.ConnTest
+  import Plug.Conn
   import ExUnit.CaptureLog
+
+  @endpoint CacheWeb.Endpoint
 
   alias Cache.Authentication
   alias Cache.CacheArtifacts
   alias Cache.CAS
   alias Cache.S3Transfers
+  alias Cache.S3TransfersBuffer
+  alias Cache.SQLiteBuffer
+  alias Ecto.Adapters.SQL.Sandbox
+
+  setup :set_mimic_from_context
 
   setup do
-    {:ok, test_storage_dir} = Briefly.create(directory: true)
+    :ok = Sandbox.checkout(Cache.Repo)
 
+    suffix = :erlang.unique_integer([:positive])
+    s3_name = :"s3_buf_test_#{suffix}"
+    s3_pid = start_supervised!({Cache.SQLiteBuffer, [name: s3_name, buffer_module: Cache.S3TransfersBuffer]})
+    Sandbox.allow(Cache.Repo, self(), s3_pid)
+
+    stub(S3TransfersBuffer, :enqueue, fn type, account_handle, project_handle, artifact_type, key ->
+      entry = %{
+        id: UUIDv7.generate(),
+        type: type,
+        account_handle: account_handle,
+        project_handle: project_handle,
+        artifact_type: artifact_type,
+        key: key,
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+      }
+
+      true = :ets.insert(s3_name, {{:insert, type, key}, entry})
+      :ok
+    end)
+
+    stub(S3TransfersBuffer, :enqueue_delete, fn id ->
+      true = :ets.insert(s3_name, {{:delete, id}, :delete})
+      :ok
+    end)
+
+    stub(S3TransfersBuffer, :flush, fn -> SQLiteBuffer.flush(s3_name) end)
+    stub(S3TransfersBuffer, :queue_stats, fn -> SQLiteBuffer.queue_stats(s3_name) end)
+    stub(S3TransfersBuffer, :reset, fn -> SQLiteBuffer.reset(s3_name) end)
+
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
     stub(Cache.Disk, :storage_dir, fn -> test_storage_dir end)
     stub(Authentication, :server_url, fn -> "http://localhost:4000" end)
 
-    {:ok, test_storage_dir: test_storage_dir}
+    {:ok, conn: build_conn(), test_storage_dir: test_storage_dir}
   end
 
   describe "POST /api/cache/cas/:id" do
