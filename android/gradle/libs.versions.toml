@@ -17,6 +17,7 @@ browser = "1.8.0"
 coroutines = "1.9.0"
 kotlinxSerialization = "1.7.3"
 playPublisher = "3.11.0"
+openapiGenerator = "7.20.0"
 junit = "4.13.2"
 mockk = "1.13.13"
 turbine = "1.2.0"
@@ -45,6 +46,7 @@ retrofit-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", v
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }
+moshi-kotlin = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshi" }
 moshi-kotlin-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", version.ref = "moshi" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
@@ -63,3 +65,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 play-publisher = { id = "com.github.triplet.play", version.ref = "playPublisher" }
+openapi-generator = { id = "org.openapi.generator", version.ref = "openapiGenerator" }

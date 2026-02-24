@@ -2,11 +2,13 @@ package dev.tuist.app.data.network
 
 import android.util.Log
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.auth.TokenStorage
 import okhttp3.Authenticator
-import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.Route
 import org.json.JSONObject
@@ -15,6 +17,7 @@ import javax.inject.Inject
 class TokenRefreshAuthenticator @Inject constructor(
     private val tokenStorage: TokenStorage,
     @PlainClient private val plainClient: OkHttpClient,
+    private val environmentConfig: EnvironmentConfig,
 ) : Authenticator {
 
     override fun authenticate(route: Route?, response: Response): Request? {
@@ -25,14 +28,14 @@ class TokenRefreshAuthenticator @Inject constructor(
             return null
         }
 
-        val body = FormBody.Builder()
-            .add("grant_type", "refresh_token")
-            .add("refresh_token", refreshToken)
-            .add("client_id", BuildConfig.OAUTH_CLIENT_ID)
-            .build()
+        val json = JSONObject().apply {
+            put("refresh_token", refreshToken)
+        }
+        val body = json.toString()
+            .toRequestBody("application/json".toMediaType())
 
         val refreshRequest = Request.Builder()
-            .url("${BuildConfig.SERVER_URL}/oauth2/token")
+            .url("${environmentConfig.serverUrl}/api/auth/refresh_token")
             .post(body)
             .build()
 
@@ -59,9 +62,9 @@ class TokenRefreshAuthenticator @Inject constructor(
         }
 
         return try {
-            val json = JSONObject(responseBody)
-            val newAccessToken = json.getString("access_token")
-            val newRefreshToken = json.getString("refresh_token")
+            val responseJson = JSONObject(responseBody)
+            val newAccessToken = responseJson.getString("access_token")
+            val newRefreshToken = responseJson.getString("refresh_token")
             tokenStorage.storeTokens(newAccessToken, newRefreshToken)
 
             response.request.newBuilder()

@@ -1,5 +1,6 @@
 # Moshi
 -keep class dev.tuist.app.data.model.** { *; }
+-keep class dev.tuist.app.api.model.** { *; }
 
 # Retrofit
 -keepattributes Signature

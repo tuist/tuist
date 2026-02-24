@@ -1,11 +1,13 @@
 package dev.tuist.app.data.network
 
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.data.EnvironmentConfig
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -19,7 +21,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideMoshi(): Moshi = Moshi.Builder().build()
+    fun provideMoshi(): Moshi = Moshi.Builder()
+        .addLast(KotlinJsonAdapterFactory())
+        .build()
 
     @Provides
     @Singleton
@@ -68,6 +72,6 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideTuistApiService(retrofit: Retrofit): TuistApiService =
-        retrofit.create(TuistApiService::class.java)
+    fun provideProjectsApi(retrofit: Retrofit): ProjectsApi =
+        retrofit.create(ProjectsApi::class.java)
 }

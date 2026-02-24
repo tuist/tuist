@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.tuist.app.R
-import dev.tuist.app.data.model.ServerProject
+import dev.tuist.app.api.model.Project
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,7 +117,7 @@ fun ProjectsScreen(
 }
 
 @Composable
-private fun ProjectCard(project: ServerProject) {
+private fun ProjectCard(project: Project) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -135,11 +135,11 @@ private fun ProjectCard(project: ServerProject) {
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.weight(1f),
                 )
-                if (project.visibility == "private") {
+                if (project.visibility == Project.Visibility.`private`) {
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Default.Lock,
-                        contentDescription = project.visibility,
+                        contentDescription = project.visibility.value,
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -156,7 +156,7 @@ private fun ProjectCard(project: ServerProject) {
                 )
                 project.buildSystem?.let { buildSystem ->
                     Text(
-                        text = buildSystem,
+                        text = buildSystem.value,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )

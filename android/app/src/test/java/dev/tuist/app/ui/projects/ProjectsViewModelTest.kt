@@ -1,10 +1,10 @@
 package dev.tuist.app.ui.projects
 
 import app.cash.turbine.test
+import dev.tuist.app.api.model.Project
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.model.Account
 import dev.tuist.app.data.model.AuthState
-import dev.tuist.app.data.model.ServerProject
 import dev.tuist.app.data.projects.ProjectsRepository
 import io.mockk.coEvery
 import io.mockk.every
@@ -50,13 +50,14 @@ class ProjectsViewModelTest {
     @Test
     fun `loads projects after auth state becomes LoggedIn`() = runTest(testDispatcher) {
         val projects = listOf(
-            ServerProject(
+            Project(
                 id = 1,
                 fullName = "tuist/tuist",
                 defaultBranch = "main",
+                token = "",
                 repositoryUrl = "https://github.com/tuist/tuist",
-                visibility = "public",
-                buildSystem = "xcode",
+                visibility = Project.Visibility.`public`,
+                buildSystem = Project.BuildSystem.xcode,
             ),
         )
         every { authRepository.authState } returns flowOf(
@@ -88,11 +89,11 @@ class ProjectsViewModelTest {
     @Test
     fun `refresh updates projects`() = runTest(testDispatcher) {
         val initialProjects = listOf(
-            ServerProject(1, "tuist/tuist", "main", null, "public", null),
+            Project(id = 1, fullName = "tuist/tuist", defaultBranch = "main", token = "", visibility = Project.Visibility.`public`, buildSystem = null, repositoryUrl = null),
         )
         val refreshedProjects = listOf(
-            ServerProject(1, "tuist/tuist", "main", null, "public", null),
-            ServerProject(2, "tuist/cloud", "main", null, "private", null),
+            Project(id = 1, fullName = "tuist/tuist", defaultBranch = "main", token = "", visibility = Project.Visibility.`public`, buildSystem = null, repositoryUrl = null),
+            Project(id = 2, fullName = "tuist/cloud", defaultBranch = "main", token = "", visibility = Project.Visibility.`private`, buildSystem = null, repositoryUrl = null),
         )
         every { authRepository.authState } returns flowOf(
             AuthState.LoggedIn(Account(email = "test@test.com", handle = "test")),

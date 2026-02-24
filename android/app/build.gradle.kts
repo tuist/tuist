@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.play.publisher)
+    alias(libs.plugins.openapi.generator)
 }
 
 android {
@@ -64,6 +65,8 @@ android {
         compose = true
         buildConfig = true
     }
+
+    sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
 }
 
 play {
@@ -101,6 +104,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.moshi)
+    implementation(libs.moshi.kotlin)
     ksp(libs.moshi.kotlin.codegen)
 
     implementation(libs.androidx.security.crypto)
@@ -114,4 +118,32 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
+}
+
+openApiGenerate {
+    generatorName.set("kotlin")
+    inputSpec.set("${rootProject.projectDir}/../cli/Sources/TuistServer/OpenAPI/server.yml")
+    outputDir.set("${layout.buildDirectory.get()}/generated/openapi")
+    apiPackage.set("dev.tuist.app.api")
+    modelPackage.set("dev.tuist.app.api.model")
+    configOptions.set(mapOf(
+        "library" to "jvm-retrofit2",
+        "serializationLibrary" to "moshi",
+        "useCoroutines" to "true",
+        "enumPropertyNaming" to "original",
+    ))
+    globalProperties.set(mapOf(
+        "models" to "",
+        "apis" to "",
+    ))
+    typeMappings.set(mapOf(
+        "number" to "Int",
+    ))
+    importMappings.set(mapOf(
+        "Int" to "kotlin.Int",
+    ))
+}
+
+tasks.named("preBuild") {
+    dependsOn("openApiGenerate")
 }
