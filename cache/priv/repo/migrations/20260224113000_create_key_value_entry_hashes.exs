@@ -12,6 +12,5 @@ defmodule Cache.Repo.Migrations.CreateKeyValueEntryHashes do
 
     create(unique_index(:key_value_entry_hashes, [:key_value_entry_id, :cas_hash]))
     create(index(:key_value_entry_hashes, [:account_handle, :project_handle, :cas_hash]))
-    create(index(:key_value_entry_hashes, [:key_value_entry_id]))
   end
 end

@@ -113,7 +113,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp delete_chunk(ids_chunk, cutoff) do
-    ids_to_delete =
+    verified_ids =
       Repo.all(
         from(e in KeyValueEntry,
           where: e.id in ^ids_chunk,
@@ -122,23 +122,23 @@ defmodule Cache.KeyValueEntries do
         )
       )
 
-    grouped_hash_sets = grouped_hash_sets_for_deleted(ids_to_delete)
+    grouped_hash_sets = hash_references_for_entries(verified_ids)
 
     {deleted_count, _} =
       Repo.delete_all(
         from(e in KeyValueEntry,
-          where: e.id in ^ids_to_delete
+          where: e.id in ^verified_ids
         )
       )
 
     {grouped_hash_sets, deleted_count}
   end
 
-  defp grouped_hash_sets_for_deleted([]), do: %{}
+  defp hash_references_for_entries([]), do: %{}
 
-  defp grouped_hash_sets_for_deleted(deleted_ids) do
+  defp hash_references_for_entries(entry_ids) do
     from(h in KeyValueEntryHash,
-      where: h.key_value_entry_id in ^deleted_ids,
+      where: h.key_value_entry_id in ^entry_ids,
       select: {h.account_handle, h.project_handle, h.cas_hash}
     )
     |> Repo.all()
