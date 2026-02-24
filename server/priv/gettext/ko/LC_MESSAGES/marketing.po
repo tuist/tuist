@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-23 06:03+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-24 04:03+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -957,25 +957,20 @@ msgstr "고객님들"
 msgid "Tuist Customers"
 msgstr "Tuist 고객님들"
 
-#, fuzzy
 msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr "에이전트 QA가 결제 흐름을 테스트하여 8개의 문제점을 확인하고 16개의 스크린샷을 촬영함"
+msgstr "에이전트 QA가 결제 프로세스를 테스트하여 8개의 문제점을 확인하고 16개의 스크린샷을 촬영함"
 
-#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
 msgstr "공유 미리보기 버튼과 플랫폼 옵션이 표시된 앱 미리보기 인터페이스"
 
-#, fuzzy
 msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
 msgstr "코드 변경 없이 실패하는 불안정한 테스트를 자동으로 탐지하고, 허위 실패 원인 분석에 소요되는 시간을 줄입니다."
 
-#, fuzzy
 msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
-msgstr "빌드 기간 지표(90분위수, 99분위수, 평균)를 보여주는 인사이트 차트 생성"
+msgstr "빌드 기간 지표(90분위수, 99분위수, 평균)를 보여주는 빌드 분석 차트"
 
-#, fuzzy
 msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
-msgstr "이번 주 캐시 적중률 대시보드: 90% 적중률, 14.2시간 절감"
+msgstr "90% 사용률과 이번 주에 14.2시간 절감했다는 것을 보여주고 있는 캐시 사용률 대시보드"
 
 #, fuzzy
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
