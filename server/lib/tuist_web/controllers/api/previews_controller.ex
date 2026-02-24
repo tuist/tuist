@@ -191,7 +191,8 @@ defmodule TuistWeb.API.PreviewsController do
             AppBuilds.storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
-              app_build_id: app_build.id
+              app_build_id: app_build.id,
+              type: type
             }),
             selected_project.account
           )
@@ -280,11 +281,14 @@ defmodule TuistWeb.API.PreviewsController do
     expires_in = 120
     content_length = Map.get(multipart_upload_part, :content_length)
 
+    {:ok, app_build} = AppBuilds.app_build_by_id(app_build_id)
+
     object_key =
       AppBuilds.storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        app_build_id: app_build_id
+        app_build_id: app_build_id,
+        type: app_build.type
       })
 
     url =
@@ -367,7 +371,8 @@ defmodule TuistWeb.API.PreviewsController do
             AppBuilds.storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
-              app_build_id: app_build_id
+              app_build_id: app_build_id,
+              type: app_build.type
             }),
             upload_id,
             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
@@ -781,7 +786,8 @@ defmodule TuistWeb.API.PreviewsController do
       AppBuilds.storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        app_build_id: app_build.id
+        app_build_id: app_build.id,
+        type: app_build.type
       })
 
     %{

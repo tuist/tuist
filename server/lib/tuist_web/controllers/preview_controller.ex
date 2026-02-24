@@ -147,7 +147,8 @@ defmodule TuistWeb.PreviewController do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build_id: app_build.id,
+          type: :apk
         })
 
     if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
@@ -229,11 +230,13 @@ defmodule TuistWeb.PreviewController do
               AppBuilds.storage_key(%{
                 account_handle: account_handle,
                 project_handle: project_handle,
-                app_build_id: app_build.id
+                app_build_id: app_build.id,
+                type: app_build.type
               })
 
             content_stream = Storage.stream_object(storage_key, account)
-            filename = "#{app_build.id}.zip"
+            extension = if app_build.type == :apk, do: "apk", else: "zip"
+            filename = "#{app_build.id}.#{extension}"
 
             Zstream.entry(filename, content_stream)
           end)
@@ -258,7 +261,8 @@ defmodule TuistWeb.PreviewController do
           AppBuilds.storage_key(%{
             account_handle: account_handle,
             project_handle: project_handle,
-            app_build_id: app_build.id
+            app_build_id: app_build.id,
+            type: app_build.type
           })
 
         Storage.object_exists?(storage_key, account)

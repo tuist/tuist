@@ -271,8 +271,9 @@ defmodule Tuist.AppBuilds do
     end
   end
 
-  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build_id: app_build_id}) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build_id}.zip"
+  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build_id: app_build_id} = params) do
+    extension = if params[:type] == :apk, do: "apk", else: "zip"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build_id}.#{extension}"
   end
 
   def icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do

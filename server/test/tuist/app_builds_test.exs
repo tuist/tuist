@@ -465,7 +465,7 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "storage_key/1" do
-    test "returns the storage key for a preview" do
+    test "returns the storage key with .zip extension by default" do
       # Given
       app_build = %{id: "app-build-id"}
       account_handle = "account-handle"
@@ -483,7 +483,26 @@ defmodule Tuist.AppBuildsTest do
       assert result == "#{account_handle}/#{project_handle}/previews/#{app_build.id}.zip"
     end
 
-    test "returns the storage key for a preview icon with downcased account and project handles" do
+    test "returns the storage key with .apk extension for apk type" do
+      # Given
+      app_build = %{id: "app-build-id"}
+      account_handle = "account-handle"
+      project_handle = "project-handle"
+
+      # When
+      result =
+        AppBuilds.storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          app_build_id: app_build.id,
+          type: :apk
+        })
+
+      # Then
+      assert result == "#{account_handle}/#{project_handle}/previews/#{app_build.id}.apk"
+    end
+
+    test "returns the storage key with downcased account and project handles" do
       # Given
       app_build = %{id: "app-build-id"}
       account_handle = "Account"
