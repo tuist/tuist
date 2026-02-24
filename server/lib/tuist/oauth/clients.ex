@@ -120,5 +120,4 @@ defmodule Tuist.OAuth.Clients do
       enforce_dpop: false
     }
   end
-
 end

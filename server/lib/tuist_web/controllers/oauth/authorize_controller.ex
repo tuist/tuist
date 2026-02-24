@@ -3,14 +3,14 @@ defmodule TuistWeb.Oauth.AuthorizeController do
 
   use TuistWeb, :controller
 
-  require Logger
-
   alias Boruta.Oauth
   alias Boruta.Oauth.AuthorizeApplication
   alias Boruta.Oauth.AuthorizeResponse
   alias Boruta.Oauth.Error
   alias Boruta.Oauth.ResourceOwner
   alias TuistWeb.Errors.BadRequestError
+
+  require Logger
 
   @max_state_length 10_000
 
