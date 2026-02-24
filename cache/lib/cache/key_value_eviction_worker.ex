@@ -16,35 +16,17 @@ defmodule Cache.KeyValueEvictionWorker do
   @impl Oban.Worker
   def perform(_job) do
     max_age_days = Application.get_env(:cache, :key_value_eviction_max_age_days, 30)
-    {deleted_entries, count} = KeyValueEntries.delete_expired(max_age_days)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(max_age_days)
     Logger.info("Evicted #{count} expired key-value entries (older than #{max_age_days} days)")
 
-    deleted_entries
-    |> group_hashes_by_scope()
-    |> enqueue_cleanup_jobs()
+    enqueue_cleanup_jobs(grouped_hashes)
 
     :ok
-  end
-
-  defp group_hashes_by_scope(entries) do
-    Enum.reduce(entries, %{}, fn entry, acc ->
-      case parse_cas_hashes(entry) do
-        {account, project, hashes} ->
-          Map.update(acc, {account, project}, MapSet.new(hashes), fn existing ->
-            Enum.reduce(hashes, existing, &MapSet.put(&2, &1))
-          end)
-
-        :skip ->
-          acc
-      end
-    end)
   end
 
   defp enqueue_cleanup_jobs(grouped_hashes) do
     Enum.each(grouped_hashes, fn {{account, project}, hash_set} ->
       hash_set
-      |> MapSet.to_list()
-      |> Enum.sort()
       |> Enum.chunk_every(@cleanup_hashes_per_job)
       |> Enum.each(fn hashes ->
         case %{"account_handle" => account, "project_handle" => project, "cas_hashes" => hashes}
@@ -58,21 +40,5 @@ defmodule Cache.KeyValueEvictionWorker do
         end
       end)
     end)
-  end
-
-  defp parse_cas_hashes(entry) do
-    with ["keyvalue", account, project, _cas_id] <- String.split(entry.key, ":", parts: 4),
-         {:ok, %{"entries" => [_ | _] = entries_list}} <- Jason.decode(entry.json_payload) do
-      hashes =
-        entries_list
-        |> Enum.map(&Map.get(&1, "value"))
-        |> Enum.reject(&is_nil/1)
-
-      {account, project, hashes}
-    else
-      _ ->
-        Logger.warning("Skipping CAS cleanup for entry with key: #{entry.key}")
-        :skip
-    end
   end
 end

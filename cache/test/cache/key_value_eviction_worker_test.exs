@@ -59,14 +59,17 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert length(entries) == 1
   end
 
-  test "enqueues CASCleanupWorker for expired entry with valid CAS key and payload" do
+  test "enqueues CASCleanupWorker for expired keyvalue entries" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT_HASH",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"},{"value":"EFGH5678"}]}),
-      last_accessed_at: old_time
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT_HASH",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"},{"value":"EFGH5678"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
     capture_log(fn ->
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
@@ -94,7 +97,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert [] = all_enqueued(worker: CASCleanupWorker)
   end
 
-  test "does not enqueue cleanup for expired entry with malformed json_payload" do
+  test "does not enqueue cleanup when no hash rows are present" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     Repo.insert!(%KeyValueEntry{
@@ -110,14 +113,17 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert [] = all_enqueued(worker: CASCleanupWorker)
   end
 
-  test "does not enqueue cleanup for expired entry with empty entries list" do
+  test "does not enqueue cleanup for entries without extracted hashes" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT_HASH",
-      json_payload: ~s({"entries":[]}),
-      last_accessed_at: old_time
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT_HASH",
+        json_payload: ~s({"entries":[]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
     capture_log(fn ->
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
@@ -129,17 +135,21 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "groups CAS hashes by account and project into a single cleanup job" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: old_time
-    })
+    entry_1 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: old_time
+      })
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT2",
-      json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
-      last_accessed_at: old_time
-    })
+    entry_2 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT2",
+        json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry_1, entry_2])
 
     capture_log(fn ->
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
@@ -154,17 +164,21 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "enqueues separate cleanup jobs for different projects" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: old_time
-    })
+    entry_1 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: old_time
+      })
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:android:ROOT2",
-      json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
-      last_accessed_at: old_time
-    })
+    entry_2 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:android:ROOT2",
+        json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry_1, entry_2])
 
     capture_log(fn ->
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
@@ -180,17 +194,21 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "deduplicates CAS hashes within the same account and project" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: old_time
-    })
+    entry_1 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: old_time
+      })
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT2",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: old_time
-    })
+    entry_2 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT2",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry_1, entry_2])
 
     capture_log(fn ->
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
@@ -208,11 +226,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         %{"value" => "HASH#{i}"}
       end
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: Jason.encode!(%{"entries" => many_entries}),
-      last_accessed_at: old_time
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: Jason.encode!(%{"entries" => many_entries}),
+        last_accessed_at: old_time
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
     capture_log(fn ->
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})

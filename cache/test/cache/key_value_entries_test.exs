@@ -14,7 +14,7 @@ defmodule Cache.KeyValueEntriesTest do
     :ok
   end
 
-  test "delete_expired returns list of expired entries with key and json_payload" do
+  test "delete_expired deletes expired entries and returns grouped hashes" do
     now = DateTime.utc_now()
     old_time = DateTime.add(now, -31, :day)
 
@@ -25,15 +25,10 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: old_time
       })
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(30)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
 
     assert count == 1
-    assert length(expired_entries) == 1
-
-    returned_entry = hd(expired_entries)
-    assert returned_entry.key == "old-entry"
-    assert returned_entry.json_payload == ~s({"hash": "abc"})
-    assert returned_entry.id == entry.id
+    assert grouped_hashes == %{}
 
     assert Repo.get(KeyValueEntry, entry.id) == nil
   end
@@ -49,15 +44,15 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: recent_time
       })
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(30)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
 
     assert count == 0
-    assert expired_entries == []
+    assert grouped_hashes == %{}
 
     assert Repo.get(KeyValueEntry, entry.id)
   end
 
-  test "delete_expired returns and deletes entries with nil last_accessed_at" do
+  test "delete_expired deletes entries with nil last_accessed_at" do
     entry =
       Repo.insert!(%KeyValueEntry{
         key: "nil-accessed-entry",
@@ -65,18 +60,10 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: nil
       })
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(30)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
 
     assert count == 1
-    assert length(expired_entries) == 1
-
-    returned_entry = hd(expired_entries)
-    assert returned_entry.key == "nil-accessed-entry"
-
-    assert returned_entry.json_payload == ~s({"hash": "ghi"}),
-           "Should include json_payload field"
-
-    assert returned_entry.id == entry.id
+    assert grouped_hashes == %{}
 
     assert Repo.get(KeyValueEntry, entry.id) == nil
   end
@@ -90,10 +77,10 @@ defmodule Cache.KeyValueEntriesTest do
       last_accessed_at: now
     })
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(30)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
 
     assert count == 0
-    assert expired_entries == []
+    assert grouped_hashes == %{}
   end
 
   test "delete_expired respects max_age_days parameter" do
@@ -115,11 +102,10 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: five_days_ago
       })
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(7)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(7)
 
     assert count == 1
-    assert length(expired_entries) == 1
-    assert hd(expired_entries).key == "older-than-7-days"
+    assert grouped_hashes == %{}
 
     assert Repo.get(KeyValueEntry, old_entry.id) == nil
     assert Repo.get(KeyValueEntry, fresh_entry.id)
@@ -137,31 +123,32 @@ defmodule Cache.KeyValueEntriesTest do
       })
     end
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(30)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
 
     assert count == 10_000
-    assert length(expired_entries) == 10_000
+    assert grouped_hashes == %{}
 
     remaining = Repo.aggregate(KeyValueEntry, :count)
     assert remaining == 50
   end
 
-  test "delete_expired returns entries with all required fields" do
+  test "delete_expired returns grouped hashes for keyvalue scoped entries" do
     now = DateTime.utc_now()
     old_time = DateTime.add(now, -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
-      key: "test-key",
-      json_payload: ~s({"data": "value"}),
-      last_accessed_at: old_time
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT_HASH",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: old_time
+      })
 
-    {expired_entries, _count} = KeyValueEntries.delete_expired(30)
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
-    returned_entry = hd(expired_entries)
-    assert returned_entry.key
-    assert returned_entry.json_payload
-    assert returned_entry.id
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
+
+    assert count == 1
+    assert grouped_hashes == %{{"acme", "ios"} => ["ABCD1234"]}
   end
 
   test "unreferenced_hashes excludes hashes still present in other KV entries" do
@@ -258,13 +245,10 @@ defmodule Cache.KeyValueEntriesTest do
         last_accessed_at: old_time
       })
 
-    {expired_entries, count} = KeyValueEntries.delete_expired(30)
+    {grouped_hashes, count} = KeyValueEntries.delete_expired(30)
 
     assert count == 2
-    assert length(expired_entries) == 2
-
-    keys = expired_entries |> Enum.map(& &1.key) |> Enum.sort()
-    assert keys == ["old-1", "old-2"]
+    assert grouped_hashes == %{}
 
     assert Repo.get(KeyValueEntry, old_entry_1.id) == nil
     assert Repo.get(KeyValueEntry, fresh_entry.id)
