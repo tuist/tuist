@@ -30,6 +30,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -72,60 +75,73 @@ fun PreviewsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.refresh() },
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        when (val state = uiState) {
-            is PreviewsUiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+    LaunchedEffect(Unit) {
+        viewModel.errorEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            when (val state = uiState) {
+                is PreviewsUiState.Loading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-            is PreviewsUiState.Error -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = state.message,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                        Spacer(Modifier.height(NooraSpacing.Spacing6))
-                        TextButton(onClick = { viewModel.loadProjects() }) {
-                            Text(stringResource(R.string.retry))
+                is PreviewsUiState.Error -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = state.message,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(Modifier.height(NooraSpacing.Spacing6))
+                            TextButton(onClick = { viewModel.loadProjects() }) {
+                                Text(stringResource(R.string.retry))
+                            }
                         }
                     }
                 }
-            }
-            is PreviewsUiState.Empty -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = stringResource(
-                                if (state.message == "no_projects") R.string.no_projects else R.string.no_previews,
-                            ),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(NooraSpacing.Spacing6))
-                        TextButton(onClick = { viewModel.refresh() }) {
-                            Text(stringResource(R.string.refresh))
+                is PreviewsUiState.Empty -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = stringResource(
+                                    if (state.message == "no_projects") R.string.no_projects else R.string.no_previews,
+                                ),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(NooraSpacing.Spacing6))
+                            TextButton(onClick = { viewModel.refresh() }) {
+                                Text(stringResource(R.string.refresh))
+                            }
                         }
                     }
                 }
-            }
-            is PreviewsUiState.Success -> {
-                PreviewsContent(
-                    state = state,
-                    isLoadingMore = isLoadingMore,
-                    onProjectSelected = { viewModel.selectProject(it) },
-                    onLoadMore = { viewModel.loadMorePreviews() },
-                    onPreviewClick = { preview ->
-                        onPreviewClick(preview.id, state.selectedProject.fullName)
-                    },
-                )
+                is PreviewsUiState.Success -> {
+                    PreviewsContent(
+                        state = state,
+                        isLoadingMore = isLoadingMore,
+                        onProjectSelected = { viewModel.selectProject(it) },
+                        onLoadMore = { viewModel.loadMorePreviews() },
+                        onPreviewClick = { preview ->
+                            onPreviewClick(preview.id, state.selectedProject.fullName)
+                        },
+                    )
+                }
             }
         }
     }

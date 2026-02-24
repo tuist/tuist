@@ -10,8 +10,11 @@ import dev.tuist.app.api.model.Project
 import dev.tuist.app.data.auth.AuthRepository
 import dev.tuist.app.data.model.AuthState
 import dev.tuist.app.data.previews.PreviewsRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -46,6 +49,9 @@ class PreviewsViewModel @Inject constructor(
 
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    private val _errorEvents = MutableSharedFlow<String>()
+    val errorEvents: SharedFlow<String> = _errorEvents.asSharedFlow()
 
     private var currentPage = 1
 
@@ -107,8 +113,8 @@ class PreviewsViewModel @Inject constructor(
                     previews = currentState.previews + page.previews,
                     hasMorePreviews = page.hasNextPage,
                 )
-            } catch (_: Exception) {
-                // Silently fail for pagination — user can retry by scrolling again
+            } catch (e: Exception) {
+                _errorEvents.emit(e.message ?: "Failed to load more previews")
             }
             _isLoadingMore.value = false
         }
