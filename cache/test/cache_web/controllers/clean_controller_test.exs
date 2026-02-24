@@ -1,11 +1,23 @@
 defmodule CacheWeb.CleanControllerTest do
-  use CacheWeb.ConnCase, async: false
+  use ExUnit.Case, async: true
+  use Oban.Testing, repo: Cache.Repo
   use Mimic
 
+  import Phoenix.ConnTest
+  import Plug.Conn
   import ExUnit.CaptureLog
+
+  @endpoint CacheWeb.Endpoint
 
   alias Cache.Authentication
   alias Cache.CleanProjectWorker
+
+  setup :set_mimic_from_context
+
+  setup do
+    Ecto.Adapters.SQL.Sandbox.checkout(Cache.Repo)
+    {:ok, conn: build_conn()}
+  end
 
   describe "DELETE /api/cache/clean" do
     test "enqueues clean project worker", %{conn: conn} do
