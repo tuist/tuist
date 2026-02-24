@@ -54,15 +54,12 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -89,16 +86,13 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:
