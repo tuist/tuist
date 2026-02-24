@@ -84,6 +84,49 @@ defmodule Cache.CASCleanupWorkerTest do
       assert log =~ "Failed to delete CAS artifact"
     end
 
+    test "cleans up metadata for successful deletes even when some fail" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+      cas_hashes = ["abcd1234", "efgh5678"]
+
+      expect(KeyValueEntries, :unreferenced_hashes, fn ^cas_hashes, ^account_handle, ^project_handle ->
+        cas_hashes
+      end)
+
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "abcd1234" ->
+        "test_account/test_project/cas/ab/cd/abcd1234"
+      end)
+
+      expect(CAS.Disk, :key, fn ^account_handle, ^project_handle, "efgh5678" ->
+        "test_account/test_project/cas/ef/gh/efgh5678"
+      end)
+
+      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ab/cd/abcd1234" -> :ok end)
+
+      expect(Disk, :delete_artifact, fn "test_account/test_project/cas/ef/gh/efgh5678" ->
+        {:error, :eacces}
+      end)
+
+      expect(CacheArtifacts, :delete_by_keys, fn ["test_account/test_project/cas/ab/cd/abcd1234"] ->
+        :ok
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "account_handle" => account_handle,
+          "project_handle" => project_handle,
+          "cas_hashes" => cas_hashes
+        }
+      }
+
+      log =
+        capture_log(fn ->
+          assert {:error, {:disk_delete_failed, 1}} = CASCleanupWorker.perform(job)
+        end)
+
+      assert log =~ "Failed to delete CAS artifact"
+    end
+
     test "treats :enoent as successful disk cleanup and proceeds with metadata" do
       account_handle = "test_account"
       project_handle = "test_project"

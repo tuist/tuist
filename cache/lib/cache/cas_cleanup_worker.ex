@@ -29,15 +29,18 @@ defmodule Cache.CASCleanupWorker do
       unreferenced ->
         keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
 
-        with {:ok, deleted_keys} <- delete_from_disk(keys) do
-          delete_from_metadata(deleted_keys)
-          :ok
-        end
+        {deleted_keys, failed_count} = delete_from_disk(keys)
+
+        if deleted_keys != [], do: delete_from_metadata(deleted_keys)
+
+        if failed_count > 0,
+          do: {:error, {:disk_delete_failed, failed_count}},
+          else: :ok
     end
   end
 
   defp delete_from_disk(keys) do
-    {deleted_keys, failed_count} =
+    {deleted_acc, failed_count} =
       Enum.reduce(keys, {[], 0}, fn key, {deleted_acc, failed_acc} ->
         case Disk.delete_artifact(key) do
           :ok ->
@@ -52,11 +55,7 @@ defmodule Cache.CASCleanupWorker do
         end
       end)
 
-    if failed_count == 0 do
-      {:ok, Enum.reverse(deleted_keys)}
-    else
-      {:error, {:disk_delete_failed, failed_count}}
-    end
+    {Enum.reverse(deleted_acc), failed_count}
   end
 
   defp delete_from_metadata(keys) do

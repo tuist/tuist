@@ -38,9 +38,7 @@ defmodule Cache.KeyValueEntries do
         {%{}, 0}
 
       ids_to_delete ->
-        {grouped_hashes, deleted_count} = delete_expired_entries(ids_to_delete, cutoff)
-
-        {grouped_hashes, deleted_count}
+        delete_expired_entries(ids_to_delete, cutoff)
     end
   end
 
