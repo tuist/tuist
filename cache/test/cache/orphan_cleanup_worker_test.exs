@@ -7,7 +7,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
   alias Cache.OrphanCleanupWorker
-  alias Cache.OrphanScanCursor
+  alias Cache.OrphanScanCursors
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -90,7 +90,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
-    cursor = OrphanScanCursor.get_cursor()
+    cursor = OrphanScanCursors.get_cursor()
     assert cursor
     assert is_binary(cursor.cursor_path)
   end
@@ -112,7 +112,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     put_max_dirs_per_run(1)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
-    assert OrphanScanCursor.get_cursor()
+    assert OrphanScanCursors.get_cursor()
 
     deleted_after_first_run = Enum.count(paths, fn path -> not File.exists?(path) end)
     assert deleted_after_first_run == 1
@@ -131,7 +131,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
-    cursor = OrphanScanCursor.get_cursor()
+    cursor = OrphanScanCursors.get_cursor()
     assert cursor.cursor_path == nil
     assert cursor.last_completed_at
   end

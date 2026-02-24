@@ -16,7 +16,7 @@ defmodule Cache.OrphanCleanupWorker do
 
   alias Cache.CacheArtifacts
   alias Cache.Disk
-  alias Cache.OrphanScanCursor
+  alias Cache.OrphanScanCursors
 
   require Logger
 
@@ -27,14 +27,14 @@ defmodule Cache.OrphanCleanupWorker do
   def perform(_job) do
     storage_dir = Disk.storage_dir()
     max_dirs = Application.get_env(:cache, :orphan_scan_max_dirs_per_run, @default_max_dirs)
-    cursor = OrphanScanCursor.get_cursor()
+    cursor = OrphanScanCursors.get_cursor()
     cursor_path = if cursor, do: cursor.cursor_path
 
     {new_cursor, summary} = scan(storage_dir, cursor_path, max_dirs)
 
     case new_cursor do
-      nil -> OrphanScanCursor.reset_cursor()
-      path -> OrphanScanCursor.update_cursor(path)
+      nil -> OrphanScanCursors.reset_cursor()
+      path -> OrphanScanCursors.update_cursor(path)
     end
 
     log_summary(summary)
@@ -44,7 +44,7 @@ defmodule Cache.OrphanCleanupWorker do
   defp scan(storage_dir, cursor_path, max_dirs) do
     dirs_to_process =
       storage_dir
-      |> stream_leaf_dirs()
+      |> stream_leaf_dirs(cursor_path)
       |> Stream.map(&Path.relative_to(&1, storage_dir))
       |> Stream.filter(fn dir -> is_nil(cursor_path) or dir > cursor_path end)
       |> Enum.take(max_dirs)
@@ -52,18 +52,18 @@ defmodule Cache.OrphanCleanupWorker do
     dirs_count = length(dirs_to_process)
     now = System.os_time(:second)
 
-    {all_entries_reversed, files_checked} =
+    {all_entries, files_checked} =
       Enum.reduce(dirs_to_process, {[], 0}, fn relative_dir, {acc_entries, acc_files_checked} ->
         dir = Path.join(storage_dir, relative_dir)
         {entries, checked} = keys_for_dir(dir, storage_dir, now)
         {entries ++ acc_entries, acc_files_checked + checked}
       end)
 
-    all_keys = Enum.map(all_entries_reversed, fn {key, _size} -> key end)
+    all_keys = Enum.map(all_entries, fn {key, _size} -> key end)
     existing_set = MapSet.new(CacheArtifacts.existing_keys(all_keys))
 
     orphan_entries =
-      Enum.reject(all_entries_reversed, fn {key, _size} -> MapSet.member?(existing_set, key) end)
+      Enum.reject(all_entries, fn {key, _size} -> MapSet.member?(existing_set, key) end)
 
     {orphans_deleted, bytes_freed} = delete_orphans(orphan_entries, storage_dir)
 
@@ -84,7 +84,7 @@ defmodule Cache.OrphanCleanupWorker do
     {new_cursor, summary}
   end
 
-  defp stream_leaf_dirs(root) do
+  defp stream_leaf_dirs(root, cursor_path) do
     Stream.resource(
       fn -> [root] end,
       fn
@@ -92,35 +92,49 @@ defmodule Cache.OrphanCleanupWorker do
           {:halt, []}
 
         [dir | rest] ->
-          case File.ls(dir) do
-            {:ok, entries} ->
-              sorted = Enum.sort(entries)
+          if skip_before_cursor?(dir, root, cursor_path) do
+            {[], rest}
+          else
+            case File.ls(dir) do
+              {:ok, entries} ->
+                sorted = Enum.sort(entries)
 
-              {subdirs, has_files} =
-                Enum.reduce(sorted, {[], false}, fn entry, {dirs, found_files} ->
-                  full = Path.join(dir, entry)
+                {subdirs, has_files} =
+                  Enum.reduce(sorted, {[], false}, fn entry, {dirs, found_files} ->
+                    full = Path.join(dir, entry)
 
-                  case File.lstat(full) do
-                    {:ok, %File.Stat{type: :directory}} -> {[full | dirs], found_files}
-                    {:ok, %File.Stat{type: :regular}} -> {dirs, true}
-                    _ -> {dirs, found_files}
-                  end
-                end)
+                    case File.lstat(full) do
+                      {:ok, %File.Stat{type: :directory}} -> {[full | dirs], found_files}
+                      {:ok, %File.Stat{type: :regular}} -> {dirs, true}
+                      _ -> {dirs, found_files}
+                    end
+                  end)
 
-              sorted_subdirs = Enum.reverse(subdirs)
+                sorted_subdirs = Enum.reverse(subdirs)
 
-              if has_files do
-                {[dir], sorted_subdirs ++ rest}
-              else
-                {[], sorted_subdirs ++ rest}
-              end
+                if has_files do
+                  {[dir], sorted_subdirs ++ rest}
+                else
+                  {[], sorted_subdirs ++ rest}
+                end
 
-            {:error, _} ->
-              {[], rest}
+              {:error, _} ->
+                {[], rest}
+            end
           end
       end,
       fn _ -> :ok end
     )
+  end
+
+  defp skip_before_cursor?(_dir, _root, nil), do: false
+
+  defp skip_before_cursor?(dir, root, cursor_path) do
+    relative = Path.relative_to(dir, root)
+
+    relative != "." and
+      relative < cursor_path and
+      not String.starts_with?(cursor_path, relative <> "/")
   end
 
   defp keys_for_dir(dir, storage_dir, now) do
