@@ -20,8 +20,7 @@ op read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_D
 security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Distribution Certificate/password") -A
 
 mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-op read "op://tuist/Tuist App Ad Hoc/Tuist_App_Ad_Hoc.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_ad_hoc.mobileprovision"
-op read "op://tuist/Tuist App Store Connect Provisioning Profile/Tuist_App_Store_Connect.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_app_store.mobileprovision"
+op read "op://tuist/Tuist App Store Connect Provisioning Profile/Tuist_App_Store_Connect.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
 
 EXPORT_OPTIONS_PLIST_PATH=$TMP_DIR/ExportOptions.plist
 
