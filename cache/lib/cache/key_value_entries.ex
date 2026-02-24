@@ -42,32 +42,42 @@ defmodule Cache.KeyValueEntries do
     end
   end
 
+  @doc """
+  Replaces all CAS hash references for the given entries.
+  Deletes existing hashes and re-inserts based on current `json_payload`.
+  """
   def replace_entry_hashes([]), do: :ok
 
   def replace_entry_hashes(entries) when is_list(entries) do
     ids = Enum.map(entries, & &1.id)
     rows = Enum.flat_map(entries, &entry_hash_rows/1)
 
-    Repo.transaction(fn ->
-      ids
-      |> Enum.chunk_every(@id_chunk_size)
-      |> Enum.each(fn ids_chunk ->
-        Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
-      end)
+    {:ok, _} =
+      Repo.transaction(fn ->
+        ids
+        |> Enum.chunk_every(@id_chunk_size)
+        |> Enum.each(fn ids_chunk ->
+          {_, _} = Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
+        end)
 
-      rows
-      |> Enum.chunk_every(@insert_chunk_size)
-      |> Enum.each(fn rows_chunk ->
-        Repo.insert_all(KeyValueEntryHash, rows_chunk,
-          on_conflict: :nothing,
-          conflict_target: [:key_value_entry_id, :cas_hash]
-        )
+        rows
+        |> Enum.chunk_every(@insert_chunk_size)
+        |> Enum.each(fn rows_chunk ->
+          {_, _} =
+            Repo.insert_all(KeyValueEntryHash, rows_chunk,
+              on_conflict: :nothing,
+              conflict_target: [:key_value_entry_id, :cas_hash]
+            )
+        end)
       end)
-    end)
 
     :ok
   end
 
+  @doc """
+  Returns hashes from the input list that are not referenced by any
+  key-value entry for the given account and project.
+  """
   def unreferenced_hashes([], _account_handle, _project_handle), do: []
 
   def unreferenced_hashes(hashes, account_handle, project_handle) when is_list(hashes) do
@@ -97,7 +107,7 @@ defmodule Cache.KeyValueEntries do
       |> Enum.reduce({%{}, 0}, fn ids_chunk, {grouped_hash_sets_acc, deleted_count_acc} ->
         hash_rows_by_entry_id = hash_rows_by_entry_id(ids_chunk)
 
-        {_, deleted_ids} =
+        {deleted_count, deleted_ids} =
           Repo.delete_all(
             from(e in KeyValueEntry,
               where: e.id in ^ids_chunk,
@@ -106,10 +116,10 @@ defmodule Cache.KeyValueEntries do
             )
           )
 
-        deleted_ids = deleted_ids || []
+        deleted_ids = deleted_ids || ids_chunk
         grouped_hash_sets = grouped_hash_sets(hash_rows_by_entry_id, deleted_ids)
 
-        {merge_grouped_hash_sets(grouped_hash_sets_acc, grouped_hash_sets), deleted_count_acc + length(deleted_ids)}
+        {merge_grouped_hash_sets(grouped_hash_sets_acc, grouped_hash_sets), deleted_count_acc + deleted_count}
       end)
 
     {to_sorted_hash_lists(grouped_hash_sets), deleted_count}
@@ -117,17 +127,12 @@ defmodule Cache.KeyValueEntries do
 
   defp hash_rows_by_entry_id([]), do: %{}
 
-  defp hash_rows_by_entry_id(ids_to_delete) do
-    ids_to_delete
-    |> Enum.chunk_every(@id_chunk_size)
-    |> Enum.flat_map(fn ids_chunk ->
-      Repo.all(
-        from(h in KeyValueEntryHash,
-          where: h.key_value_entry_id in ^ids_chunk,
-          select: {h.key_value_entry_id, h.account_handle, h.project_handle, h.cas_hash}
-        )
-      )
-    end)
+  defp hash_rows_by_entry_id(entry_ids) do
+    from(h in KeyValueEntryHash,
+      where: h.key_value_entry_id in ^entry_ids,
+      select: {h.key_value_entry_id, h.account_handle, h.project_handle, h.cas_hash}
+    )
+    |> Repo.all()
     |> Enum.group_by(fn {entry_id, _account_handle, _project_handle, _cas_hash} -> entry_id end)
   end
 
