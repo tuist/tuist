@@ -674,7 +674,7 @@ jobs:
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
       - name: Generate TuistApp
-        run: TUIST_APP_STORE_BUILD=1 tuist generate TuistApp --no-binary-cache
+        run: tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
         run: mise run app:upload-ios
         env:
