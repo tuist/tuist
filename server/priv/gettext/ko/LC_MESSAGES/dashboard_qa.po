@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-23 08:45+0000\n"
+"PO-Revision-Date: 2026-02-24 08:35+0000\n"
 "Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ko/>\n"
@@ -443,10 +443,8 @@ msgstr "지난 기간 이후"
 msgid "since yesterday"
 msgstr "어제부터"
 
-#, fuzzy
 msgid "Notifications"
 msgstr "알림"
 
-#, fuzzy
 msgid "Automations"
 msgstr "자동화"
