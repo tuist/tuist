@@ -1,5 +1,5 @@
 defmodule Cache.DiskEvictionWorkerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   import Ecto.Query
@@ -12,13 +12,40 @@ defmodule Cache.DiskEvictionWorkerTest do
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
+  setup :set_mimic_from_context
+
   setup do
     :ok = Sandbox.checkout(Repo)
 
-    if pid = Process.whereis(CacheArtifactsBuffer) do
-      Sandbox.allow(Repo, self(), pid)
-      CacheArtifactsBuffer.reset()
-    end
+    ca_name = :"cache_artifacts_buffer_#{System.unique_integer([:positive, :monotonic])}"
+
+    ca_pid =
+      start_supervised!({Cache.SQLiteBuffer, [name: ca_name, buffer_module: Cache.CacheArtifactsBuffer]})
+
+    Sandbox.allow(Repo, self(), ca_pid)
+
+    stub(CacheArtifactsBuffer, :enqueue_access, fn key, size_bytes, last_accessed_at ->
+      entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
+      true = :ets.insert(ca_name, {key, {:access, entry}})
+      :ok
+    end)
+
+    stub(CacheArtifactsBuffer, :enqueue_delete, fn key ->
+      true = :ets.insert(ca_name, {key, :delete})
+      :ok
+    end)
+
+    stub(CacheArtifactsBuffer, :flush, fn ->
+      Cache.SQLiteBuffer.flush(ca_name)
+    end)
+
+    stub(CacheArtifactsBuffer, :queue_stats, fn ->
+      Cache.SQLiteBuffer.queue_stats(ca_name)
+    end)
+
+    stub(CacheArtifactsBuffer, :reset, fn ->
+      Cache.SQLiteBuffer.reset(ca_name)
+    end)
 
     {:ok, storage_dir} = Briefly.create(directory: true)
 
