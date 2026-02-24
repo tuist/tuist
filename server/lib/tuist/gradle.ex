@@ -85,7 +85,7 @@ defmodule Tuist.Gradle do
         acc
         |> Map.update!(String.to_existing_atom(outcome), &(&1 + 1))
         |> then(fn acc ->
-          if cacheable, do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc
+          if cacheable && outcome != "up_to_date", do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc
         end)
       end
     )
@@ -275,7 +275,7 @@ defmodule Tuist.Gradle do
   """
   def cache_hit_rate(build) do
     from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    total = from_cache + (build.tasks_executed_count || 0)
+    total = build.cacheable_tasks_count || 0
 
     if total > 0 do
       Float.round(from_cache / total * 100.0, 1)
