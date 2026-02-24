@@ -219,4 +219,20 @@ defmodule Cache.Disk do
       _ -> {:error, :invalid_percent}
     end
   end
+
+  @doc """
+  Formats a byte count as a human-readable string.
+
+  ## Examples
+
+      iex> Cache.Disk.format_bytes(512)
+      "512 B"
+
+      iex> Cache.Disk.format_bytes(1_536)
+      "1.5 KB"
+  """
+  def format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
+  def format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 2)} KB"
+  def format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 2)} MB"
+  def format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 2)} GB"
 end

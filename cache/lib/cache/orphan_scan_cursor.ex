@@ -26,31 +26,23 @@ defmodule Cache.OrphanScanCursor do
   end
 
   def update_cursor(cursor_path) do
-    case get_cursor() do
-      nil ->
-        %__MODULE__{}
-        |> changeset(%{cursor_path: cursor_path})
-        |> Repo.insert!()
-
-      existing ->
-        existing
-        |> changeset(%{cursor_path: cursor_path})
-        |> Repo.update!()
-    end
-
-    :ok
+    upsert(%{cursor_path: cursor_path})
   end
 
   def reset_cursor do
+    upsert(%{cursor_path: nil, last_completed_at: DateTime.utc_now()})
+  end
+
+  defp upsert(attrs) do
     case get_cursor() do
       nil ->
         %__MODULE__{}
-        |> changeset(%{cursor_path: nil, last_completed_at: DateTime.utc_now()})
+        |> changeset(attrs)
         |> Repo.insert!()
 
       existing ->
         existing
-        |> changeset(%{cursor_path: nil, last_completed_at: DateTime.utc_now()})
+        |> changeset(attrs)
         |> Repo.update!()
     end
 

@@ -42,40 +42,40 @@ defmodule Cache.OrphanCleanupWorker do
   end
 
   defp scan(storage_dir, cursor_path, max_dirs) do
-    leaf_dirs =
+    dirs_to_process =
       storage_dir
-      |> find_leaf_dirs()
-      |> Enum.map(&Path.relative_to(&1, storage_dir))
-      |> Enum.sort()
+      |> stream_leaf_dirs()
+      |> Stream.map(&Path.relative_to(&1, storage_dir))
+      |> Stream.filter(fn dir -> is_nil(cursor_path) or dir > cursor_path end)
+      |> Enum.take(max_dirs)
 
-    dirs_after_cursor =
-      Enum.filter(leaf_dirs, fn relative_dir ->
-        is_nil(cursor_path) or relative_dir > cursor_path
-      end)
+    dirs_count = length(dirs_to_process)
+    now = System.os_time(:second)
 
-    dirs_to_process = Enum.take(dirs_after_cursor, max_dirs)
-
-    {all_keys, files_checked} =
-      Enum.reduce(dirs_to_process, {[], 0}, fn relative_dir, {acc_keys, acc_files_checked} ->
+    {all_entries_reversed, files_checked} =
+      Enum.reduce(dirs_to_process, {[], 0}, fn relative_dir, {acc_entries, acc_files_checked} ->
         dir = Path.join(storage_dir, relative_dir)
-        {keys, checked} = keys_for_dir(dir, storage_dir)
-        {acc_keys ++ keys, acc_files_checked + checked}
+        {entries, checked} = keys_for_dir(dir, storage_dir, now)
+        {entries ++ acc_entries, acc_files_checked + checked}
       end)
 
-    existing_keys = CacheArtifacts.existing_keys(all_keys)
-    orphan_keys = all_keys -- existing_keys
+    all_keys = Enum.map(all_entries_reversed, fn {key, _size} -> key end)
+    existing_set = MapSet.new(CacheArtifacts.existing_keys(all_keys))
 
-    {orphans_deleted, bytes_freed} = delete_orphans(orphan_keys, storage_dir)
+    orphan_entries =
+      Enum.reject(all_entries_reversed, fn {key, _size} -> MapSet.member?(existing_set, key) end)
+
+    {orphans_deleted, bytes_freed} = delete_orphans(orphan_entries, storage_dir)
 
     new_cursor =
-      if length(dirs_to_process) < max_dirs do
+      if dirs_count < max_dirs do
         nil
       else
         List.last(dirs_to_process)
       end
 
     summary = %{
-      dirs_scanned: length(dirs_to_process),
+      dirs_scanned: dirs_count,
       files_checked: files_checked,
       orphans_deleted: orphans_deleted,
       bytes_freed: bytes_freed
@@ -84,39 +84,66 @@ defmodule Cache.OrphanCleanupWorker do
     {new_cursor, summary}
   end
 
-  defp find_leaf_dirs(dir) do
-    case File.ls(dir) do
-      {:ok, entries} ->
-        full_paths = Enum.map(entries, &Path.join(dir, &1))
-        subdirs = Enum.filter(full_paths, &File.dir?/1)
-        files = Enum.filter(full_paths, &File.regular?/1)
+  defp stream_leaf_dirs(root) do
+    Stream.resource(
+      fn -> [root] end,
+      fn
+        [] ->
+          {:halt, []}
 
-        child_leaves = Enum.flat_map(subdirs, &find_leaf_dirs/1)
+        [dir | rest] ->
+          case File.ls(dir) do
+            {:ok, entries} ->
+              sorted = Enum.sort(entries)
 
-        if files == [] do
-          child_leaves
-        else
-          [dir | child_leaves]
-        end
+              {subdirs, has_files} =
+                Enum.reduce(sorted, {[], false}, fn entry, {dirs, found_files} ->
+                  full = Path.join(dir, entry)
 
-      {:error, _} ->
-        []
-    end
+                  case File.lstat(full) do
+                    {:ok, %File.Stat{type: :directory}} -> {[full | dirs], found_files}
+                    {:ok, %File.Stat{type: :regular}} -> {dirs, true}
+                    _ -> {dirs, found_files}
+                  end
+                end)
+
+              sorted_subdirs = Enum.reverse(subdirs)
+
+              if has_files do
+                {[dir], sorted_subdirs ++ rest}
+              else
+                {[], sorted_subdirs ++ rest}
+              end
+
+            {:error, _} ->
+              {[], rest}
+          end
+      end,
+      fn _ -> :ok end
+    )
   end
 
-  defp keys_for_dir(dir, storage_dir) do
+  defp keys_for_dir(dir, storage_dir, now) do
     case File.ls(dir) do
       {:ok, entries} ->
-        entries
-        |> Enum.map(&Path.join(dir, &1))
-        |> Enum.filter(&File.regular?/1)
-        |> Enum.reduce({[], 0}, fn path, {acc_keys, acc_count} ->
-          filename = Path.basename(path)
-
-          if tmp_file?(filename) or not old_enough?(path) do
-            {acc_keys, acc_count + 1}
+        Enum.reduce(entries, {[], 0}, fn entry, {acc, count} ->
+          if tmp_file?(entry) do
+            {acc, count + 1}
           else
-            {[Path.relative_to(path, storage_dir) | acc_keys], acc_count + 1}
+            full = Path.join(dir, entry)
+
+            case File.lstat(full, time: :posix) do
+              {:ok, %File.Stat{type: :regular, size: size, mtime: mtime}} ->
+                if now - mtime >= @min_age_seconds do
+                  key = Path.relative_to(full, storage_dir)
+                  {[{key, size} | acc], count + 1}
+                else
+                  {acc, count + 1}
+                end
+
+              _ ->
+                {acc, count + 1}
+            end
           end
         end)
 
@@ -125,10 +152,9 @@ defmodule Cache.OrphanCleanupWorker do
     end
   end
 
-  defp delete_orphans(orphan_keys, storage_dir) do
-    Enum.reduce(orphan_keys, {0, 0}, fn key, {deleted_count, freed_bytes} ->
+  defp delete_orphans(orphan_entries, storage_dir) do
+    Enum.reduce(orphan_entries, {0, 0}, fn {key, size}, {deleted_count, freed_bytes} ->
       path = Path.join(storage_dir, key)
-      size = file_size(path)
 
       case File.rm(path) do
         :ok ->
@@ -144,27 +170,8 @@ defmodule Cache.OrphanCleanupWorker do
     end)
   end
 
-  defp file_size(path) do
-    case File.stat(path) do
-      {:ok, %File.Stat{size: size}} -> size
-      {:error, _} -> 0
-    end
-  end
-
-  defp old_enough?(path) do
-    case File.stat(path) do
-      {:ok, %File.Stat{mtime: mtime}} ->
-        mtime_seconds = mtime |> NaiveDateTime.from_erl!() |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
-        now_seconds = System.os_time(:second)
-        now_seconds - mtime_seconds >= @min_age_seconds
-
-      {:error, _} ->
-        false
-    end
-  end
-
   defp tmp_file?(filename) do
-    String.starts_with?(filename, ".tmp.") or String.starts_with?(filename, ".cache-upload-")
+    String.starts_with?(filename, [".tmp.", ".cache-upload-"])
   end
 
   defp log_summary(%{orphans_deleted: 0, dirs_scanned: dirs}) do
@@ -173,12 +180,7 @@ defmodule Cache.OrphanCleanupWorker do
 
   defp log_summary(%{orphans_deleted: count, bytes_freed: bytes, dirs_scanned: dirs, files_checked: files}) do
     Logger.info(
-      "Orphan scan: scanned #{dirs} directories, checked #{files} files, deleted #{count} orphans freeing #{format_bytes(bytes)}"
+      "Orphan scan: scanned #{dirs} directories, checked #{files} files, deleted #{count} orphans freeing #{Disk.format_bytes(bytes)}"
     )
   end
-
-  defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 2)} KB"
-  defp format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 2)} MB"
-  defp format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 2)} GB"
 end

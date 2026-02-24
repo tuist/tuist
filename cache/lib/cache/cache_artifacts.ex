@@ -48,10 +48,14 @@ defmodule Cache.CacheArtifacts do
   def existing_keys([]), do: []
 
   def existing_keys(keys) when is_list(keys) do
-    CacheArtifact
-    |> where([a], a.key in ^keys)
-    |> select([a], a.key)
-    |> Repo.all()
+    keys
+    |> Enum.chunk_every(@default_batch_size)
+    |> Enum.flat_map(fn chunk ->
+      CacheArtifact
+      |> where([a], a.key in ^chunk)
+      |> select([a], a.key)
+      |> Repo.all()
+    end)
   end
 
   @doc """
