@@ -32,7 +32,7 @@ responder a las siguientes preguntas:
 - ¿Qué intentabas hacer?
 - ¿Cómo se ve tu gráfico?
 - ¿Qué versión de Tuist estás utilizando?
-- ¿Esto le está impidiendo continuar?
+- ¿Esto te está bloqueando?
 
 También le pedimos que proporcione un proyecto reproducible mínimo **** .
 
