@@ -1,10 +1,13 @@
 defmodule Cache.SQLiteBufferTest do
   use ExUnit.Case, async: false
 
+  import Ecto.Query
+
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
+  alias Cache.KeyValueEntryHash
   alias Cache.Repo
   alias Cache.S3Transfer
   alias Cache.S3TransfersBuffer
@@ -25,6 +28,7 @@ defmodule Cache.SQLiteBufferTest do
 
     Repo.delete_all(S3Transfer)
     Repo.delete_all(CacheArtifact)
+    Repo.delete_all(KeyValueEntryHash)
     Repo.delete_all(KeyValueEntry)
 
     :ok
@@ -45,6 +49,35 @@ defmodule Cache.SQLiteBufferTest do
     record = Repo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload_two
     assert record.last_accessed_at
+
+    hashes = Repo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^record.id, select: h.cas_hash))
+
+    assert hashes == ["two"]
+  end
+
+  test "flush refreshes hash references on overwrite" do
+    key = "keyvalue:account:project:cas-overwrite"
+    payload_one = Jason.encode!(%{entries: [%{"value" => "one"}, %{"value" => "shared"}]})
+    payload_two = Jason.encode!(%{entries: [%{"value" => "two"}, %{"value" => "shared"}]})
+
+    :ok = KeyValueBuffer.enqueue(key, payload_one)
+    :ok = KeyValueBuffer.flush()
+
+    :ok = KeyValueBuffer.enqueue(key, payload_two)
+    :ok = KeyValueBuffer.flush()
+
+    record = Repo.get_by!(KeyValueEntry, key: key)
+
+    hashes =
+      Repo.all(
+        from(h in KeyValueEntryHash,
+          where: h.key_value_entry_id == ^record.id,
+          select: h.cas_hash,
+          order_by: h.cas_hash
+        )
+      )
+
+    assert hashes == ["shared", "two"]
   end
 
   test "write then access for same key keeps pending write" do

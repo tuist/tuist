@@ -51,7 +51,7 @@ defmodule Cache.CASCleanupWorkerTest do
       end)
     end
 
-    test "skips metadata cleanup when disk deletion fails" do
+    test "fails so Oban can retry when disk deletion fails" do
       account_handle = "test_account"
       project_handle = "test_project"
       cas_hashes = ["abcd1234"]
@@ -78,7 +78,7 @@ defmodule Cache.CASCleanupWorkerTest do
 
       log =
         capture_log(fn ->
-          assert :ok = CASCleanupWorker.perform(job)
+          assert {:error, {:disk_delete_failed, 1}} = CASCleanupWorker.perform(job)
         end)
 
       assert log =~ "Failed to delete CAS artifact"

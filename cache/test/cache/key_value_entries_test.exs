@@ -1,8 +1,11 @@
 defmodule Cache.KeyValueEntriesTest do
   use ExUnit.Case, async: false
 
+  import Ecto.Query
+
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
+  alias Cache.KeyValueEntryHash
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -162,17 +165,21 @@ defmodule Cache.KeyValueEntriesTest do
   end
 
   test "unreferenced_hashes excludes hashes still present in other KV entries" do
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: DateTime.utc_now()
-    })
+    entry_1 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
 
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT2",
-      json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
-      last_accessed_at: DateTime.utc_now()
-    })
+    entry_2 =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT2",
+        json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry_1, entry_2])
 
     result = KeyValueEntries.unreferenced_hashes(["ABCD1234", "EFGH5678", "MISSING"], "acme", "ios")
 
@@ -180,32 +187,41 @@ defmodule Cache.KeyValueEntriesTest do
   end
 
   test "unreferenced_hashes returns all hashes when no entries reference them" do
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: DateTime.utc_now()
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
     assert KeyValueEntries.unreferenced_hashes(["MISSING"], "acme", "ios") == ["MISSING"]
   end
 
   test "unreferenced_hashes scopes to account and project" do
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
-      last_accessed_at: DateTime.utc_now()
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
     assert KeyValueEntries.unreferenced_hashes(["ABCD1234"], "other_account", "ios") == ["ABCD1234"]
     assert KeyValueEntries.unreferenced_hashes(["ABCD1234"], "acme", "android") == ["ABCD1234"]
   end
 
   test "unreferenced_hashes checks all entries in the payload, not just the first" do
-    Repo.insert!(%KeyValueEntry{
-      key: "keyvalue:acme:ios:ROOT1",
-      json_payload: ~s({"entries":[{"value":"FIRST"},{"value":"SECOND"},{"value":"THIRD"}]}),
-      last_accessed_at: DateTime.utc_now()
-    })
+    entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:ROOT1",
+        json_payload: ~s({"entries":[{"value":"FIRST"},{"value":"SECOND"},{"value":"THIRD"}]}),
+        last_accessed_at: DateTime.utc_now()
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([entry])
 
     assert KeyValueEntries.unreferenced_hashes(["SECOND"], "acme", "ios") == []
     assert KeyValueEntries.unreferenced_hashes(["THIRD"], "acme", "ios") == []
@@ -253,5 +269,36 @@ defmodule Cache.KeyValueEntriesTest do
     assert Repo.get(KeyValueEntry, old_entry_1.id) == nil
     assert Repo.get(KeyValueEntry, fresh_entry.id)
     assert Repo.get(KeyValueEntry, old_entry_2.id) == nil
+  end
+
+  test "delete_expired removes hash references for deleted entries" do
+    now = DateTime.utc_now()
+    old_time = DateTime.add(now, -31, :day)
+
+    old_entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:OLD",
+        json_payload: ~s({"entries":[{"value":"OLD_HASH"}]}),
+        last_accessed_at: old_time
+      })
+
+    fresh_entry =
+      Repo.insert!(%KeyValueEntry{
+        key: "keyvalue:acme:ios:FRESH",
+        json_payload: ~s({"entries":[{"value":"FRESH_HASH"}]}),
+        last_accessed_at: now
+      })
+
+    :ok = KeyValueEntries.replace_entry_hashes([old_entry, fresh_entry])
+
+    {_expired_entries, count} = KeyValueEntries.delete_expired(30)
+    assert count == 1
+
+    old_refs = Repo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^old_entry.id))
+    fresh_refs = Repo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^fresh_entry.id))
+
+    assert old_refs == []
+    assert length(fresh_refs) == 1
+    assert hd(fresh_refs).cas_hash == "FRESH_HASH"
   end
 end

@@ -9,7 +9,7 @@ defmodule Cache.CASCleanupWorker do
   use Oban.Worker,
     queue: :clean,
     max_attempts: 3,
-    unique: [keys: [:account_handle, :project_handle], period: 300]
+    unique: [keys: [:account_handle, :project_handle, :cas_hashes], period: 300]
 
   alias Cache.CacheArtifacts
   alias Cache.CAS
@@ -27,29 +27,36 @@ defmodule Cache.CASCleanupWorker do
         :ok
 
       unreferenced ->
-        unreferenced
-        |> Enum.map(&CAS.Disk.key(account_handle, project_handle, &1))
-        |> delete_from_disk()
-        |> delete_from_metadata()
+        keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
 
-        :ok
+        with {:ok, deleted_keys} <- delete_from_disk(keys) do
+          delete_from_metadata(deleted_keys)
+          :ok
+        end
     end
   end
 
   defp delete_from_disk(keys) do
-    Enum.filter(keys, fn key ->
-      case Disk.delete_artifact(key) do
-        :ok ->
-          true
+    {deleted_keys, failed_count} =
+      Enum.reduce(keys, {[], 0}, fn key, {deleted_acc, failed_acc} ->
+        case Disk.delete_artifact(key) do
+          :ok ->
+            {[key | deleted_acc], failed_acc}
 
-        {:error, :enoent} ->
-          true
+          {:error, :enoent} ->
+            {[key | deleted_acc], failed_acc}
 
-        {:error, reason} ->
-          Logger.error("Failed to delete CAS artifact from disk #{key}: #{inspect(reason)}")
-          false
-      end
-    end)
+          {:error, reason} ->
+            Logger.error("Failed to delete CAS artifact from disk #{key}: #{inspect(reason)}")
+            {deleted_acc, failed_acc + 1}
+        end
+      end)
+
+    if failed_count == 0 do
+      {:ok, Enum.reverse(deleted_keys)}
+    else
+      {:error, {:disk_delete_failed, failed_count}}
+    end
   end
 
   defp delete_from_metadata(keys) do

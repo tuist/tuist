@@ -200,6 +200,35 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert args["cas_hashes"] == ["ABCD1234"]
   end
 
+  test "chunks cleanup jobs when a project has many hashes" do
+    old_time = DateTime.add(DateTime.utc_now(), -31, :day)
+
+    many_entries =
+      for i <- 1..501 do
+        %{"value" => "HASH#{i}"}
+      end
+
+    Repo.insert!(%KeyValueEntry{
+      key: "keyvalue:acme:ios:ROOT1",
+      json_payload: Jason.encode!(%{"entries" => many_entries}),
+      last_accessed_at: old_time
+    })
+
+    capture_log(fn ->
+      assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+    end)
+
+    enqueued = all_enqueued(worker: CASCleanupWorker)
+    assert length(enqueued) == 2
+
+    hash_counts =
+      enqueued
+      |> Enum.map(fn %{args: args} -> length(args["cas_hashes"]) end)
+      |> Enum.sort()
+
+    assert hash_counts == [1, 500]
+  end
+
   test "respects configurable max age via delete_expired/1" do
     now = DateTime.utc_now()
     eight_days_ago = DateTime.add(now, -8, :day)
