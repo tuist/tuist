@@ -113,10 +113,8 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp delete_chunk(ids_chunk, cutoff) do
-    hash_rows = hash_rows_by_entry_id(ids_chunk)
-
-    {deleted_count, deleted_ids} =
-      Repo.delete_all(
+    ids_to_delete =
+      Repo.all(
         from(e in KeyValueEntry,
           where: e.id in ^ids_chunk,
           where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
@@ -124,33 +122,30 @@ defmodule Cache.KeyValueEntries do
         )
       )
 
-    {grouped_hash_sets(hash_rows, deleted_ids || []), deleted_count}
+    grouped_hash_sets = grouped_hash_sets_for_deleted(ids_to_delete)
+
+    {deleted_count, _} =
+      Repo.delete_all(
+        from(e in KeyValueEntry,
+          where: e.id in ^ids_to_delete
+        )
+      )
+
+    {grouped_hash_sets, deleted_count}
   end
 
-  defp hash_rows_by_entry_id([]), do: %{}
+  defp grouped_hash_sets_for_deleted([]), do: %{}
 
-  defp hash_rows_by_entry_id(entry_ids) do
+  defp grouped_hash_sets_for_deleted(deleted_ids) do
     from(h in KeyValueEntryHash,
-      where: h.key_value_entry_id in ^entry_ids,
-      select: {h.key_value_entry_id, h.account_handle, h.project_handle, h.cas_hash}
+      where: h.key_value_entry_id in ^deleted_ids,
+      select: {h.account_handle, h.project_handle, h.cas_hash}
     )
     |> Repo.all()
-    |> Enum.group_by(fn {entry_id, _account_handle, _project_handle, _cas_hash} -> entry_id end)
-  end
-
-  defp grouped_hash_sets(_hash_rows_by_entry_id, []), do: %{}
-
-  defp grouped_hash_sets(hash_rows_by_entry_id, deleted_ids) do
-    deleted = MapSet.new(deleted_ids)
-
-    for {entry_id, rows} <- hash_rows_by_entry_id,
-        MapSet.member?(deleted, entry_id),
-        {_entry_id, account_handle, project_handle, cas_hash} <- rows,
-        reduce: %{} do
-      acc ->
-        scope = {account_handle, project_handle}
-        Map.update(acc, scope, MapSet.new([cas_hash]), &MapSet.put(&1, cas_hash))
-    end
+    |> Enum.reduce(%{}, fn {account_handle, project_handle, cas_hash}, acc ->
+      scope = {account_handle, project_handle}
+      Map.update(acc, scope, MapSet.new([cas_hash]), &MapSet.put(&1, cas_hash))
+    end)
   end
 
   defp merge_grouped_hash_sets(left, right) do

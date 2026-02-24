@@ -119,6 +119,42 @@ defmodule Cache.SQLiteBufferTest do
     assert DateTime.after?(record.last_accessed_at, initial_time)
   end
 
+  test "flush handles access batches at sqlite parameter limits" do
+    base_key = "keyvalue:batch-access-limit:account:project"
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+
+    rows =
+      for i <- 1..1000 do
+        %{
+          key: "#{base_key}:#{i}",
+          json_payload: Jason.encode!(%{entries: [%{"value" => "hash-#{i}"}]}),
+          last_accessed_at: initial_time,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+
+    {1000, _} = Repo.insert_all(KeyValueEntry, rows)
+
+    for i <- 1..1000 do
+      :ok = KeyValueBuffer.enqueue_access("#{base_key}:#{i}")
+    end
+
+    :ok = KeyValueBuffer.flush()
+
+    refreshed_count =
+      Repo.aggregate(
+        from(e in KeyValueEntry,
+          where: like(e.key, ^"#{base_key}:%") and e.last_accessed_at > ^initial_time
+        ),
+        :count,
+        :id
+      )
+
+    assert refreshed_count == 1000
+  end
+
   test "multiple accesses for same key are de-duplicated in queue" do
     key = "keyvalue:access-dedup:account:project"
     write_key = "keyvalue:access-dedup:write"
