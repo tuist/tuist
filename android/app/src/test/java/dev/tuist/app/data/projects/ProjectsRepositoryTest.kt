@@ -49,7 +49,7 @@ class ProjectsRepositoryTest {
 
         val result = repository.listProjects()
 
-        assertEquals(projects, result)
+        assertEquals(projects, result.getOrThrow())
     }
 
     @Test
@@ -58,13 +58,16 @@ class ProjectsRepositoryTest {
 
         val result = repository.listProjects()
 
-        assertTrue(result.isEmpty())
+        assertTrue(result.getOrThrow().isEmpty())
     }
 
-    @Test(expected = RuntimeException::class)
-    fun `listProjects propagates API exceptions`() = runTest {
+    @Test
+    fun `listProjects returns failure when API throws`() = runTest {
         coEvery { projectsApi.listProjects() } throws RuntimeException("Network error")
 
-        repository.listProjects()
+        val result = repository.listProjects()
+
+        assertTrue(result.isFailure)
+        assertEquals("Network error", result.exceptionOrNull()?.message)
     }
 }

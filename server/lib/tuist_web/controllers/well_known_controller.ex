@@ -82,6 +82,7 @@ defmodule TuistWeb.WellKnownController do
     else
       [
         release,
+        # Debug signing certificate fingerprint used in development builds
         "FE:7D:E5:E6:63:5D:E6:2B:7F:20:C0:2A:E3:B4:1F:81:3A:26:1D:96:2F:E5:57:FF:A1:7F:E2:5B:CF:63:E4:77"
       ]
     end

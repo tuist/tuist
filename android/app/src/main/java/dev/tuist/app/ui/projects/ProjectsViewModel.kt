@@ -42,24 +42,18 @@ class ProjectsViewModel @Inject constructor(
     fun loadProjects() {
         viewModelScope.launch {
             _uiState.value = ProjectsUiState.Loading
-            try {
-                val projects = projectsRepository.listProjects()
-                _uiState.value = ProjectsUiState.Success(projects)
-            } catch (e: Exception) {
-                _uiState.value = ProjectsUiState.Error(e.message ?: "Failed to load projects")
-            }
+            projectsRepository.listProjects()
+                .onSuccess { _uiState.value = ProjectsUiState.Success(it) }
+                .onFailure { _uiState.value = ProjectsUiState.Error(it.message ?: "Failed to load projects") }
         }
     }
 
     fun refresh() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try {
-                val projects = projectsRepository.listProjects()
-                _uiState.value = ProjectsUiState.Success(projects)
-            } catch (e: Exception) {
-                _uiState.value = ProjectsUiState.Error(e.message ?: "Failed to load projects")
-            }
+            projectsRepository.listProjects()
+                .onSuccess { _uiState.value = ProjectsUiState.Success(it) }
+                .onFailure { _uiState.value = ProjectsUiState.Error(it.message ?: "Failed to load projects") }
             _isRefreshing.value = false
         }
     }

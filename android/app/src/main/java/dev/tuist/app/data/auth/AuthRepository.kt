@@ -110,14 +110,21 @@ class AuthRepository @Inject constructor(
                 .add("code_verifier", codeVerifier)
                 .build()
 
+            val tokenUrl = Uri.parse(serverUrl).buildUpon()
+                .appendEncodedPath("oauth2/token")
+                .build()
+                .toString()
+
             val request = Request.Builder()
-                .url("$serverUrl/oauth2/token")
+                .url(tokenUrl)
                 .post(body)
                 .build()
 
             val response = okHttpClient.newCall(request).execute()
 
             if (!response.isSuccessful) {
+                val errorBody = response.body?.string()
+                Log.e(TAG, "Token exchange failed with status ${response.code}: $errorBody")
                 return@withContext Result.failure(
                     Exception("Token exchange failed with status ${response.code}")
                 )

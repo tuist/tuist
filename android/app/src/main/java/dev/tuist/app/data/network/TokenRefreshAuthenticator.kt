@@ -1,7 +1,7 @@
 package dev.tuist.app.data.network
 
+import android.net.Uri
 import android.util.Log
-import dev.tuist.app.BuildConfig
 import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.auth.TokenStorage
 import okhttp3.Authenticator
@@ -20,8 +20,18 @@ class TokenRefreshAuthenticator @Inject constructor(
     private val environmentConfig: EnvironmentConfig,
 ) : Authenticator {
 
+    @Synchronized
     override fun authenticate(route: Route?, response: Response): Request? {
         if (response.request.header(HEADER_RETRY_AUTH) != null) return null
+
+        val currentToken = tokenStorage.getAccessToken()
+        val requestToken = response.request.header("Authorization")?.removePrefix("Bearer ")
+        if (currentToken != null && currentToken != requestToken) {
+            return response.request.newBuilder()
+                .header("Authorization", "Bearer $currentToken")
+                .header(HEADER_RETRY_AUTH, "true")
+                .build()
+        }
 
         val refreshToken = tokenStorage.getRefreshToken() ?: run {
             tokenStorage.clear()
@@ -34,29 +44,32 @@ class TokenRefreshAuthenticator @Inject constructor(
         val body = json.toString()
             .toRequestBody("application/json".toMediaType())
 
+        val refreshUrl = Uri.parse(environmentConfig.serverUrl).buildUpon()
+            .appendEncodedPath("api/auth/refresh_token")
+            .build()
+            .toString()
+
         val refreshRequest = Request.Builder()
-            .url("${environmentConfig.serverUrl}/api/auth/refresh_token")
+            .url(refreshUrl)
             .post(body)
             .build()
 
         val refreshResponse = try {
             plainClient.newCall(refreshRequest).execute()
         } catch (e: Exception) {
-            if (BuildConfig.DEBUG) {
-                Log.e(TAG, "Token refresh network error", e)
-            }
+            Log.e(TAG, "Token refresh network error", e)
             return null
         }
 
         if (!refreshResponse.isSuccessful) {
-            if (BuildConfig.DEBUG) {
-                Log.e(TAG, "Token refresh failed with status ${refreshResponse.code}")
-            }
+            val errorBody = refreshResponse.body?.string()
+            Log.e(TAG, "Token refresh failed with status ${refreshResponse.code}: $errorBody")
             tokenStorage.clear()
             return null
         }
 
         val responseBody = refreshResponse.body?.string() ?: run {
+            Log.e(TAG, "Token refresh returned empty response body")
             tokenStorage.clear()
             return null
         }
@@ -72,9 +85,7 @@ class TokenRefreshAuthenticator @Inject constructor(
                 .header(HEADER_RETRY_AUTH, "true")
                 .build()
         } catch (e: Exception) {
-            if (BuildConfig.DEBUG) {
-                Log.e(TAG, "Token refresh parse error", e)
-            }
+            Log.e(TAG, "Token refresh parse error", e)
             tokenStorage.clear()
             null
         }

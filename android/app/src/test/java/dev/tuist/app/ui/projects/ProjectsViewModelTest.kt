@@ -63,7 +63,7 @@ class ProjectsViewModelTest {
         every { authRepository.authState } returns flowOf(
             AuthState.LoggedIn(Account(email = "test@test.com", handle = "test")),
         )
-        coEvery { projectsRepository.listProjects() } returns projects
+        coEvery { projectsRepository.listProjects() } returns Result.success(projects)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -76,7 +76,7 @@ class ProjectsViewModelTest {
         every { authRepository.authState } returns flowOf(
             AuthState.LoggedIn(Account(email = "test@test.com", handle = "test")),
         )
-        coEvery { projectsRepository.listProjects() } throws RuntimeException("Network error")
+        coEvery { projectsRepository.listProjects() } returns Result.failure(RuntimeException("Network error"))
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -98,7 +98,7 @@ class ProjectsViewModelTest {
         every { authRepository.authState } returns flowOf(
             AuthState.LoggedIn(Account(email = "test@test.com", handle = "test")),
         )
-        coEvery { projectsRepository.listProjects() } returns initialProjects andThen refreshedProjects
+        coEvery { projectsRepository.listProjects() } returns Result.success(initialProjects) andThen Result.success(refreshedProjects)
 
         val viewModel = createViewModel()
         advanceUntilIdle()
@@ -115,7 +115,7 @@ class ProjectsViewModelTest {
         every { authRepository.authState } returns flowOf(
             AuthState.LoggedIn(Account(email = "test@test.com", handle = "test")),
         )
-        coEvery { projectsRepository.listProjects() } returns emptyList()
+        coEvery { projectsRepository.listProjects() } returns Result.success(emptyList())
         every { authRepository.signOut() } returns Unit
 
         val viewModel = createViewModel()
@@ -131,7 +131,7 @@ class ProjectsViewModelTest {
         every { authRepository.authState } returns flowOf(
             AuthState.LoggedIn(Account(email = "test@test.com", handle = "test")),
         )
-        coEvery { projectsRepository.listProjects() } returns emptyList() andThenThrows RuntimeException("Refresh failed")
+        coEvery { projectsRepository.listProjects() } returns Result.success(emptyList()) andThen Result.failure(RuntimeException("Refresh failed"))
 
         val viewModel = createViewModel()
         advanceUntilIdle()

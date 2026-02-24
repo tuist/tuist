@@ -1,10 +1,13 @@
 package dev.tuist.app.data.auth
 
 import android.util.Base64
+import android.util.Log
 import dev.tuist.app.data.model.Account
 import org.json.JSONObject
 
 object JwtParser {
+
+    private const val TAG = "JwtParser"
 
     fun parseAccount(jwt: String): Account? {
         val parts = jwt.split(".")
@@ -18,7 +21,8 @@ object JwtParser {
             val email = json.optString("email").takeIf { it.isNotEmpty() } ?: return null
             val handle = json.optString("preferred_username").takeIf { it.isNotEmpty() } ?: return null
             Account(email = email, handle = handle)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse JWT payload", e)
             null
         }
     }

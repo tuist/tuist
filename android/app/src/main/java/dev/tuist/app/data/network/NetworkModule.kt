@@ -44,10 +44,12 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
+        requestIdInterceptor: RequestIdInterceptor,
         authInterceptor: AuthInterceptor,
         tokenRefreshAuthenticator: TokenRefreshAuthenticator,
     ): OkHttpClient {
         val builder = OkHttpClient.Builder()
+            .addInterceptor(requestIdInterceptor)
             .addInterceptor(authInterceptor)
             .authenticator(tokenRefreshAuthenticator)
 
