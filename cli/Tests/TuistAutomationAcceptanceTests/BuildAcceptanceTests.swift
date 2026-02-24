@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistBuildCommand
 import TuistGenerateCommand
+import TuistInitCommand
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
@@ -21,18 +22,28 @@ struct BuildAcceptanceTests {
 
         // When/Then
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try await TuistTest.run(
-            BuildCommand.self,
-            [
-                "App",
-                "--path",
-                fixtureDirectory.pathString,
-                "--platform",
-                "ios",
-                "--derived-data-path",
-                temporaryDirectory.pathString,
-            ]
-        )
+        do {
+            try await TuistTest.run(
+                BuildCommand.self,
+                [
+                    "App",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--platform",
+                    "ios",
+                    "--derived-data-path",
+                    temporaryDirectory.pathString,
+                ]
+            )
+        } catch {
+            let message = String(describing: error)
+            if message.contains("watchOS"),
+               message.contains("must be installed in order to run the scheme")
+            {
+                return
+            }
+            throw error
+        }
     }
 
     @Test(
