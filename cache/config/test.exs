@@ -20,6 +20,8 @@ config :cache, Oban,
   plugins: false,
   testing: :manual
 
+config :cache, Cache.SQLiteBuffer, shutdown_ms: 0, flush_interval_ms: :timer.hours(1)
+
 config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
 config :cache, :s3, bucket: "test-bucket", registry_bucket: "test-registry-bucket"
 
