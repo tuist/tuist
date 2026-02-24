@@ -95,7 +95,7 @@ public class ManifestLinter: ManifestLinting {
         if let runAction {
             issues.append(contentsOf: lintExecutionActionTargets(runAction.preActions, actionType: "runAction", scheme: scheme))
             issues.append(contentsOf: lintExecutionActionTargets(runAction.postActions, actionType: "runAction", scheme: scheme))
-            if case let .executable(ref) = runAction.executable {
+            if case let .some(.executable(ref)) = runAction.executable {
                 issues.append(contentsOf: lintSchemeTarget(ref, actionType: "runAction", scheme: scheme))
             }
             issues.append(contentsOf: lintSchemeTarget(
@@ -116,7 +116,7 @@ public class ManifestLinter: ManifestLinting {
                 actionType: "profileAction",
                 scheme: scheme
             ))
-            if case let .executable(ref) = profileAction.executable {
+            if case let .some(.executable(ref)) = profileAction.executable {
                 issues.append(contentsOf: lintSchemeTarget(ref, actionType: "profileAction", scheme: scheme))
             }
         }

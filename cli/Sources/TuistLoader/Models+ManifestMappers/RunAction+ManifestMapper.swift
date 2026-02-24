@@ -63,6 +63,8 @@ extension XcodeGraph.RunAction {
                     name: reference.targetName
                 )
             }
+        case nil:
+            break
         }
 
         var filePathResolved: AbsolutePath?

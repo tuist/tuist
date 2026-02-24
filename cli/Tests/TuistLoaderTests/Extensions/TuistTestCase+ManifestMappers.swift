@@ -200,7 +200,7 @@ extension TuistTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
-        if case let .executable(manifestRef) = manifest.executable {
+        if case let .some(.executable(manifestRef)) = manifest.executable {
             XCTAssertEqual(runAction.executable?.name, manifestRef?.targetName, file: file, line: line)
             XCTAssertEqual(
                 runAction.executable?.projectPath,

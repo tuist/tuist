@@ -201,7 +201,7 @@ import TuistSupport
         ) -> RunAction {
             RunAction(
                 configuration: configuration,
-                executable: askForAppToLaunch ? .askOnLaunch : .executable(executable),
+                executable: askForAppToLaunch ? .askOnLaunch : executable.map { .executable($0) },
                 customWorkingDirectory: customWorkingDirectory,
                 filePath: filePath,
                 arguments: arguments,

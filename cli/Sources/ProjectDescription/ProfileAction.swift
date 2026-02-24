@@ -12,7 +12,7 @@ public struct ProfileAction: Equatable, Codable, Sendable {
     public var postActions: [ExecutionAction]
 
     /// The executable configuration for the profile action.
-    public var executable: Executable
+    public var executable: Executable?
 
     /// Command line arguments passed on launch and environment variables.
     public var arguments: Arguments?
@@ -21,7 +21,7 @@ public struct ProfileAction: Equatable, Codable, Sendable {
         configuration: ConfigurationName = .release,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
-        executable: Executable = .executable(nil),
+        executable: Executable? = nil,
         arguments: Arguments? = nil
     ) {
         self.configuration = configuration
@@ -39,6 +39,7 @@ public struct ProfileAction: Equatable, Codable, Sendable {
     ///   - executable: The name of the executable or target to profile.
     ///   - arguments: Command line arguments passed on launch and environment variables.
     /// - Returns: Initialized profile action.
+    @available(*, deprecated, message: "Use the `executable: Executable` variant instead.")
     public static func profileAction(
         configuration: ConfigurationName = .release,
         preActions: [ExecutionAction] = [],
@@ -50,7 +51,7 @@ public struct ProfileAction: Equatable, Codable, Sendable {
             configuration: configuration,
             preActions: preActions,
             postActions: postActions,
-            executable: .executable(executable),
+            executable: executable.map { .executable($0) },
             arguments: arguments
         )
     }

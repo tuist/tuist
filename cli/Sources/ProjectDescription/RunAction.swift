@@ -18,7 +18,7 @@ public struct RunAction: Equatable, Codable, Sendable {
     public var postActions: [ExecutionAction]
 
     /// The executable configuration for the run action.
-    public var executable: Executable
+    public var executable: Executable?
 
     /// Custom working directory path for the run action. When set, the executable
     /// will be launched from this directory instead of the default location.
@@ -55,7 +55,7 @@ public struct RunAction: Equatable, Codable, Sendable {
         customLLDBInitFile: Path? = nil,
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = [],
-        executable: Executable = .executable(nil),
+        executable: Executable? = nil,
         customWorkingDirectory: Path? = nil,
         filePath: Path? = nil,
         arguments: Arguments? = nil,
@@ -103,6 +103,7 @@ public struct RunAction: Equatable, Codable, Sendable {
     ///   - appClipInvocationURLString: The URL string used to invoke the app clip, if available.
     ///   - launchStyle: The launch style of the action
     /// - Returns: Run action.
+    @available(*, deprecated, message: "Use the `executable: Executable` variant instead.")
     public static func runAction(
         configuration: ConfigurationName = .debug,
         attachDebugger: Bool = true,
@@ -126,7 +127,7 @@ public struct RunAction: Equatable, Codable, Sendable {
             customLLDBInitFile: customLLDBInitFile,
             preActions: preActions,
             postActions: postActions,
-            executable: .executable(executable),
+            executable: executable.map { .executable($0) },
             customWorkingDirectory: customWorkingDirectory,
             filePath: filePath,
             arguments: arguments,

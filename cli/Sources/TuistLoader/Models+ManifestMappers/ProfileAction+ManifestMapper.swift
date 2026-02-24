@@ -37,6 +37,8 @@ extension XcodeGraph.ProfileAction {
                     name: reference.targetName
                 )
             }
+        case nil:
+            break
         }
 
         return ProfileAction(
