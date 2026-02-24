@@ -111,12 +111,10 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    oauth_return_url = get_session(conn, :oauth_return_to)
-    log(:info, "callback: provider=#{auth.provider} oauth_return_to=#{inspect(oauth_return_url)}")
-
     case Accounts.get_oauth2_identity(auth.provider, auth.uid) do
       {:ok, oauth2_identity} ->
         user = oauth2_identity.user
+        oauth_return_url = get_session(conn, :oauth_return_to)
 
         if oauth_return_url do
           conn
