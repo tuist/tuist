@@ -3,6 +3,8 @@ package dev.tuist.app.data.network
 import android.net.Uri
 import android.util.Log
 import dev.tuist.app.data.EnvironmentConfig
+import dev.tuist.app.data.auth.AuthEvent
+import dev.tuist.app.data.auth.AuthEventBus
 import dev.tuist.app.data.auth.TokenStorage
 import okhttp3.Authenticator
 import okhttp3.MediaType.Companion.toMediaType
@@ -18,6 +20,7 @@ class TokenRefreshAuthenticator @Inject constructor(
     private val tokenStorage: TokenStorage,
     @PlainClient private val plainClient: OkHttpClient,
     private val environmentConfig: EnvironmentConfig,
+    private val authEventBus: AuthEventBus,
 ) : Authenticator {
 
     @Synchronized
@@ -34,7 +37,7 @@ class TokenRefreshAuthenticator @Inject constructor(
         }
 
         val refreshToken = tokenStorage.getRefreshToken() ?: run {
-            tokenStorage.clear()
+            expireSession()
             return null
         }
 
@@ -64,13 +67,13 @@ class TokenRefreshAuthenticator @Inject constructor(
         if (!refreshResponse.isSuccessful) {
             val errorBody = refreshResponse.body?.string()
             Log.e(TAG, "Token refresh failed with status ${refreshResponse.code}: $errorBody")
-            tokenStorage.clear()
+            expireSession()
             return null
         }
 
         val responseBody = refreshResponse.body?.string() ?: run {
             Log.e(TAG, "Token refresh returned empty response body")
-            tokenStorage.clear()
+            expireSession()
             return null
         }
 
@@ -86,9 +89,14 @@ class TokenRefreshAuthenticator @Inject constructor(
                 .build()
         } catch (e: Exception) {
             Log.e(TAG, "Token refresh parse error", e)
-            tokenStorage.clear()
+            expireSession()
             null
         }
+    }
+
+    private fun expireSession() {
+        tokenStorage.clear()
+        authEventBus.emit(AuthEvent.SessionExpired)
     }
 
     companion object {

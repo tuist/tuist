@@ -17,11 +17,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -39,91 +46,115 @@ fun LoginScreen(
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
     val activity = LocalContext.current as Activity
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.launch_background),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-        )
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
+    Scaffold(
+        containerColor = Color.Transparent,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = NooraTheme.colors.cardOverlayBackground,
+                    contentColor = NooraTheme.colors.surfaceLabelPrimary,
+                )
+            }
+        },
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
         ) {
-            Spacer(Modifier.weight(1f))
-
             Image(
-                painter = painterResource(R.drawable.tuist_rounded_icon),
-                contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.size(NooraSpacing.Spacing15),
+                painter = painterResource(R.drawable.launch_background),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
             )
 
-            Spacer(Modifier.height(NooraSpacing.Spacing9))
-
-            Text(
-                text = stringResource(R.string.login_title),
-                style = MaterialTheme.typography.headlineLarge,
-                color = NooraTheme.colors.surfaceLabelPrimary,
-            )
-
-            Spacer(Modifier.height(NooraSpacing.Spacing5))
-
-            Text(
-                text = stringResource(R.string.login_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = NooraTheme.colors.surfaceLabelPrimary,
-                textAlign = TextAlign.Center,
-            )
-
-            Spacer(Modifier.weight(1f))
-
-            val cardShape = RoundedCornerShape(topStart = NooraSpacing.Spacing9, topEnd = NooraSpacing.Spacing9)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(cardShape)
-                    .background(NooraTheme.colors.cardOverlayBackground)
-                    .border(NooraSpacing.Spacing1, NooraTheme.colors.cardOverlayBorder, cardShape)
-                    .padding(horizontal = NooraSpacing.Spacing8)
-                    .padding(top = NooraSpacing.Spacing9)
-                    .padding(bottom = NooraSpacing.Spacing9 + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Column {
-                    SocialSignInButton(
-                        title = stringResource(R.string.sign_in_tuist),
-                        style = SignInButtonStyle.PRIMARY,
-                        iconRes = R.drawable.tuist_logo,
-                        onClick = { viewModel.signIn(activity) },
-                    )
+                Spacer(Modifier.weight(1f))
 
-                    Spacer(Modifier.height(NooraSpacing.Spacing5))
+                Image(
+                    painter = painterResource(R.drawable.tuist_rounded_icon),
+                    contentDescription = stringResource(R.string.app_name),
+                    modifier = Modifier.size(NooraSpacing.Spacing15),
+                )
 
-                    SocialSignInButton(
-                        title = stringResource(R.string.sign_in_apple),
-                        style = SignInButtonStyle.SECONDARY,
-                        iconRes = R.drawable.apple_logo,
-                        onClick = { viewModel.signInWithApple(activity) },
-                    )
+                Spacer(Modifier.height(NooraSpacing.Spacing9))
 
-                    Spacer(Modifier.height(NooraSpacing.Spacing5))
+                Text(
+                    text = stringResource(R.string.login_title),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = NooraTheme.colors.surfaceLabelPrimary,
+                )
 
-                    SocialSignInButton(
-                        title = stringResource(R.string.sign_in_google),
-                        style = SignInButtonStyle.SECONDARY,
-                        iconRes = R.drawable.google_logo,
-                        onClick = { viewModel.signInWithGoogle(activity) },
-                    )
+                Spacer(Modifier.height(NooraSpacing.Spacing5))
 
-                    Spacer(Modifier.height(NooraSpacing.Spacing5))
+                Text(
+                    text = stringResource(R.string.login_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NooraTheme.colors.surfaceLabelPrimary,
+                    textAlign = TextAlign.Center,
+                )
 
-                    SocialSignInButton(
-                        title = stringResource(R.string.sign_in_github),
-                        style = SignInButtonStyle.SECONDARY,
-                        iconRes = R.drawable.github_logo,
-                        onClick = { viewModel.signInWithGitHub(activity) },
-                    )
+                Spacer(Modifier.weight(1f))
+
+                val cardShape = RoundedCornerShape(topStart = NooraSpacing.Spacing9, topEnd = NooraSpacing.Spacing9)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(cardShape)
+                        .background(NooraTheme.colors.cardOverlayBackground)
+                        .border(NooraSpacing.Spacing1, NooraTheme.colors.cardOverlayBorder, cardShape)
+                        .padding(horizontal = NooraSpacing.Spacing8)
+                        .padding(top = NooraSpacing.Spacing9)
+                        .padding(bottom = NooraSpacing.Spacing9 + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                ) {
+                    Column {
+                        SocialSignInButton(
+                            title = stringResource(R.string.sign_in_tuist),
+                            style = SignInButtonStyle.PRIMARY,
+                            iconRes = R.drawable.tuist_logo,
+                            onClick = { viewModel.signIn(activity) },
+                        )
+
+                        Spacer(Modifier.height(NooraSpacing.Spacing5))
+
+                        SocialSignInButton(
+                            title = stringResource(R.string.sign_in_apple),
+                            style = SignInButtonStyle.SECONDARY,
+                            iconRes = R.drawable.apple_logo,
+                            onClick = { viewModel.signInWithApple(activity) },
+                        )
+
+                        Spacer(Modifier.height(NooraSpacing.Spacing5))
+
+                        SocialSignInButton(
+                            title = stringResource(R.string.sign_in_google),
+                            style = SignInButtonStyle.SECONDARY,
+                            iconRes = R.drawable.google_logo,
+                            onClick = { viewModel.signInWithGoogle(activity) },
+                        )
+
+                        Spacer(Modifier.height(NooraSpacing.Spacing5))
+
+                        SocialSignInButton(
+                            title = stringResource(R.string.sign_in_github),
+                            style = SignInButtonStyle.SECONDARY,
+                            iconRes = R.drawable.github_logo,
+                            onClick = { viewModel.signInWithGitHub(activity) },
+                        )
+                    }
                 }
             }
         }
