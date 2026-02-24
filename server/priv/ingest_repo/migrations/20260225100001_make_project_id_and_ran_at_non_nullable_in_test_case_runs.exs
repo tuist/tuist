@@ -21,10 +21,10 @@ defmodule Tuist.IngestRepo.Migrations.MakeProjectIdAndRanAtNonNullableInTestCase
     execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_project_flaky"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MODIFY COLUMN project_id Int64 DEFAULT 0"
+    execute "ALTER TABLE test_case_runs MODIFY COLUMN project_id Int64"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MODIFY COLUMN ran_at DateTime64(6) DEFAULT toDateTime64('1970-01-01 00:00:00', 6)"
+    execute "ALTER TABLE test_case_runs MODIFY COLUMN ran_at DateTime64(6)"
   end
 
   def down do
