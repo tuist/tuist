@@ -14,11 +14,6 @@ defmodule Tuist.IngestRepo.Migrations.MakeProjectIdAndRanAtNonNullableInTestCase
   @disable_migration_lock true
 
   def up do
-    # Wait for any in-flight mutations from a previous failed deploy attempt.
-    # ClickHouse refuses any ALTER TABLE while mutations are pending (error 517).
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "SYSTEM SYNC MUTATIONS test_case_runs"
-
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_test_case_runs_by_project_ran_at"
 
