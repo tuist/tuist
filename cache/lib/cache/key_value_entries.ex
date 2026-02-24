@@ -104,25 +104,27 @@ defmodule Cache.KeyValueEntries do
     {grouped_hash_sets, deleted_count} =
       ids_to_delete
       |> Enum.chunk_every(@id_chunk_size)
-      |> Enum.reduce({%{}, 0}, fn ids_chunk, {grouped_hash_sets_acc, deleted_count_acc} ->
-        hash_rows_by_entry_id = hash_rows_by_entry_id(ids_chunk)
-
-        {deleted_count, deleted_ids} =
-          Repo.delete_all(
-            from(e in KeyValueEntry,
-              where: e.id in ^ids_chunk,
-              where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
-              select: e.id
-            )
-          )
-
-        deleted_ids = deleted_ids || ids_chunk
-        grouped_hash_sets = grouped_hash_sets(hash_rows_by_entry_id, deleted_ids)
-
-        {merge_grouped_hash_sets(grouped_hash_sets_acc, grouped_hash_sets), deleted_count_acc + deleted_count}
+      |> Enum.reduce({%{}, 0}, fn ids_chunk, {hash_sets_acc, count_acc} ->
+        {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
+        {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count}
       end)
 
     {to_sorted_hash_lists(grouped_hash_sets), deleted_count}
+  end
+
+  defp delete_chunk(ids_chunk, cutoff) do
+    hash_rows = hash_rows_by_entry_id(ids_chunk)
+
+    {deleted_count, deleted_ids} =
+      Repo.delete_all(
+        from(e in KeyValueEntry,
+          where: e.id in ^ids_chunk,
+          where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
+          select: e.id
+        )
+      )
+
+    {grouped_hash_sets(hash_rows, deleted_ids || []), deleted_count}
   end
 
   defp hash_rows_by_entry_id([]), do: %{}
@@ -139,25 +141,16 @@ defmodule Cache.KeyValueEntries do
   defp grouped_hash_sets(_hash_rows_by_entry_id, []), do: %{}
 
   defp grouped_hash_sets(hash_rows_by_entry_id, deleted_ids) do
-    deleted_id_set = MapSet.new(deleted_ids)
+    deleted = MapSet.new(deleted_ids)
 
-    hash_rows_by_entry_id
-    |> Enum.flat_map(fn {entry_id, rows} ->
-      if MapSet.member?(deleted_id_set, entry_id) do
-        Enum.map(rows, fn {_entry_id, account_handle, project_handle, cas_hash} ->
-          {account_handle, project_handle, cas_hash}
-        end)
-      else
-        []
-      end
-    end)
-    |> Enum.reduce(%{}, fn {account_handle, project_handle, cas_hash}, acc ->
-      scope = {account_handle, project_handle}
-
-      Map.update(acc, scope, MapSet.new([cas_hash]), fn hashes ->
-        MapSet.put(hashes, cas_hash)
-      end)
-    end)
+    for {entry_id, rows} <- hash_rows_by_entry_id,
+        MapSet.member?(deleted, entry_id),
+        {_entry_id, account_handle, project_handle, cas_hash} <- rows,
+        reduce: %{} do
+      acc ->
+        scope = {account_handle, project_handle}
+        Map.update(acc, scope, MapSet.new([cas_hash]), &MapSet.put(&1, cas_hash))
+    end
   end
 
   defp merge_grouped_hash_sets(left, right) do

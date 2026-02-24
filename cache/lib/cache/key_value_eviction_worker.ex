@@ -25,11 +25,11 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp enqueue_cleanup_jobs(grouped_hashes) do
-    Enum.each(grouped_hashes, fn {{account, project}, hash_set} ->
-      hash_set
+    Enum.each(grouped_hashes, fn {{account, project}, hashes} ->
+      hashes
       |> Enum.chunk_every(@cleanup_hashes_per_job)
-      |> Enum.each(fn hashes ->
-        case %{"account_handle" => account, "project_handle" => project, "cas_hashes" => hashes}
+      |> Enum.each(fn chunk ->
+        case %{"account_handle" => account, "project_handle" => project, "cas_hashes" => chunk}
              |> CASCleanupWorker.new()
              |> Oban.insert() do
           {:ok, _} ->
