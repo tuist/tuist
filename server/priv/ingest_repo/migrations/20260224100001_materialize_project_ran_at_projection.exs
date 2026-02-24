@@ -14,7 +14,7 @@ defmodule Tuist.IngestRepo.Migrations.MaterializeProjectRanAtProjection do
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MATERIALIZE PROJECTION proj_test_case_runs_by_project_ran_at"
+    execute "ALTER TABLE test_case_runs MATERIALIZE PROJECTION proj_test_case_runs_by_project_ran_at SETTINGS mutations_sync = 1"
   end
 
   def down do

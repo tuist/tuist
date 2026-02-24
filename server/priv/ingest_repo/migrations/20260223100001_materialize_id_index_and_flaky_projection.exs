@@ -14,10 +14,10 @@ defmodule Tuist.IngestRepo.Migrations.MaterializeIdIndexAndFlakyProjection do
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MATERIALIZE INDEX idx_id"
+    execute "ALTER TABLE test_case_runs MATERIALIZE INDEX idx_id SETTINGS mutations_sync = 1"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MATERIALIZE PROJECTION proj_by_project_flaky"
+    execute "ALTER TABLE test_case_runs MATERIALIZE PROJECTION proj_by_project_flaky SETTINGS mutations_sync = 1"
   end
 
   def down do
