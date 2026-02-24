@@ -20,11 +20,20 @@ defmodule Tuist.IngestRepo.Migrations.MakeProjectIdAndRanAtNonNullableInTestCase
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_project_flaky"
 
+    # ClickHouse requires a DEFAULT when converting from Nullable to non-nullable,
+    # even when no NULLs exist. We remove it immediately after so the column
+    # ends up non-nullable with no default.
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MODIFY COLUMN project_id Int64"
+    execute "ALTER TABLE test_case_runs MODIFY COLUMN project_id Int64 DEFAULT 0"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MODIFY COLUMN ran_at DateTime64(6)"
+    execute "ALTER TABLE test_case_runs MODIFY COLUMN project_id REMOVE DEFAULT"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "ALTER TABLE test_case_runs MODIFY COLUMN ran_at DateTime64(6) DEFAULT toDateTime64('1970-01-01 00:00:00', 6)"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "ALTER TABLE test_case_runs MODIFY COLUMN ran_at REMOVE DEFAULT"
   end
 
   def down do
