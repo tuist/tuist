@@ -62,7 +62,7 @@ public struct GraphLinter: GraphLinting {
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintSchemesUnknownTargets(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintSchemesRunAction(graphTraverser: graphTraverser))
-        return issues
+        return issues.promotingWarnings(with: configGeneratedProjectOptions.generationOptions.warningsAsErrors)
     }
 
     // MARK: - Fileprivate
@@ -89,7 +89,8 @@ public struct GraphLinter: GraphLinting {
 
             return LintingIssue(
                 reason: "Cannot find targets \(targetsDescriptionStrings.joined(separator: ", "))  defined in \(scheme.name)",
-                severity: .warning
+                severity: .warning,
+                category: .schemeTargetNotFound
             )
         }
     }
@@ -229,7 +230,8 @@ public struct GraphLinter: GraphLinting {
                 guard duplicatedProductNames.isEmpty else {
                     return [LintingIssue(
                         reason: "The target '\(targetName)' has dependencies with the following duplicated product names: \(duplicatedProductNames.joined(separator: ", "))",
-                        severity: .warning
+                        severity: .warning,
+                        category: .duplicateProductNames
                     )]
                 }
                 return []
@@ -306,7 +308,7 @@ public struct GraphLinter: GraphLinting {
             }
         }
 
-        return reasons.sorted().map { LintingIssue(reason: $0, severity: .warning) }
+        return reasons.sorted().map { LintingIssue(reason: $0, severity: .warning, category: .mismatchedConfigurations) }
     }
 
     /// It verifies setup for packages

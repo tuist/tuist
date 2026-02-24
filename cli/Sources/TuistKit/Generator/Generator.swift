@@ -115,6 +115,12 @@ public class Generator: Generating {
             return
         }
 
+        // Promote and check already-accumulated issues (e.g., outdatedDependencies from load)
+        lintingIssues = lintingIssues.promotingWarnings(
+            with: configGeneratedProjectOptions.generationOptions.warningsAsErrors
+        )
+        try lintingIssues.printAndThrowErrorsIfNeeded()
+
         let environmentIssues = try await environmentLinter.lint(configGeneratedProjectOptions: configGeneratedProjectOptions)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
@@ -152,7 +158,6 @@ public class Generator: Generating {
     }
 
     private func printAndFlushPendingLintWarnings() {
-        // Print out warnings, if any
         lintingIssues.printWarningsIfNeeded()
         lintingIssues.removeAll()
     }

@@ -270,7 +270,8 @@ struct StaticProductsGraphLinter: StaticProductsGraphLinting {
         return LintingIssue(
             reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects."
                 .uppercasingFirst,
-            severity: .warning
+            severity: .warning,
+            category: .staticSideEffects
         )
     }
 }

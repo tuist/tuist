@@ -105,7 +105,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                     .willReturn([:])
 
                 // When
-                let got = try await subject.load(
+                let (got, lintingIssues) = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
                     packageSettings: packageSettings,
                     disableSandbox: true
@@ -118,8 +118,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                     ]
                 )
                 #expect(
-                    ui()
-                        .contains("We detected outdated dependencies.") == false
+                    lintingIssues.isEmpty
                 )
             }
         }
@@ -204,7 +203,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                     .willReturn([:])
 
                 // When
-                let got = try await subject.load(
+                let (got, _) = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
                     packageSettings: packageSettings,
                     disableSandbox: true
@@ -316,7 +315,7 @@ struct SwiftPackageManagerGraphLoaderTests {
             .willReturn([:])
 
         // When
-        let got = try await subject.load(
+        let (got, _) = try await subject.load(
             packagePath: temporaryDirectory.appending(component: "Package.swift"),
             packageSettings: packageSettings,
             disableSandbox: true
@@ -375,7 +374,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                     .willReturn([:])
 
                 // When
-                _ = try await subject.load(
+                let (_, lintingIssues) = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
                     packageSettings: packageSettings,
                     disableSandbox: true
@@ -383,8 +382,7 @@ struct SwiftPackageManagerGraphLoaderTests {
 
                 // Then
                 #expect(
-                    ui()
-                        .contains("We detected outdated dependencies") == true
+                    lintingIssues.contains { $0.reason.contains("We detected outdated dependencies") }
                 )
             }
         }
