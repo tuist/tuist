@@ -78,26 +78,11 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
           <.dropdown_item
-            value="ipa"
-            label={dgettext("dashboard_cache", "IPA")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "ipa")}"}
-            data-selected={@bundles_type == "ipa"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="app"
-            label={dgettext("dashboard_cache", "App bundle")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "app")}"}
-            data-selected={@bundles_type == "app"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="xcarchive"
-            label={dgettext("dashboard_cache", "XCArchive")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "xcarchive")}"}
-            data-selected={@bundles_type == "xcarchive"}
+            :for={item <- @bundle_type_items}
+            value={item.value}
+            label={item.label}
+            patch={"?#{Query.put(@uri.query, "bundles-type", item.value)}"}
+            data-selected={@bundles_type == item.value}
           >
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>

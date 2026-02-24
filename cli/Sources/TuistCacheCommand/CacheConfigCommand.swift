@@ -1,8 +1,11 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistNooraExtension
 
-public struct CacheConfigCommand: AsyncParsableCommand {
+public struct CacheConfigCommand: AsyncParsableCommand, NooraReadyCommand {
+    public var jsonThroughNoora: Bool { true }
+
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -20,9 +23,9 @@ public struct CacheConfigCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The full handle of the project (account-handle/project-handle)."
+        help: "The full handle of the project (account-handle/project-handle). If not provided, it is read from the project configuration."
     )
-    var fullHandle: String
+    var fullHandle: String?
 
     @Flag(
         help: "Output the result in JSON format.",

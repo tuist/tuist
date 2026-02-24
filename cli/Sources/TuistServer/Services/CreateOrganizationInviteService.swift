@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol CreateOrganizationInviteServicing {
@@ -28,7 +28,7 @@ enum CreateOrganizationInviteServiceError: LocalizedError {
     }
 }
 
-public final class CreateOrganizationInviteService: CreateOrganizationInviteServicing {
+public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing {
     public init() {}
 
     public func createOrganizationInvite(

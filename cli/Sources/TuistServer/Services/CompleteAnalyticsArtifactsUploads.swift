@@ -28,7 +28,7 @@ public enum CompleteAnalyticsArtifactsUploadsServiceError: LocalizedError, Equat
     }
 }
 
-public final class CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing {
+public struct CompleteAnalyticsArtifactsUploadsService: CompleteAnalyticsArtifactsUploadsServicing {
     public init() {}
 
     public func completeAnalyticsArtifactsUploads(

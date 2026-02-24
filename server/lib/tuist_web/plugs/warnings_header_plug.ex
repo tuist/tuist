@@ -11,7 +11,7 @@ defmodule TuistWeb.WarningsHeaderPlug do
 
   @assign_key :warnings
 
-  @minimum_supported_cli_version Version.parse!("4.56.1")
+  @minimum_supported_cli_version Version.parse!("4.118.1")
 
   def init(opts), do: opts
 

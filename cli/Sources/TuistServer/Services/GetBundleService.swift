@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 @Mockable
@@ -29,10 +29,10 @@ enum GetBundleServiceError: LocalizedError {
     }
 }
 
-public final class GetBundleService: GetBundleServicing {
+public struct GetBundleService: GetBundleServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

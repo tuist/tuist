@@ -6,7 +6,7 @@ protocol Formatting {
     func format(_ line: String) -> String?
 }
 
-final class Formatter: Formatting {
+struct Formatter: Formatting {
     private let formatter: XCBeautifier
 
     init(environment: Environmenting = Environment.current) {

@@ -6,6 +6,7 @@ defmodule TuistWeb.API.ProjectsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
+  alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Project
   alias TuistWeb.Authentication
@@ -40,7 +41,8 @@ defmodule TuistWeb.API.ProjectsController do
              description:
                "Organization to create the project with. If not specified, the project will be created with the current user's personal account.",
              deprecated: true
-           }
+           },
+           build_system: BuildSystem.schema()
          }
        }},
     responses: %{
@@ -56,6 +58,7 @@ defmodule TuistWeb.API.ProjectsController do
     organization_handle = Map.get(body_params, :organization, nil)
     project_handle = Map.get(body_params, :name, nil)
     full_handle = Map.get(body_params, :full_handle, nil)
+    build_system = Map.get(body_params, :build_system, nil)
 
     handles =
       if is_nil(project_handle) do
@@ -77,14 +80,15 @@ defmodule TuistWeb.API.ProjectsController do
         })
 
       {:ok, handles} ->
-        create_project_with_project_and_account_handles(conn, handles)
+        create_project_with_project_and_account_handles(conn, handles, build_system)
     end
   end
 
-  defp create_project_with_project_and_account_handles(conn, %{
-         project_handle: project_handle,
-         account_handle: account_handle
-       }) do
+  defp create_project_with_project_and_account_handles(
+         conn,
+         %{project_handle: project_handle, account_handle: account_handle},
+         build_system
+       ) do
     user = Authentication.current_user(conn)
     account = Accounts.get_account_by_handle(account_handle)
 
@@ -111,11 +115,21 @@ defmodule TuistWeb.API.ProjectsController do
 
       true ->
         try do
+          opts =
+            if build_system == nil do
+              []
+            else
+              [build_system: String.to_existing_atom(build_system)]
+            end
+
           project =
-            Projects.create_project!(%{
-              name: project_handle,
-              account: account
-            })
+            Projects.create_project!(
+              %{
+                name: project_handle,
+                account: account
+              },
+              opts
+            )
 
           conn
           |> put_status(:ok)
@@ -125,7 +139,8 @@ defmodule TuistWeb.API.ProjectsController do
             token: project.token,
             default_branch: project.default_branch,
             repository_url: Projects.get_repository_url(project),
-            visibility: project.visibility
+            visibility: project.visibility,
+            build_system: project.build_system
           })
         rescue
           e in Ecto.InvalidChangesetError ->
@@ -179,7 +194,8 @@ defmodule TuistWeb.API.ProjectsController do
             full_name: project_account.handle,
             token: project_account.project.token,
             default_branch: project_account.project.default_branch,
-            visibility: project_account.project.visibility
+            visibility: project_account.project.visibility,
+            build_system: project_account.project.build_system
           }
         end)
 
@@ -252,7 +268,8 @@ defmodule TuistWeb.API.ProjectsController do
           token: project.token,
           default_branch: project.default_branch,
           repository_url: Projects.get_repository_url(project),
-          visibility: project.visibility
+          visibility: project.visibility,
+          build_system: project.build_system
         })
     end
   end

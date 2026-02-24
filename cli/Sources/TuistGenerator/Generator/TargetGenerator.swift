@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -6,7 +7,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol TargetGenerating: AnyObject {
+protocol TargetGenerating {
     func generateTarget(
         target: Target,
         project: Project,
@@ -16,23 +17,24 @@ protocol TargetGenerating: AnyObject {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXNativeTarget
+    ) async throws -> PBXTarget
 
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
-        nativeTargets: [String: PBXNativeTarget],
+        nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
     ) throws
 }
 
-final class TargetGenerator: TargetGenerating {
+struct TargetGenerator: TargetGenerating {
     // MARK: - Attributes
 
     let configGenerator: ConfigGenerating
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
     let buildRulesGenerator: BuildRulesGenerating
+    let fileSystem: FileSysteming
 
     // MARK: - Init
 
@@ -40,12 +42,14 @@ final class TargetGenerator: TargetGenerating {
         configGenerator: ConfigGenerating = ConfigGenerator(),
         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
         linkGenerator: LinkGenerating = LinkGenerator(),
-        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator()
+        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.configGenerator = configGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.linkGenerator = linkGenerator
         self.buildRulesGenerator = buildRulesGenerator
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TargetGenerating
@@ -60,31 +64,41 @@ final class TargetGenerator: TargetGenerating {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXNativeTarget {
+    ) async throws -> PBXTarget {
         Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
 
-        // Products reference.
-        let productFileReference = fileElements.products[target.name]!
-
-        // Target
-        Logger.current.debug("TargetGenerator: Creating PBXNativeTarget for \(target.name)")
-        let pbxTarget = PBXNativeTarget(
-            name: target.name,
-            buildConfigurationList: nil,
-            buildPhases: [],
-            buildRules: [],
-            dependencies: [],
-            productInstallPath: nil,
-            productName: target.productName,
-            product: productFileReference,
-            productType: target.product.xcodeValue
-        )
+        let pbxTarget: PBXTarget
+        if target.isAggregate {
+            Logger.current.debug("TargetGenerator: Creating PBXAggregateTarget for \(target.name)")
+            pbxTarget = PBXAggregateTarget(
+                name: target.name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productName: target.productName
+            )
+        } else {
+            let productFileReference = fileElements.products[target.name]!
+            Logger.current.debug("TargetGenerator: Creating PBXNativeTarget for \(target.name)")
+            pbxTarget = PBXNativeTarget(
+                name: target.name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productInstallPath: nil,
+                productName: target.productName,
+                product: productFileReference,
+                productType: target.product.xcodeValue
+            )
+        }
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
         // Buildable folders
         Logger.current.debug("TargetGenerator: Generating synchronized groups for \(target.name)")
-        generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
+        try await generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
 
         // Pre actions
         Logger.current.debug("TargetGenerator: Generating pre-scripts for \(target.name)")
@@ -154,9 +168,9 @@ final class TargetGenerator: TargetGenerating {
     private func generateSynchronizedGroups(
         target: Target,
         fileElements: ProjectFileElements,
-        pbxTarget: PBXNativeTarget,
+        pbxTarget: PBXTarget,
         pbxproj: PBXProj
-    ) {
+    ) async throws {
         for buildableFolder in target.buildableFolders {
             guard let fileElement = fileElements.elements[buildableFolder.path],
                   let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
@@ -165,10 +179,20 @@ final class TargetGenerator: TargetGenerating {
             }
             pbxTarget.fileSystemSynchronizedGroups?.append(synchronizedGroup)
 
+            var explicitFolders: [String] = []
+
             for exception in buildableFolder.exceptions {
                 let membershipExceptions = exception.excluded.compactMap {
                     $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
                 }
+
+                for excludedPath in exception.excluded {
+                    guard excludedPath.isDescendant(of: buildableFolder.path) else { continue }
+                    if try await fileSystem.exists(excludedPath, isDirectory: true) {
+                        explicitFolders.append(excludedPath.relative(to: buildableFolder.path).pathString)
+                    }
+                }
+
                 let additionalCompilerFlagsByRelativePath = Dictionary(uniqueKeysWithValues: exception.compilerFlags
                     .compactMap { path, compilerFlags -> (
                         String,
@@ -179,16 +203,32 @@ final class TargetGenerator: TargetGenerating {
                     }
                 )
 
+                let platformFiltersByRelativePath = Dictionary(
+                    uniqueKeysWithValues: exception.platformFilters
+                        .compactMap { path, condition -> (String, [String])? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (
+                                path.relative(to: buildableFolder.path).pathString,
+                                condition.platformFilters.xcodeprojValue
+                            )
+                        }
+                )
+
                 let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
                     target: pbxTarget,
                     membershipExceptions: membershipExceptions,
                     publicHeaders: exception.publicHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     privateHeaders: exception.privateHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
-                    attributesByRelativePath: nil
+                    attributesByRelativePath: nil,
+                    platformFiltersByRelativePath: platformFiltersByRelativePath.isEmpty ? nil : platformFiltersByRelativePath
                 )
                 pbxproj.add(object: exceptionSet)
                 synchronizedGroup.exceptions?.append(exceptionSet)
+            }
+
+            if !explicitFolders.isEmpty {
+                synchronizedGroup.explicitFolders = explicitFolders
             }
         }
     }
@@ -196,7 +236,7 @@ final class TargetGenerator: TargetGenerating {
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
-        nativeTargets: [String: PBXNativeTarget],
+        nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
     ) throws {
         Logger.current.debug("TargetGenerator: Generating dependencies for \(targets.count) targets")
@@ -210,7 +250,14 @@ final class TargetGenerator: TargetGenerating {
             for dependency in dependenciesAndConditions {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
-                let pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
+                let pbxTargetDependency: PBXTargetDependency?
+                if let nativeTarget = nativeTarget as? PBXNativeTarget {
+                    pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
+                } else if let aggregateTarget = nativeTarget as? PBXAggregateTarget {
+                    pbxTargetDependency = try aggregateTarget.addDependency(target: nativeDependency)
+                } else {
+                    pbxTargetDependency = nil
+                }
                 pbxTargetDependency?.applyCondition(dependency.condition, applicableTo: targetSpec)
             }
         }

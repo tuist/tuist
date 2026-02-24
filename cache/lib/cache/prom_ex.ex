@@ -16,7 +16,6 @@ defmodule Cache.PromEx do
        router: CacheWeb.Router,
        endpoint: CacheWeb.Endpoint,
        duration_buckets: [10, 100, 500, 1000, 5000, 10_000, 30_000]},
-      PromEx.Plugins.Ecto,
       PromEx.Plugins.Oban,
       Cache.CAS.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
@@ -24,6 +23,7 @@ defmodule Cache.PromEx do
       Cache.Finch.PromExPlugin,
       Cache.SQLiteBuffer.PromExPlugin,
       Cache.S3Transfers.PromExPlugin,
+      Cache.S3.PromExPlugin,
       Cache.Authentication.PromExPlugin
     ]
   end

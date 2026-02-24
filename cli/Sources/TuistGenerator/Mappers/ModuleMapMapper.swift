@@ -8,7 +8,7 @@ import XcodeGraph
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
 /// not portable, as the modulemap could contain absolute paths.
-public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
+public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"

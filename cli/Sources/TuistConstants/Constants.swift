@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    @TaskLocal public static var version: String! = "4.140.2"
+    @TaskLocal public static var version: String! = "4.152.0"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -27,11 +27,13 @@ public enum Constants {
     public static let tuistGeneratedFileName = ".tuist-generated"
 
     public static let tuistManifestFileName = "Tuist.swift"
+    public static let tuistTomlFileName = "tuist.toml"
+    public static let gradlePluginVersion = "0.2.1"
 
     /// The cache version.
     /// This should change only when it changes the logic to map a `XcodeGraph.Target` to a cached build artifact.
     /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
-    public static let cacheVersion = "1.0.0"
+    public static let cacheVersion = "1.2.0"
 
     public enum SwiftPackageManager {
         public static let packageSwiftName = "Package.swift"

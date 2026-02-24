@@ -5,7 +5,7 @@ import TuistSupport
 protocol GraphPrinting {}
 
 /// Outputs the graph to the standard output.
-class GraphPrinter: GraphPrinting {
+struct GraphPrinter: GraphPrinting {
 //    /// Printer.
 //    let printer: Printing
 //

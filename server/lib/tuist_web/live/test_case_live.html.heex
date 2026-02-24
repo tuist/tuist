@@ -53,14 +53,14 @@
       >
         <.badge
           :if={@test_case_detail.module_name != ""}
-          label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case_detail.module_name}"}
+          label={"#{module_label(@selected_project)}: #{@test_case_detail.module_name}"}
           color="primary"
           style="light-fill"
           size="large"
         />
         <.badge
           :if={@test_case_detail.suite_name != ""}
-          label={"#{dgettext("dashboard_tests", "Suite")}: #{@test_case_detail.suite_name}"}
+          label={"#{suite_label(@selected_project)}: #{@test_case_detail.suite_name}"}
           color="primary"
           style="light-fill"
           size="large"
@@ -507,7 +507,7 @@
           end
         }
       >
-        <:col :let={test_case_run} label={dgettext("dashboard_tests", "Scheme")}>
+        <:col :let={test_case_run} label={scheme_label(@selected_project)}>
           <div data-part="cell" data-type="text_and_description">
             <div data-part="column">
               <span data-part="label">

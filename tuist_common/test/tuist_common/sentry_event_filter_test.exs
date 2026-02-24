@@ -13,6 +13,11 @@ defmodule TuistCommon.SentryEventFilterTest do
   end
 
   describe "before_send/1" do
+    test "excludes Bandit.HTTPError" do
+      event = event(%{original_exception: %Bandit.HTTPError{message: "Body read timeout"}})
+      assert SentryEventFilter.before_send(event) == false
+    end
+
     test "excludes Bandit.TransportError" do
       event = event(%{original_exception: %Bandit.TransportError{message: "test"}})
       assert SentryEventFilter.before_send(event) == false
@@ -34,10 +39,13 @@ defmodule TuistCommon.SentryEventFilterTest do
     end
 
     test "excludes ignored exception types even without original_exception" do
-      event = event(%{
-        original_exception: nil,
-        exception: [%Sentry.Interfaces.Exception{type: "Phoenix.Router.NoRouteError", value: "no route"}]
-      })
+      event =
+        event(%{
+          original_exception: nil,
+          exception: [
+            %Sentry.Interfaces.Exception{type: "Phoenix.Router.NoRouteError", value: "no route"}
+          ]
+        })
 
       assert SentryEventFilter.before_send(event) == false
     end

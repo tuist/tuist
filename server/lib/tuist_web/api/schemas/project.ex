@@ -37,7 +37,8 @@ defmodule TuistWeb.API.Schemas.Project do
         type: :string,
         description: "The visibility of the project",
         enum: [:private, :public]
-      }
+      },
+      build_system: TuistWeb.API.Schemas.BuildSystem.schema()
     }
   })
 end

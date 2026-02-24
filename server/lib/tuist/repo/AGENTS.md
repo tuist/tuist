@@ -3,7 +3,7 @@
 This context owns the primary Ecto repository and DB pool utilities.
 
 ## Responsibilities
-- Define the Postgres repo and check Timescale availability.
+- Define the Postgres repo.
 - Surface connection pool metrics for monitoring.
 
 ## Boundaries

@@ -283,6 +283,128 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert "does not exist" in errors_on(changeset_with_error).project_id
     end
 
+    test "is invalid when bundle_size category has a non-bundle-size metric" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for metric <- [:p50, :p90, :p99, :average] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :bundle_size,
+            metric: metric,
+            deviation_percentage: 20.0,
+            git_branch: "main",
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid? == false,
+               "Expected metric #{metric} to be invalid for bundle_size category"
+
+        assert "is invalid for bundle_size category" in errors_on(changeset).metric
+      end
+    end
+
+    test "is valid when bundle_size category has install_size or download_size metric" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for metric <- [:install_size, :download_size] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :bundle_size,
+            metric: metric,
+            deviation_percentage: 20.0,
+            git_branch: "main",
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid?, "Expected metric #{metric} to be valid for bundle_size category"
+      end
+    end
+
+    test "is invalid when non-bundle-size category has a bundle-size metric" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for category <- [:build_run_duration, :test_run_duration, :cache_hit_rate],
+          metric <- [:install_size, :download_size] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: category,
+            metric: metric,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid? == false,
+               "Expected metric #{metric} to be invalid for #{category} category"
+
+        assert "is invalid for #{category} category" in errors_on(changeset).metric
+      end
+    end
+
+    test "accepts scheme for build_run_duration category" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          scheme: "MyApp",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :scheme) == "MyApp"
+    end
+
+    test "accepts bundle_name for bundle_size category" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :bundle_size,
+          metric: :install_size,
+          deviation_percentage: 20.0,
+          git_branch: "main",
+          bundle_name: "MyApp",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :bundle_name) == "MyApp"
+    end
+
     test "defaults name to Untitled" do
       # Given
       project = ProjectsFixtures.project_fixture()

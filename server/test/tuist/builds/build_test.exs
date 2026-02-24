@@ -14,7 +14,7 @@ defmodule Tuist.Builds.BuildTest do
       scheme: "App",
       project_id: 1,
       account_id: 1,
-      status: :success,
+      status: "success",
       inserted_at: ~U[2023-10-01 12:00:00Z]
     }
 
@@ -88,7 +88,7 @@ defmodule Tuist.Builds.BuildTest do
           ci_run_id: "run-123",
           ci_project_handle: "org/repo",
           ci_host: "github.com",
-          ci_provider: :github
+          ci_provider: "github"
         })
 
       changeset = Build.create_changeset(%Build{}, attrs)

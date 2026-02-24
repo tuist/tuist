@@ -4,11 +4,14 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConfig
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
 import TuistLaunchctl
 import TuistLoader
+import TuistLoggerTesting
 import TuistServer
 import TuistSupport
 import TuistTesting

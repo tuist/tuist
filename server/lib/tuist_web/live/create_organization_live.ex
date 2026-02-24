@@ -3,6 +3,8 @@ defmodule TuistWeb.CreateOrganizationLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
 
@@ -71,6 +73,7 @@ defmodule TuistWeb.CreateOrganizationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
@@ -80,9 +83,7 @@ defmodule TuistWeb.CreateOrganizationLive do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
       {:ok, organization} ->
         socket =
-          socket
-          |> put_flash(:organization_id, organization.id)
-          |> push_navigate(to: ~p"/projects/new")
+          push_navigate(socket, to: ~p"/projects/new?account_id=#{organization.account.id}")
 
         {:noreply, socket}
 

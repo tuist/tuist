@@ -2,7 +2,7 @@
 title: "Speed up your builds with the remote Tuist cache for Xcode"
 category: "product"
 tags: ["xcode", "product"]
-excerpt: "Learn how to use the new Xcode compilation cache with Tuist to cut build times in local and CI environments"
+excerpt: "Learn how the Xcode compilation cache works and how Tuist shares it to cut build times in local and CI environments"
 highlighted: true
 og_image_path: /marketing/images/blog/2025/10/22/xcode-cache/og.jpg
 author: fortmarek

@@ -271,8 +271,9 @@ defmodule Tuist.AppBuilds do
     end
   end
 
-  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build_id: app_build_id}) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build_id}.zip"
+  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build: app_build}) do
+    extension = if app_build.type == :apk, do: "apk", else: "zip"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build.id}.#{extension}"
   end
 
   def icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
@@ -299,7 +300,14 @@ defmodule Tuist.AppBuilds do
       :visionos -> "visionOS"
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
+      :android -> "Android"
     end
+  end
+
+  def latest_apk_app_build_for_preview(%Preview{} = preview) do
+    preview.app_builds
+    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    |> Enum.find(&(&1.type == :apk))
   end
 
   def latest_ipa_app_build_for_preview(%Preview{} = preview) do

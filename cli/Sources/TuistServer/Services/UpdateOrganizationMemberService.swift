@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 public protocol UpdateOrganizationMemberServicing {
     func updateOrganizationMember(
@@ -27,7 +27,7 @@ enum UpdateOrganizationMemberServiceError: LocalizedError {
     }
 }
 
-public final class UpdateOrganizationMemberService: UpdateOrganizationMemberServicing {
+public struct UpdateOrganizationMemberService: UpdateOrganizationMemberServicing {
     public init() {}
 
     public func updateOrganizationMember(

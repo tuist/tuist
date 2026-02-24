@@ -48,7 +48,7 @@ public struct TargetDependencyCount: Encodable {
     public let linkedFrameworksCount: Int
 }
 
-public final class TargetsExtractor: TargetsExtracting {
+public struct TargetsExtractor: TargetsExtracting {
     private let fileSystem: FileSysteming
 
     // MARK: - Init

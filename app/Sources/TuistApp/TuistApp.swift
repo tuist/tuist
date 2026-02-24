@@ -35,8 +35,8 @@ import TuistServer
                 }
             }
 
-            // It is not possible to set `FluidMenuBarExtra` as the main scene.
-            // To get around this, we're removing empty Settings view.
+            // `FluidMenuBarExtra` cannot be used as the main scene.
+            // To get around this, we're returning an empty Settings view.
             // In the future, we should implement the Settings view, for example, to allow setting apps shown in the quick
             // launcher.
             return Settings {

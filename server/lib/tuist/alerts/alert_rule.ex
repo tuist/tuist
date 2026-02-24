@@ -12,8 +12,10 @@ defmodule Tuist.Alerts.AlertRule do
   alias Tuist.Alerts.Alert
   alias Tuist.Projects.Project
 
-  @categories [build_run_duration: 0, test_run_duration: 1, cache_hit_rate: 2]
-  @metrics [p50: 0, p90: 1, p99: 2, average: 3]
+  @categories [build_run_duration: 0, test_run_duration: 1, cache_hit_rate: 2, bundle_size: 3]
+  @metrics [p50: 0, p90: 1, p99: 2, average: 3, install_size: 4, download_size: 5]
+  @bundle_size_metrics [:install_size, :download_size]
+  @duration_metrics [:p50, :p90, :p99, :average]
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
@@ -24,8 +26,11 @@ defmodule Tuist.Alerts.AlertRule do
     field :metric, Ecto.Enum, values: @metrics
     field :deviation_percentage, :float
     field :rolling_window_size, :integer
+    field :git_branch, :string
     field :slack_channel_id, :string
     field :slack_channel_name, :string
+    field :scheme, :string, default: ""
+    field :bundle_name, :string, default: ""
 
     belongs_to :project, Project, type: :integer
     has_many :alerts, Alert
@@ -42,8 +47,11 @@ defmodule Tuist.Alerts.AlertRule do
       :metric,
       :deviation_percentage,
       :rolling_window_size,
+      :git_branch,
       :slack_channel_id,
-      :slack_channel_name
+      :slack_channel_name,
+      :scheme,
+      :bundle_name
     ])
     |> validate_required([
       :project_id,
@@ -51,14 +59,50 @@ defmodule Tuist.Alerts.AlertRule do
       :category,
       :metric,
       :deviation_percentage,
-      :rolling_window_size,
       :slack_channel_id,
       :slack_channel_name
     ])
     |> validate_number(:deviation_percentage, greater_than: 0)
-    |> validate_number(:rolling_window_size, greater_than: 0)
+    |> validate_category_fields()
     |> foreign_key_constraint(:project_id)
   end
+
+  defp validate_category_fields(changeset) do
+    category = get_field(changeset, :category)
+    metric = get_field(changeset, :metric)
+
+    changeset =
+      case category do
+        :bundle_size ->
+          validate_required(changeset, [:git_branch])
+
+        _ ->
+          changeset
+          |> validate_required([:rolling_window_size])
+          |> validate_number(:rolling_window_size, greater_than: 0)
+      end
+
+    validate_metric_for_category(changeset, category, metric)
+  end
+
+  defp validate_metric_for_category(changeset, :bundle_size, metric) when not is_nil(metric) do
+    if metric in @bundle_size_metrics do
+      changeset
+    else
+      add_error(changeset, :metric, "is invalid for bundle_size category")
+    end
+  end
+
+  defp validate_metric_for_category(changeset, category, metric)
+       when category in [:build_run_duration, :test_run_duration, :cache_hit_rate] and not is_nil(metric) do
+    if metric in @duration_metrics do
+      changeset
+    else
+      add_error(changeset, :metric, "is invalid for #{category} category")
+    end
+  end
+
+  defp validate_metric_for_category(changeset, _category, _metric), do: changeset
 
   def categories, do: @categories
   def metrics, do: @metrics

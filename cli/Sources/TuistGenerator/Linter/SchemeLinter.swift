@@ -8,7 +8,7 @@ protocol SchemeLinting {
     func lint(project: Project) async throws -> [LintingIssue]
 }
 
-class SchemeLinter: SchemeLinting {
+struct SchemeLinter: SchemeLinting {
     private let fileSystem: FileSysteming
 
     init(

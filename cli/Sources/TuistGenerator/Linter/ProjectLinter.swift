@@ -3,11 +3,11 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-protocol ProjectLinting: AnyObject {
+protocol ProjectLinting {
     func lint(_ project: Project) async throws -> [LintingIssue]
 }
 
-class ProjectLinter: ProjectLinting {
+struct ProjectLinter: ProjectLinting {
     // MARK: - Attributes
 
     let targetLinter: TargetLinting
@@ -50,7 +50,7 @@ class ProjectLinter: ProjectLinting {
         return try await project.targets.values
             .map { $0 }
             .concurrentFlatMap { target in
-                try await self.targetLinter.lint(target: target, options: project.options)
+                try await targetLinter.lint(target: target, options: project.options)
             }
     }
 }

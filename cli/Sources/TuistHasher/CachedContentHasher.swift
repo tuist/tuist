@@ -6,7 +6,7 @@ import TuistThreadSafe
 
 /// `CachedContentHasher`
 /// is a wrapper on top of `ContentHasher` that adds an in-memory cache to avoid re-computing the same hashes
-public final class CachedContentHasher: ContentHashing {
+public struct CachedContentHasher: ContentHashing {
     private let contentHasher: ContentHashing
 
     /// In memory cache for files that have already been hashed.

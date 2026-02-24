@@ -49,6 +49,33 @@
         services = ["grafana-alloy"];
       };
 
+      grafanaCloudTempoUrl = {
+        reference = "op://cache/Grafana-Alloy/GRAFANA_CLOUD_TEMPO_URL";
+        path = "/run/secrets/grafana-cloud-tempo-url";
+        mode = "0400";
+        owner = config.systemd.services.grafana-alloy.serviceConfig.User or "root";
+        group = config.systemd.services.grafana-alloy.serviceConfig.Group or "root";
+        services = ["grafana-alloy"];
+      };
+
+      grafanaCloudTempoUsername = {
+        reference = "op://cache/Grafana-Alloy/GRAFANA_CLOUD_TEMPO_USERNAME";
+        path = "/run/secrets/grafana-cloud-tempo-username";
+        mode = "0400";
+        owner = config.systemd.services.grafana-alloy.serviceConfig.User or "root";
+        group = config.systemd.services.grafana-alloy.serviceConfig.Group or "root";
+        services = ["grafana-alloy"];
+      };
+
+      grafanaCloudTempoPassword = {
+        reference = "op://cache/Grafana-Alloy/GRAFANA_CLOUD_TEMPO_PASSWORD";
+        path = "/run/secrets/grafana-cloud-tempo-password";
+        mode = "0400";
+        owner = config.systemd.services.grafana-alloy.serviceConfig.User or "root";
+        group = config.systemd.services.grafana-alloy.serviceConfig.Group or "root";
+        services = ["grafana-alloy"];
+      };
+
       grafanaCloudLokiPassword = {
         reference = "op://cache/Grafana-Alloy/GRAFANA_CLOUD_LOKI_PASSWORD";
         path = "/run/secrets/grafana-cloud-loki-password";

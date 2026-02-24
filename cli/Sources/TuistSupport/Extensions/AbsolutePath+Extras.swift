@@ -1,8 +1,12 @@
-#if os(Linux)
+#if canImport(Glibc)
     import Glibc
 
     let systemGlob = Glibc.glob
-#else
+#elseif canImport(Musl)
+    import Musl
+
+    let systemGlob = Musl.glob
+#elseif canImport(Darwin)
     import Darwin
 
     let systemGlob = Darwin.glob
@@ -10,7 +14,9 @@
 import Foundation
 import Path
 import TuistLogging
-import UniformTypeIdentifiers
+#if os(macOS)
+    import UniformTypeIdentifiers
+#endif
 
 public enum GlobError: FatalError, Equatable {
     case nonExistentDirectory(InvalidGlob)
@@ -36,12 +42,14 @@ extension AbsolutePath {
         URL(fileURLWithPath: pathString)
     }
 
-    /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
-    public var isPackage: Bool {
-        let ext = URL(fileURLWithPath: pathString).pathExtension
-        guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
-        return utType.conforms(to: UTType.package)
-    }
+    #if os(macOS)
+        /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
+        public var isPackage: Bool {
+            let ext = URL(fileURLWithPath: pathString).pathExtension
+            guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
+            return utType.conforms(to: UTType.package)
+        }
+    #endif
 
     /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
@@ -122,10 +130,12 @@ extension AbsolutePath {
         return try! AbsolutePath(validating: components[0 ..< index].joined(separator: "/")) // swiftlint:disable:this force_try
     }
 
-    /// Returns the hash of the file the path points to.
-    public func sha256() -> Data? {
-        try? SHA256Digest.file(at: url)
-    }
+    #if os(macOS)
+        /// Returns the hash of the file the path points to.
+        public func sha256() -> Data? {
+            try? SHA256Digest.file(at: url)
+        }
+    #endif
 }
 
 extension AbsolutePath: Swift.ExpressibleByStringLiteral {

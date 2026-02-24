@@ -100,6 +100,7 @@ RUN mkdir -p /app/build && cp burrito_out/runner_macos /app/build/runner
 FROM deps-builder AS builder
 
 COPY server/priv priv
+COPY skills/skills priv/static/skills
 COPY server/assets assets
 
 COPY server/lib lib

@@ -5,6 +5,7 @@ defmodule TuistWeb.TestCaseLive do
 
   import Noora.Filter
   import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
@@ -391,16 +392,13 @@ defmodule TuistWeb.TestCaseLive do
     order_by = [String.to_existing_atom(sort_by)]
 
     {test_case_runs, meta} =
-      Tests.list_test_case_runs_by_test_case_id(
-        test_case_id,
-        %{
-          page: page,
-          page_size: @table_page_size,
-          filters: flop_filters,
-          order_by: order_by,
-          order_directions: order_directions
-        }
-      )
+      Tests.list_test_case_runs(%{
+        page: page,
+        page_size: @table_page_size,
+        filters: [%{field: :test_case_id, op: :==, value: test_case_id} | flop_filters],
+        order_by: order_by,
+        order_directions: order_directions
+      })
 
     socket
     |> assign(:test_case_runs, test_case_runs)

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -320,6 +321,14 @@ class ProjectFileElements {
                     groups: groups,
                     pbxproj: pbxproj
                 )
+            case let .foreignBuildOutput(path, _, _):
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case .packageProduct:
                 break
             }
@@ -346,6 +355,21 @@ class ProjectFileElements {
                 name: path.basename,
                 expectedSignature: expectedSignature,
                 toGroup: groups.cachedFrameworks,
+                pbxproj: pbxproj
+            )
+            compiled[path] = fileElement
+        } else if path.pathString
+            .contains("/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/")
+        {
+            guard compiled[path] == nil else {
+                return
+            }
+            let fileElement = addFileElementWithAbsolutePath(
+                from: sourceRootPath,
+                fileAbsolutePath: path,
+                name: path.basename,
+                expectedSignature: expectedSignature,
+                toGroup: groups.frameworks,
                 pbxproj: pbxproj
             )
             compiled[path] = fileElement

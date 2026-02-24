@@ -1,6 +1,6 @@
 import Foundation
 
-class ManifestTemplate {
+struct ManifestTemplate {
     private let workspaceTemplate = """
     import ProjectDescription
 

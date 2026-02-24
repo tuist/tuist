@@ -1,6 +1,6 @@
 import Path
 
-class HashingFilesFilter {
+struct HashingFilesFilter {
     /// an array of filters, which should return if a path should be included in hashing calculations or not.
     private let filters: [(AbsolutePath) -> Bool]
 

@@ -38,6 +38,58 @@ if config_env() == :prod do
       environment_name: System.get_env("SENTRY_ENV") || "production"
   end
 
+  s3_endpoint = System.get_env("S3_ENDPOINT")
+
+  {s3_scheme, s3_host, s3_port} =
+    case s3_endpoint do
+      nil ->
+        {"https://", System.get_env("S3_HOST"), nil}
+
+      "" ->
+        {"https://", System.get_env("S3_HOST"), nil}
+
+      endpoint ->
+        uri = URI.parse(endpoint)
+
+        {host, port} =
+          case {uri.host, uri.port} do
+            {nil, _} -> {System.get_env("S3_HOST"), nil}
+            {host, nil} -> {host, nil}
+            {host, port} -> {host, port}
+          end
+
+        scheme = (uri.scheme || "https") <> "://"
+        {scheme, host, port}
+    end
+
+  s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID") || System.get_env("AWS_ACCESS_KEY_ID")
+  s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("AWS_SECRET_ACCESS_KEY")
+  s3_region = System.get_env("S3_REGION") || System.get_env("AWS_REGION")
+
+  s3_protocol =
+    case System.get_env("S3_PROTOCOL") do
+      protocol when is_binary(protocol) and protocol != "" -> [String.to_atom(protocol)]
+      _ -> [:http1]
+    end
+
+  s3_virtual_host =
+    case System.get_env("S3_VIRTUAL_HOST") do
+      val when val in ["1", "true"] -> true
+      _ -> false
+    end
+
+  otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+  s3_config =
+    [
+      scheme: s3_scheme,
+      host: s3_host,
+      region: s3_region,
+      virtual_host: s3_virtual_host
+    ]
+
+  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
+
   config :cache, Cache.Guardian,
     issuer: "tuist",
     secret_key: System.get_env("GUARDIAN_SECRET_KEY")
@@ -57,25 +109,58 @@ if config_env() == :prod do
     username: System.get_env("OBAN_WEB_USERNAME"),
     password: System.get_env("OBAN_WEB_PASSWORD")
 
-  config :cache, :s3, bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing")
+  config :cache, :s3,
+    bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
+    registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
+    protocols: s3_protocol
 
   config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
     storage_dir: System.get_env("STORAGE_DIR") || raise("environment variable STORAGE_DIR is missing"),
     disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 85.0),
     disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
-    api_key: System.get_env("TUIST_CACHE_API_KEY")
+    api_key: System.get_env("TUIST_CACHE_API_KEY"),
+    registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
+    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST")
 
-  config :ex_aws, :s3,
-    scheme: "https://",
-    host: System.get_env("S3_HOST"),
-    region: System.get_env("S3_REGION")
+  # Note: connect_options cannot be used with Finch
+  # Connection settings are handled at the Finch pool level
+  config :ex_aws, :req_opts, []
+  config :ex_aws, :s3, s3_config
 
   config :ex_aws,
-    access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
-    secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
-    region: System.get_env("S3_REGION"),
+    region: s3_region,
     http_client: TuistCommon.AWS.Client
 
+  cond do
+    s3_access_key_id && s3_secret_access_key ->
+      config :ex_aws,
+        access_key_id: s3_access_key_id,
+        secret_access_key: s3_secret_access_key
+
+    System.get_env("AWS_WEB_IDENTITY_TOKEN_FILE") ->
+      config :ex_aws,
+        access_key_id: [{:awscli, "profile_name", 30}],
+        secret_access_key: [{:awscli, "profile_name", 30}],
+        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
+
+    true ->
+      nil
+  end
+
   config :tuist_common, finch_name: Cache.Finch
+
+  if otel_endpoint do
+    config :opentelemetry,
+      traces_exporter: :otlp,
+      span_processor: :batch,
+      resource: [
+        service: [name: "tuist-cache", namespace: "tuist"],
+        deployment: [environment: System.get_env("DEPLOY_ENV") || "production"]
+      ]
+
+    config :opentelemetry_exporter,
+      otlp_protocol: :grpc,
+      otlp_endpoint: otel_endpoint
+  end
 end

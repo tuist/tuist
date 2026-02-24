@@ -144,20 +144,11 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        if !resources.resources.isEmpty || !coreDataModels.isEmpty {
-            return true
+        if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
+        let resourceExtensions = Self.validResourceExtensions + Self.validResourceCompatibleFolderExtensions
+        return buildableFolders.contains { folder in
+            folder.resolvedFiles.contains { resourceExtensions.contains($0.path.extension ?? "") }
         }
-        let resourceExtensions = Target.validResourceExtensions + Target.validResourceCompatibleFolderExtensions
-        return buildableFolders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { resourceExtensions.contains($0.path.extension ?? "") })
-        })
-    }
-
-    public var containsMetalFiles: Bool {
-        sources.contains(where: { $0.path.extension == "metal" }) ||
-            buildableFolders.contains(where: { folder in
-                folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
-            })
     }
 
     /// Returns if target is a generated resources bundle.

@@ -8,7 +8,7 @@ protocol TargetImportsScanning {
     func imports(for target: XcodeGraph.Target) async throws -> Set<String>
 }
 
-final class TargetImportsScanner: TargetImportsScanning {
+struct TargetImportsScanner: TargetImportsScanning {
     private let importSourceCodeScanner: ImportSourceCodeScanner
     private let fileSystem: FileSystem
 
@@ -30,7 +30,7 @@ final class TargetImportsScanner: TargetImportsScanning {
         }
         var imports = Set(
             try await filesToScan.concurrentMap(maxConcurrentTasks: 100) { file in
-                try await self.matchPattern(at: file)
+                try await matchPattern(at: file)
             }
             .flatMap { $0 }
         )

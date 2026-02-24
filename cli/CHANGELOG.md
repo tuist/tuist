@@ -1,6 +1,206 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.152.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add warningsAsErrors generation option by [@fortmarek](https://github.com/fortmarek) in [#9574](https://github.com/tuist/tuist/pull/9574)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.151.1...4.152.0
+
+## What's Changed in 4.151.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* replace deprecated tuist build recommendation in previews by [@fortmarek](https://github.com/fortmarek) in [#9562](https://github.com/tuist/tuist/pull/9562)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.151.0...4.151.1
+
+## What's Changed in 4.151.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* expand glob patterns in buildable folder exclusions by [@InderKumarRathore](https://github.com/InderKumarRathore) in [#9552](https://github.com/tuist/tuist/pull/9552)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.150.1...4.151.0
+
+## What's Changed in 4.150.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* expanding folder to input inner files when used as input in foreign build phase script by [@scarayaa](https://github.com/scarayaa) in [#9556](https://github.com/tuist/tuist/pull/9556)
+* place precompiled dependencies from SPM build directory in frameworks group by [@JanC](https://github.com/JanC) in [#9555](https://github.com/tuist/tuist/pull/9555)
+
+## New Contributors
+* [@scarayaa](https://github.com/scarayaa) made their first contribution in [#9556](https://github.com/tuist/tuist/pull/9556)
+* [@JanC](https://github.com/JanC) made their first contribution in [#9555](https://github.com/tuist/tuist/pull/9555)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.150.0...4.150.1
+
+## What's Changed in 4.150.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add platformFilters for buildable folder exceptions by [@fortmarek](https://github.com/fortmarek) in [#9545](https://github.com/tuist/tuist/pull/9545)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.149.1...4.150.0
+
+## What's Changed in 4.149.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Use latest Gradle plugin version in init and add takeaways by [@fortmarek](https://github.com/fortmarek) in [#9543](https://github.com/tuist/tuist/pull/9543)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.149.0...4.149.1
+
+## What's Changed in 4.149.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Android APK previews with cross-platform share and run by [@fortmarek](https://github.com/fortmarek) in [#9509](https://github.com/tuist/tuist/pull/9509)
+### 🐛 Bug Fixes
+
+* Prioritize local packages over registry versions by [@fdiaz](https://github.com/fdiaz) in [#9540](https://github.com/tuist/tuist/pull/9540)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.148.4...4.149.0
+
+## What's Changed in 4.148.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* apply PackageSettings.baseSettings.defaultSettings to SPM targets by [@hiltonc](https://github.com/hiltonc) in [#9301](https://github.com/tuist/tuist/pull/9301)
+* restore SRCROOT path resolution for cached target settings by [@fortmarek](https://github.com/fortmarek) in [#9531](https://github.com/tuist/tuist/pull/9531)
+* respect custom server url by [@yusufozgul](https://github.com/yusufozgul) in [#9524](https://github.com/tuist/tuist/pull/9524)
+* include buildable folder resources in Target.containsResources by [@hiltonc](https://github.com/hiltonc) in [#9290](https://github.com/tuist/tuist/pull/9290)
+* use product name as module name for SPM wrapper targets by [@pepicrft](https://github.com/pepicrft) in [#9370](https://github.com/tuist/tuist/pull/9370)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.148.1...4.148.4
+
+## What's Changed in 4.148.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add Android bundle support (AAB + APK) by [@fortmarek](https://github.com/fortmarek) in [#9506](https://github.com/tuist/tuist/pull/9506)
+* crash stack traces with formatted frames, attachments, and download URLs by [@fortmarek](https://github.com/fortmarek) in [#9436](https://github.com/tuist/tuist/pull/9436)
+### 🐛 Bug Fixes
+
+* pass jsonThroughNoora to Noora on Linux by [@fortmarek](https://github.com/fortmarek) in [#9516](https://github.com/tuist/tuist/pull/9516)
+* bump xcode version release by [@fortmarek](https://github.com/fortmarek) in [#9511](https://github.com/tuist/tuist/pull/9511)
+* preserve JSON logger for non-Noora commands on Linux by [@fortmarek](https://github.com/fortmarek) in [#9510](https://github.com/tuist/tuist/pull/9510)
+* don't run foreign build script when target is served from binary cache by [@fortmarek](https://github.com/fortmarek) in [#9501](https://github.com/tuist/tuist/pull/9501)
+* sanitize + character in intra-package target dependency names by [@pepicrft](https://github.com/pepicrft) in [#9437](https://github.com/tuist/tuist/pull/9437)
+* warn when skip test targets don't intersect by [@pepicrft](https://github.com/pepicrft) in [#9487](https://github.com/tuist/tuist/pull/9487)
+* add Swift toolchain library search path for ObjC targets linking static Swift dependencies by [@pepicrft](https://github.com/pepicrft) in [#9483](https://github.com/tuist/tuist/pull/9483)
+* resolve static ObjC xcframework search paths without Package.swift by [@pepicrft](https://github.com/pepicrft) in [#9440](https://github.com/tuist/tuist/pull/9440)
+* enable HTTP logging and server warnings on Linux by [@fortmarek](https://github.com/fortmarek) in [#9479](https://github.com/tuist/tuist/pull/9479)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.1...4.148.1
+
+## What's Changed in 4.146.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add foreign build system dependencies by [@fortmarek](https://github.com/fortmarek) in [#9400](https://github.com/tuist/tuist/pull/9400)
+### 🐛 Bug Fixes
+
+* fix cache building unnecessary Catalyst scheme for external dependencies by [@fortmarek](https://github.com/fortmarek) in [#9476](https://github.com/tuist/tuist/pull/9476)
+* increase inspect build activity log timeout and make it configurable by [@fortmarek](https://github.com/fortmarek) in [#9465](https://github.com/tuist/tuist/pull/9465)
+* fix CLI release (static linking, Musl imports, Bundle(for:)) by [@fortmarek](https://github.com/fortmarek) in [#9459](https://github.com/tuist/tuist/pull/9459)
+* use canImport(Musl) for Static Linux SDK compatibility by [@fortmarek](https://github.com/fortmarek) in [#9457](https://github.com/tuist/tuist/pull/9457)
+* remove OpenAPIURLSession from cross-platform targets for Linux static SDK by [@fortmarek](https://github.com/fortmarek) in [#9456](https://github.com/tuist/tuist/pull/9456)
+* restore cache run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9451](https://github.com/tuist/tuist/pull/9451)
+* only cache dependency checkouts in Linux CI jobs by [@fortmarek](https://github.com/fortmarek) in [#9447](https://github.com/tuist/tuist/pull/9447)
+* add missing tree-shake after focus targets in automation mapper chain by [@pepicrft](https://github.com/pepicrft) in [#9443](https://github.com/tuist/tuist/pull/9443)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.1
+
+## What's Changed in 4.145.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* support build system selection in project create by [@fortmarek](https://github.com/fortmarek) in [#9432](https://github.com/tuist/tuist/pull/9432)
+### 🐛 Bug Fixes
+
+* remove unused CacheBuiltArtifactsFetcher from CacheWarmCommandService by [@fortmarek](https://github.com/fortmarek) in [#9434](https://github.com/tuist/tuist/pull/9434)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.4...4.145.0
+
+## What's Changed in 4.144.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fall back to BUILD_DIR for derived data resolution by [@fortmarek](https://github.com/fortmarek) in [#9429](https://github.com/tuist/tuist/pull/9429)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.3...4.144.4
+
+## What's Changed in 4.144.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* embed cached static xcframeworks with resources transitively by [@pepicrft](https://github.com/pepicrft) in [#9419](https://github.com/tuist/tuist/pull/9419)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.2...4.144.3
+
+## What's Changed in 4.144.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* run StaticXCFrameworkModuleMapGraphMapper after cache replacement by [@pepicrft](https://github.com/pepicrft) in [#9427](https://github.com/tuist/tuist/pull/9427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.1...4.144.2
+
+## What's Changed in 4.144.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix flaky tests caused by Matcher.register race and TOCTOU in CachedManifestLoader by [@fortmarek](https://github.com/fortmarek) in [#9424](https://github.com/tuist/tuist/pull/9424)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.144.0...4.144.1
+
+## What's Changed in 4.144.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add Gradle project integration to tuist init by [@fortmarek](https://github.com/fortmarek) in [#9422](https://github.com/tuist/tuist/pull/9422)
+* add test case show and run commands with fix-flaky-tests skill by [@fortmarek](https://github.com/fortmarek) in [#9379](https://github.com/tuist/tuist/pull/9379)
+### 🐛 Bug Fixes
+
+* resolve derived data path from DERIVED_DATA_DIR env in inspect commands by [@fortmarek](https://github.com/fortmarek) in [#9396](https://github.com/tuist/tuist/pull/9396)
+* use correct TUIST_URL key for env variable lookup in login command by [@fortmarek](https://github.com/fortmarek) in [#9398](https://github.com/tuist/tuist/pull/9398)
+* strip debug symbols (dSYM/DWARF) from cached XCFrameworks by [@pepicrft](https://github.com/pepicrft) in [#9287](https://github.com/tuist/tuist/pull/9287)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.142.1...4.144.0
+
+## What's Changed in 4.142.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* make server commands available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9377](https://github.com/tuist/tuist/pull/9377)
+### 🐛 Bug Fixes
+
+* don't retry non-retryable errors in module cache download by [@fortmarek](https://github.com/fortmarek) in [#9394](https://github.com/tuist/tuist/pull/9394)
+* restore asset symbol generation for external static frameworks by [@pepicrft](https://github.com/pepicrft) in [#9382](https://github.com/tuist/tuist/pull/9382)
+* use correct bundle accessor for external dynamic frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9381](https://github.com/tuist/tuist/pull/9381)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.1...4.142.1
+
+## What's Changed in 4.141.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add debug logging to inspect build and test commands by [@fortmarek](https://github.com/fortmarek) in [#9384](https://github.com/tuist/tuist/pull/9384)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.0...4.141.1
+
+## What's Changed in 4.141.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add tuist.toml support by [@fortmarek](https://github.com/fortmarek) in [#9368](https://github.com/tuist/tuist/pull/9368)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.140.2...4.141.0
+
 ## What's Changed in 4.140.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

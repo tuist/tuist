@@ -1,4 +1,5 @@
 import TuistAcceptanceTesting
+import TuistInitCommand
 import TuistSupport
 import TuistTesting
 import XcodeProj

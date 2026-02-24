@@ -93,6 +93,7 @@ defmodule Cache.KeyValueStore do
 
       record ->
         Cachex.put(@cache_name, key, record.json_payload)
+        KeyValueBuffer.enqueue_access(key)
         {:ok, record.json_payload}
     end
   end

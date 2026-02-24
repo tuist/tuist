@@ -13,7 +13,8 @@
       "vue-demi"
     ],
     "overrides": {
-      "mdast-util-to-hast": "13.2.1"
+      "mdast-util-to-hast": "13.2.1",
+      "ajv": "8.18.0"
     }
   }
 }

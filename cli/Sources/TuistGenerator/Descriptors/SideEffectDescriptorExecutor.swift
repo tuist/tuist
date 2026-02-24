@@ -5,13 +5,13 @@ import TuistLogging
 import TuistSupport
 
 /// The protocol defines an interface for executing side effects.
-public protocol SideEffectDescriptorExecuting: AnyObject {
+public protocol SideEffectDescriptorExecuting {
     /// Executes the given side effects sequentially.
     /// - Parameter sideEffects: Side effects to be executed.
     func execute(sideEffects: [SideEffectDescriptor]) async throws
 }
 
-public final class SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
+public struct SideEffectDescriptorExecutor: SideEffectDescriptorExecuting {
     private let fileSystem: FileSystem
 
     public init(fileSystem: FileSystem = FileSystem()) {

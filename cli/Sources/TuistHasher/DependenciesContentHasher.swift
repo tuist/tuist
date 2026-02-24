@@ -52,12 +52,14 @@ enum DependenciesContentHasherError: FatalError, Equatable {
 
 /// `DependencyContentHasher`
 /// is responsible for computing a hash that uniquely identifies a target dependency
-public final class DependenciesContentHasher: DependenciesContentHashing {
+public struct DependenciesContentHasher: DependenciesContentHashing {
     private let contentHasher: ContentHashing
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 

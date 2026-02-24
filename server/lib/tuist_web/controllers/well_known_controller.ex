@@ -61,6 +61,33 @@ defmodule TuistWeb.WellKnownController do
     json(conn, association)
   end
 
+  def assetlinks(conn, _params) do
+    json(conn, [
+      %{
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: %{
+          namespace: "android_app",
+          package_name: "dev.tuist.app",
+          sha256_cert_fingerprints: android_cert_fingerprints()
+        }
+      }
+    ])
+  end
+
+  defp android_cert_fingerprints do
+    release = "D9:94:6C:7F:C9:CA:86:91:38:26:7C:21:BC:C9:92:10:91:DB:A7:31:C5:AE:8E:05:30:89:5B:11:94:CF:E2:2D"
+
+    if Environment.prod?() do
+      [release]
+    else
+      [
+        release,
+        # Debug signing certificate fingerprint used in development builds
+        "FE:7D:E5:E6:63:5D:E6:2B:7F:20:C0:2A:E3:B4:1F:81:3A:26:1D:96:2F:E5:57:FF:A1:7F:E2:5B:CF:63:E4:77"
+      ]
+    end
+  end
+
   defp get_app_id do
     team_id = "U6LC622NKF"
 

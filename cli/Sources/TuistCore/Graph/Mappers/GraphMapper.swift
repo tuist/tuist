@@ -8,7 +8,7 @@ public protocol GraphMapping {
 }
 
 /// A mapper that is initialized with a mapping function.
-public final class AnyGraphMapper: GraphMapping {
+public struct AnyGraphMapper: GraphMapping {
     /// A function to map the graph.
     let mapper: (Graph) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment)
 
@@ -23,7 +23,7 @@ public final class AnyGraphMapper: GraphMapping {
     }
 }
 
-public final class SequentialGraphMapper: GraphMapping {
+public struct SequentialGraphMapper: GraphMapping {
     /// List of mappers to be executed sequentially.
     private let mappers: [GraphMapping]
 

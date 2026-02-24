@@ -10,7 +10,7 @@ import XcodeGraph
 /// This mapper sets the right setting for downstream targets that depend on static xcframeworks linked by dynamic
 /// xcframeworks.
 /// See this PR for more context: https://github.com/tuist/tuist/pull/6757
-public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
+public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
@@ -29,17 +29,7 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        guard let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path)
-        else { return (graph, [], environment) }
-        let derivedDirectory = packageManifest
-            .parentDirectory
-            .appending(
-                components: [
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
-                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
-                ]
-            )
-
+        let derivedDirectory = try await derivedDirectory(for: graph)
         var sideEffects: [SideEffectDescriptor] = []
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -138,6 +128,25 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         )
     }
 
+    private func derivedDirectory(for graph: Graph) async throws -> AbsolutePath {
+        if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
+            return packageManifest.parentDirectory.appending(
+                components: [
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        } else {
+            return graph.path.appending(
+                components: [
+                    Constants.tuistDirectoryName,
+                    Constants.SwiftPackageManager.packageBuildDirectoryName,
+                    Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                ]
+            )
+        }
+    }
+
     private func moduleMapFlag(
         for xcframework: GraphDependency.XCFramework,
         derivedDirectory: AbsolutePath,
@@ -203,8 +212,6 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             for dependency in dependencies {
                 var dependencySettings = settings[dependency] ?? [:]
 
-                // When combining settings from a target at a different project path,
-                // transform $(SRCROOT)-relative paths to be relative to the current target's project
                 if case let GraphDependency.target(_, dependencyPath, _) = dependency,
                    dependencyPath != target.path
                 {

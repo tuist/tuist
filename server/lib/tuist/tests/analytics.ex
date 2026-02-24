@@ -84,6 +84,7 @@ defmodule Tuist.Tests.Analytics do
     |> apply_test_is_ci_filter(Keyword.get(opts, :is_ci))
     |> apply_test_is_flaky_filter(Keyword.get(opts, :is_flaky))
     |> apply_test_status_filter(Keyword.get(opts, :status))
+    |> apply_test_scheme_filter(Keyword.get(opts, :scheme))
   end
 
   defp apply_test_is_ci_filter(query, nil), do: query
@@ -98,6 +99,9 @@ defmodule Tuist.Tests.Analytics do
   defp apply_test_status_filter(query, "failure"), do: where(query, [t], t.status == "failure")
   defp apply_test_status_filter(query, "success"), do: where(query, [t], t.status == "success")
 
+  defp apply_test_scheme_filter(query, nil), do: query
+  defp apply_test_scheme_filter(query, scheme), do: where(query, [t], t.scheme == ^scheme)
+
   @doc """
   Returns analytics for quarantined tests count over time for a project.
   This computes the number of quarantined tests at each time bucket by
@@ -108,10 +112,8 @@ defmodule Tuist.Tests.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
-
-    date_format = get_clickhouse_date_format(clickhouse_time_bucket)
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    date_endpoints = Enum.map(dates, &date_to_end_of_bucket(&1, date_period))
 
     project_test_case_ids_subquery =
       from(tc in TestCase,
@@ -120,38 +122,33 @@ defmodule Tuist.Tests.Analytics do
         select: tc.id
       )
 
-    events_in_period =
+    max_endpoint = List.last(date_endpoints) || end_datetime
+
+    events =
       ClickHouseRepo.all(
         from(e in TestCaseEvent,
           where: e.test_case_id in subquery(project_test_case_ids_subquery),
           where: e.event_type in ["quarantined", "unquarantined"],
-          where: e.inserted_at >= ^start_datetime,
-          where: e.inserted_at <= ^end_datetime,
-          group_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
-          select: %{
-            date: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
-            quarantined: count(fragment("CASE WHEN ? = 'quarantined' THEN 1 END", e.event_type)),
-            unquarantined: count(fragment("CASE WHEN ? = 'unquarantined' THEN 1 END", e.event_type))
-          },
-          order_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format)
+          where: e.inserted_at <= ^max_endpoint,
+          select: %{test_case_id: e.test_case_id, event_type: e.event_type, inserted_at: e.inserted_at},
+          order_by: [asc: e.inserted_at]
         )
       )
 
-    initial_count = quarantined_count_before(project_id, start_datetime)
+    events_by_tc = Enum.group_by(events, & &1.test_case_id)
 
-    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+    values =
+      Enum.map(date_endpoints, fn endpoint ->
+        endpoint_naive = DateTime.to_naive(endpoint)
 
-    events_map =
-      Map.new(events_in_period, fn event ->
-        {normalise_date(event.date, date_period), {event.quarantined, event.unquarantined}}
-      end)
+        Enum.count(events_by_tc, fn {_tc_id, tc_events} ->
+          last_event =
+            tc_events
+            |> Enum.take_while(&(NaiveDateTime.compare(&1.inserted_at, endpoint_naive) != :gt))
+            |> List.last()
 
-    {values, _} =
-      Enum.map_reduce(dates, initial_count, fn date, running_count ->
-        normalized = normalise_date(date, date_period)
-        {quarantined, unquarantined} = Map.get(events_map, normalized, {0, 0})
-        new_count = max(running_count + quarantined - unquarantined, 0)
-        {new_count, new_count}
+          last_event != nil and last_event.event_type == "quarantined"
+        end)
       end)
 
     current_count = quarantined_count_at(project_id, end_datetime)
@@ -163,32 +160,16 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  defp quarantined_count_before(project_id, datetime) do
-    project_test_case_ids_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        group_by: tc.id,
-        select: tc.id
-      )
+  defp date_to_end_of_bucket(%Date{} = date, :day) do
+    DateTime.new!(date, ~T[23:59:59], "Etc/UTC")
+  end
 
-    events_query =
-      from(e in TestCaseEvent,
-        where: e.test_case_id in subquery(project_test_case_ids_subquery),
-        where: e.event_type in ["quarantined", "unquarantined"],
-        where: e.inserted_at < ^datetime,
-        select: %{
-          quarantined: count(fragment("CASE WHEN ? = 'quarantined' THEN 1 END", e.event_type)),
-          unquarantined: count(fragment("CASE WHEN ? = 'unquarantined' THEN 1 END", e.event_type))
-        }
-      )
+  defp date_to_end_of_bucket(%Date{} = date, :month) do
+    DateTime.new!(Date.end_of_month(date), ~T[23:59:59], "Etc/UTC")
+  end
 
-    result = ClickHouseRepo.one(events_query)
-
-    if result do
-      max((result.quarantined || 0) - (result.unquarantined || 0), 0)
-    else
-      0
-    end
+  defp date_to_end_of_bucket(%DateTime{} = datetime, :hour) do
+    DateTime.add(datetime, 3599, :second)
   end
 
   defp quarantined_count_at(project_id, datetime) do
@@ -297,6 +278,7 @@ defmodule Tuist.Tests.Analytics do
 
   defp test_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
+    scheme = Keyword.get(opts, :scheme)
 
     query =
       from(t in Test,
@@ -313,6 +295,8 @@ defmodule Tuist.Tests.Analytics do
         false -> where(query, [t], t.is_ci == false)
       end
 
+    query = apply_test_scheme_filter(query, scheme)
+
     result = ClickHouseRepo.one(query)
 
     case result do
@@ -326,6 +310,7 @@ defmodule Tuist.Tests.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     is_ci = Keyword.get(opts, :is_ci)
+    scheme = Keyword.get(opts, :scheme)
 
     query =
       from(t in Test,
@@ -347,11 +332,14 @@ defmodule Tuist.Tests.Analytics do
         false -> where(query, [t], t.is_ci == false)
       end
 
+    query = apply_test_scheme_filter(query, scheme)
+
     ClickHouseRepo.all(query)
   end
 
   defp test_run_duration_percentiles(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
+    scheme = Keyword.get(opts, :scheme)
 
     query =
       from(t in Test,
@@ -372,6 +360,8 @@ defmodule Tuist.Tests.Analytics do
         false -> where(query, [t], t.is_ci == false)
       end
 
+    query = apply_test_scheme_filter(query, scheme)
+
     result = ClickHouseRepo.one(query)
 
     case result do
@@ -391,6 +381,7 @@ defmodule Tuist.Tests.Analytics do
     date_format = get_clickhouse_date_format(time_bucket)
 
     is_ci = Keyword.get(opts, :is_ci)
+    scheme = Keyword.get(opts, :scheme)
 
     query =
       from(t in Test,
@@ -413,6 +404,8 @@ defmodule Tuist.Tests.Analytics do
         true -> where(query, [t], t.is_ci == true)
         false -> where(query, [t], t.is_ci == false)
       end
+
+    query = apply_test_scheme_filter(query, scheme)
 
     query
     |> ClickHouseRepo.all()
@@ -973,17 +966,25 @@ defmodule Tuist.Tests.Analytics do
   def test_duration_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    scheme = Keyword.get(opts, :scheme)
 
-    durations =
-      ClickHouseRepo.all(
-        from(t in Test,
-          where: t.project_id == ^project_id,
-          order_by: [desc: t.ran_at],
-          limit: ^limit,
-          offset: ^offset,
-          select: t.duration
-        )
+    query =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        order_by: [desc: t.ran_at],
+        limit: ^limit,
+        offset: ^offset,
+        select: t.duration
       )
+
+    query =
+      if is_binary(scheme) and scheme != "" do
+        where(query, [t], t.scheme == ^scheme)
+      else
+        query
+      end
+
+    durations = ClickHouseRepo.all(query)
 
     calculate_metric_from_values(durations, metric)
   end

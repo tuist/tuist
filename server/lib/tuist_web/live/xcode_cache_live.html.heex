@@ -507,7 +507,9 @@
           }
         >
           <:col :let={build} label={dgettext("dashboard_cache", "Scheme")}>
-            <.text_and_description_cell label={build.scheme || "None"} />
+            <.text_and_description_cell label={
+              if(build.scheme == "", do: "None", else: build.scheme)
+            } />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Hit Rate")}>
             <.text_cell label={

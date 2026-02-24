@@ -3,12 +3,12 @@ defmodule TuistWeb.XcodeCacheLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Ecto.Query
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.EmptyState
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Tuist.Builds
   alias Tuist.Builds.Analytics
   alias Tuist.Builds.Build
   alias Tuist.Utilities.ByteFormatter
@@ -215,10 +215,7 @@ defmodule TuistWeb.XcodeCacheLive do
       for: Build
     }
 
-    {builds, _} =
-      Build
-      |> preload(:ran_by_account)
-      |> Flop.validate_and_run!(options, for: Build)
+    {builds, _} = Builds.list_build_runs(options, preload: [:ran_by_account])
 
     recent_builds_chart_data =
       builds

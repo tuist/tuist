@@ -202,11 +202,13 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         private static let fileSystemLockActor: FileSystemLockActor = .init(
             fileSystem: FileSystem()
         )
+    #endif
 
+    #if canImport(TuistProcess)
         private let backgroundProcessRunner: BackgroundProcessRunning
     #endif
 
-    #if canImport(TuistSupport)
+    #if canImport(TuistProcess)
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
@@ -358,7 +360,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         case (.expired, false, false): // Foreground without locking
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)?.value
         case (.expired, true, true): // Background with locking
-            #if canImport(TuistSupport)
+            #if canImport(TuistProcess)
                 return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
                     let token = try await Self.fileSystemLockActor.withLock(
                         lockfilePath: lockFilePath(serverURL: serverURL),
@@ -457,6 +459,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             )
         }
 
+    #endif
+
+    #if canImport(TuistProcess)
         func spawnRefreshProcess(serverURL: URL) async throws {
             try backgroundProcessRunner.runInBackground(
                 [Environment.current.currentExecutablePath()?.pathString ?? ""] + [

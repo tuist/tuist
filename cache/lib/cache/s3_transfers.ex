@@ -68,6 +68,28 @@ defmodule Cache.S3Transfers do
     enqueue(:download, account_handle, project_handle, :gradle, key)
   end
 
+  @registry_sentinel_handle "registry"
+
+  @doc """
+  Enqueues a registry artifact for upload to S3.
+
+  Registry artifacts have no account/project context, so sentinel values are used.
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  """
+  def enqueue_registry_upload(key) do
+    enqueue(:upload, @registry_sentinel_handle, @registry_sentinel_handle, :registry, key)
+  end
+
+  @doc """
+  Enqueues a registry artifact for download from S3 to local disk.
+
+  Registry artifacts have no account/project context, so sentinel values are used.
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  """
+  def enqueue_registry_download(key) do
+    enqueue(:download, @registry_sentinel_handle, @registry_sentinel_handle, :registry, key)
+  end
+
   @doc """
   Returns a list of pending transfers for the given type, ordered by insertion time (FIFO).
   """

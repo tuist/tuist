@@ -7,6 +7,8 @@ defmodule Tuist.Alerts do
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
+  alias Tuist.Bundles
+  alias Tuist.Bundles.Bundle
   alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -69,35 +71,47 @@ defmodule Tuist.Alerts do
   - `:ok` if no alert needed
   """
   def evaluate(%AlertRule{category: :build_run_duration} = alert_rule) do
-    current =
-      BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: 0
-      )
+    opts = maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.scheme)
 
-    previous =
-      BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: alert_rule.rolling_window_size
-      )
+    current = BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, opts)
+
+    previous_opts =
+      maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size], alert_rule.scheme)
+
+    previous = BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
     check_increase_regression(alert_rule, current, previous)
   end
 
   def evaluate(%AlertRule{category: :test_run_duration} = alert_rule) do
-    current =
-      TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: 0
-      )
+    opts = maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.scheme)
 
-    previous =
-      TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: alert_rule.rolling_window_size
-      )
+    current = TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, opts)
+
+    previous_opts =
+      maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size], alert_rule.scheme)
+
+    previous = TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
     check_increase_regression(alert_rule, current, previous)
+  end
+
+  def evaluate(%AlertRule{category: :bundle_size} = alert_rule) do
+    project = %Project{id: alert_rule.project_id}
+
+    bundle_opts = maybe_add_bundle_name([git_branch: alert_rule.git_branch, fallback: false], alert_rule.bundle_name)
+
+    with %Bundle{} = current_bundle <- Bundles.last_project_bundle(project, bundle_opts),
+         %Bundle{} = previous_bundle <-
+           Bundles.last_project_bundle(project, Keyword.put(bundle_opts, :bundle, current_bundle)) do
+      size_field = bundle_size_field(alert_rule.metric)
+      current_size = Map.get(current_bundle, size_field)
+      previous_size = Map.get(previous_bundle, size_field)
+
+      check_increase_regression(alert_rule, current_size, previous_size)
+    else
+      nil -> :ok
+    end
   end
 
   def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
@@ -143,6 +157,15 @@ defmodule Tuist.Alerts do
       :ok
     end
   end
+
+  defp bundle_size_field(:install_size), do: :install_size
+  defp bundle_size_field(:download_size), do: :download_size
+
+  defp maybe_add_scheme(opts, ""), do: opts
+  defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
+
+  defp maybe_add_bundle_name(opts, ""), do: opts
+  defp maybe_add_bundle_name(opts, bundle_name), do: Keyword.put(opts, :name, bundle_name)
 
   defp get_latest_alert(alert_rule_id) do
     Alert

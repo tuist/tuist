@@ -2,6 +2,8 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -11,7 +13,7 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 
-final class GenerateService {
+public struct GenerateService {
     private let opener: Opening
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
@@ -20,7 +22,7 @@ final class GenerateService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
 
-    init(
+    public init(
         cacheStorageFactory: CacheStorageFactorying,
         generatorFactory: GeneratorFactorying,
         clock: Clock = WallClock(),
@@ -38,7 +40,7 @@ final class GenerateService {
         self.configLoader = configLoader
     }
 
-    func run(
+    public func run(
         path: String?,
         includedTargets: Set<TargetQuery>,
         noOpen: Bool,

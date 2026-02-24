@@ -1,6 +1,8 @@
 import Foundation
 import Path
 import TuistAutomation
+import TuistConfig
+import TuistDependencies
 import TuistLoader
 import TuistServer
 import XcodeGraph
@@ -364,6 +366,116 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             let generationMapperTypes = generationMappers.prefix(8).map { String(describing: type(of: $0)) }
 
             XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
+        }
+
+        func test_automation_contains_static_xcframework_module_map_mapper_after_cache_replacement() throws {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkModuleMapGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
+        func test_build_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.build(
+                config: config,
+                ignoreBinaryCache: false,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkModuleMapGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
+        func test_generation_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
+            // Given
+            let config = Tuist.test()
+            let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .onlyExternal,
+                cacheSources: cacheSources,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkModuleMapGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
+        }
+
+        func test_binaryCacheWarming_generates_schemes_after_platform_narrowing() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then - GenerateCacheableSchemesGraphMapper must run after ExternalProjectsPlatformNarrowerGraphMapper
+            // so it sees narrowed destinations and doesn't generate Catalyst schemes for iPhone-only projects
+            XCTAssertContainsElementOfType(
+                got,
+                GenerateCacheableSchemesGraphMapper.self,
+                after: ExternalProjectsPlatformNarrowerGraphMapper.self
+            )
+        }
+
+        func test_binaryCacheWarming_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got,
+                StaticXCFrameworkModuleMapGraphMapper.self,
+                after: TargetsToCacheBinariesGraphMapper.self
+            )
         }
 
         func test_automation_and_binaryCacheWarming_use_same_base_mappers() {

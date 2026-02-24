@@ -31,7 +31,7 @@
         }
     }
 
-    public final class CacheExistsService: CacheExistsServicing {
+    public struct CacheExistsService: CacheExistsServicing {
         public init() {}
 
         public func cacheExists(

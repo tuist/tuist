@@ -60,6 +60,24 @@ defmodule Tuist.OAuth.Clients do
     {:error, "JWK refresh from JWKS URI not supported"}
   end
 
+  defp android_emulator_redirect_uris do
+    base_url = Environment.app_url(path: "/oauth/callback/android")
+    uri = URI.parse(base_url)
+
+    cond do
+      uri.host in ["localhost", "127.0.0.1"] ->
+        [URI.to_string(%{uri | host: "10.0.2.2"})]
+
+      Environment.dev?() ->
+        http_config = Application.get_env(:tuist, TuistWeb.Endpoint)[:http] || []
+        port = Keyword.get(http_config, :port, 8080)
+        ["http://10.0.2.2:#{port}/oauth/callback/android"]
+
+      true ->
+        []
+    end
+  end
+
   defp tuist_oauth_client do
     %Boruta.Oauth.Client{
       id: Environment.oauth_client_id(),
@@ -71,7 +89,11 @@ defmodule Tuist.OAuth.Clients do
       id_token_ttl: 86_400,
       id_token_signature_alg: "RS256",
       userinfo_signed_response_alg: "RS256",
-      redirect_uris: ["tuist://oauth-callback"],
+      redirect_uris:
+        [
+          "tuist://oauth-callback",
+          Environment.app_url(path: "/oauth/callback/android")
+        ] ++ android_emulator_redirect_uris(),
       authorize_scope: false,
       supported_grant_types: [
         "client_credentials",

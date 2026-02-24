@@ -1,14 +1,14 @@
 ---
-title: "Evolving Previews With the Tuist SDK and Tracks"
+title: "Tuist Previews: SDK and Tracks for app previews"
 category: "product"
 tags: ["product"]
-excerpt: "Keep everyone on the latest version with the new Tuist SDK and Tracks."
+excerpt: "Keep everyone on the latest app previews with the Tuist SDK and Tracks."
 author: fortmarek
 og_image_path: /marketing/images/blog/2026/01/02/previews-sdk-and-tracks/og.jpg
 highlighted: true
 ---
 
-Over a year ago, we [introduced Tuist Previews](/blog/2024/08/06/url-centric-collaboration) with a simple premise: sharing an app should be as easy as sending a link. The traditional flow of building, signing, and pushing to TestFlight was too cumbersome for quick feedback loops.
+Over a year ago, we [introduced Tuist Previews](/blog/2024/08/06/url-centric-collaboration) with a simple premise: sharing an app preview should be as easy as sending a link. The traditional flow of building, signing, and pushing to TestFlight was too cumbersome for quick feedback loops.
 
 Initially, we focused on minimizing friction for developers, introducing features like [posting comments directly in your pull requests](https://docs.tuist.dev/en/guides/features/previews#pullmerge-request-comments), allowing anyone to click a link and start testing without checking out a branch or waiting for a local build.
 

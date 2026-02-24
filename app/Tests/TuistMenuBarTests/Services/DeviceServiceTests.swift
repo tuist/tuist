@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistAndroid
 import TuistAppStorage
 import TuistAutomation
 import TuistConstants
@@ -20,6 +21,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
     private var appBundleLoader: MockAppBundleLoading!
     private var appStorage: MockAppStoring!
     private var deviceController: MockDeviceControlling!
+    private var adbController: MockAdbControlling!
     private var taskStatusReporter: MockTaskStatusReporting!
     private var menuBarFocusService: MockMenuBarFocusServicing!
 
@@ -58,6 +60,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         appBundleLoader = .init()
         appStorage = .init()
         deviceController = .init()
+        adbController = .init()
         taskStatusReporter = .init()
         menuBarFocusService = MockMenuBarFocusServicing()
 
@@ -66,6 +69,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
             appStorage: appStorage,
             deviceController: deviceController,
             simulatorController: simulatorController,
+            adbController: adbController,
             getPreviewService: getPreviewService,
             fileArchiverFactory: fileArchiverFactory,
             remoteArtifactDownloader: remoteArtifactDownloader,
@@ -75,6 +79,14 @@ final class DeviceServiceTests: TuistUnitTestCase {
         )
 
         given(deviceController)
+            .findAvailableDevices()
+            .willReturn([])
+
+        given(adbController)
+            .isAdbAvailable()
+            .willReturn(false)
+
+        given(adbController)
             .findAvailableDevices()
             .willReturn([])
 
@@ -123,6 +135,8 @@ final class DeviceServiceTests: TuistUnitTestCase {
         Matcher.register(SimulatorDeviceAndRuntime?.self)
         Matcher.register([SimulatorDeviceAndRuntime].self)
         Matcher.register(SelectedDevice?.self)
+        Matcher.register(AndroidDevice.self)
+        Matcher.register([AndroidDevice].self)
     }
 
     override func tearDown() {
@@ -132,6 +146,7 @@ final class DeviceServiceTests: TuistUnitTestCase {
         remoteArtifactDownloader = nil
         appBundleLoader = nil
         appStorage = nil
+        adbController = nil
         subject = nil
         taskStatusReporter = nil
 
@@ -519,8 +534,8 @@ final class DeviceServiceTests: TuistUnitTestCase {
             )
             .willReturn(
                 .test(
-                    appBuilds: [
-                        .test(supportedPlatforms: [.device(.iOS)]),
+                    builds: [
+                        .test(supportedPlatforms: [.ios]),
                     ]
                 )
             )
@@ -636,9 +651,9 @@ final class DeviceServiceTests: TuistUnitTestCase {
             .getPreview(.any, fullHandle: .any, serverURL: .any)
             .willReturn(
                 .test(
-                    appBuilds: [
+                    builds: [
                         .test(
-                            supportedPlatforms: [.device(.visionOS)]
+                            supportedPlatforms: [.visionos]
                         ),
                     ]
                 )
@@ -685,5 +700,145 @@ final class DeviceServiceTests: TuistUnitTestCase {
             try await subject.launchPreviewDeeplink(with: previewURL),
             SimulatorsViewModelError.appNotFound(.simulator(iPhone15), [.device(.visionOS)])
         )
+    }
+
+    // MARK: - Android
+
+    func test_loadDevices_discovers_android_devices() async throws {
+        // Given
+        adbController.reset()
+
+        let emulator = AndroidDevice(id: "emulator-5554", name: "Pixel_6_API_34", type: .emulator)
+        let physicalDevice = AndroidDevice(id: "R5CT900ABCD", name: "SM_S918B", type: .device)
+
+        given(adbController)
+            .isAdbAvailable()
+            .willReturn(true)
+
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([emulator, physicalDevice])
+
+        // When
+        try await subject.loadDevices()
+
+        // Then
+        XCTAssertEqual(subject.androidDevices, [emulator, physicalDevice])
+    }
+
+    func test_loadDevices_when_adb_not_installed() async throws {
+        // Given
+        adbController.reset()
+
+        given(adbController)
+            .isAdbAvailable()
+            .willReturn(false)
+
+        // When
+        try await subject.loadDevices()
+
+        // Then
+        XCTAssertEqual(subject.androidDevices, [])
+        XCTAssertNotNil(subject.selectedDevice)
+    }
+
+    func test_selectAndroidDevice() async throws {
+        // Given
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
+        try await subject.loadDevices()
+
+        let emulator = AndroidDevice(id: "emulator-5554", name: "Pixel_6_API_34", type: .emulator)
+
+        // When
+        await subject.selectDevice(.androidDevice(emulator))
+
+        // Then
+        XCTAssertEqual(subject.selectedDevice, .androidDevice(emulator))
+        verify(appStorage)
+            .set(
+                .any as Parameter<SelectedDeviceKey.Type>,
+                value: .value(.androidDevice(id: emulator.id))
+            )
+            .called(1)
+    }
+
+    func test_launchPreview_on_android_device() async throws {
+        // Given
+        adbController.reset()
+
+        let emulator = AndroidDevice(id: "emulator-5554", name: "Pixel_6_API_34", type: .emulator)
+
+        given(adbController)
+            .isAdbAvailable()
+            .willReturn(true)
+
+        given(adbController)
+            .findAvailableDevices()
+            .willReturn([emulator])
+
+        await given(taskStatusReporter)
+            .add(status: .any)
+            .willReturn()
+
+        try await subject.loadDevices()
+        await subject.selectDevice(.androidDevice(emulator))
+
+        given(getPreviewService)
+            .getPreview(
+                .value("01912892-3778-7297-8ca9-d66ac7ee2a53"),
+                fullHandle: .value("tuist/ios_app_with_frameworks"),
+                serverURL: .value(Constants.URLs.production)
+            )
+            .willReturn(
+                .test(
+                    builds: [
+                        .test(supportedPlatforms: [.android], type: .apk),
+                    ],
+                    bundleIdentifier: "com.example.app"
+                )
+            )
+
+        let downloadedArchive = try temporaryPath().appending(component: "archive")
+
+        given(remoteArtifactDownloader)
+            .download(url: .any)
+            .willReturn(downloadedArchive)
+
+        let unarchivedPath = try temporaryPath().appending(component: "unarchived")
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unarchivedPath)
+
+        let apkPath = unarchivedPath.appending(component: "app.apk")
+        try fileHandler.touch(apkPath)
+
+        given(adbController)
+            .installApp(at: .any, device: .any)
+            .willReturn()
+
+        given(adbController)
+            .launchApp(packageName: .any, device: .any)
+            .willReturn()
+
+        // When
+        try await subject.launchPreviewDeeplink(with: previewURL)
+
+        // Then
+        verify(adbController)
+            .installApp(
+                at: .value(apkPath),
+                device: .value(emulator)
+            )
+            .called(1)
+        verify(adbController)
+            .launchApp(
+                packageName: .value("com.example.app"),
+                device: .value(emulator)
+            )
+            .called(1)
     }
 }

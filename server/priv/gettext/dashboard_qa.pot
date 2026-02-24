@@ -31,7 +31,7 @@ msgstr ""
 msgid "%{qa_average_duration}s"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:157
+#: lib/tuist_web/live/qa_settings_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "--my-launch-argument value"
 msgstr ""
@@ -61,17 +61,17 @@ msgstr ""
 msgid "Actions"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:176
+#: lib/tuist_web/live/qa_settings_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "Add"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:129
+#: lib/tuist_web/live/qa_settings_live.html.heex:132
 #, elixir-autogen, elixir-format
 msgid "Add arguments"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:123
+#: lib/tuist_web/live/qa_settings_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Add launch argument group"
 msgstr ""
@@ -93,7 +93,7 @@ msgid "App context"
 msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:682
-#: lib/tuist_web/live/qa_settings_live.html.heex:35
+#: lib/tuist_web/live/qa_settings_live.html.heex:38
 #, elixir-autogen, elixir-format
 msgid "App description"
 msgstr ""
@@ -115,9 +115,9 @@ msgid "App:"
 msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:675
-#: lib/tuist_web/live/qa_settings_live.html.heex:156
-#: lib/tuist_web/live/qa_settings_live.html.heex:192
-#: lib/tuist_web/live/qa_settings_live.html.heex:242
+#: lib/tuist_web/live/qa_settings_live.html.heex:159
+#: lib/tuist_web/live/qa_settings_live.html.heex:195
+#: lib/tuist_web/live/qa_settings_live.html.heex:245
 #, elixir-autogen, elixir-format
 msgid "Arguments"
 msgstr ""
@@ -155,8 +155,8 @@ msgid "Bundle identifier"
 msgstr ""
 
 #: lib/tuist_web/live/qa_live.html.heex:61
-#: lib/tuist_web/live/qa_settings_live.html.heex:167
-#: lib/tuist_web/live/qa_settings_live.html.heex:253
+#: lib/tuist_web/live/qa_settings_live.html.heex:170
+#: lib/tuist_web/live/qa_settings_live.html.heex:256
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -182,15 +182,15 @@ msgstr ""
 msgid "Created at"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:76
+#: lib/tuist_web/live/qa_settings_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Credentials"
 msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:672
-#: lib/tuist_web/live/qa_settings_live.html.heex:150
-#: lib/tuist_web/live/qa_settings_live.html.heex:189
-#: lib/tuist_web/live/qa_settings_live.html.heex:232
+#: lib/tuist_web/live/qa_settings_live.html.heex:153
+#: lib/tuist_web/live/qa_settings_live.html.heex:192
+#: lib/tuist_web/live/qa_settings_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Description"
 msgstr ""
@@ -205,23 +205,23 @@ msgstr ""
 msgid "Duration"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:199
+#: lib/tuist_web/live/qa_settings_live.html.heex:202
 #, elixir-autogen, elixir-format
 msgid "Edit launch argument group"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:38
+#: lib/tuist_web/live/qa_settings_live.html.heex:41
 #, elixir-autogen, elixir-format
 msgid "Edit or update the app description to ensure the agent can run tests smoothly:"
 msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:648
-#: lib/tuist_web/live/qa_settings_live.html.heex:94
+#: lib/tuist_web/live/qa_settings_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:59
+#: lib/tuist_web/live/qa_settings_live.html.heex:62
 #, elixir-autogen, elixir-format
 msgid "Enter your app description..."
 msgstr ""
@@ -252,7 +252,7 @@ msgstr ""
 msgid "In progress"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:46
+#: lib/tuist_web/live/qa_settings_live.html.heex:49
 #, elixir-autogen, elixir-format
 msgid "Include expected outcomes"
 msgstr ""
@@ -278,13 +278,13 @@ msgstr ""
 msgid "Last Year"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:151
-#: lib/tuist_web/live/qa_settings_live.html.heex:233
+#: lib/tuist_web/live/qa_settings_live.html.heex:154
+#: lib/tuist_web/live/qa_settings_live.html.heex:236
 #, elixir-autogen, elixir-format
 msgid "Launch argument group description"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:118
+#: lib/tuist_web/live/qa_settings_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "Launch argument groups"
 msgstr ""
@@ -299,16 +299,16 @@ msgstr ""
 msgid "Logs"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:79
+#: lib/tuist_web/live/qa_settings_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
 msgstr ""
 
 #: lib/tuist_web/live/qa_live.html.heex:232
 #: lib/tuist_web/live/qa_run_live.html.heex:669
-#: lib/tuist_web/live/qa_settings_live.html.heex:144
-#: lib/tuist_web/live/qa_settings_live.html.heex:186
-#: lib/tuist_web/live/qa_settings_live.html.heex:222
+#: lib/tuist_web/live/qa_settings_live.html.heex:147
+#: lib/tuist_web/live/qa_settings_live.html.heex:189
+#: lib/tuist_web/live/qa_settings_live.html.heex:225
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -371,12 +371,12 @@ msgid "PR Comment"
 msgstr ""
 
 #: lib/tuist_web/live/qa_run_live.html.heex:656
-#: lib/tuist_web/live/qa_settings_live.html.heex:100
+#: lib/tuist_web/live/qa_settings_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:101
+#: lib/tuist_web/live/qa_settings_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "Password for test account"
 msgstr ""
@@ -422,15 +422,15 @@ msgstr ""
 msgid "Prompt"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:45
+#: lib/tuist_web/live/qa_settings_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Provide clear instructions for testing"
 msgstr ""
 
 #: lib/tuist_web/live/qa_live.ex:23
 #: lib/tuist_web/live/qa_run_live.html.heex:4
-#: lib/tuist_web/live/qa_settings_live.html.heex:23
-#: lib/tuist_web/live/qa_settings_live.html.heex:29
+#: lib/tuist_web/live/qa_settings_live.html.heex:26
+#: lib/tuist_web/live/qa_settings_live.html.heex:32
 #, elixir-autogen, elixir-format
 msgid "QA"
 msgstr ""
@@ -522,13 +522,13 @@ msgstr ""
 msgid "Running tests..."
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:65
-#: lib/tuist_web/live/qa_settings_live.html.heex:107
+#: lib/tuist_web/live/qa_settings_live.html.heex:68
+#: lib/tuist_web/live/qa_settings_live.html.heex:110
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:44
+#: lib/tuist_web/live/qa_settings_live.html.heex:47
 #, elixir-autogen, elixir-format
 msgid "Share your naming conventions with the LLM"
 msgstr ""
@@ -605,7 +605,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:263
+#: lib/tuist_web/live/qa_settings_live.html.heex:266
 #, elixir-autogen, elixir-format
 msgid "Update"
 msgstr ""
@@ -630,8 +630,8 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:145
-#: lib/tuist_web/live/qa_settings_live.html.heex:223
+#: lib/tuist_web/live/qa_settings_live.html.heex:148
+#: lib/tuist_web/live/qa_settings_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "argument-group-name"
 msgstr ""
@@ -663,7 +663,7 @@ msgstr ""
 msgid "since last year"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:95
+#: lib/tuist_web/live/qa_settings_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "test@example.com"
 msgstr ""
@@ -708,12 +708,12 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:13
+#: lib/tuist_web/live/qa_settings_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Notifications"
 msgstr ""
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:18
+#: lib/tuist_web/live/qa_settings_live.html.heex:20
 #, elixir-autogen, elixir-format
 msgid "Automations"
 msgstr ""

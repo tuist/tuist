@@ -19,12 +19,12 @@ rootProject.name = "SimpleAndroidApp"
 include(":app")
 
 plugins {
-    id("dev.tuist") version "0.1.0"
+    id("dev.tuist") version "0.2.1"
 }
 
 tuist {
-    fullHandle = "tuist/tuist"
     executablePath = System.getenv("TUIST_EXECUTABLE")
+    url = System.getenv("TUIST_SERVER_URL") ?: "https://tuist.dev"
 
     buildCache {
         enabled = true

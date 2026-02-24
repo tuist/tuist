@@ -1,0 +1,441 @@
+defmodule TuistWeb.API.TestCaseRunsControllerTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
+
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.Authentication
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/runs" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "lists runs filtered by test case id", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: 0,
+          is_flaky: true,
+          git_branch: "main"
+        )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: UUIDv7.generate()
+      )
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+
+      run = hd(response["test_case_runs"])
+      assert run["id"] == test_case_run.id
+      assert run["status"] == "success"
+      assert run["is_flaky"] == true
+      assert run["git_branch"] == "main"
+    end
+
+    test "passes flaky filter to service", %{conn: conn, user: user, project: project} do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: false
+      )
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}&flaky=true"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["is_flaky"] == true
+    end
+
+    test "supports pagination parameters", %{conn: conn, user: user, project: project} do
+      # Given
+      for _ <- 1..6 do
+        RunsFixtures.test_case_run_fixture(project_id: project.id)
+      end
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?page=2&page_size=5"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["pagination_metadata"]["current_page"] == 2
+      assert response["pagination_metadata"]["page_size"] == 5
+      assert response["pagination_metadata"]["total_count"] == 6
+      assert response["pagination_metadata"]["has_previous_page"] == true
+    end
+
+    test "scopes results to the requested project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id)
+
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      RunsFixtures.test_case_run_fixture(project_id: other_project.id)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == test_case_run.id
+    end
+
+    test "returns empty list when no runs exist", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["test_case_runs"] == []
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      # Given
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+      test_case_id = UUIDv7.generate()
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}"
+        )
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/:test_case_id/runs (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "lists runs for a test case via legacy route and scopes by project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_id = UUIDv7.generate()
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: 0,
+          is_flaky: true,
+          git_branch: "main"
+        )
+
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      RunsFixtures.test_case_run_fixture(project_id: other_project.id, test_case_id: test_case_id)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/#{test_case_id}/runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == test_case_run.id
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/:test_run_id/test-case-runs (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "scopes results to the requested project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_run_id = UUIDv7.generate()
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run_id)
+
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      RunsFixtures.test_case_run_fixture(project_id: other_project.id, test_run_id: test_run_id)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/#{test_run_id}/test-case-runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == test_case_run.id
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/test-cases/runs/:test_case_run_id" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns test case run with failures and repetitions", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          name: "testExample",
+          module_name: "MyTests",
+          suite_name: "MySuite",
+          status: 1,
+          is_flaky: true,
+          git_branch: "main",
+          git_commit_sha: "abc1234"
+        )
+
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: test_case_run.id,
+        message: "Expected true, got false",
+        path: "Tests/MyTests.swift",
+        line_number: 42,
+        issue_type: "assertion_failure"
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 1,
+        status: "failure",
+        duration: 50
+      )
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case_run.id
+      assert response["name"] == "testExample"
+      assert response["module_name"] == "MyTests"
+      assert response["suite_name"] == "MySuite"
+      assert response["status"] == "failure"
+      assert response["is_flaky"] == true
+      assert response["git_branch"] == "main"
+      assert response["git_commit_sha"] == "abc1234"
+      assert response["test_run_id"] == test_case_run.test_run_id
+      assert response["crash_report"] == nil
+
+      assert length(response["failures"]) == 1
+      failure_response = hd(response["failures"])
+      assert failure_response["message"] == "Expected true, got false"
+      assert failure_response["path"] == "Tests/MyTests.swift"
+      assert failure_response["line_number"] == 42
+      assert failure_response["issue_type"] == "assertion_failure"
+
+      assert length(response["repetitions"]) == 1
+      repetition_response = hd(response["repetitions"])
+      assert repetition_response["repetition_number"] == 1
+      assert repetition_response["status"] == "failure"
+      assert repetition_response["duration"] == 50
+    end
+
+    test "returns 404 when test case run does not exist", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{UUIDv7.generate()}"
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case run belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: other_project.id)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns test case run with crash report", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          name: "testCrashing",
+          module_name: "CrashTests",
+          suite_name: "CrashSuite",
+          status: 1
+        )
+
+      crash_report = RunsFixtures.crash_report_fixture(test_case_run_id: test_case_run.id)
+
+      stub(Storage, :generate_download_url, fn _key, _account, _opts ->
+        "https://s3.example.com/download?signed=true"
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case_run.id
+
+      cr = response["crash_report"]
+      assert cr["exception_type"] == crash_report.exception_type
+      assert cr["signal"] == crash_report.signal
+      assert cr["exception_subtype"] == crash_report.exception_subtype
+      assert cr["triggered_thread_frames"] == crash_report.triggered_thread_frames
+      assert cr["attachment_url"] =~ "/tests/test-cases/runs/#{test_case_run.id}/attachments/"
+    end
+
+    test "returns null crash_report when none exists", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id, status: 0)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["crash_report"] == nil
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      # Given
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{project.account.name}/#{project.name}/tests/test-cases/runs/#{UUIDv7.generate()}"
+        )
+
+      # Then
+      assert json_response(conn, :forbidden)
+    end
+  end
+end

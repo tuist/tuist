@@ -5,6 +5,8 @@ import Foundation
 import Testing
 import TuistAcceptanceTesting
 import TuistCore
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import XCTest

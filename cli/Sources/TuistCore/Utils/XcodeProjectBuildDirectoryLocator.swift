@@ -23,7 +23,7 @@ public protocol XcodeProjectBuildDirectoryLocating {
     ) async throws -> AbsolutePath
 }
 
-public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
+public struct XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
     private let derivedDataLocator: DerivedDataLocating
 
     public init(derivedDataLocator: DerivedDataLocating = DerivedDataLocator()) {

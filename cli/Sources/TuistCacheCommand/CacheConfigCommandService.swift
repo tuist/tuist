@@ -1,23 +1,18 @@
 import Foundation
-import Logging
+import Noora
 import Path
-import TSCBasic
 import TuistCAS
+import TuistConfig
+import TuistConfigLoader
 import TuistConstants
-import TuistEncodable
 import TuistEnvironment
 import TuistHTTP
-import TuistLogging
 import TuistOIDC
 import TuistServer
 
-#if os(macOS)
-    import TuistLoader
-#endif
-
 public protocol CacheConfigCommandServicing {
     func run(
-        fullHandle: String,
+        fullHandle: String?,
         json: Bool,
         forceRefresh: Bool,
         directory: String?,
@@ -25,86 +20,62 @@ public protocol CacheConfigCommandServicing {
     ) async throws
 }
 
-public final class CacheConfigCommandService: CacheConfigCommandServicing {
+public struct CacheConfigCommandService: CacheConfigCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let fullHandleService: FullHandleServicing
-    #if os(macOS)
-        private let configLoader: ConfigLoading
-    #endif
+    private let configLoader: ConfigLoading
 
-    #if os(macOS)
-        public init(
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-            cacheURLStore: CacheURLStoring = CacheURLStore(),
-            fullHandleService: FullHandleServicing = FullHandleService(),
-            configLoader: ConfigLoading = ConfigLoader(),
-            ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
-        ) {
-            self.serverEnvironmentService = serverEnvironmentService
-            self.serverAuthenticationController = serverAuthenticationController
-            self.cacheURLStore = cacheURLStore
-            self.fullHandleService = fullHandleService
-            self.configLoader = configLoader
-            self.ciOIDCAuthenticator = ciOIDCAuthenticator
-            self.exchangeOIDCTokenService = exchangeOIDCTokenService
-        }
-    #else
-        public init(
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-            cacheURLStore: CacheURLStoring = CacheURLStore(),
-            fullHandleService: FullHandleServicing = FullHandleService(),
-            ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
-        ) {
-            self.serverEnvironmentService = serverEnvironmentService
-            self.serverAuthenticationController = serverAuthenticationController
-            self.cacheURLStore = cacheURLStore
-            self.fullHandleService = fullHandleService
-            self.ciOIDCAuthenticator = ciOIDCAuthenticator
-            self.exchangeOIDCTokenService = exchangeOIDCTokenService
-        }
-    #endif
+    public init(
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        fullHandleService: FullHandleServicing = FullHandleService(),
+        configLoader: ConfigLoading = ConfigLoader(),
+        ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
+        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+    ) {
+        self.serverEnvironmentService = serverEnvironmentService
+        self.serverAuthenticationController = serverAuthenticationController
+        self.cacheURLStore = cacheURLStore
+        self.fullHandleService = fullHandleService
+        self.configLoader = configLoader
+        self.ciOIDCAuthenticator = ciOIDCAuthenticator
+        self.exchangeOIDCTokenService = exchangeOIDCTokenService
+    }
 
     public func run(
-        fullHandle: String,
+        fullHandle: String?,
         json: Bool,
         forceRefresh: Bool,
         directory: String?,
         url: String?
     ) async throws {
-        let resolvedServerURL: URL
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
 
+        let config = try await configLoader.loadConfig(path: directoryPath)
+
+        let resolvedServerURL: URL
         if let url {
             guard let parsedURL = URL(string: url) else {
                 throw CacheConfigCommandServiceError.invalidServerURL(url)
             }
             resolvedServerURL = parsedURL
         } else {
-            #if os(macOS)
-                let directoryPath: Path.AbsolutePath
-                if let directory {
-                    let cwd = try await Environment.current.currentWorkingDirectory()
-                    directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
-                } else {
-                    directoryPath = try await Environment.current.currentWorkingDirectory()
-                }
-                let config = try await configLoader.loadConfig(path: directoryPath)
-                resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
-            #else
-                resolvedServerURL = serverEnvironmentService.url()
-            #endif
+            resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
+        }
+
+        let resolvedFullHandle = fullHandle ?? config.fullHandle
+        guard let resolvedFullHandle else {
+            throw CacheConfigCommandServiceError.missingFullHandle
         }
 
         let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
-        let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
+        let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
         let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(
@@ -115,12 +86,9 @@ public final class CacheConfigCommandService: CacheConfigCommandServicing {
         )
 
         if json {
-            let jsonOutput = try result.toJSON()
-            Logger.current.info(
-                .init(stringLiteral: jsonOutput.toString(prettyPrint: true)), metadata: .json
-            )
+            try Noora.current.json(result)
         } else {
-            Logger.current.info("""
+            Noora.current.passthrough("""
             Remote Cache Configuration:
               URL: \(result.url)
               Token: \(result.token)
@@ -179,6 +147,7 @@ struct CacheConfiguration: Codable {
 public enum CacheConfigCommandServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case invalidServerURL(String)
+    case missingFullHandle
 
     public var errorDescription: String? {
         switch self {
@@ -187,6 +156,9 @@ public enum CacheConfigCommandServiceError: LocalizedError, Equatable {
                 "You are not authenticated. Refer to the documentation for authentication options: https://docs.tuist.dev/en/guides/server/authentication"
         case let .invalidServerURL(url):
             return "Invalid server URL: \(url)"
+        case .missingFullHandle:
+            return
+                "The project full handle is required. Provide it as an argument or set 'project' in your tuist.toml."
         }
     }
 }

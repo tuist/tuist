@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConfig
 import XcodeGraph
 import XCTest
 @testable import TuistCore
@@ -1242,7 +1243,8 @@ class StaticProductsGraphLinterTests: XCTestCase {
                 .uppercasingFirst
         return LintingIssue(
             reason: reason,
-            severity: .warning
+            severity: .warning,
+            category: .staticSideEffects
         )
     }
 }

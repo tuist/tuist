@@ -7,7 +7,7 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-public final class XcodeBuildController: XcodeBuildControlling {
+public struct XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
 
     /// Matches lines of the forms:
@@ -24,7 +24,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
     private let system: Systeming
     private let commandRunner: CommandRunning
 
-    public convenience init() {
+    public init() {
         self.init(
             formatter: Formatter(),
             commandRunner: CommandRunner(),

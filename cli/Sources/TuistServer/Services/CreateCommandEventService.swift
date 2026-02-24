@@ -1,7 +1,7 @@
 #if canImport(TuistCore)
     import Foundation
     import Mockable
-    import OpenAPIURLSession
+    import OpenAPIRuntime
     import TuistCore
     import XcodeGraph
 
@@ -29,7 +29,7 @@
         }
     }
 
-    public final class CreateCommandEventService: CreateCommandEventServicing {
+    public struct CreateCommandEventService: CreateCommandEventServicing {
         public init() {}
 
         public func createCommandEvent(

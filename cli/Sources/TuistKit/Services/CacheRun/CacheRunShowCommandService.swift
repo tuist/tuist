@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Noora
 import Path
+import TuistConfigLoader
 import TuistEnvironment
 import TuistLoader
 import TuistServer

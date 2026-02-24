@@ -1,17 +1,18 @@
 import FileSystem
 import Foundation
 import struct TSCUtility.Version
+import TuistConfig
 import TuistCore
 import TuistSupport
 import XcodeGraph
 
-public protocol GraphLinting: AnyObject {
+public protocol GraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) async throws
         -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
-public class GraphLinter: GraphLinting {
+public struct GraphLinter: GraphLinting {
     // MARK: - Attributes
 
     private let projectLinter: ProjectLinting
@@ -20,7 +21,7 @@ public class GraphLinter: GraphLinting {
 
     // MARK: - Init
 
-    public convenience init() {
+    public init() {
         let projectLinter = ProjectLinter()
         let staticProductsLinter = StaticProductsGraphLinter()
         self.init(
@@ -48,7 +49,7 @@ public class GraphLinter: GraphLinting {
         var issues: [LintingIssue] = []
         try await issues.append(
             contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
-                try await self.projectLinter.lint(project)
+                try await projectLinter.lint(project)
             }
             .flatMap { $0 }
         )
@@ -61,7 +62,7 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintSchemesUnknownTargets(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintSchemesRunAction(graphTraverser: graphTraverser))
-        return issues
+        return issues.promotingWarnings(with: configGeneratedProjectOptions.generationOptions.warningsAsErrors)
     }
 
     // MARK: - Fileprivate
@@ -88,7 +89,8 @@ public class GraphLinter: GraphLinting {
 
             return LintingIssue(
                 reason: "Cannot find targets \(targetsDescriptionStrings.joined(separator: ", "))  defined in \(scheme.name)",
-                severity: .warning
+                severity: .warning,
+                category: .schemeTargetNotFound
             )
         }
     }
@@ -228,7 +230,8 @@ public class GraphLinter: GraphLinting {
                 guard duplicatedProductNames.isEmpty else {
                     return [LintingIssue(
                         reason: "The target '\(targetName)' has dependencies with the following duplicated product names: \(duplicatedProductNames.joined(separator: ", "))",
-                        severity: .warning
+                        severity: .warning,
+                        category: .duplicateProductNames
                     )]
                 }
                 return []
@@ -305,7 +308,7 @@ public class GraphLinter: GraphLinting {
             }
         }
 
-        return reasons.sorted().map { LintingIssue(reason: $0, severity: .warning) }
+        return reasons.sorted().map { LintingIssue(reason: $0, severity: .warning, category: .mismatchedConfigurations) }
     }
 
     /// It verifies setup for packages
@@ -348,7 +351,7 @@ public class GraphLinter: GraphLinting {
             }
 
             return try await appClips.concurrentMap { appClip -> [LintingIssue] in
-                try await self.lint(appClip: appClip.graphTarget, parentApp: app)
+                try await lint(appClip: appClip.graphTarget, parentApp: app)
             }
             .flatMap { $0 }
         }
@@ -361,7 +364,7 @@ public class GraphLinter: GraphLinting {
         let frameworks = graphTraverser.precompiledFrameworksPaths()
 
         return try await frameworks
-            .concurrentFilter { try await !self.fileSystem.exists($0) }
+            .concurrentFilter { try await !fileSystem.exists($0) }
             .map { LintingIssue(reason: "Framework not found at path \($0.pathString)", severity: .error) }
     }
 

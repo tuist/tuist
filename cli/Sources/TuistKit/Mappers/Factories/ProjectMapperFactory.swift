@@ -1,5 +1,6 @@
 import Foundation
 import TuistAutomation
+import TuistConfig
 import TuistCore
 import TuistDependencies
 import TuistGenerator
@@ -27,7 +28,7 @@ protocol ProjectMapperFactorying {
     ) -> [ProjectMapping]
 }
 
-public final class ProjectMapperFactory: ProjectMapperFactorying {
+public struct ProjectMapperFactory: ProjectMapperFactorying {
     private let contentHasher: ContentHashing
 
     public init(contentHasher: ContentHashing = ContentHasher()) {

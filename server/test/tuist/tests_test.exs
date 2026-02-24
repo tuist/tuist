@@ -10,6 +10,144 @@ defmodule Tuist.TestsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
+  describe "get_test_case_run_by_id/2" do
+    test "returns test case run when it exists" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      # When
+      result = Tests.get_test_case_run_by_id(test_case_run.id)
+
+      # Then
+      assert {:ok, run} = result
+      assert run.id == test_case_run.id
+    end
+
+    test "returns error when test case run does not exist" do
+      # When
+      result = Tests.get_test_case_run_by_id(UUIDv7.generate())
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "preloads failures when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      failure =
+        RunsFixtures.test_case_failure_fixture(
+          test_case_run_id: test_case_run.id,
+          message: "Expected true, got false",
+          path: "Tests/MyTests.swift",
+          line_number: 42,
+          issue_type: "assertion_failure"
+        )
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:failures])
+
+      # Then
+      assert length(run.failures) == 1
+      assert hd(run.failures).id == failure.id
+      assert hd(run.failures).message == "Expected true, got false"
+    end
+
+    test "preloads repetitions when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      repetition =
+        RunsFixtures.test_case_run_repetition_fixture(
+          test_case_run_id: test_case_run.id,
+          repetition_number: 1,
+          name: "testExample",
+          status: "success",
+          duration: 100
+        )
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:repetitions])
+
+      # Then
+      assert length(run.repetitions) == 1
+      assert hd(run.repetitions).id == repetition.id
+      assert hd(run.repetitions).repetition_number == 1
+    end
+
+    test "preloads both failures and repetitions when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+      RunsFixtures.test_case_run_repetition_fixture(test_case_run_id: test_case_run.id)
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id, preload: [:failures, :repetitions])
+
+      # Then
+      assert length(run.failures) == 1
+      assert length(run.repetitions) == 1
+    end
+
+    test "preloads crash report with attachment when requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run.id,
+          file_name: "crash-report.ips"
+        )
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: test_case_run.id,
+          test_case_run_attachment_id: attachment.id,
+          exception_type: "EXC_CRASH",
+          signal: "SIGABRT"
+        )
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert run.crash_report.id == crash_report.id
+      assert run.crash_report.exception_type == "EXC_CRASH"
+      assert run.crash_report.signal == "SIGABRT"
+      assert run.crash_report.test_case_run_attachment.id == attachment.id
+      assert run.crash_report.test_case_run_attachment.file_name == "crash-report.ips"
+    end
+
+    test "returns nil crash report when none exists and preload requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+
+      # When
+      {:ok, run} =
+        Tests.get_test_case_run_by_id(test_case_run.id,
+          preload: [crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert run.crash_report == nil
+    end
+
+    test "does not preload associations when not requested" do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture()
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      # When
+      {:ok, run} = Tests.get_test_case_run_by_id(test_case_run.id)
+
+      # Then
+      assert %Ecto.Association.NotLoaded{} = run.failures
+    end
+  end
+
   describe "get_test/1" do
     test "returns test when it exists" do
       # Given
@@ -30,6 +168,17 @@ defmodule Tuist.TestsTest do
 
       # When
       result = Tests.get_test(non_existent_test_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "returns error when id is not a valid UUID" do
+      # Given
+      invalid_id = "6989eac446aa801e3f38a6e7"
+
+      # When
+      result = Tests.get_test(invalid_id)
 
       # Then
       assert result == {:error, :not_found}
@@ -86,6 +235,62 @@ defmodule Tuist.TestsTest do
 
       # When
       result = Tests.get_latest_test_by_build_run_id(build.id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+  end
+
+  describe "get_latest_test_by_gradle_build_id/1" do
+    test "returns test when it exists for gradle build" do
+      # Given
+      gradle_build_id = UUIDv7.generate()
+
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          gradle_build_id: gradle_build_id,
+          build_system: "gradle",
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      # When
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == test.id
+      assert found_test.gradle_build_id == gradle_build_id
+    end
+
+    test "returns the latest test when multiple tests exist for gradle build" do
+      # Given
+      gradle_build_id = UUIDv7.generate()
+
+      {:ok, _older_test} =
+        RunsFixtures.test_fixture(
+          gradle_build_id: gradle_build_id,
+          build_system: "gradle",
+          ran_at: ~N[2024-03-04 01:00:00]
+        )
+
+      {:ok, latest_test} =
+        RunsFixtures.test_fixture(
+          gradle_build_id: gradle_build_id,
+          build_system: "gradle",
+          ran_at: ~N[2024-03-04 02:00:00]
+        )
+
+      # When
+      result = Tests.get_latest_test_by_gradle_build_id(gradle_build_id)
+
+      # Then
+      assert {:ok, found_test} = result
+      assert found_test.id == latest_test.id
+    end
+
+    test "returns error when no test exists for gradle build" do
+      # When
+      result = Tests.get_latest_test_by_gradle_build_id(UUIDv7.generate())
 
       # Then
       assert result == {:error, :not_found}
@@ -275,7 +480,7 @@ defmodule Tuist.TestsTest do
   end
 
   describe "get_test_run_failures_count/1" do
-    test "returns count of failures for a test run" do
+    test "returns count of failed test case runs" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
@@ -325,8 +530,8 @@ defmodule Tuist.TestsTest do
       # When
       count = Tests.get_test_run_failures_count(test.id)
 
-      # Then
-      assert count == 3
+      # Then — counts failed test case runs, not individual failure records
+      assert count == 2
     end
 
     test "returns 0 when no failures exist for test run" do
@@ -351,10 +556,49 @@ defmodule Tuist.TestsTest do
       # Then
       assert count == 0
     end
+
+    test "does not count retried test cases that ultimately passed" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 300,
+                  failures: [
+                    %{
+                      message: "Flaky failure",
+                      path: "/path/to/test.swift",
+                      line_number: 10,
+                      issue_type: "assertion"
+                    }
+                  ],
+                  repetitions: [
+                    %{repetition_number: 1, name: "Run 1", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 200}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # When
+      count = Tests.get_test_run_failures_count(test.id)
+
+      # Then — test case run status is "success", so not counted
+      assert count == 0
+    end
   end
 
-  describe "list_test_run_failures/2" do
-    test "lists failures for a test run with pagination" do
+  describe "list_test_case_runs/2 with failure filter and preloads" do
+    test "lists failed test case runs with preloaded failures and crash reports" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
@@ -402,18 +646,91 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failures_page1, meta_page1} =
-        Tests.list_test_run_failures(test.id, %{
-          page_size: 2
-        })
-
-      {failures_page2, _meta} =
-        Tests.list_test_run_failures(test.id, Flop.to_next_page(meta_page1.flop))
+      {failed_runs, meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
 
       # Then
-      assert length(failures_page1) == 2
-      assert length(failures_page2) == 1
-      assert meta_page1.total_count == 3
+      assert length(failed_runs) == 2
+      assert meta.total_count == 2
+
+      run1 = Enum.find(failed_runs, &(&1.name == "testCase1"))
+      run2 = Enum.find(failed_runs, &(&1.name == "testCase2"))
+
+      assert length(run1.failures) == 1
+      assert length(run2.failures) == 2
+    end
+
+    test "preloads crash reports with attachments for failed runs" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testCrash",
+                  status: "failure",
+                  duration: 200,
+                  failures: [
+                    %{
+                      message: "Crash",
+                      path: "/path/to/test.swift",
+                      line_number: 10,
+                      issue_type: "assertion"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      {runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      run = hd(runs)
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run.id,
+          file_name: "crash-report.ips"
+        )
+
+      crash_report =
+        RunsFixtures.crash_report_fixture(
+          test_case_run_id: run.id,
+          test_case_run_attachment_id: attachment.id,
+          exception_type: "EXC_CRASH",
+          signal: "SIGABRT"
+        )
+
+      # When
+      {failed_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{
+            filters: [
+              %{field: :test_run_id, op: :==, value: test.id},
+              %{field: :status, op: :==, value: "failure"}
+            ]
+          },
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
+
+      # Then
+      assert length(failed_runs) == 1
+      failed_run = hd(failed_runs)
+      assert failed_run.crash_report.id == crash_report.id
+      assert failed_run.crash_report.exception_type == "EXC_CRASH"
+      assert failed_run.crash_report.test_case_run_attachment.id == attachment.id
+      assert failed_run.crash_report.test_case_run_attachment.file_name == "crash-report.ips"
     end
 
     test "returns empty list when no failures exist for test run" do
@@ -433,10 +750,14 @@ defmodule Tuist.TestsTest do
         )
 
       # When
-      {failures, meta} = Tests.list_test_run_failures(test.id, %{})
+      {failed_runs, meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures, crash_report: :test_case_run_attachment]
+        )
 
       # Then
-      assert failures == []
+      assert failed_runs == []
       assert meta.total_count == 0
     end
   end
@@ -841,16 +1162,63 @@ defmodule Tuist.TestsTest do
       count = Tests.get_test_run_failures_count(test.id)
       assert count == 1
 
-      {failures, _meta} = Tests.list_test_run_failures(test.id, %{})
-      assert length(failures) == 1
+      {failed_runs, _meta} =
+        Tests.list_test_case_runs(
+          %{filters: [%{field: :test_run_id, op: :==, value: test.id}, %{field: :status, op: :==, value: "failure"}]},
+          preload: [:failures]
+        )
 
-      failure = hd(failures)
+      assert length(failed_runs) == 1
+
+      failed_run = hd(failed_runs)
+      assert failed_run.name == "testThatFails"
+      assert failed_run.module_name == "FailingTestModule"
+      assert length(failed_run.failures) == 1
+
+      failure = hd(failed_run.failures)
       assert failure.message == "Expected true but was false"
       assert failure.path == "/path/to/test.swift"
       assert failure.line_number == 42
       assert failure.issue_type == "assertion"
-      assert failure.test_case_name == "testThatFails"
-      assert failure.test_module_name == "FailingTestModule"
+    end
+  end
+
+  describe "upload_crash_report/1" do
+    test "uploads a crash report successfully" do
+      # Given
+      crash_report_id = UUIDv7.generate()
+      test_case_run_id = UUIDv7.generate()
+
+      attrs = %{
+        id: crash_report_id,
+        exception_type: "EXC_CRASH",
+        signal: "SIGABRT",
+        exception_subtype: "KERN_INVALID_ADDRESS",
+        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
+        test_case_run_id: test_case_run_id,
+        test_case_run_attachment_id: UUIDv7.generate(),
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      # When
+      {:ok, crash_report} = Tests.upload_crash_report(attrs)
+
+      # Then
+      assert crash_report.id == crash_report_id
+      assert crash_report.test_case_run_id == test_case_run_id
+    end
+
+    test "returns error for missing required fields" do
+      # Given
+      attrs = %{
+        id: UUIDv7.generate()
+      }
+
+      # When
+      result = Tests.upload_crash_report(attrs)
+
+      # Then
+      assert {:error, _changeset} = result
     end
   end
 
@@ -1040,12 +1408,12 @@ defmodule Tuist.TestsTest do
       assert url == "https://codemagic.io/app/project-id-456/build/build-id-123"
     end
 
-    test "returns nil when ci_run_id is nil" do
+    test "returns nil when ci_run_id is empty" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
           ci_provider: "github",
-          ci_run_id: nil,
+          ci_run_id: "",
           ci_project_handle: "owner/repo"
         )
 
@@ -1138,6 +1506,51 @@ defmodule Tuist.TestsTest do
       # Then
       assert Enum.at(test_cases_desc, 0).name == "slowTest"
       assert Enum.at(test_cases_desc, 2).name == "fastTest"
+    end
+
+    test "preserves is_quarantined when a new test run is ingested" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert test_case.is_quarantined == false
+
+      # When - quarantine the test case, then ingest a new test run
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_quarantined: true})
+
+      {:ok, _test_run2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      # Then - the test case should still be quarantined
+      {[updated_test_case], _meta} = Tests.list_test_cases(project.id, %{})
+      assert updated_test_case.is_quarantined == true
     end
   end
 
@@ -3360,8 +3773,9 @@ defmodule Tuist.TestsTest do
 
       assert length(result) == 1
       group = hd(result)
-      assert group.passed_count == 0
+      assert group.passed_count == 1
       assert group.failed_count == 1
+      assert length(group.runs) == 2
     end
 
     test "groups multiple test cases separately" do
@@ -4027,6 +4441,72 @@ defmodule Tuist.TestsTest do
       assert existing_run.is_new == false
       assert new_run.is_new == true
     end
+
+    test "creates only one first_run event even when test case is run multiple times" do
+      # Given - a project with default_branch "main"
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_module = %{
+        name: "RepeatedNewModule",
+        status: "success",
+        duration: 1000,
+        test_cases: [
+          %{
+            name: "testRepeatedNew",
+            status: "success",
+            duration: 500
+          }
+        ]
+      }
+
+      # When - run the same new test case twice on a feature branch
+      {:ok, test1} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "feature-branch",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [test_module]
+        })
+
+      {:ok, _test2} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "feature-branch",
+          git_commit_sha: "def456",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [test_module]
+        })
+
+      # Then - there should be exactly one first_run event
+      {test_case_runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test1.id}]
+        })
+
+      test_case_id = hd(test_case_runs).test_case_id
+
+      {events, _meta} = Tests.list_test_case_events(test_case_id)
+      first_run_events = Enum.filter(events, &(&1.event_type == "first_run"))
+      assert length(first_run_events) == 1
+    end
   end
 
   describe "list_test_case_events/2" do
@@ -4240,6 +4720,50 @@ defmodule Tuist.TestsTest do
       quarantined_test = hd(quarantined_tests)
       assert quarantined_test.name == "quarantinedTest"
       assert quarantined_test.module_name == "QuarantineModule"
+    end
+
+    test "does not return duplicates when quarantined and marked_flaky events share the same timestamp" do
+      # Given - simulate auto-quarantine which sets both is_flaky and is_quarantined
+      # at the same time, creating two events with the same inserted_at
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "autoQuarantinedTest",
+          module_name: "FlakyModule",
+          is_quarantined: true,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Create both events with the same timestamp (as update_test_case does)
+      now = NaiveDateTime.utc_now()
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: now
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "marked_flaky",
+        inserted_at: now
+      )
+
+      # When - filter by quarantined_by: :tuist to force the quarantine_info LEFT JOIN
+      # to be evaluated (ClickHouse may optimize away unused joins otherwise)
+      {quarantined_tests, meta} =
+        Tests.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :quarantined_by, op: :==, value: :tuist}]
+        })
+
+      # Then - should return exactly 1, not 2
+      assert length(quarantined_tests) == 1
+      assert meta.total_count == 1
+      assert hd(quarantined_tests).name == "autoQuarantinedTest"
     end
 
     test "supports pagination" do
@@ -4524,6 +5048,52 @@ defmodule Tuist.TestsTest do
       assert "test1" in names
       assert "test2" in names
     end
+
+    test "excludes test cases whose latest version is no longer quarantined" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      # Old version: quarantined
+      old_version =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "wasQuarantined",
+          is_quarantined: true,
+          inserted_at: ~N[2024-01-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [old_version |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Newer version: no longer quarantined (e.g. after unquarantine or re-ingestion)
+      new_version =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          name: "wasQuarantined",
+          is_quarantined: false,
+          inserted_at: ~N[2024-01-02 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [new_version |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-01-01 00:00:00.000000]
+      )
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_id,
+        event_type: "unquarantined",
+        inserted_at: ~N[2024-01-02 00:00:00.000000]
+      )
+
+      {quarantined_tests, meta} = Tests.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_tests == []
+      assert meta.total_count == 0
+    end
   end
 
   describe "get_quarantine_actors/1" do
@@ -4680,6 +5250,179 @@ defmodule Tuist.TestsTest do
 
       actors2 = Tests.get_quarantine_actors(project2.id)
       assert actors2 == []
+    end
+  end
+
+  describe "create_test_case_run_attachment/1" do
+    test "creates an attachment successfully" do
+      # Given
+      attachment_id = UUIDv7.generate()
+      test_case_run_id = UUIDv7.generate()
+
+      attrs = %{
+        id: attachment_id,
+        test_case_run_id: test_case_run_id,
+        file_name: "crash-report.ips",
+        content_type: "application/x-ips",
+        inserted_at: NaiveDateTime.utc_now()
+      }
+
+      # When
+      result = Tests.create_test_case_run_attachment(attrs)
+
+      # Then
+      assert {:ok, attachment} = result
+      assert attachment.id == attachment_id
+      assert attachment.test_case_run_id == test_case_run_id
+      assert attachment.file_name == "crash-report.ips"
+    end
+
+    test "returns error for missing required fields" do
+      # Given
+      attrs = %{id: UUIDv7.generate()}
+
+      # When
+      result = Tests.create_test_case_run_attachment(attrs)
+
+      # Then
+      assert {:error, _changeset} = result
+    end
+  end
+
+  describe "get_attachment_by_id/1" do
+    test "returns attachment when it exists" do
+      # Given
+      test_case_run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run_id,
+          file_name: "crash.ips"
+        )
+
+      # When
+      result = Tests.get_attachment_by_id(attachment.id)
+
+      # Then
+      assert {:ok, a} = result
+      assert a.id == attachment.id
+      assert a.file_name == "crash.ips"
+    end
+
+    test "returns error when attachment does not exist" do
+      # When
+      result = Tests.get_attachment_by_id(UUIDv7.generate())
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_attachment/2" do
+    test "returns attachment matching test_case_run_id and file_name" do
+      # Given
+      run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: run_id,
+          file_name: "crash-report.ips"
+        )
+
+      # When
+      result = Tests.get_attachment(run_id, "crash-report.ips")
+
+      # Then
+      assert {:ok, a} = result
+      assert a.id == attachment.id
+    end
+
+    test "returns error when no matching attachment exists" do
+      # When
+      result = Tests.get_attachment(UUIDv7.generate(), "nonexistent.ips")
+
+      # Then
+      assert {:error, :not_found} = result
+    end
+  end
+
+  describe "attachment_storage_key/1" do
+    test "builds the correct S3 key with downcased handles" do
+      # When
+      key =
+        Tests.attachment_storage_key(%{
+          account_handle: "MyOrg",
+          project_handle: "MyProject",
+          test_case_run_id: "run-123",
+          attachment_id: "att-456",
+          file_name: "crash-report.ips"
+        })
+
+      # Then
+      assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
+    end
+  end
+
+  describe "project_test_schemes/1" do
+    test "returns distinct schemes for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "Framework",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: nil,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: other_project.id,
+        scheme: "OtherApp",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      old_date = NaiveDateTime.add(NaiveDateTime.utc_now(), -31, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "OldScheme",
+        ran_at: old_date
+      )
+
+      # When
+      schemes = Tests.project_test_schemes(project)
+
+      # Then
+      assert Enum.sort(schemes) == ["App", "Framework"]
+    end
+
+    test "returns an empty list when no tests exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      schemes = Tests.project_test_schemes(project)
+
+      # Then
+      assert schemes == []
     end
   end
 end

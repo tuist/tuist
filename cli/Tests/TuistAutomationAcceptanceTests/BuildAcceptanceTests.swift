@@ -2,6 +2,7 @@ import FileSystem
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistInitCommand
 import TuistSupport
 import TuistTesting
 import XCTest
@@ -278,7 +279,17 @@ final class BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp: 
         try await setUpFixture("generated_multiplatform_app_with_macros_and_embedded_watchos_app")
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self, "App", "--platform", "ios")
+        do {
+            try await run(BuildCommand.self, "App", "--platform", "ios")
+        } catch {
+            let message = String(describing: error)
+            if message.contains("must be installed in order to run the scheme"),
+               message.contains("watchOS")
+            {
+                throw XCTSkip("Skipping because the required watchOS simulator runtime is not installed.")
+            }
+            throw error
+        }
     }
 }
 
@@ -305,7 +316,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildBuildCommand.self,
             [
-                "build",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -331,13 +341,12 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildTestCommand.self,
             [
-                "test",
-                "-project",
-                fixtureDirectory.pathString + "/App.xcodeproj",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
-                "AppTests",
+                "App",
                 "-destination",
-                "platform=iOS Simulator,name=iPhone 17",
+                "generic/platform=iOS Simulator",
                 "-derivedDataPath",
                 temporaryDirectory.pathString,
             ]
@@ -357,7 +366,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
-                "build-for-testing",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
@@ -384,13 +392,12 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildBuildForTestingCommand.self,
             [
-                "build-for-testing",
-                "-project",
-                fixtureDirectory.pathString + "/App.xcodeproj",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
-                "AppTests",
+                "App",
                 "-destination",
-                "platform=iOS Simulator,name=iPhone 17",
+                "generic/platform=iOS Simulator",
                 "-derivedDataPath",
                 temporaryDirectory.pathString,
             ]
@@ -400,13 +407,12 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildTestWithoutBuildingCommand.self,
             [
-                "test-without-building",
-                "-project",
-                fixtureDirectory.pathString + "/App.xcodeproj",
+                "-workspace",
+                fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",
-                "AppTests",
+                "App",
                 "-destination",
-                "platform=iOS Simulator,name=iPhone 17",
+                "generic/platform=iOS Simulator",
                 "-derivedDataPath",
                 temporaryDirectory.pathString,
             ]
@@ -426,7 +432,6 @@ final class XcodeBuildCommandAcceptanceTests: TuistAcceptanceTestCase {
         try await TuistTest.run(
             XcodeBuildArchiveCommand.self,
             [
-                "archive",
                 "-workspace",
                 fixtureDirectory.pathString + "/App.xcworkspace",
                 "-scheme",

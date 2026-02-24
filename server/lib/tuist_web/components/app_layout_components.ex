@@ -7,6 +7,8 @@ defmodule TuistWeb.AppLayoutComponents do
 
   import TuistWeb.AccountDropdown
 
+  alias Tuist.Projects.Project
+
   attr(:selected_project, :map, required: true)
   attr(:selected_account, :map, required: true)
   attr(:selected_run, :map, required: true)
@@ -24,6 +26,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={overview_path == @current_path}
       />
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
@@ -54,6 +57,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
@@ -117,6 +121,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"
         label={dgettext("dashboard", "Module Cache")}
         icon="database"
@@ -168,11 +173,119 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Xcode Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
         selected={
           ~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache" == @current_path
+        }
+      />
+      <.sidebar_group
+        :if={Project.gradle_project?(@selected_project)}
+        id="sidebar-gradle-builds"
+        label={dgettext("dashboard", "Builds")}
+        icon="versions"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+        }
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds"
+          )
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Build Runs")}
+          icon="chart_column"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"
+            )
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_group
+        :if={Project.gradle_project?(@selected_project)}
+        id="sidebar-gradle-tests"
+        label={dgettext("dashboard", "Tests")}
+        icon="subtask"
+        navigate={
+          @current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests" &&
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
+        }
+        selected={@current_path == ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
+        disabled={@current_path != ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"}
+        default_open={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests"
+          )
+        }
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Test Runs")}
+          icon="dashboard"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Test Cases")}
+          icon="exchange"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Flaky Tests")}
+          icon="progress_x"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"
+            )
+          }
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Quarantined Tests")}
+          icon="lock"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"
+            )
+          }
+        />
+      </.sidebar_group>
+      <.sidebar_item
+        :if={Project.gradle_project?(@selected_project)}
+        label={dgettext("dashboard", "Gradle Cache")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
+        selected={
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
+          )
         }
       />
       <.sidebar_item
@@ -187,7 +300,10 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
+        :if={
+          Project.xcode_project?(@selected_project) and
+            FunWithFlags.enabled?(:qa, for: @selected_account)
+        }
         label={dgettext("dashboard", "QA")}
         icon="checkup_list"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
@@ -302,6 +418,8 @@ defmodule TuistWeb.AppLayoutComponents do
           label={breadcrumb.label}
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
+          badge_label={breadcrumb[:badge] && breadcrumb.badge.label}
+          badge_color={breadcrumb[:badge] && breadcrumb.badge.color}
         >
           <:icon :if={Map.get(breadcrumb, :icon)}><.icon name={Map.get(breadcrumb, :icon)} /></:icon>
           <.breadcrumb_item
@@ -314,6 +432,8 @@ defmodule TuistWeb.AppLayoutComponents do
             show_avatar={Map.get(breadcrumb_item, :show_avatar, false)}
             avatar_color={Map.get(breadcrumb_item, :avatar_color)}
             icon={Map.get(breadcrumb_item, :icon)}
+            badge_label={breadcrumb_item[:badge] && breadcrumb_item.badge.label}
+            badge_color={breadcrumb_item[:badge] && breadcrumb_item.badge.color}
           />
         </.breadcrumb>
       <% end %>

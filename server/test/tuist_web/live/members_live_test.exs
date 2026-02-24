@@ -27,6 +27,35 @@ defmodule TuistWeb.MembersLiveTest do
     %{conn: conn, user: user, organization: organization, account: account}
   end
 
+  describe "revoke_invite" do
+    test "does not allow revoking an invitation belonging to a different organization", %{
+      conn: conn,
+      account: account
+    } do
+      # Given: an invitation on a completely different organization
+      other_user = AccountsFixtures.user_fixture()
+      other_org = AccountsFixtures.organization_fixture(creator: other_user, preload: [:account])
+
+      {:ok, other_invitation} =
+        Accounts.invite_user_to_organization(
+          "victim@example.com",
+          %{
+            inviter: other_user,
+            to: other_org,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When: the user sends a revoke event with the other org's invitation ID
+      render_hook(lv, "revoke_invite", %{"id" => other_invitation.id})
+
+      # Then: the invitation should still exist
+      assert Accounts.get_invitation_by_id(other_invitation.id)
+    end
+  end
+
   describe "members table" do
     test "renders members table with admin and regular users", %{
       conn: conn,

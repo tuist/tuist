@@ -19,7 +19,7 @@ if [ "$usage_linux_vm" = "true" ]; then
         --volume "$PROJECT_ROOT:/package" \
         --workdir "/package" \
         --env MISE_PROJECT_ROOT=/package \
-        swift:6.1 \
+        swift:6.2 \
         ./mise/tasks/cli/bundle-linux.sh
 fi
 
@@ -32,14 +32,37 @@ echo "==> Building Linux release into $BUILD_DIRECTORY"
 rm -rf $BUILD_DIRECTORY
 mkdir -p $BUILD_DIRECTORY
 
-echo "==> Building tuist executable"
-swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry
-
-BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --show-bin-path)
-echo "==> Copying binary from $BIN_PATH"
-cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
+# Install Swift Static Linux SDK for fully static musl-based binaries.
+# This eliminates all shared library dependencies and cross-distro compatibility issues
+# (e.g. Ubuntu's CURL_OPENSSL_4 vs Fedora's libcurl-minimal).
+echo "==> Installing Swift Static Linux SDK"
+swift sdk install https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
+    --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
 
 ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+    SDK_TARGET="x86_64-swift-linux-musl"
+elif [ "$ARCH" = "aarch64" ]; then
+    SDK_TARGET="aarch64-swift-linux-musl"
+else
+    echo "ERROR: Unsupported architecture: $ARCH" >&2
+    exit 1
+fi
+
+# Remove system glibc/curl static archives that conflict with the musl SDK.
+# The musl SDK provides its own minimal static libraries, but the linker also finds
+# the system's glibc-based .a files (libcurl with libidn2/libldap/libssh deps,
+# libc with _DYNAMIC symbol, libm with internal glibc symbols). Removing these
+# forces the linker to use only the musl SDK's versions.
+echo "==> Removing conflicting system static libraries"
+rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a
+
+echo "==> Building tuist executable (static musl, $SDK_TARGET)"
+swift build --product tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry --swift-sdk "$SDK_TARGET"
+
+BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BUILD_PATH" --swift-sdk "$SDK_TARGET" --show-bin-path)
+echo "==> Copying binary from $BIN_PATH"
+cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
 
 echo "==> Bundling for $ARCH"
 

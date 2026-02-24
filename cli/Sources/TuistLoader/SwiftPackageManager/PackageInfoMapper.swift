@@ -107,7 +107,7 @@ public protocol PackageInfoMapping {
 }
 
 // swiftlint:disable:next type_body_length
-public final class PackageInfoMapper: PackageInfoMapping {
+public struct PackageInfoMapper: PackageInfoMapping {
     /// Predefined source directories, in order of preference.
     /// https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
@@ -317,7 +317,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
-                return try await self.map(
+                return try await map(
                     target: target,
                     targetToProducts: targetToProducts,
                     packageInfo: packageInfo,
@@ -326,6 +326,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     packageFolder: path,
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
+                    baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageTraits: packageInfo.traits ?? [],
@@ -367,11 +368,53 @@ public final class PackageInfoMapper: PackageInfoMapping {
         )
     }
 
-    fileprivate class func sanitize(targetName: String) -> String {
+    fileprivate static func sanitize(targetName: String) -> String {
         targetName
             .replacingOccurrences(of: ".", with: "_")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "+", with: "_")
+    }
+
+    private static func effectiveModuleName(
+        targetName: String,
+        products: Set<PackageInfo.Product>,
+        packageTargets: [PackageInfo.Target]
+    ) -> String {
+        guard products.count == 1,
+              let singleProduct = products.first,
+              singleProduct.targets.count == 1,
+              singleProduct.targets.first == targetName,
+              singleProduct.name != targetName,
+              targetName.hasPrefix(singleProduct.name)
+        else { return targetName }
+
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageTargets.map { ($0.name, $0) })
+        var visited = Set<String>()
+        var queue = [targetName]
+
+        while let currentTargetName = queue.popLast() {
+            guard visited.insert(currentTargetName).inserted,
+                  let currentTarget = targetsByName[currentTargetName]
+            else { continue }
+
+            for dependency in currentTarget.dependencies {
+                let dependencyName: String
+                switch dependency {
+                case let .target(name, _), let .byName(name, _), let .product(name, _, _, _):
+                    dependencyName = name
+                }
+
+                if dependencyName == singleProduct.name {
+                    return targetName
+                }
+
+                if targetsByName[dependencyName] != nil {
+                    queue.append(dependencyName)
+                }
+            }
+        }
+
+        return singleProduct.name
     }
 
     // swiftlint:disable:next function_body_length
@@ -384,6 +427,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
+        baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageTraits: [PackageTrait],
@@ -440,9 +484,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular:
+            let effectiveName = PackageInfoMapper.effectiveModuleName(
+                targetName: target.name, products: products, packageTargets: packageInfo.targets
+            )
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
-                moduleName: target.name,
+                moduleName: effectiveName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path)
             )
         default:
@@ -573,7 +620,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
-        let productName = sanitizedTargetName.replacingOccurrences(of: "-", with: "_")
+        let effectiveName = PackageInfoMapper.effectiveModuleName(
+            targetName: target.name, products: products, packageTargets: packageInfo.targets
+        )
+        let aliasedEffectiveName = packageModuleAliases[packageInfo.name]?[effectiveName] ?? effectiveName
+        let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveName)
+            .replacingOccurrences(of: "-", with: "_")
 
         let settings = try await Settings.from(
             target: target,
@@ -581,6 +633,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
+            baseSettings: baseSettings,
             targetSettings: targetSettings[target.name],
             dependencyModuleAliases: dependencyModuleAliases,
             packageTraits: packageTraits,
@@ -592,7 +645,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: "dev.tuist.\(sanitizedTargetName.replacingOccurrences(of: "_", with: "."))",
+            bundleId: sanitizedTargetName
+                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
@@ -640,9 +694,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
             if let aliasedName = moduleAliases?[name] {
                 dependencyModuleAliases[name] = aliasedName
-                return .target(name: aliasedName, condition: platformCondition)
+                return .target(name: PackageInfoMapper.sanitize(targetName: aliasedName), condition: platformCondition)
             } else {
-                return .target(name: name, condition: platformCondition)
+                return .target(name: PackageInfoMapper.sanitize(targetName: name), condition: platformCondition)
             }
         } else {
             if let aliasedName = moduleAliases?[name] {
@@ -758,6 +812,11 @@ extension ProjectDescription.Product {
 
         if let productType = productTypes[name] {
             return ProjectDescription.Product.from(product: productType)
+        }
+        for product in products {
+            if let productType = productTypes[product.name] {
+                return ProjectDescription.Product.from(product: productType)
+            }
         }
 
         var hasAutomaticProduct = false
@@ -1055,6 +1114,7 @@ extension ProjectDescription.Settings {
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
+        baseSettings: XcodeGraph.Settings,
         targetSettings: XcodeGraph.Settings?,
         dependencyModuleAliases: [String: String],
         packageTraits: [PackageTrait],
@@ -1195,9 +1255,8 @@ extension ProjectDescription.Settings {
             )
         }
 
-        if let defaultSettings = targetSettings?.defaultSettings {
-            result.defaultSettings = .from(defaultSettings: defaultSettings)
-        }
+        let defaultSettings = targetSettings?.defaultSettings ?? baseSettings.defaultSettings
+        result.defaultSettings = .from(defaultSettings: defaultSettings)
 
         for (index, configuration) in result.configurations.enumerated() {
             result.configurations[index].settings.merge(
@@ -1417,10 +1476,12 @@ extension PackageInfo {
                 )
             }
 
+        let defaultSettings = ProjectDescription.DefaultSettings.from(defaultSettings: baseSettings.defaultSettings)
+
         if configurations.isEmpty {
-            return .settings(base: settingsDictionary)
+            return .settings(base: settingsDictionary, defaultSettings: defaultSettings)
         } else {
-            return .settings(base: settingsDictionary, configurations: configurations)
+            return .settings(base: settingsDictionary, configurations: configurations, defaultSettings: defaultSettings)
         }
     }
 

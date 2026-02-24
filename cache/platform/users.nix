@@ -19,6 +19,14 @@
     ];
   };
 
+  users.users.pedro = {
+    isNormalUser = true;
+    extraGroups = ["wheel" "docker"];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKqGgvTCOAILQD/O1/yTh9K4pfTBFE+rUsPYshv1iuJU pedro@pepicrft.me"
+    ];
+  };
+
   users.users.github-actions = {
     isNormalUser = true;
     extraGroups = ["docker"];

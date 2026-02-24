@@ -2,6 +2,7 @@ servers:
   web:
     hosts:
       - cache-eu-central.tuist.dev
+      - cache-eu-north.tuist.dev
       - cache-us-east.tuist.dev
       - cache-us-west.tuist.dev
       - cache-ap-southeast.tuist.dev
@@ -11,4 +12,6 @@ env:
   clear:
     SERVER_URL: https://tuist.dev
     SENTRY_ENV: prod
+    DEPLOY_ENV: prod
     POOL_SIZE: "10"
+

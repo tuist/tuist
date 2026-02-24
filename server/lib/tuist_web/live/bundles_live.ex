@@ -19,6 +19,13 @@ defmodule TuistWeb.BundlesLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+    {type_options, type_display_names} = bundle_type_options(project)
+
+    bundle_type_items =
+      Enum.map(type_options, fn type ->
+        %{value: Atom.to_string(type), label: Map.get(type_display_names, type)}
+      end)
+
     socket =
       socket
       |> assign(
@@ -26,6 +33,7 @@ defmodule TuistWeb.BundlesLive do
         "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
       )
       |> assign(:available_filters, define_filters(project))
+      |> assign(:bundle_type_items, bundle_type_items)
       |> assign(OpenGraph.og_image_assigns("bundles"))
 
     {:ok, socket}
@@ -386,16 +394,22 @@ defmodule TuistWeb.BundlesLive do
   def format_bundle_type(:ipa), do: dgettext("dashboard_cache", "IPA")
   def format_bundle_type(:app), do: dgettext("dashboard_cache", "App bundle")
   def format_bundle_type(:xcarchive), do: dgettext("dashboard_cache", "XCArchive")
+  def format_bundle_type(:aab), do: dgettext("dashboard_cache", "AAB")
+  def format_bundle_type(:apk), do: dgettext("dashboard_cache", "APK")
   def format_bundle_type(_), do: dgettext("dashboard_cache", "Unknown")
 
   def bundles_type_label("ipa"), do: dgettext("dashboard_cache", "IPA")
   def bundles_type_label("app"), do: dgettext("dashboard_cache", "App bundle")
   def bundles_type_label("xcarchive"), do: dgettext("dashboard_cache", "XCArchive")
+  def bundles_type_label("aab"), do: dgettext("dashboard_cache", "AAB")
+  def bundles_type_label("apk"), do: dgettext("dashboard_cache", "APK")
   def bundles_type_label(_), do: dgettext("dashboard_cache", "Any")
 
   defp string_to_bundle_type("ipa"), do: :ipa
   defp string_to_bundle_type("app"), do: :app
   defp string_to_bundle_type("xcarchive"), do: :xcarchive
+  defp string_to_bundle_type("aab"), do: :aab
+  defp string_to_bundle_type("apk"), do: :apk
   defp string_to_bundle_type(_), do: nil
 
   def empty_state_light_background(assigns) do
@@ -888,20 +902,10 @@ defmodule TuistWeb.BundlesLive do
     """
   end
 
-  defp define_filters(_project) do
-    platform_options = [
-      :ios,
-      :ios_simulator,
-      :macos,
-      :watchos,
-      :watchos_simulator,
-      :tvos,
-      :tvos_simulator,
-      :visionos,
-      :visionos_simulator
-    ]
+  defp define_filters(project) do
+    {type_options, type_display_names} = bundle_type_options(project)
 
-    [
+    base_filters = [
       %Filter.Filter{
         id: "name",
         field: :name,
@@ -923,12 +927,8 @@ defmodule TuistWeb.BundlesLive do
         field: :type,
         display_name: dgettext("dashboard_cache", "Type"),
         type: :option,
-        options: [:app, :ipa, :xcarchive],
-        options_display_names: %{
-          app: dgettext("dashboard_cache", "App bundle"),
-          ipa: dgettext("dashboard_cache", "IPA"),
-          xcarchive: dgettext("dashboard_cache", "XCArchive")
-        },
+        options: type_options,
+        options_display_names: type_display_names,
         operator: :==,
         value: nil
       },
@@ -947,27 +947,73 @@ defmodule TuistWeb.BundlesLive do
         type: :number,
         operator: :>=,
         value: nil
-      },
-      %Filter.Filter{
-        id: "supported_platforms",
-        field: :supported_platforms,
-        display_name: dgettext("dashboard_cache", "Platform"),
-        type: :option,
-        options: platform_options,
-        options_display_names: %{
-          ios: "iOS",
-          ios_simulator: "iOS Simulator",
-          macos: "macOS",
-          watchos: "watchOS",
-          watchos_simulator: "watchOS Simulator",
-          tvos: "tvOS",
-          tvos_simulator: "tvOS Simulator",
-          visionos: "visionOS",
-          visionos_simulator: "visionOS Simulator"
-        },
-        operator: :==,
-        value: nil
       }
     ]
+
+    if Projects.Project.gradle_project?(project) do
+      base_filters
+    else
+      {platform_options, platform_display_names} = bundle_platform_options(project)
+
+      base_filters ++
+        [
+          %Filter.Filter{
+            id: "supported_platforms",
+            field: :supported_platforms,
+            display_name: dgettext("dashboard_cache", "Platform"),
+            type: :option,
+            options: platform_options,
+            options_display_names: platform_display_names,
+            operator: :==,
+            value: nil
+          }
+        ]
+    end
+  end
+
+  defp bundle_type_options(project) do
+    if Projects.Project.gradle_project?(project) do
+      {[:aab, :apk],
+       %{
+         aab: dgettext("dashboard_cache", "AAB"),
+         apk: dgettext("dashboard_cache", "APK")
+       }}
+    else
+      {[:app, :ipa, :xcarchive],
+       %{
+         app: dgettext("dashboard_cache", "App bundle"),
+         ipa: dgettext("dashboard_cache", "IPA"),
+         xcarchive: dgettext("dashboard_cache", "XCArchive")
+       }}
+    end
+  end
+
+  defp bundle_platform_options(project) do
+    if Projects.Project.gradle_project?(project) do
+      {[:android], %{android: "Android"}}
+    else
+      {[
+         :ios,
+         :ios_simulator,
+         :macos,
+         :watchos,
+         :watchos_simulator,
+         :tvos,
+         :tvos_simulator,
+         :visionos,
+         :visionos_simulator
+       ],
+       %{
+         ios: "iOS",
+         ios_simulator: "iOS Simulator",
+         macos: "macOS",
+         watchos: "watchOS",
+         watchos_simulator: "watchOS Simulator",
+         tvos: "tvOS",
+         tvos_simulator: "tvOS Simulator",
+         visionos: "visionOS",
+         visionos_simulator: "visionOS Simulator"
+       }}
+    end
   end
 end

@@ -23,7 +23,9 @@ defmodule Tuist.Tests do
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Tests.CrashReport
   alias Tuist.Tests.FlakyTestCase
   alias Tuist.Tests.QuarantinedTestCase
   alias Tuist.Tests.Test
@@ -31,25 +33,62 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseFailure
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
 
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
-  def get_test(id, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
+  def project_test_schemes(%Project{} = project) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
-    query =
+    ClickHouseRepo.all(
       from(t in Test,
-        where: t.id == ^id,
-        order_by: [desc: t.inserted_at],
-        limit: 1
+        where: t.project_id == ^project.id,
+        where: t.scheme != "",
+        where: t.ran_at > ^thirty_days_ago,
+        distinct: true,
+        select: t.scheme
       )
+    )
+  end
 
-    case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      test -> {:ok, Repo.preload(test, preload)}
+  def upload_crash_report(attrs) do
+    %CrashReport{}
+    |> CrashReport.create_changeset(attrs)
+    |> IngestRepo.insert()
+  end
+
+  def get_test(id, opts \\ []) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} ->
+        preload = Keyword.get(opts, :preload, [])
+
+        query =
+          from(t in Test,
+            where: t.id == ^uuid,
+            order_by: [desc: t.inserted_at],
+            limit: 1
+          )
+
+        case ClickHouseRepo.one(query) do
+          nil ->
+            {:error, :not_found}
+
+          test ->
+            {ch_preloads, pg_preloads} = Enum.split_with(preload, &(&1 in [:build_run, :gradle_build]))
+
+            test =
+              test
+              |> Repo.preload(pg_preloads)
+              |> ClickHouseRepo.preload(ch_preloads)
+
+            {:ok, test}
+        end
+
+      :error ->
+        {:error, :not_found}
     end
   end
 
@@ -57,6 +96,20 @@ defmodule Tuist.Tests do
     query =
       from(t in Test,
         where: t.build_run_id == ^build_run_id,
+        order_by: [desc: t.ran_at, desc: t.inserted_at],
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      test -> {:ok, test}
+    end
+  end
+
+  def get_latest_test_by_gradle_build_id(gradle_build_id) do
+    query =
+      from(t in Test,
+        where: t.gradle_build_id == ^gradle_build_id,
         order_by: [desc: t.ran_at, desc: t.inserted_at],
         limit: 1
       )
@@ -75,41 +128,13 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
-  def list_test_case_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestCaseRun, attrs, for: TestCaseRun)
-  end
-
   def get_test_run_failures_count(test_run_id) do
     query =
-      from f in TestCaseFailure,
-        join: tcr in TestCaseRun,
-        on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id,
-        select: count(f.id)
+      from tcr in TestCaseRun,
+        where: tcr.test_run_id == ^test_run_id and tcr.status == "failure",
+        select: count(tcr.id)
 
     ClickHouseRepo.one(query) || 0
-  end
-
-  def list_test_run_failures(test_run_id, attrs) do
-    query =
-      from f in TestCaseFailure,
-        join: tcr in TestCaseRun,
-        on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id,
-        select: %{
-          id: f.id,
-          test_case_run_id: f.test_case_run_id,
-          message: f.message,
-          path: f.path,
-          line_number: f.line_number,
-          issue_type: f.issue_type,
-          inserted_at: f.inserted_at,
-          test_case_name: tcr.name,
-          test_module_name: tcr.module_name,
-          test_suite_name: tcr.suite_name
-        }
-
-    Tuist.ClickHouseFlop.validate_and_run!(query, attrs, for: TestCaseFailure)
   end
 
   def list_test_suite_runs(attrs) do
@@ -138,11 +163,11 @@ defmodule Tuist.Tests do
 
   defp normalize_ci_provider(provider) when is_binary(provider) do
     if provider in valid_ci_providers() do
-      String.to_existing_atom(provider)
+      provider
     end
   end
 
-  defp normalize_ci_provider(provider) when is_atom(provider), do: provider
+  defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
 
   def create_test(attrs) do
     test_modules = Map.get(attrs, :test_modules, [])
@@ -160,7 +185,7 @@ defmodule Tuist.Tests do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        test_case_ids_with_flaky_run = create_test_modules(test, test_modules)
+        {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
 
         schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
@@ -172,7 +197,7 @@ defmodule Tuist.Tests do
           :test_created
         )
 
-        {:ok, test}
+        {:ok, %{test | test_case_runs: test_case_runs}}
 
       {:error, changeset} ->
         {:error, changeset}
@@ -236,6 +261,7 @@ defmodule Tuist.Tests do
 
         current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
+        existing_is_quarantined = Map.get(existing, :is_quarantined, false)
 
         test_case = %{
           id: id,
@@ -247,6 +273,7 @@ defmodule Tuist.Tests do
           last_duration: data.duration,
           last_ran_at: data.ran_at,
           is_flaky: existing_is_flaky,
+          is_quarantined: existing_is_quarantined,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -256,6 +283,11 @@ defmodule Tuist.Tests do
         {test_case, acc}
       end)
 
+    new_test_case_ids =
+      test_case_ids
+      |> Enum.reject(&Map.has_key?(existing_data, &1))
+      |> MapSet.new()
+
     IngestRepo.insert_all(TestCase, test_cases)
 
     test_case_id_map =
@@ -263,7 +295,7 @@ defmodule Tuist.Tests do
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    {test_case_id_map, test_cases_with_flaky_run}
+    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
   end
 
   defp get_project_test_cases(_project_id, []), do: %{}
@@ -285,7 +317,8 @@ defmodule Tuist.Tests do
         select: %{
           id: test_case.id,
           recent_durations: test_case.recent_durations,
-          is_flaky: test_case.is_flaky
+          is_flaky: test_case.is_flaky,
+          is_quarantined: test_case.is_quarantined
         }
       )
 
@@ -414,26 +447,49 @@ defmodule Tuist.Tests do
   end
 
   @doc """
-  Lists test case runs for a specific test case by its UUID.
+  Lists test case runs with optional filters (e.g. test_case_id, test_run_id).
   Returns a tuple of {test_case_runs, meta} with pagination info.
   """
-  def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
-    base_query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_case_id == ^test_case_id
-      )
+  def list_test_case_runs(attrs, opts \\ []) do
+    base_query = from(tcr in TestCaseRun)
+    preloads = Keyword.get(opts, :preload, [])
 
     {results, meta} = Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRun)
 
-    results = Repo.preload(results, :ran_by_account)
+    results =
+      results
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
 
     {results, meta}
+  end
+
+  @doc """
+  Gets a test case run by its UUID.
+  Returns {:ok, test_case_run} or {:error, :not_found}.
+  """
+  def get_test_case_run_by_id(id, opts \\ []) do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil ->
+        {:error, :not_found}
+
+      run ->
+        preload = Keyword.get(opts, :preload, [])
+        run = ClickHouseRepo.preload(run, preload)
+        {:ok, run}
+    end
   end
 
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
-    Enum.flat_map(test_modules, fn module_attrs ->
+    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -472,14 +528,17 @@ defmodule Tuist.Tests do
 
       suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
-      create_test_cases_for_module(
-        test,
-        module_id,
-        test_cases,
-        suite_name_to_id,
-        module_name,
-        module_test_case_run_data
-      )
+      {flaky_ids, test_case_runs} =
+        create_test_cases_for_module(
+          test,
+          module_id,
+          test_cases,
+          suite_name_to_id,
+          module_name,
+          module_test_case_run_data
+        )
+
+      {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
   end
 
@@ -509,10 +568,10 @@ defmodule Tuist.Tests do
         }
       end)
 
-    {test_case_data, historical_flaky_ids} =
+    {test_case_data, historical_flaky_runs} =
       check_cross_run_flakiness(test, test_case_data)
 
-    mark_test_case_runs_as_flaky(historical_flaky_ids)
+    mark_test_case_runs_as_flaky(historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test, test_case_data)
 
@@ -528,24 +587,22 @@ defmodule Tuist.Tests do
     test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
     existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha)
 
-    Enum.map_reduce(test_case_data, [], fn data, historical_ids ->
-      case get_cross_run_flaky_ids(data, existing_runs) do
+    Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
+      case filter_cross_run_flaky(data, existing_runs) do
         [] ->
-          {data, historical_ids}
+          {data, historical_runs}
 
-        flaky_ids ->
-          {%{data | is_flaky: true}, flaky_ids ++ historical_ids}
+        flaky_runs ->
+          {%{data | is_flaky: true}, flaky_runs ++ historical_runs}
       end
     end)
   end
 
-  defp get_cross_run_flaky_ids(data, existing_runs) do
+  defp filter_cross_run_flaky(data, existing_runs) do
     existing = Map.get(existing_runs, data.test_case_id, [])
 
     if data.status in ["success", "failure"] do
-      existing
-      |> Enum.filter(&(&1.status != data.status))
-      |> Enum.map(& &1.id)
+      Enum.filter(existing, &(to_string(&1.status) != data.status))
     else
       []
     end
@@ -560,8 +617,7 @@ defmodule Tuist.Tests do
       from(tcr in TestCaseRun,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
-        where: tcr.status in ["success", "failure"],
-        select: %{test_case_id: tcr.test_case_id, id: tcr.id, status: tcr.status}
+        where: tcr.status in ["success", "failure"]
       )
 
     query
@@ -673,7 +729,8 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
-    {test_case_id_map, test_case_ids_with_flaky_run} = create_test_cases(test.project_id, test_case_data_list)
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
+      create_test_cases(test.project_id, test_case_data_list)
 
     {test_case_runs, all_failures, all_repetitions} =
       Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
@@ -752,13 +809,16 @@ defmodule Tuist.Tests do
       IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
     end
 
-    create_first_run_events(test_case_runs)
+    create_first_run_events(test_case_runs, new_test_case_ids)
 
-    test_case_ids_with_flaky_run
+    {test_case_ids_with_flaky_run, test_case_runs}
   end
 
-  defp create_first_run_events(test_case_runs) do
-    new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
+  defp create_first_run_events(test_case_runs, new_test_case_ids) do
+    new_test_case_runs =
+      Enum.filter(test_case_runs, fn run ->
+        run.is_new and run.test_case_id in new_test_case_ids
+      end)
 
     if Enum.any?(new_test_case_runs) do
       now = NaiveDateTime.utc_now()
@@ -799,15 +859,23 @@ defmodule Tuist.Tests do
   by ReplacingMergeTree on each test run.
   """
   def list_test_cases(project_id, attrs) do
-    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+    filters = Map.get(attrs, :filters, [])
+    has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
 
     latest_subquery =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
-        where: test_case.last_ran_at >= ^two_weeks_ago,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
+
+    latest_subquery =
+      if has_name_filter do
+        latest_subquery
+      else
+        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+        where(latest_subquery, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
+      end
 
     base_query =
       from(test_case in TestCase,
@@ -1054,7 +1122,7 @@ defmodule Tuist.Tests do
 
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        where: test_case.project_id == ^project_id,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -1070,6 +1138,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_event_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1111,7 +1180,7 @@ defmodule Tuist.Tests do
        ) do
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        where: test_case.project_id == ^project_id,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -1127,6 +1196,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_event_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1174,6 +1244,7 @@ defmodule Tuist.Tests do
         from(e in TestCaseEvent,
           join: latest in subquery(latest_quarantine_subquery),
           on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+          where: e.event_type == "quarantined",
           where: not is_nil(e.actor_id),
           select: e.actor_id,
           distinct: true
@@ -1202,6 +1273,7 @@ defmodule Tuist.Tests do
       from(e in TestCaseEvent,
         join: latest in subquery(latest_quarantine_subquery),
         on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        where: e.event_type == "quarantined",
         select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
       )
 
@@ -1284,27 +1356,21 @@ defmodule Tuist.Tests do
     }
   end
 
-  defp mark_test_case_runs_as_flaky(test_case_run_ids) when is_list(test_case_run_ids) do
-    query =
-      from(tcr in TestCaseRun,
-        where: tcr.id in ^test_case_run_ids
-      )
+  defp mark_test_case_runs_as_flaky([]), do: :ok
 
-    existing_runs = ClickHouseRepo.all(query)
-
+  defp mark_test_case_runs_as_flaky(runs) when is_list(runs) do
     updated_runs =
-      Enum.map(existing_runs, fn run ->
+      runs
+      |> Enum.uniq_by(& &1.id)
+      |> Enum.map(fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account])
+        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions, :crash_report])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 
-    if Enum.any?(updated_runs) do
-      IngestRepo.insert_all(TestCaseRun, updated_runs)
-    else
-      :ok
-    end
+    IngestRepo.insert_all(TestCaseRun, updated_runs)
+    :ok
   end
 
   defp any_test_case_run_flaky?(test_case_run_data) do
@@ -1464,7 +1530,12 @@ defmodule Tuist.Tests do
         order_by: [desc: tcr.ran_at]
       )
 
-    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+    current_flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+
+    cross_run_counterparts =
+      get_cross_run_flaky_runs(test_run_id, current_flaky_runs)
+
+    flaky_runs = current_flaky_runs ++ cross_run_counterparts
 
     run_ids = Enum.map(flaky_runs, & &1.id)
 
@@ -1507,6 +1578,33 @@ defmodule Tuist.Tests do
       }
     end)
     |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+  end
+
+  defp get_cross_run_flaky_runs(_test_run_id, []), do: []
+
+  defp get_cross_run_flaky_runs(test_run_id, current_flaky_runs) do
+    test_case_ids = current_flaky_runs |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+
+    commit_shas =
+      current_flaky_runs
+      |> Enum.map(& &1.git_commit_sha)
+      |> Enum.reject(&(&1 == "" or is_nil(&1)))
+      |> Enum.uniq()
+
+    if Enum.empty?(commit_shas) do
+      []
+    else
+      query =
+        from(tcr in TestCaseRun,
+          where: tcr.test_run_id != ^test_run_id,
+          where: tcr.git_commit_sha in ^commit_shas,
+          where: tcr.test_case_id in ^test_case_ids,
+          where: tcr.is_flaky == true,
+          order_by: [desc: tcr.ran_at]
+        )
+
+      ClickHouseRepo.all(query)
+    end
   end
 
   defp get_failures_for_runs([]), do: []
@@ -1607,5 +1705,47 @@ defmodule Tuist.Tests do
     end
 
     {:ok, length(test_cases_to_update)}
+  end
+
+  def create_test_case_run_attachment(attrs) do
+    %TestCaseRunAttachment{}
+    |> TestCaseRunAttachment.create_changeset(attrs)
+    |> IngestRepo.insert()
+  end
+
+  def get_attachment_by_id(id) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def get_attachment(test_case_run_id, file_name) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.test_case_run_id == ^test_case_run_id and a.file_name == ^file_name,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def attachment_storage_key(%{
+        account_handle: account_handle,
+        project_handle: project_handle,
+        test_case_run_id: test_case_run_id,
+        attachment_id: attachment_id,
+        file_name: file_name
+      }) do
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/test-case-runs/#{test_case_run_id}/attachments/#{attachment_id}/#{file_name}"
   end
 end

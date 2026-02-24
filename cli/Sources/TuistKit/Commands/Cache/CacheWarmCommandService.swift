@@ -4,6 +4,8 @@ import Logging
 import Path
 import TuistAutomation
 import TuistCache
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
 import TuistExtension
 import TuistLoader
@@ -30,7 +32,6 @@ import XcodeGraph
         private let pluginService: PluginServicing
         private let generatorFactory: CacheGeneratorFactorying
         private let cacheWarmGraphLinter: CacheWarmGraphLinting
-        private let cacheBuiltArtifactsFetcher: CacheBuiltArtifactsFetching
         private let defaultConfigurationFetcher: DefaultConfigurationFetching
         private let simulatorController: SimulatorControlling
         private let xcodeBuildController: XcodeBuildControlling
@@ -46,7 +47,6 @@ import XcodeGraph
             self.init(
                 generatorFactory: CacheGeneratorFactory(contentHasher: contentHasher),
                 cacheWarmGraphLinter: CacheWarmGraphLinter(),
-                cacheBuiltArtifactsFetcher: CacheBuiltArtifactsFetcher(),
                 defaultConfigurationFetcher: DefaultConfigurationFetcher(),
                 xcodeBuildController: XcodeBuildController(),
                 simulatorController: SimulatorController(),
@@ -62,7 +62,6 @@ import XcodeGraph
         init(
             generatorFactory: CacheGeneratorFactorying,
             cacheWarmGraphLinter: CacheWarmGraphLinting,
-            cacheBuiltArtifactsFetcher: CacheBuiltArtifactsFetching,
             defaultConfigurationFetcher: DefaultConfigurationFetching,
             xcodeBuildController: XcodeBuildControlling,
             simulatorController: SimulatorControlling,
@@ -78,7 +77,6 @@ import XcodeGraph
             pluginService = PluginService()
             self.generatorFactory = generatorFactory
             self.cacheWarmGraphLinter = cacheWarmGraphLinter
-            self.cacheBuiltArtifactsFetcher = cacheBuiltArtifactsFetcher
             self.defaultConfigurationFetcher = defaultConfigurationFetcher
             self.xcodeBuildController = xcodeBuildController
             self.simulatorController = simulatorController
@@ -281,6 +279,11 @@ import XcodeGraph
                     temporaryDirectory: temporaryDirectory
                 ))
 
+                artifactsToStore.append(contentsOf: try await collectForeignBuildArtifacts(
+                    cacheableTargets: hashesByTargetToBeCached,
+                    temporaryDirectory: temporaryDirectory
+                ))
+
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
                 let successfullyStoredTargets = try await store(
@@ -473,7 +476,7 @@ import XcodeGraph
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             var xcframeworks: [CacheGraphTargetBuiltArtifact] = []
-            let cacheableTargets = cacheableTargets.filter(\.0.target.product.isFramework)
+            let cacheableTargets = cacheableTargets.filter { $0.0.target.product.isFramework && !$0.0.target.isAggregate }
 
             for cacheableTarget in cacheableTargets {
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
@@ -512,6 +515,40 @@ import XcodeGraph
             return xcframeworks
         }
 
+        private func collectForeignBuildArtifacts(
+            cacheableTargets: [(GraphTarget, String)],
+            temporaryDirectory: AbsolutePath
+        ) async throws -> [CacheGraphTargetBuiltArtifact] {
+            let foreignBuildTargets = cacheableTargets.filter { $0.0.target.foreignBuild != nil }
+            guard !foreignBuildTargets.isEmpty else { return [] }
+
+            Logger.current.info("Collecting foreign build artifacts", metadata: .section)
+
+            var artifacts: [CacheGraphTargetBuiltArtifact] = []
+            for (graphTarget, hash) in foreignBuildTargets {
+                guard let foreignBuild = graphTarget.target.foreignBuild else { continue }
+                let outputPath = foreignBuild.output.path
+                guard try await fileSystem.exists(outputPath) else {
+                    Logger.current
+                        .warning("Foreign build artifact not found at \(outputPath.pathString) for \(graphTarget.target.name)")
+                    continue
+                }
+
+                let destinationPath = temporaryDirectory.appending(component: outputPath.basename)
+                try fileHandler.copy(from: outputPath, to: destinationPath)
+
+                artifacts.append(CacheGraphTargetBuiltArtifact(
+                    type: .xcframework,
+                    graphTarget: graphTarget,
+                    hash: hash,
+                    path: destinationPath,
+                    metadata: .init()
+                ))
+            }
+
+            return artifacts
+        }
+
         // swiftlint:disable:next function_body_length
         private func buildBinarySchemes(
             _ scheme: Scheme,
@@ -544,7 +581,8 @@ import XcodeGraph
                     arguments: [
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
-                        .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                        .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                        .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                         .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                         .xcarg("CODE_SIGN_IDENTITY", ""),
@@ -588,6 +626,8 @@ import XcodeGraph
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
+                .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                 .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 .xcarg("CODE_SIGN_IDENTITY", ""),
@@ -604,7 +644,6 @@ import XcodeGraph
             ] : [])
             if platform == .macOS {
                 deviceArguments.append(contentsOf: [
-                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 ])
             } else {
@@ -668,7 +707,8 @@ import XcodeGraph
                 arguments: [
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
-                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf"),
+                    .xcarg("STRIP_INSTALLED_PRODUCT", "YES"),
                     .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                     .xcarg("CODE_SIGN_IDENTITY", ""),

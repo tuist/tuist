@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TuistConfigLoader
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -29,7 +30,7 @@ public protocol ManifestGraphLoading {
     // swiftlint:disable:previous large_tuple
 }
 
-public final class ManifestGraphLoader: ManifestGraphLoading {
+public struct ManifestGraphLoader: ManifestGraphLoading {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let recursiveManifestLoader: RecursiveManifestLoading
@@ -44,13 +45,13 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private let packageSettingsLoader: PackageSettingsLoading
     private let manifestFilesLocator: ManifestFilesLocating
 
-    public convenience init(
+    public init(
         manifestLoader: ManifestLoading,
         workspaceMapper: WorkspaceMapping,
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(
@@ -117,6 +118,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
         let packageSettings: TuistCore.PackageSettings?
+        var spmLintingIssues: [LintingIssue] = []
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
@@ -128,11 +130,12 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
                 disableSandbox: disableSandbox
             )
 
-            let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
+            let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings,
                 disableSandbox: disableSandbox
             )
+            spmLintingIssues = loadedSpmLintingIssues
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings
         } else {
@@ -157,7 +160,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         // Lint Manifests
         let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
         let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
-        let lintingIssues = workspaceLintingIssues + projectLintingIssues
+        let lintingIssues = workspaceLintingIssues + projectLintingIssues + spmLintingIssues
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models
@@ -208,7 +211,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     ) async throws -> [XcodeGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try await tuples.concurrentMap {
-            try await self.converter.convert(
+            try await converter.convert(
                 manifest: $0.manifest,
                 path: $0.path,
                 plugins: plugins,

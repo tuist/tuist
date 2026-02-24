@@ -4,10 +4,12 @@ import Path
 import TuistAlert
 import TuistAutomation
 import TuistCI
+import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -105,15 +107,26 @@ struct InspectBuildCommandService {
             return
         }
         let basePath = try await self.path(path)
+        Logger.current.debug("Inspect build: base path resolved to \(basePath.pathString)")
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
-        let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
-        var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
-            validating: $0,
-            relativeTo: currentWorkingDirectory
-        ) }
-        if projectDerivedDataDirectory == nil {
+        Logger.current.debug("Inspect build: project path resolved to \(projectPath.pathString)")
+        let projectDerivedDataDirectory: AbsolutePath
+        if let derivedDataPath {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            projectDerivedDataDirectory = try AbsolutePath(
+                validating: derivedDataPath,
+                relativeTo: currentWorkingDirectory
+            )
+        } else {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
+        Logger.current.debug("Inspect build: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
+        Logger.current
+            .debug("Inspect build: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
+        Logger.current
+            .debug(
+                "Inspect build: reference date is \(referenceDate) (timeIntervalSinceReferenceDate: \(referenceDate.timeIntervalSinceReferenceDate))"
+            )
 
         let mostRecentActivityLogPath = try await mostRecentActivityLogPath(
             projectPath: projectPath,
@@ -133,8 +146,9 @@ struct InspectBuildCommandService {
         referenceDate: Date
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!
+        let timeoutSeconds = Int(Environment.current.variables["TUIST_INSPECT_BUILD_TIMEOUT"] ?? "") ?? 10
         try await withTimeout(
-            .seconds(5),
+            .seconds(timeoutSeconds),
             onTimeout: {
                 throw InspectBuildCommandServiceError.mostRecentActivityLogNotFound(projectPath)
             }
@@ -152,6 +166,7 @@ struct InspectBuildCommandService {
                     mostRecentActivityLogPath = mostRecentActivityLogFile.path
                 }
                 if mostRecentActivityLogPath != nil {
+                    Logger.current.debug("Inspect build: using activity log at \(mostRecentActivityLogPath.pathString)")
                     return
                 }
 

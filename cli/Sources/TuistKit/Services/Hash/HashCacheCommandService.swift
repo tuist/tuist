@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistConfigLoader
 import TuistCore
 import TuistExtension
 import TuistHasher
@@ -24,7 +25,7 @@ enum HashCacheCommandServiceError: LocalizedError, Equatable {
     }
 }
 
-public final class HashCacheCommandService: HashCacheServicing {
+public struct HashCacheCommandService: HashCacheServicing {
     #if canImport(TuistCacheEE)
         private let generatorFactory: CacheGeneratorFactorying
     #else
@@ -34,7 +35,7 @@ public final class HashCacheCommandService: HashCacheServicing {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
 
-    public convenience init(
+    public init(
         contentHasher: ContentHashing = CachedContentHasher()
     ) {
         #if canImport(TuistCacheEE)
@@ -46,7 +47,7 @@ public final class HashCacheCommandService: HashCacheServicing {
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader
         )
     }

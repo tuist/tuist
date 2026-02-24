@@ -10,7 +10,7 @@ public protocol SourceFilesContentHashing {
 
 /// `SourceFilesContentHasher`
 /// is responsible for computing a unique hash that identifies a list of source files, considering their content
-public final class SourceFilesContentHasher: SourceFilesContentHashing {
+public struct SourceFilesContentHasher: SourceFilesContentHashing {
     private let contentHasher: ContentHashing
     private let platformConditionContentHasher: PlatformConditionContentHashing
 

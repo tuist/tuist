@@ -1,4 +1,5 @@
 import Mockable
+import TuistConfigLoader
 import TuistLoader
 import TuistPlugin
 import TuistSupport

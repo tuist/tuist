@@ -5,12 +5,12 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-protocol SettingsLinting: AnyObject {
+protocol SettingsLinting {
     func lint(project: Project) async throws -> [LintingIssue]
     func lint(target: Target) async throws -> [LintingIssue]
 }
 
-final class SettingsLinter: SettingsLinting {
+struct SettingsLinter: SettingsLinting {
     private let fileSystem: FileSysteming
 
     init(
@@ -52,7 +52,7 @@ final class SettingsLinter: SettingsLinting {
         var issues: [LintingIssue] = []
 
         let lintPath: (AbsolutePath) async throws -> Void = { path in
-            if try await !self.fileSystem.exists(path) {
+            if try await !fileSystem.exists(path) {
                 issues.append(LintingIssue(reason: "Configuration file not found at path \(path.pathString)", severity: .error))
             }
         }

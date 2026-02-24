@@ -44,7 +44,8 @@ defmodule Tuist.AppBuilds.Preview do
         watchos_simulator: 5,
         visionos: 6,
         visionos_simulator: 7,
-        macos: 8
+        macos: 8,
+        android: 9
       ]
 
     field :visibility, Ecto.Enum,

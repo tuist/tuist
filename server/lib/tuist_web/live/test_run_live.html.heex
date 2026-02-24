@@ -47,7 +47,30 @@
         }
         label={
           dgettext("dashboard_tests", "Build: %{scheme}",
-            scheme: @run.build_run.scheme || dgettext("dashboard_tests", "Unknown")
+            scheme:
+              if(@run.build_run.scheme == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.build_run.scheme
+              )
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
+      <.link_button
+        :if={@run.gradle_build}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.gradle_build_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name:
+              if(@run.gradle_build.root_project_name == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.gradle_build.root_project_name
+              )
           )
         }
         size="large"
@@ -193,7 +216,7 @@
                 data-part="value"
               />
             </div>
-            <div data-part="metadata">
+            <div :if={@run.build_system != "gradle"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -202,7 +225,7 @@
                   else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
-            <div data-part="metadata">
+            <div :if={@run.build_system != "gradle"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "macOS version")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -317,8 +340,8 @@
         </div>
         <div data-part="failures-list">
           <div
-            :for={{test_case_run_id, failures} <- Enum.take(@failures_grouped_by_test_case, 4)}
-            id={"test-failure-overview-#{test_case_run_id}"}
+            :for={test_case_run <- Enum.take(@failed_test_case_runs, 4)}
+            id={"test-failure-overview-#{test_case_run.id}"}
             phx-hook="NooraCollapsible"
             data-part="collapsible"
             data-state="closed"
@@ -332,29 +355,23 @@
                   </div>
                   <div data-part="title-and-subtitle">
                     <h3 data-part="title">
-                      {List.first(failures).test_case_name}
+                      {test_case_run.name}
                     </h3>
                     <span
-                      :if={
-                        List.first(failures).test_module_name &&
-                          List.first(failures).test_suite_name != ""
-                      }
+                      :if={test_case_run.module_name && test_case_run.suite_name != ""}
                       data-part="subtitle"
                     >
-                      {List.first(failures).test_module_name} • {List.first(failures).test_suite_name}
+                      {test_case_run.module_name} • {test_case_run.suite_name}
                     </span>
                     <span
-                      :if={
-                        List.first(failures).test_module_name &&
-                          List.first(failures).test_suite_name == ""
-                      }
+                      :if={test_case_run.module_name && test_case_run.suite_name == ""}
                       data-part="subtitle"
                     >
-                      {List.first(failures).test_module_name}
+                      {test_case_run.module_name}
                     </span>
                   </div>
                   <.badge
-                    label={length(failures)}
+                    label={length(test_case_run.failures)}
                     color="destructive"
                     style="light-fill"
                     size="small"
@@ -376,13 +393,75 @@
                 </.neutral_button>
               </div>
               <div data-part="content" data-state="closed">
-                <span :for={failure <- failures} data-part="failure">
+                <span :for={failure <- test_case_run.failures} data-part="failure">
                   {format_failure_message(failure, @run)}
                 </span>
+                <div :if={test_case_run.crash_report} data-part="crash-report-details">
+                  <div data-part="crash-report-header">
+                    <span data-part="crash-report-title">
+                      {dgettext("dashboard_tests", "Crash Report")}
+                    </span>
+                    <.neutral_button
+                      :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                      href={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
+                      }
+                      target="_blank"
+                      size="medium"
+                    >
+                      <.download />
+                    </.neutral_button>
+                  </div>
+                  <div data-part="crash-report-metadata">
+                    <span
+                      :if={test_case_run.crash_report.exception_type != ""}
+                      data-part="crash-report-meta-item"
+                    >
+                      <span data-part="meta-label">
+                        {dgettext("dashboard_tests", "Exception")}
+                      </span>
+                      <span data-part="meta-value">
+                        {test_case_run.crash_report.exception_type}
+                      </span>
+                    </span>
+                    <span
+                      :if={test_case_run.crash_report.signal != ""}
+                      data-part="crash-report-meta-item"
+                    >
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
+                      <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
+                    </span>
+                    <span
+                      :if={test_case_run.crash_report.exception_subtype != ""}
+                      data-part="crash-report-meta-item"
+                    >
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
+                      <span data-part="meta-value">
+                        {test_case_run.crash_report.exception_subtype}
+                      </span>
+                    </span>
+                  </div>
+                  <div
+                    :if={test_case_run.crash_report.triggered_thread_frames != ""}
+                    data-part="crash-report-frames"
+                  >
+                    <div
+                      :for={
+                        {index, image_name, symbol} <-
+                          parse_frames(test_case_run.crash_report.triggered_thread_frames)
+                      }
+                      data-part="frame-line"
+                    >
+                      <span :if={index} data-part="frame-index">{index}</span>
+                      <span :if={image_name} data-part="frame-image">{image_name}</span>
+                      <span data-part="frame-symbol">{symbol}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          <div :if={Enum.count(@failures_grouped_by_test_case) > 4} data-part="more-cards-wrapper">
+          <div :if={length(@failed_test_case_runs) > 4} data-part="more-cards-wrapper">
             <div data-part="more-card" data-index="two"></div>
             <div data-part="more-card" data-index="one"></div>
           </div>
@@ -579,12 +658,12 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
-        label={dgettext("dashboard_tests", "Test Suites")}
+        label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
       />
       <.tab_menu_horizontal_item
-        label={dgettext("dashboard_tests", "Modules")}
+        label={modules_label(@selected_project)}
         selected={@selected_test_tab == "test-modules"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-modules")}"}
       />
@@ -767,7 +846,7 @@
 
     <.card
       :if={@selected_test_tab == "test-suites"}
-      title={dgettext("dashboard_tests", "Test Suites")}
+      title={test_suites_label(@selected_project)}
       icon="exchange"
       data-part="test-suites-card"
     >
@@ -789,7 +868,7 @@
             label={
               case @test_suites_sort_by do
                 "name" ->
-                  dgettext("dashboard_tests", "Test suite")
+                  test_suite_label(@selected_project)
 
                 "test_case_count" ->
                   dgettext("dashboard_tests", "Test cases")
@@ -801,14 +880,14 @@
                   dgettext("dashboard_tests", "Duration")
 
                 _ ->
-                  dgettext("dashboard_tests", "Test suite")
+                  test_suite_label(@selected_project)
               end
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={dgettext("dashboard_tests", "Test suite")}
+              label={test_suite_label(@selected_project)}
               patch={test_suites_dropdown_item_patch_sort("name", @uri)}
               data-selected={@test_suites_sort_by == "name"}
             >
@@ -852,7 +931,7 @@
         <.table id="test-suites-table" rows={@test_suites}>
           <:col
             :let={test_suite}
-            label={dgettext("dashboard_tests", "Test suite")}
+            label={test_suite_label(@selected_project)}
             patch={
               @test_suites_sort_by == "name" &&
                 test_suites_column_patch_sort(assigns, "name")
@@ -973,7 +1052,7 @@
 
     <.card
       :if={@selected_test_tab == "test-modules"}
-      title={dgettext("dashboard_tests", "Test Modules")}
+      title={test_modules_label(@selected_project)}
       icon="apps"
       data-part="test-modules-card"
     >
@@ -995,10 +1074,10 @@
             label={
               case @test_modules_sort_by do
                 "name" ->
-                  dgettext("dashboard_tests", "Module")
+                  module_label(@selected_project)
 
                 "test_suite_count" ->
-                  dgettext("dashboard_tests", "Test suites")
+                  test_suites_label(@selected_project)
 
                 "test_case_count" ->
                   dgettext("dashboard_tests", "Test cases")
@@ -1010,14 +1089,14 @@
                   dgettext("dashboard_tests", "Duration")
 
                 _ ->
-                  dgettext("dashboard_tests", "Module")
+                  module_label(@selected_project)
               end
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={dgettext("dashboard_tests", "Module")}
+              label={module_label(@selected_project)}
               patch={test_modules_dropdown_item_patch_sort("name", @uri)}
               data-selected={@test_modules_sort_by == "name"}
             >
@@ -1025,7 +1104,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="test_suite_count"
-              label={dgettext("dashboard_tests", "Test suites")}
+              label={test_suites_label(@selected_project)}
               patch={test_modules_dropdown_item_patch_sort("test_suite_count", @uri)}
               data-selected={@test_modules_sort_by == "test_suite_count"}
             >
@@ -1069,7 +1148,7 @@
         <.table id="test-modules-table" rows={@test_modules}>
           <:col
             :let={test_module}
-            label={dgettext("dashboard_tests", "Module")}
+            label={module_label(@selected_project)}
             patch={
               @test_modules_sort_by == "name" &&
                 test_modules_column_patch_sort(assigns, "name")
@@ -1096,7 +1175,7 @@
           </:col>
           <:col
             :let={test_module}
-            label={dgettext("dashboard_tests", "Test suites")}
+            label={test_suites_label(@selected_project)}
             patch={
               @test_modules_sort_by == "test_suite_count" &&
                 test_modules_column_patch_sort(assigns, "test_suite_count")
@@ -1360,8 +1439,8 @@
       </div>
       <div data-part="failures-list">
         <div
-          :for={{test_case_run_id, failures} <- @failures_grouped_by_test_case}
-          id={"test-failure-#{test_case_run_id}"}
+          :for={test_case_run <- @failed_test_case_runs}
+          id={"test-failure-#{test_case_run.id}"}
           phx-hook="NooraCollapsible"
           data-part="collapsible"
           data-state="closed"
@@ -1375,29 +1454,23 @@
                 </div>
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
-                    {List.first(failures).test_case_name}
+                    {test_case_run.name}
                   </h3>
                   <span
-                    :if={
-                      List.first(failures).test_module_name &&
-                        List.first(failures).test_suite_name != ""
-                    }
+                    :if={test_case_run.module_name && test_case_run.suite_name != ""}
                     data-part="subtitle"
                   >
-                    {List.first(failures).test_module_name} • {List.first(failures).test_suite_name}
+                    {test_case_run.module_name} • {test_case_run.suite_name}
                   </span>
                   <span
-                    :if={
-                      List.first(failures).test_module_name &&
-                        List.first(failures).test_suite_name == ""
-                    }
+                    :if={test_case_run.module_name && test_case_run.suite_name == ""}
                     data-part="subtitle"
                   >
-                    {List.first(failures).test_module_name}
+                    {test_case_run.module_name}
                   </span>
                 </div>
                 <.badge
-                  label={length(failures)}
+                  label={length(test_case_run.failures)}
                   color="destructive"
                   style="light-fill"
                   size="small"
@@ -1419,14 +1492,74 @@
               </.neutral_button>
             </div>
             <div data-part="content" data-state="closed">
-              <span :for={failure <- failures} data-part="failure">
+              <span :for={failure <- test_case_run.failures} data-part="failure">
                 {format_failure_message(failure, @run)}
               </span>
+              <div :if={test_case_run.crash_report} data-part="crash-report-details">
+                <div data-part="crash-report-header">
+                  <span data-part="crash-report-title">
+                    {dgettext("dashboard_tests", "Crash Report")}
+                  </span>
+                  <.neutral_button
+                    :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                    href={
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
+                    }
+                    target="_blank"
+                    size="medium"
+                  >
+                    <.download />
+                  </.neutral_button>
+                </div>
+                <div data-part="crash-report-metadata">
+                  <span
+                    :if={test_case_run.crash_report.exception_type != ""}
+                    data-part="crash-report-meta-item"
+                  >
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
+                    <span data-part="meta-value">
+                      {test_case_run.crash_report.exception_type}
+                    </span>
+                  </span>
+                  <span
+                    :if={test_case_run.crash_report.signal != ""}
+                    data-part="crash-report-meta-item"
+                  >
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
+                    <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
+                  </span>
+                  <span
+                    :if={test_case_run.crash_report.exception_subtype != ""}
+                    data-part="crash-report-meta-item"
+                  >
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
+                    <span data-part="meta-value">
+                      {test_case_run.crash_report.exception_subtype}
+                    </span>
+                  </span>
+                </div>
+                <div
+                  :if={test_case_run.crash_report.triggered_thread_frames != ""}
+                  data-part="crash-report-frames"
+                >
+                  <div
+                    :for={
+                      {index, image_name, symbol} <-
+                        parse_frames(test_case_run.crash_report.triggered_thread_frames)
+                    }
+                    data-part="frame-line"
+                  >
+                    <span :if={index} data-part="frame-index">{index}</span>
+                    <span :if={image_name} data-part="frame-image">{image_name}</span>
+                    <span data-part="frame-symbol">{symbol}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div :if={Enum.empty?(@failures_grouped_by_test_case)} data-part="empty-state">
+      <div :if={Enum.empty?(@failed_test_case_runs)} data-part="empty-state">
         <span data-part="title">{dgettext("dashboard_tests", "No failures detected")}</span>
         <span data-part="subtitle">{dgettext("dashboard_tests", "All tests passed!")}</span>
       </div>

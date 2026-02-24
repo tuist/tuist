@@ -114,6 +114,7 @@ Tuist/Dependencies/graph.json
 .bundle
 
 .claude/
+.agents/
 mise.local.toml
 *.p12
 ./minio

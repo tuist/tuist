@@ -42,7 +42,7 @@ public protocol DeviceControlling {
     ) async throws
 }
 
-public final class DeviceController: DeviceControlling {
+public struct DeviceController: DeviceControlling {
     private let fileSystem: FileSysteming
     private let commandRunner: CommandRunning
 

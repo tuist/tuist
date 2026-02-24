@@ -38,7 +38,7 @@ defmodule Tuist.VCSTest do
   describe "ci_run_url/1" do
     test "returns GitHub Actions URL for github provider" do
       ci_metadata = %{
-        ci_provider: :github,
+        ci_provider: "github",
         ci_run_id: "19683527895",
         ci_project_handle: "tuist/tuist"
       }
@@ -48,7 +48,7 @@ defmodule Tuist.VCSTest do
 
     test "returns GitLab pipeline URL for gitlab provider with default host" do
       ci_metadata = %{
-        ci_provider: :gitlab,
+        ci_provider: "gitlab",
         ci_run_id: "987654321",
         ci_project_handle: "group/project"
       }
@@ -58,7 +58,7 @@ defmodule Tuist.VCSTest do
 
     test "returns GitLab pipeline URL for gitlab provider with custom host" do
       ci_metadata = %{
-        ci_provider: :gitlab,
+        ci_provider: "gitlab",
         ci_run_id: "987654321",
         ci_project_handle: "group/project",
         ci_host: "gitlab.example.com"
@@ -69,7 +69,7 @@ defmodule Tuist.VCSTest do
 
     test "returns GitLab pipeline URL with default host when ci_host is empty string" do
       ci_metadata = %{
-        ci_provider: :gitlab,
+        ci_provider: "gitlab",
         ci_run_id: "987654321",
         ci_project_handle: "group/project",
         ci_host: ""
@@ -80,7 +80,7 @@ defmodule Tuist.VCSTest do
 
     test "returns Bitrise build URL for bitrise provider" do
       ci_metadata = %{
-        ci_provider: :bitrise,
+        ci_provider: "bitrise",
         ci_run_id: "abc123def",
         ci_project_handle: "ignored"
       }
@@ -90,7 +90,7 @@ defmodule Tuist.VCSTest do
 
     test "returns CircleCI pipeline URL for circleci provider" do
       ci_metadata = %{
-        ci_provider: :circleci,
+        ci_provider: "circleci",
         ci_run_id: "12345",
         ci_project_handle: "tuist/tuist"
       }
@@ -100,7 +100,7 @@ defmodule Tuist.VCSTest do
 
     test "returns Buildkite builds URL for buildkite provider" do
       ci_metadata = %{
-        ci_provider: :buildkite,
+        ci_provider: "buildkite",
         ci_run_id: "67890",
         ci_project_handle: "tuist/pipeline"
       }
@@ -110,7 +110,7 @@ defmodule Tuist.VCSTest do
 
     test "returns Codemagic build URL for codemagic provider" do
       ci_metadata = %{
-        ci_provider: :codemagic,
+        ci_provider: "codemagic",
         ci_run_id: "build-abc123",
         ci_project_handle: "app-id-123"
       }
@@ -118,10 +118,10 @@ defmodule Tuist.VCSTest do
       assert VCS.ci_run_url(ci_metadata) == "https://codemagic.io/app/app-id-123/build/build-abc123"
     end
 
-    test "returns nil when ci_run_id is nil" do
+    test "returns nil when ci_run_id is empty" do
       ci_metadata = %{
-        ci_provider: :github,
-        ci_run_id: nil,
+        ci_provider: "github",
+        ci_run_id: "",
         ci_project_handle: "tuist/tuist"
       }
 
@@ -274,7 +274,7 @@ defmodule Tuist.VCSTest do
           test_targets: ["ATests", "BTests", "CTests", "DTests"],
           local_test_target_hits: ["ATests", "BTests"],
           remote_test_target_hits: ["CTests"],
-          status: :failure,
+          status: "failure",
           test_run_id: test_run_two.id
         )
 
@@ -781,7 +781,7 @@ defmodule Tuist.VCSTest do
       # When / Then
       VCS.post_vcs_pull_request_comment(%{
         project: project,
-        git_ref: nil,
+        git_ref: "",
         git_commit_sha: @git_commit_sha,
         git_remote_url_origin: @git_remote_url_origin,
         preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
@@ -954,9 +954,9 @@ defmodule Tuist.VCSTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           scheme: "MyApp",
-          status: :success,
+          status: "success",
           duration: 45_000,
-          category: :clean,
+          category: "clean",
           xcode_version: "15.0",
           git_commit_sha: @git_commit_sha,
           git_ref: @git_ref
@@ -1072,7 +1072,7 @@ defmodule Tuist.VCSTest do
         RunsFixtures.build_fixture(
           project_id: project.id,
           scheme: "MyApp",
-          status: :success,
+          status: "success",
           duration: 45_000,
           git_commit_sha: @git_commit_sha,
           git_ref: "refs/pull/1/merge"

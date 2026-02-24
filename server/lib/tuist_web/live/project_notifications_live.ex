@@ -78,6 +78,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_metric: :p99)
     |> assign(create_alert_form_deviation: 20.0)
     |> assign(create_alert_form_rolling_window_size: 100)
+    |> assign(create_alert_form_git_branch: "")
+    |> assign(create_alert_form_scheme: "")
+    |> assign(create_alert_form_bundle_name: "")
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
     # Metric alert edit forms - one per alert rule
@@ -91,6 +94,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
       metric: rule.metric,
       deviation: rule.deviation_percentage,
       rolling_window_size: rule.rolling_window_size,
+      git_branch: rule.git_branch || "",
+      scheme: rule.scheme || "",
+      bundle_name: rule.bundle_name || "",
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -236,6 +242,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_metric: :p99)
       |> assign(create_alert_form_deviation: 20.0)
       |> assign(create_alert_form_rolling_window_size: 100)
+      |> assign(create_alert_form_git_branch: "")
+      |> assign(create_alert_form_scheme: "")
+      |> assign(create_alert_form_bundle_name: "")
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
 
@@ -248,7 +257,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_create_alert_form_category", %{"category" => category}, socket) do
-    {:noreply, assign(socket, create_alert_form_category: String.to_existing_atom(category))}
+    category = String.to_existing_atom(category)
+
+    default_metric =
+      case category do
+        :bundle_size -> :install_size
+        _ -> :p99
+      end
+
+    {:noreply,
+     socket
+     |> assign(create_alert_form_category: category)
+     |> assign(create_alert_form_metric: default_metric)}
   end
 
   def handle_event("update_create_alert_form_metric", %{"metric" => metric}, socket) do
@@ -269,13 +289,38 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
+  def handle_event("update_create_alert_form_git_branch", %{"value" => git_branch}, socket) do
+    {:noreply, assign(socket, create_alert_form_git_branch: git_branch)}
+  end
+
+  def handle_event("update_create_alert_form_scheme", %{"value" => scheme}, socket) do
+    {:noreply, assign(socket, create_alert_form_scheme: scheme)}
+  end
+
+  def handle_event("update_create_alert_form_bundle_name", %{"value" => bundle_name}, socket) do
+    {:noreply, assign(socket, create_alert_form_bundle_name: bundle_name)}
+  end
+
   # Edit form handlers
   def handle_event("update_edit_alert_form_name", %{"id" => id, "value" => name}, socket) do
     {:noreply, update_edit_alert_form(socket, id, :name, name)}
   end
 
   def handle_event("update_edit_alert_form_category", %{"id" => id, "category" => category}, socket) do
-    {:noreply, update_edit_alert_form(socket, id, :category, String.to_existing_atom(category))}
+    category = String.to_existing_atom(category)
+
+    default_metric =
+      case category do
+        :bundle_size -> :install_size
+        _ -> :p99
+      end
+
+    socket =
+      socket
+      |> update_edit_alert_form(id, :category, category)
+      |> update_edit_alert_form(id, :metric, default_metric)
+
+    {:noreply, socket}
   end
 
   def handle_event("update_edit_alert_form_metric", %{"id" => id, "metric" => metric}, socket) do
@@ -296,6 +341,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
+  def handle_event("update_edit_alert_form_git_branch", %{"id" => id, "value" => git_branch}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :git_branch, git_branch)}
+  end
+
+  def handle_event("update_edit_alert_form_scheme", %{"id" => id, "value" => scheme}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :scheme, scheme)}
+  end
+
+  def handle_event("update_edit_alert_form_bundle_name", %{"id" => id, "value" => bundle_name}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :bundle_name, bundle_name)}
+  end
+
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -304,6 +361,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
       metric: assigns.create_alert_form_metric,
       deviation_percentage: assigns.create_alert_form_deviation,
       rolling_window_size: assigns.create_alert_form_rolling_window_size,
+      git_branch: assigns.create_alert_form_git_branch,
+      scheme: assigns.create_alert_form_scheme,
+      bundle_name: assigns.create_alert_form_bundle_name,
       slack_channel_id: assigns.create_alert_form_channel_id,
       slack_channel_name: assigns.create_alert_form_channel_name
     }
@@ -319,33 +379,50 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
-    form = Map.get(assigns.edit_alert_forms, id)
     {:ok, alert_rule} = Alerts.get_alert_rule(id)
+    alert_rule = Repo.preload(alert_rule, :project)
 
-    attrs = %{
-      name: form.name,
-      category: form.category,
-      metric: form.metric,
-      deviation_percentage: form.deviation,
-      rolling_window_size: form.rolling_window_size,
-      slack_channel_id: form.channel_id,
-      slack_channel_name: form.channel_name
-    }
+    if Authorization.authorize(:project_update, assigns.current_user, alert_rule.project) == :ok do
+      form = Map.get(assigns.edit_alert_forms, id)
 
-    {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
+      attrs = %{
+        name: form.name,
+        category: form.category,
+        metric: form.metric,
+        deviation_percentage: form.deviation,
+        rolling_window_size: form.rolling_window_size,
+        git_branch: form.git_branch,
+        scheme: form.scheme,
+        bundle_name: form.bundle_name,
+        slack_channel_id: form.channel_id,
+        slack_channel_name: form.channel_name
+      }
 
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
+      {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
 
-    {:noreply, socket}
+      socket =
+        socket
+        |> assign_alert_defaults(assigns.selected_project)
+        |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("delete_alert_rule", %{"alert_rule_id" => alert_rule_id}, socket) do
+    current_user = socket.assigns.current_user
+    selected_project = socket.assigns.selected_project
     {:ok, alert_rule} = Alerts.get_alert_rule(alert_rule_id)
-    {:ok, _} = Alerts.delete_alert_rule(alert_rule)
-    {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(socket.assigns.selected_project))}
+    alert_rule = Repo.preload(alert_rule, :project)
+
+    if Authorization.authorize(:project_update, current_user, alert_rule.project) == :ok do
+      {:ok, _} = Alerts.delete_alert_rule(alert_rule)
+      {:noreply, assign_alert_defaults(socket, selected_project)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("close_create_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -500,6 +577,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp category_label(:build_run_duration), do: dgettext("dashboard_projects", "Build duration")
   defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
   defp category_label(:cache_hit_rate), do: dgettext("dashboard_projects", "Cache hit rate")
+  defp category_label(:bundle_size), do: dgettext("dashboard_projects", "Bundle size")
 
   defp metric_label(:p50), do: "p50"
   defp metric_label(:p90), do: "p90"
@@ -507,34 +585,74 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
 
-  defp alert_rule_description(category, metric, deviation, rolling_window_size) do
-    metric_category = alert_metric_category_label(category, metric)
-    unit = alert_unit_label(category)
+  defp alert_rule_description(category, metric, deviation, rolling_window_size, opts) do
+    case category do
+      :bundle_size ->
+        git_branch = Keyword.get(opts, :git_branch, "")
+        bundle_name = Keyword.get(opts, :bundle_name, "")
+        size_label = bundle_size_metric_label(metric)
 
-    text =
-      case category do
-        :cache_hit_rate ->
-          dgettext(
-            "dashboard_projects",
-            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
-            metric_category: metric_category,
-            rolling_window_size: rolling_window_size,
-            unit: unit,
-            deviation: deviation
-          )
+        text =
+          if bundle_name == "" do
+            dgettext(
+              "dashboard_projects",
+              "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              size_label: size_label,
+              git_branch: git_branch,
+              deviation: deviation
+            )
+          else
+            dgettext(
+              "dashboard_projects",
+              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              size_label: size_label,
+              bundle_name: bundle_name,
+              git_branch: git_branch,
+              deviation: deviation
+            )
+          end
 
-        _ ->
-          dgettext(
-            "dashboard_projects",
-            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
-            metric_category: metric_category,
-            rolling_window_size: rolling_window_size,
-            unit: unit,
-            deviation: deviation
-          )
-      end
+        raw(text)
 
-    raw(text)
+      _ ->
+        metric_category = alert_metric_category_label(category, metric)
+        unit = alert_unit_label(category)
+        scheme = Keyword.get(opts, :scheme, "")
+
+        current_unit =
+          if scheme == "" do
+            unit
+          else
+            dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
+          end
+
+        text =
+          case category do
+            :cache_hit_rate ->
+              dgettext(
+                "dashboard_projects",
+                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                metric_category: metric_category,
+                rolling_window_size: rolling_window_size,
+                current_unit: current_unit,
+                unit: unit,
+                deviation: deviation
+              )
+
+            _ ->
+              dgettext(
+                "dashboard_projects",
+                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                metric_category: metric_category,
+                rolling_window_size: rolling_window_size,
+                current_unit: current_unit,
+                unit: unit,
+                deviation: deviation
+              )
+          end
+
+        raw(text)
+    end
   end
 
   defp alert_metric_category_label(:build_run_duration, metric),
@@ -555,4 +673,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label_lowercase(:p99), do: "p99"
   defp metric_label_lowercase(:average), do: dgettext("dashboard_projects", "average")
   defp metric_label_lowercase(nil), do: ""
+
+  defp bundle_size_metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
+  defp bundle_size_metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
+  defp bundle_size_metric_label(_), do: ""
 end

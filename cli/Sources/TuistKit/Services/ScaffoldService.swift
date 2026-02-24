@@ -1,5 +1,6 @@
 import Path
 import TuistAlert
+import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistLogging
@@ -34,7 +35,7 @@ enum ScaffoldServiceError: FatalError, Equatable {
     }
 }
 
-final class ScaffoldService {
+struct ScaffoldService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating

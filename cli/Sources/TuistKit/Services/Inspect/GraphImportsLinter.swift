@@ -15,7 +15,7 @@ protocol GraphImportsLinting {
     ) async throws -> [InspectImportsIssue]
 }
 
-final class GraphImportsLinter: GraphImportsLinting {
+struct GraphImportsLinter: GraphImportsLinting {
     private let targetScanner: TargetImportsScanning
 
     init(targetScanner: TargetImportsScanning = TargetImportsScanner()) {

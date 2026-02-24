@@ -1,7 +1,7 @@
 import Path
 import TuistSupport
 
-final class PluginTestService {
+struct PluginTestService {
     func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,

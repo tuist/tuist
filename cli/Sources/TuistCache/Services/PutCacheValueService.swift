@@ -37,10 +37,10 @@ public enum PutCacheValueServiceError: LocalizedError {
     }
 }
 
-public final class PutCacheValueService: PutCacheValueServicing {
+public struct PutCacheValueService: PutCacheValueServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )

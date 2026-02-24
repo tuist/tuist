@@ -2,6 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import TuistAlert
+import TuistConfig
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistDependencies
@@ -10,7 +12,7 @@ import TuistLogging
 import TuistPlugin
 import TuistSupport
 
-final class InstallService {
+struct InstallService {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling

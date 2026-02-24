@@ -6,6 +6,7 @@ import TuistConstants
 import TuistSupport
 import XCTest
 
+@testable import TuistConfigLoader
 @testable import TuistKit
 @testable import TuistLoader
 @testable import TuistTesting
@@ -227,7 +228,12 @@ final class DumpServiceTests: TuistTestCase {
 
                       }
                     },
-                    "testInsightsDisabled": false
+                    "testInsightsDisabled": false,
+                    "warningsAsErrors": {
+                      "none": {
+
+                      }
+                    }
                   },
                   "installOptions": {
                     "passthroughSwiftPackageManagerArguments": [

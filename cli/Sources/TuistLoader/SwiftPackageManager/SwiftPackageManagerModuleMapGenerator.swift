@@ -45,7 +45,7 @@ public protocol SwiftPackageManagerModuleMapGenerating {
     ) async throws -> ModuleMap
 }
 
-public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
+public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
 

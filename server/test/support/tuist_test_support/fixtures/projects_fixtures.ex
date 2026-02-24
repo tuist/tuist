@@ -37,6 +37,7 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
         created_at: created_at,
         visibility: Keyword.get(opts, :visibility, :private),
         default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),
+        build_system: Keyword.get(opts, :build_system, :xcode),
         preload: preload
       )
       |> Repo.preload(Keyword.get(opts, :preload, []))

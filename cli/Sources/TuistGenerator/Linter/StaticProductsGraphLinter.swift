@@ -1,4 +1,5 @@
 import Foundation
+import TuistConfig
 import TuistCore
 import XcodeGraph
 
@@ -10,7 +11,7 @@ protocol StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue]
 }
 
-class StaticProductsGraphLinter: StaticProductsGraphLinting {
+struct StaticProductsGraphLinter: StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
         warnings(
             in: Array(graphTraverser.dependencies.keys),
@@ -182,6 +183,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     private func isStaticProduct(_ dependency: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
         switch dependency {
+        case let .foreignBuildOutput(output):
+            return output.linking == .static
         case let .xcframework(xcframework):
             return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _):
@@ -267,7 +270,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         return LintingIssue(
             reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects."
                 .uppercasingFirst,
-            severity: .warning
+            severity: .warning,
+            category: .staticSideEffects
         )
     }
 }

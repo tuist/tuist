@@ -1,0 +1,98 @@
+.gradle-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > .noora-card {
+    & > [data-part="widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        flex: 1;
+        min-width: 0;
+      }
+
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+    }
+
+    & .noora-chart {
+      width: 105%;
+      height: 148px;
+    }
+
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & [data-part="legends"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+    & > * {
+      flex-grow: 1;
+    }
+  }
+
+  & [data-part="cache-hit-rate-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-5);
+  }
+
+  & [data-part="average-build-time-card-section"] {
+    position: unset;
+    & [data-part="view-more"] {
+      position: absolute;
+      top: var(--noora-spacing-9);
+      right: var(--noora-spacing-9);
+    }
+  }
+
+  & [data-part="build-runs-chart"],
+  & [data-part="average-build-time-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-5);
+  }
+
+  & [data-part="builds-card-sections"] {
+    display: flex;
+    position: relative;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--noora-spacing-4);
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+
+    & > .noora-card__section {
+      flex: 1;
+      min-width: 0px;
+      overflow: hidden;
+    }
+
+    & [data-part="build-runs-chart"] {
+      & > [data-part="label"] {
+        padding-left: var(--noora-spacing-7);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+      }
+
+      & .noora-chart {
+        width: 100%;
+      }
+    }
+  }
+}

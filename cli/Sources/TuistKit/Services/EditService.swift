@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import TuistAlert
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistGenerator
@@ -28,7 +29,7 @@ enum EditServiceError: FatalError {
     }
 }
 
-final class EditService {
+struct EditService {
     private let projectEditor: ProjectEditing
     private let opener: Opening
     private let configLoader: ConfigLoading

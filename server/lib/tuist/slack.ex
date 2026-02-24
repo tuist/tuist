@@ -12,6 +12,7 @@ defmodule Tuist.Slack do
   alias Tuist.Repo
   alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
 
   @api_url "https://slack.com/api/chat.postMessage"
@@ -209,13 +210,13 @@ defmodule Tuist.Slack do
       alert_context_block(alert),
       alert_divider_block(),
       alert_metric_block(alert),
-      alert_footer_block(account_name, project_name)
+      alert_footer_block(alert, account_name, project_name)
     ]
   end
 
-  defp alert_header_block(%Alert{alert_rule: %{category: category, metric: metric}}) do
-    emoji = alert_category_emoji(category)
-    title = alert_title(category, metric)
+  defp alert_header_block(%Alert{alert_rule: alert_rule}) do
+    emoji = alert_category_emoji(alert_rule.category)
+    title = alert_title(alert_rule)
 
     %{
       type: "header",
@@ -252,7 +253,81 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp alert_footer_block(account_name, project_name) do
+  defp alert_footer_block(
+         %Alert{alert_rule: %{category: :bundle_size, bundle_name: bundle_name}},
+         account_name,
+         project_name
+       ) do
+    base_url = Environment.app_url()
+    path = "#{base_url}/#{account_name}/#{project_name}/bundles"
+
+    url =
+      if bundle_name == "" do
+        path
+      else
+        "#{path}?bundle-size-app=#{bundle_name}"
+      end
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{url}|View bundles>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(
+         %Alert{alert_rule: %{category: :build_run_duration, scheme: scheme}},
+         account_name,
+         project_name
+       ) do
+    base_url = Environment.app_url()
+    path = "#{base_url}/#{account_name}/#{project_name}/builds"
+
+    url =
+      if scheme == "" do
+        path
+      else
+        "#{path}?analytics-build-scheme=#{scheme}"
+      end
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{url}|View builds>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(%Alert{alert_rule: %{category: :test_run_duration, scheme: scheme}}, account_name, project_name) do
+    base_url = Environment.app_url()
+    path = "#{base_url}/#{account_name}/#{project_name}/tests"
+
+    url =
+      if scheme == "" do
+        path
+      else
+        "#{path}?analytics-test-scheme=#{scheme}"
+      end
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{url}|View tests>"
+        }
+      ]
+    }
+  end
+
+  defp alert_footer_block(%Alert{alert_rule: %{category: :cache_hit_rate}}, account_name, project_name) do
     base_url = Environment.app_url()
 
     %{
@@ -260,7 +335,7 @@ defmodule Tuist.Slack do
       elements: [
         %{
           type: "mrkdwn",
-          text: "<#{base_url}/#{account_name}/#{project_name}|View project>"
+          text: "<#{base_url}/#{account_name}/#{project_name}/xcode-cache|View cache>"
         }
       ]
     }
@@ -269,10 +344,26 @@ defmodule Tuist.Slack do
   defp alert_category_emoji(:build_run_duration), do: ":hammer_and_wrench:"
   defp alert_category_emoji(:test_run_duration), do: ":test_tube:"
   defp alert_category_emoji(:cache_hit_rate), do: ":zap:"
+  defp alert_category_emoji(:bundle_size), do: ":package:"
 
-  defp alert_title(:build_run_duration, metric), do: "Build Time #{alert_metric_label(metric)} Increased"
-  defp alert_title(:test_run_duration, metric), do: "Test Time #{alert_metric_label(metric)} Increased"
-  defp alert_title(:cache_hit_rate, metric), do: "Cache Hit Rate #{alert_metric_label(metric)} Decreased"
+  defp alert_title(%{category: :build_run_duration, metric: metric, scheme: ""}),
+    do: "Build Time #{alert_metric_label(metric)} Increased"
+
+  defp alert_title(%{category: :build_run_duration, metric: metric, scheme: scheme}),
+    do: "#{scheme} Build Time #{alert_metric_label(metric)} Increased"
+
+  defp alert_title(%{category: :test_run_duration, metric: metric, scheme: ""}),
+    do: "Test Time #{alert_metric_label(metric)} Increased"
+
+  defp alert_title(%{category: :test_run_duration, metric: metric, scheme: scheme}),
+    do: "#{scheme} Test Time #{alert_metric_label(metric)} Increased"
+
+  defp alert_title(%{category: :cache_hit_rate, metric: metric}),
+    do: "Cache Hit Rate #{alert_metric_label(metric)} Decreased"
+
+  defp alert_title(%{category: :bundle_size, bundle_name: ""}), do: "Bundle Size Increased"
+
+  defp alert_title(%{category: :bundle_size, bundle_name: bundle_name}), do: "#{bundle_name} Bundle Size Increased"
 
   defp alert_metric_label(:p50), do: "p50"
   defp alert_metric_label(:p90), do: "p90"
@@ -280,7 +371,7 @@ defmodule Tuist.Slack do
   defp alert_metric_label(:average), do: "Average"
   defp alert_metric_label(nil), do: ""
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric}} = alert) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric, scheme: ""}} = alert) do
     deviation = calculate_increase_deviation(alert)
 
     "*Build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
@@ -288,10 +379,26 @@ defmodule Tuist.Slack do
       "Current: #{format_alert_duration(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric}} = alert) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric, scheme: scheme}} = alert) do
+    deviation = calculate_increase_deviation(alert)
+
+    "*#{scheme} build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
+      "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
+      "Current: #{format_alert_duration(alert.current_value)}"
+  end
+
+  defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric, scheme: ""}} = alert) do
     deviation = calculate_increase_deviation(alert)
 
     "*Test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
+      "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
+      "Current: #{format_alert_duration(alert.current_value)}"
+  end
+
+  defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric, scheme: scheme}} = alert) do
+    deviation = calculate_increase_deviation(alert)
+
+    "*#{scheme} test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
@@ -302,6 +409,24 @@ defmodule Tuist.Slack do
     "*Cache hit rate #{alert_metric_label(metric)} decreased by #{deviation}%*\n" <>
       "Previous: #{format_alert_percentage(alert.previous_value)}\n" <>
       "Current: #{format_alert_percentage(alert.current_value)}"
+  end
+
+  defp format_alert_message(%Alert{alert_rule: %{category: :bundle_size, metric: metric, bundle_name: ""}} = alert) do
+    deviation = calculate_increase_deviation(alert)
+
+    "*Bundle #{bundle_size_metric_label(metric)} increased by #{deviation}%*\n" <>
+      "Previous: #{format_alert_bytes(alert.previous_value)}\n" <>
+      "Current: #{format_alert_bytes(alert.current_value)}"
+  end
+
+  defp format_alert_message(
+         %Alert{alert_rule: %{category: :bundle_size, metric: metric, bundle_name: bundle_name}} = alert
+       ) do
+    deviation = calculate_increase_deviation(alert)
+
+    "*#{bundle_name} bundle #{bundle_size_metric_label(metric)} increased by #{deviation}%*\n" <>
+      "Previous: #{format_alert_bytes(alert.previous_value)}\n" <>
+      "Current: #{format_alert_bytes(alert.current_value)}"
   end
 
   defp calculate_increase_deviation(%Alert{current_value: current, previous_value: previous}) do
@@ -319,6 +444,13 @@ defmodule Tuist.Slack do
   defp format_alert_percentage(rate) when is_number(rate) do
     "#{Float.round(rate * 100, 1)}%"
   end
+
+  defp format_alert_bytes(value) when is_number(value) do
+    ByteFormatter.format_bytes(round(value))
+  end
+
+  defp bundle_size_metric_label(:install_size), do: "install size"
+  defp bundle_size_metric_label(:download_size), do: "download size"
 
   defp maybe_add_suite(details, nil), do: details
   defp maybe_add_suite(details, ""), do: details

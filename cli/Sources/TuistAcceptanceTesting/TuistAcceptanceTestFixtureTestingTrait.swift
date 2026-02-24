@@ -7,6 +7,9 @@ import TuistAuthCommand
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistEnvKey
+import TuistNooraTesting
+@_exported import TuistOrganizationCommand
+@_exported import TuistProjectCommand
 import TuistSupport
 import TuistTesting
 @testable import TuistKit
@@ -44,6 +47,21 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                     try await TuistTest.$fixtureDirectory.withValue(fixtureTemporaryDirectory) {
                         try await TuistTest.$fixtureAccountHandle.withValue(organizationHandle) {
                             try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
+                                let serverURL = Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"
+
+                                try await fileSystem.writeText(
+                                    """
+                                    import ProjectDescription
+
+                                    let tuist = Tuist(
+                                        fullHandle: "\(fullHandle)",
+                                        url: "\(serverURL)"
+                                    )
+                                    """,
+                                    at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"),
+                                    options: Set([.overwrite])
+                                )
+
                                 try await TuistTest.run(
                                     LoginCommand.self,
                                     [
@@ -52,7 +70,7 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                         "--password",
                                         password,
                                         "--url",
-                                        Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev",
+                                        serverURL,
                                     ]
                                 )
                                 try await TuistTest.run(
@@ -61,20 +79,7 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                                 )
                                 try await TuistTest.run(
                                     ProjectCreateCommand.self,
-                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString]
-                                )
-
-                                try await fileSystem.writeText(
-                                    """
-                                    import ProjectDescription
-
-                                    let tuist = Tuist(
-                                        fullHandle: "\(fullHandle)",
-                                        url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")"
-                                    )
-                                    """,
-                                    at: fixtureTemporaryDirectory.appending(components: "Tuist.swift"),
-                                    options: Set([.overwrite])
+                                    [fullHandle, "--path", fixtureTemporaryDirectory.pathString, "--build-system", "xcode"]
                                 )
                                 resetUI()
 

@@ -69,7 +69,13 @@ defmodule TuistCommon.BodyReaderTest do
 
     test "removes internal opts from final result" do
       conn = %Plug.Conn{req_headers: [{"content-length", "1000000"}]}
-      opts = BodyReader.read_opts(conn, min_timeout: 30_000, max_timeout: 120_000, min_throughput: 100_000)
+
+      opts =
+        BodyReader.read_opts(conn,
+          min_timeout: 30_000,
+          max_timeout: 120_000,
+          min_throughput: 100_000
+        )
 
       refute Keyword.has_key?(opts, :min_timeout)
       refute Keyword.has_key?(opts, :max_timeout)

@@ -12,7 +12,7 @@ protocol WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor?
 }
 
-final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
+struct WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
         guard let enableAutomaticXcodeSchemes = workspace.generationOptions.enableAutomaticXcodeSchemes else { return nil }
         return WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: enableAutomaticXcodeSchemes)

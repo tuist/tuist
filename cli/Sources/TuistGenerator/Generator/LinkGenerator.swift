@@ -31,7 +31,7 @@ enum LinkGeneratorError: FatalError, Equatable {
     }
 }
 
-protocol LinkGenerating: AnyObject {
+protocol LinkGenerating {
     func generateLinks(
         target: Target,
         pbxTarget: PBXTarget,
@@ -60,7 +60,7 @@ enum LinkGeneratorPath: Hashable {
     }
 }
 
-final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_length
+struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_length
     /// Utility that generates the script to embed dynamic frameworks.
     let embedScriptGenerator: EmbedScriptGenerating
 
@@ -252,6 +252,19 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 buildFile.applyCondition(condition, applicableTo: target)
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
+            case let .foreignBuildOutput(path, linking, condition):
+                if linking == .dynamic {
+                    guard let fileRef = fileElements.file(path: path) else {
+                        throw LinkGeneratorError.missingReference(path: path)
+                    }
+                    let buildFile = PBXBuildFile(
+                        file: fileRef,
+                        settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                    )
+                    buildFile.applyCondition(condition, applicableTo: target)
+                    pbxproj.add(object: buildFile)
+                    embedPhase.files?.append(buildFile)
+                }
             case .library, .bundle, .sdk, .macro:
                 // Do nothing
                 break
@@ -332,12 +345,40 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
         graphTraverser: GraphTraversing
     ) throws {
         let librarySearchPaths = try graphTraverser.librariesSearchPaths(path: path, name: target.name).sorted()
+        let paths: [LinkGeneratorPath] = librarySearchPaths.map(LinkGeneratorPath.absolutePath)
         try setup(
             setting: "LIBRARY_SEARCH_PATHS",
-            paths: librarySearchPaths.map(LinkGeneratorPath.absolutePath),
+            paths: paths,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath
         )
+
+        if target.canLinkStaticProducts() {
+            try setupSwiftToolchainLinkerSearchPath(pbxTarget: pbxTarget)
+        }
+    }
+
+    private func setupSwiftToolchainLinkerSearchPath(pbxTarget: PBXTarget) throws {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
+            throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
+        }
+        let swiftToolchainSearchPath = "-L$(DT_TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)"
+        for configuration in configurationList.buildConfigurations {
+            let existingFlags = configuration.buildSettings["OTHER_LDFLAGS"]
+            var flags: [String]
+            switch existingFlags {
+            case let .array(existing):
+                flags = existing
+            case let .string(existing):
+                flags = [existing]
+            case .none:
+                flags = ["$(inherited)"]
+            }
+            if !flags.contains(swiftToolchainSearchPath) {
+                flags.append(swiftToolchainSearchPath)
+            }
+            configuration.buildSettings["OTHER_LDFLAGS"] = .array(flags)
+        }
     }
 
     func setupSwiftIncludePaths(
@@ -434,6 +475,8 @@ final class LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_
                 try addBuildFile(path, condition: condition)
             case let .xcframework(path, _, _, status, condition):
                 try addBuildFile(path, condition: condition, status: status)
+            case let .foreignBuildOutput(path, _, condition):
+                try addBuildFile(path, condition: condition)
             case .bundle, .macro, .packageProduct:
                 break
             case let .product(dependencyTarget, _, status, condition):

@@ -3,6 +3,8 @@ defmodule TuistWeb.SSOLoginLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Phoenix.Flash
   alias Tuist.Accounts
 
@@ -92,6 +94,7 @@ defmodule TuistWeb.SSOLoginLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end

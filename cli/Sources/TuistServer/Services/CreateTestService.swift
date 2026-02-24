@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 #if canImport(TuistXCResultService)
@@ -52,7 +52,7 @@ import TuistHTTP
         case success, failure, skipped
     }
 
-    public final class CreateTestService: CreateTestServicing {
+    public struct CreateTestService: CreateTestServicing {
         private let fullHandleService: FullHandleServicing
 
         public init(

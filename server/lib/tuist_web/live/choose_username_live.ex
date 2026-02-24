@@ -3,6 +3,8 @@ defmodule TuistWeb.ChooseUsernameLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
 
   @impl true
@@ -82,6 +84,7 @@ defmodule TuistWeb.ChooseUsernameLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end

@@ -4,6 +4,8 @@ import MCP
 import Mockable
 import SwiftyJSON
 import Testing
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistSupport

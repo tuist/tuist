@@ -13,7 +13,7 @@ protocol TargetScriptLinting {
     func lint(_ script: TargetScript) async throws -> [LintingIssue]
 }
 
-class TargetScriptLinter: TargetScriptLinting {
+struct TargetScriptLinter: TargetScriptLinting {
     private let fileSystem: FileSysteming
 
     init(

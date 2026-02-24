@@ -103,15 +103,26 @@ defmodule TuistWeb.LayoutLive do
      })
      |> append_breadcrumb(%{
        label: selected_project.name,
+       badge: build_system_badge(selected_project.build_system),
        items:
          Enum.map(selected_projects, fn project ->
            %{
              label: project.name,
              value: project.id,
              selected: selected_project.id == project.id,
-             href: ~p"/#{account_handle}/#{project.name}"
+             href: ~p"/#{account_handle}/#{project.name}",
+             badge: build_system_badge(project.build_system)
            }
-         end)
+         end) ++
+           [
+             %{
+               label: dgettext("dashboard", "Create project"),
+               value: "create-project",
+               href: ~p"/projects/new?account_id=#{selected_account.id}",
+               icon: "circle_plus",
+               selected: false
+             }
+           ]
      })
      |> assign_latest_app_release()
      |> assign_latest_cli_release()
@@ -278,4 +289,8 @@ defmodule TuistWeb.LayoutLive do
 
     {:ok, %{latest_cli_release: latest_cli_release}}
   end
+
+  defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
+  defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
+  defp build_system_badge(_), do: nil
 end

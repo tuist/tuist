@@ -3,10 +3,13 @@ import Mockable
 import Path
 import Testing
 import TuistCache
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistHasher
 import TuistLoader
+import TuistLoggerTesting
 import TuistLogging
 import TuistSupport
 import TuistTesting

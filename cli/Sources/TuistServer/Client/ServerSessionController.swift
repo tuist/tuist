@@ -35,7 +35,7 @@ public enum ServerSessionControllerError: Equatable, LocalizedError {
 }
 
 @Mockable
-public protocol ServerSessionControlling: AnyObject {
+public protocol ServerSessionControlling {
     /// It authenticates the user for the server with the given URL.
     /// - Parameters:
     ///     - serverURL: Server URL.
@@ -60,7 +60,7 @@ public protocol ServerSessionControlling: AnyObject {
     func logout(serverURL: URL) async throws
 }
 
-public final class ServerSessionController: ServerSessionControlling {
+public struct ServerSessionController: ServerSessionControlling {
     static let port: UInt16 = 4545
 
     private let getAuthTokenService: GetAuthTokenServicing
@@ -68,7 +68,7 @@ public final class ServerSessionController: ServerSessionControlling {
     private let opener: Opening
     private let uniqueIDGenerator: UniqueIDGenerating
 
-    public convenience init() {
+    public init() {
         self.init(
             opener: Opener(),
             getAuthTokenService: GetAuthTokenService(),

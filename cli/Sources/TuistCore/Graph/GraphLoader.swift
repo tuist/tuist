@@ -11,13 +11,13 @@ public protocol GraphLoading {
 }
 
 // swiftlint:disable:next type_body_length
-public final class GraphLoader: GraphLoading {
+public struct GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
     private let libraryMetadataProvider: LibraryMetadataProviding
     private let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
     private let systemFrameworkMetadataProvider: XcodeMetadata.SystemFrameworkMetadataProviding
 
-    public convenience init() {
+    public init() {
         let xcframeworkMetadataProvider = XCFrameworkMetadataProvider(logger: Logger.current)
         self.init(
             frameworkMetadataProvider: FrameworkMetadataProvider(),
@@ -108,7 +108,7 @@ public final class GraphLoader: GraphLoading {
         let targetDependency = GraphDependency.target(name: name, path: path)
         let dependencies: [GraphDependency] = try await target.dependencies.serialCompactMap {
             dependency in
-            guard let graphDep = try await self.loadDependency(
+            guard let graphDep = try await loadDependency(
                 path: path,
                 forPlatforms: target.supportedPlatforms,
                 dependency: dependency,

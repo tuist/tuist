@@ -18,8 +18,8 @@ struct AppPreviews: View {
                         .padding([.top, .horizontal], 16)
                         .padding(.bottom, 12)
                 } else {
-                    ScrollView(.horizontal) {
-                        LazyHStack(spacing: 14) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
                             ForEach(viewModel.appPreviews) { appPreview in
                                 Button {
                                     errorHandling.fireAndHandleError {
@@ -30,15 +30,15 @@ struct AppPreviews: View {
                                 }
                                 .buttonStyle(.plain)
                             }
+                            Spacer(minLength: 0)
                         }
-                        .padding(.bottom, 8)
-                        .padding([.top, .horizontal], 12)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 14)
+                        .frame(minWidth: 270)
                     }
-                    .frame(minWidth: 250, maxWidth: 300)
-                    .padding(4)
+                    .fixedSize(horizontal: true, vertical: false)
                 }
             }
-            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         }
         .onAppear {
             viewModel.loadAppPreviewsFromCache()

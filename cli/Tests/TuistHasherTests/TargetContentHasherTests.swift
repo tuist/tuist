@@ -20,6 +20,7 @@ struct TargetContentHasherTests {
     private var plistContentHasher: MockPlistContentHashing!
     private var settingsContentHasher: MockSettingsContentHashing!
     private var dependenciesContentHasher: MockDependenciesContentHashing!
+    private var foreignBuildHasher: MockForeignBuildHashing!
     private var subject: TargetContentHasher!
 
     init() async throws {
@@ -34,6 +35,7 @@ struct TargetContentHasherTests {
         plistContentHasher = MockPlistContentHashing()
         settingsContentHasher = MockSettingsContentHashing()
         dependenciesContentHasher = MockDependenciesContentHashing()
+        foreignBuildHasher = MockForeignBuildHashing()
         subject = TargetContentHasher(
             contentHasher: contentHasher,
             sourceFilesContentHasher: sourceFilesContentHasher,
@@ -45,7 +47,8 @@ struct TargetContentHasherTests {
             deploymentTargetContentHasher: deploymentTargetContentHasher,
             plistContentHasher: plistContentHasher,
             settingsContentHasher: settingsContentHasher,
-            dependenciesContentHasher: dependenciesContentHasher
+            dependenciesContentHasher: dependenciesContentHasher,
+            foreignBuildHasher: foreignBuildHasher
         )
 
         given(contentHasher)

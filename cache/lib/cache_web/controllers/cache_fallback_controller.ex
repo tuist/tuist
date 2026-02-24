@@ -32,6 +32,12 @@ defmodule CacheWeb.CacheFallbackController do
     |> json(%{message: "Total upload size exceeds 2GB limit"})
   end
 
+  def call(conn, {:error, :part_already_written}) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{message: "Part was already written and cannot be replaced"})
+  end
+
   def call(conn, {:error, :parts_mismatch}) do
     conn
     |> put_status(:bad_request)

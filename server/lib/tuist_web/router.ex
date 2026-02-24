@@ -297,6 +297,7 @@ defmodule TuistWeb.Router do
     get "/openid-configuration", WellKnownController, :openid_configuration
     get "/jwks.json", WellKnownController, :jwks
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
+    get "/assetlinks.json", WellKnownController, :assetlinks
   end
 
   scope path: "/api",
@@ -370,15 +371,33 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           scope "/test-cases" do
             get "/", TestCasesController, :index
+
+            scope "/runs" do
+              get "/", TestCaseRunsController, :index
+              get "/:test_case_run_id", TestCaseRunsController, :show
+            end
+
+            get "/:test_case_id", TestCasesController, :show
+            get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
+          get "/:test_run_id", TestsController, :show
+          get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
+          post "/crash-reports", CrashReportsController, :create
+          post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
+        end
+
+        scope "/gradle" do
+          post "/builds", GradleController, :create_build
+          get "/builds", GradleController, :list_builds
+          get "/builds/:build_id", GradleController, :get_build
         end
 
         scope "/previews" do
@@ -512,12 +531,19 @@ defmodule TuistWeb.Router do
     get "/authorize", AuthorizeController, :authorize
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
+    get "/apple", AuthorizeController, :authorize_with_apple
   end
 
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through :non_authenticated_api
 
     post "/token", TokenController, :token
+  end
+
+  scope "/oauth/callback", TuistWeb.Oauth do
+    pipe_through [:browser_app]
+
+    get "/android", AndroidCallbackController, :callback
   end
 
   # Ops Routes
@@ -559,6 +585,16 @@ defmodule TuistWeb.Router do
       ] do
       live "/qa", TuistWeb.OpsQALive
       live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
+    end
+
+    live_session :ops_cache,
+      layout: {TuistWeb.Layouts, :ops},
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Authorization, [:current_user, :read, :ops]},
+        {TuistWeb.LayoutLive, :ops}
+      ] do
+      live "/cache", TuistWeb.OpsCacheLive
     end
   end
 
@@ -689,6 +725,7 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/app.apk", PreviewController, :download_apk
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
@@ -754,8 +791,7 @@ defmodule TuistWeb.Router do
       :rate_limit,
       :require_authenticated_user_for_private_projects,
       :analytics,
-      :require_user_can_read_project,
-      TuistWeb.RedirectToRunsPlug
+      :require_user_can_read_project
     ]
 
     live_session :project,
@@ -775,6 +811,7 @@ defmodule TuistWeb.Router do
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive
       live "/xcode-cache", XcodeCacheLive
+      live "/gradle-cache", GradleCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
@@ -789,6 +826,11 @@ defmodule TuistWeb.Router do
       live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+
+      get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
+          TestCaseRunAttachmentsController,
+          :download
+
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/notifications", ProjectNotificationsLive

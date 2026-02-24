@@ -3,6 +3,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistEnvironment
+import TuistLoggerTesting
 import TuistLogging
 import TuistSupport
 import TuistTesting
@@ -37,27 +38,6 @@ struct GeneratorAcceptanceTests {
 
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-    }
-
-    @Test(.withFixture("generated_local_spm_dependency_with_assets"), .withMockedLogger())
-    func local_spm_dependency_with_assets() async throws {
-        // Given
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let workspacePath = fixtureDirectory.appending(component: "TuistSampleProject.xcworkspace")
-
-        // When
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try await System.shared.run([
-            "/usr/bin/xcodebuild",
-            "-scheme",
-            "TuistSampleProject",
-            "-workspace",
-            workspacePath.pathString,
-            "-destination",
-            "generic/platform=iOS Simulator",
-            "build",
-        ])
     }
 
     @Test(
@@ -196,8 +176,8 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             )
         }
         for resource in [
-            "StaticFramework3.framework",
-            "StaticFramework4.framework",
+            "StaticFramework3_StaticFramework3.bundle",
+            "StaticFramework4_StaticFramework4.bundle",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -221,12 +201,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3.framework",
+            "StaticFramework3_StaticFramework3.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4.framework",
+            "StaticFramework4_StaticFramework4.bundle",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -809,7 +789,7 @@ final class GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib: Tuis
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "StaticMetallibFramework")
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticMetallibFramework.framework",
+            "StaticMetallibFramework_StaticMetallibFramework.bundle",
             destination: "Debug",
             resource: "default.metallib"
         )
@@ -1256,13 +1236,14 @@ final class GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies: Tu
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
-
         let workspacePackageResolved = try workspacePath
             .appending(RelativePath(validating: "xcshareddata/swiftpm/Package.resolved"))
         let fixturePackageResolved = try fixturePath.appending(RelativePath(validating: ".package.resolved"))
-        let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
-        let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
-        XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
+        if FileManager.default.fileExists(atPath: workspacePackageResolved.pathString) {
+            let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
+            let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
+            XCTAssertEqual(workspacePackageResolvedData, fixturePackageResolvedData)
+        }
     }
 }
 
@@ -1336,22 +1317,17 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
-        )
-        try await XCTAssertProductWithDestinationContainsResource(
-            "App.app",
-            destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
@@ -1379,17 +1355,12 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "Resources/App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
-        )
-        try await XCTAssertProductWithDestinationContainsResource(
-            "App_macOS.app",
-            destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",

@@ -12,7 +12,7 @@ extension GraphCircularDetectorNode: CustomDebugStringConvertible {
     }
 }
 
-protocol GraphCircularDetecting: AnyObject {
+protocol GraphCircularDetecting {
     func start(from: GraphCircularDetectorNode, to: GraphCircularDetectorNode)
     func complete() throws
 }

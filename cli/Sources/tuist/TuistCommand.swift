@@ -3,12 +3,24 @@ import Foundation
 import Noora
 import OpenAPIRuntime
 import Path
+import TuistAccountCommand
 import TuistAlert
 import TuistAuthCommand
+import TuistBuildCommand
+import TuistBundleCommand
 import TuistCacheCommand
+import TuistConfigLoader
 import TuistEnvironment
+import TuistGenerateCommand
+import TuistInitCommand
 import TuistLogging
 import TuistNooraExtension
+import TuistOrganizationCommand
+import TuistProjectCommand
+import TuistRegistryCommand
+import TuistRunCommand
+import TuistShareCommand
+import TuistTestCommand
 import TuistVersionCommand
 
 #if os(macOS)
@@ -82,8 +94,22 @@ public struct TuistCommand: AsyncParsableCommand {
 
         #if !os(macOS)
             groups.append(CommandGroup(
-                name: "Cache",
-                subcommands: [CacheCommand.self]
+                name: "Get started",
+                subcommands: [InitCommand.self]
+            ))
+            groups.append(CommandGroup(
+                name: "Develop",
+                subcommands: [
+                    BuildCommand.self,
+                    CacheCommand.self,
+                    GenerateCommand.self,
+                    RunCommand.self,
+                    TestCommand.self,
+                ]
+            ))
+            groups.append(CommandGroup(
+                name: "Share",
+                subcommands: [ShareCommand.self]
             ))
         #endif
 
@@ -96,17 +122,13 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     private static var accountSubcommands: [ParsableCommand.Type] {
-        #if os(macOS)
-            [
-                AccountCommand.self,
-                ProjectCommand.self,
-                BundleCommand.self,
-                OrganizationCommand.self,
-                AuthCommand.self,
-            ]
-        #else
-            [AuthCommand.self]
-        #endif
+        [
+            AccountCommand.self,
+            ProjectCommand.self,
+            BundleCommand.self,
+            OrganizationCommand.self,
+            AuthCommand.self,
+        ]
     }
 
     private static var otherSubcommands: [ParsableCommand.Type] {
@@ -117,6 +139,7 @@ public struct TuistCommand: AsyncParsableCommand {
         #endif
     }
 
+    // swiftlint:disable:next function_body_length
     public static func main(
         logFilePath: AbsolutePath,
         _ arguments: [String]? = nil,
@@ -211,21 +234,23 @@ public struct TuistCommand: AsyncParsableCommand {
             }
         #else
             try await withLoggerForNoora(logFilePath: logFilePath) {
-                try await Noora.$current.withValue(initNoora()) {
-                    do {
-                        var command = try parseAsRoot(processedArguments)
+                do {
+                    let command = try parseAsRoot(processedArguments)
+                    let jsonThroughNoora = (command as? NooraReadyCommand)?.jsonThroughNoora ?? false
+                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
                         if var asyncCommand = command as? AsyncParsableCommand {
                             try await asyncCommand.run()
                         } else {
-                            try command.run()
+                            var mutableCommand = command
+                            try mutableCommand.run()
                         }
                         outputCompletion(
                             logFilePath: logFilePath,
                             shouldOutputLogFilePath: false
                         )
-                    } catch {
-                        onError(error, isParsingError: false, logFilePath: logFilePath)
                     }
+                } catch {
+                    onError(error, isParsingError: false, logFilePath: logFilePath)
                 }
             }
         #endif

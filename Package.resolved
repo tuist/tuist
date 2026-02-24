@@ -1,5 +1,5 @@
 {
-  "originHash" : "9990412c439b5d45933770cc0804439ef80f6ee8bfb72a2da6860ea4ee5f02c6",
+  "originHash" : "6e15ae1b0332f05b8bb45afe104a621f3229f5afa464120edd44eab4b99e8c95",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -38,7 +38,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.1.1"
+        "version" : "1.1.2"
       }
     },
     {
@@ -54,7 +54,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.17.1"
+        "version" : "1.18.0"
       }
     },
     {
@@ -94,7 +94,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.9.1"
+        "version" : "1.10.1"
       }
     },
     {
@@ -118,7 +118,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.39.0"
+        "version" : "1.39.1"
       }
     },
     {
@@ -226,6 +226,14 @@
       }
     },
     {
+      "identity" : "dduan.TOMLDecoder",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.4.3"
+      }
+    },
+    {
       "identity" : "facebook.zstd",
       "kind" : "registry",
       "location" : "",
@@ -327,7 +335,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.0"
+        "version" : "0.6.1"
       }
     },
     {
@@ -431,7 +439,15 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.45.0"
+        "version" : "0.46.1"
+      }
+    },
+    {
+      "identity" : "p-x9.swift-binary-parse-support",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.1"
       }
     },
     {
@@ -440,6 +456,14 @@
       "location" : "",
       "state" : {
         "version" : "0.13.0"
+      }
+    },
+    {
+      "identity" : "p-x9.swift-fileio-extra",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.2"
       }
     },
     {
@@ -567,7 +591,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.14.14"
+        "version" : "0.14.33"
       }
     },
     {
@@ -583,7 +607,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.54.0"
+        "version" : "0.55.0"
       }
     },
     {
@@ -599,7 +623,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.63"
+        "version" : "0.7.0"
       }
     },
     {
@@ -615,7 +639,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.31.0"
+        "version" : "1.33.0"
       }
     },
     {
@@ -623,7 +647,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.7.2"
+        "version" : "9.8.0"
       }
     },
     {

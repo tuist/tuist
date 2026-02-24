@@ -7,7 +7,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 
 **Key Technologies**
 - Backend: Elixir 1.18.3 with Phoenix 1.7.12
-- Databases: PostgreSQL with TimescaleDB (primary), ClickHouse (analytics; write via IngestRepo, read via ClickHouseRepo)
+- Databases: PostgreSQL (primary), ClickHouse (analytics; write via IngestRepo, read via ClickHouseRepo)
 - Frontend: Phoenix LiveView with JavaScript/TypeScript and esbuild
 - Package management: pnpm for JavaScript dependencies
 
@@ -29,13 +29,14 @@ Tuist Server is an Elixir/Phoenix web application that extends the Tuist CLI. It
 
 ## Development Setup
 **Prerequisites**
-- PostgreSQL 16 with TimescaleDB extension
+- PostgreSQL 16
 - Mise development environment manager
 - Private key from 1Password for `priv/secrets/dev.key`
 
 **Setup Commands**
 ```bash
 mise install
+brew install postgresql@16
 brew services start postgresql@16
 mise run clickhouse:start
 mise run db:create
@@ -115,7 +116,6 @@ mise run dev
 ## Important Notes
 - Run `mix ecto.migrate` after pulling migrations.
 - Use `mise run install` after dependency changes.
-- TimescaleDB extension is required.
 - Local development connects to `http://localhost:8080` for Tuist CLI integration.
 
 ## Data Export Documentation

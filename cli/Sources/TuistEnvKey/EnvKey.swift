@@ -182,16 +182,48 @@ public enum EnvKey: String, CaseIterable {
     case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
     case testSkipQuarantine = "TUIST_TEST_SKIP_QUARANTINE"
 
+    // TEST SHOW
+
+    case testShowId = "TUIST_TEST_SHOW_ID"
+    case testShowProject = "TUIST_TEST_SHOW_PROJECT"
+    case testShowPath = "TUIST_TEST_SHOW_PATH"
+    case testShowJson = "TUIST_TEST_SHOW_JSON"
+
     // TEST CASE LIST
 
     case testCaseListPath = "TUIST_TEST_CASE_LIST_PATH"
-    case testCaseListFullHandle = "TUIST_TEST_CASE_LIST_FULL_HANDLE"
+    case testCaseListProject = "TUIST_TEST_CASE_LIST_PROJECT"
     case testCaseListFlaky = "TUIST_TEST_CASE_LIST_FLAKY"
     case testCaseListQuarantined = "TUIST_TEST_CASE_LIST_QUARANTINED"
     case testCaseListSkipTesting = "TUIST_TEST_CASE_LIST_SKIP_TESTING"
     case testCaseListPage = "TUIST_TEST_CASE_LIST_PAGE"
     case testCaseListPageSize = "TUIST_TEST_CASE_LIST_PAGE_SIZE"
     case testCaseListJson = "TUIST_TEST_CASE_LIST_JSON"
+
+    // TEST CASE SHOW
+
+    case testCaseShowIdentifier = "TUIST_TEST_CASE_SHOW_IDENTIFIER"
+    case testCaseShowProject = "TUIST_TEST_CASE_SHOW_PROJECT"
+    case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
+    case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"
+
+    // TEST CASE RUN LIST
+
+    case testCaseRunListIdentifier = "TUIST_TEST_CASE_RUN_LIST_IDENTIFIER"
+    case testCaseRunListProject = "TUIST_TEST_CASE_RUN_LIST_PROJECT"
+    case testCaseRunListPath = "TUIST_TEST_CASE_RUN_LIST_PATH"
+    case testCaseRunListFlaky = "TUIST_TEST_CASE_RUN_LIST_FLAKY"
+    case testCaseRunListTestRunId = "TUIST_TEST_CASE_RUN_LIST_TEST_RUN_ID"
+    case testCaseRunListPage = "TUIST_TEST_CASE_RUN_LIST_PAGE"
+    case testCaseRunListPageSize = "TUIST_TEST_CASE_RUN_LIST_PAGE_SIZE"
+    case testCaseRunListJson = "TUIST_TEST_CASE_RUN_LIST_JSON"
+
+    // TEST CASE RUN SHOW
+
+    case testCaseRunShowId = "TUIST_TEST_CASE_RUN_SHOW_ID"
+    case testCaseRunShowProject = "TUIST_TEST_CASE_RUN_SHOW_PROJECT"
+    case testCaseRunShowPath = "TUIST_TEST_CASE_RUN_SHOW_PATH"
+    case testCaseRunShowJson = "TUIST_TEST_CASE_RUN_SHOW_JSON"
 
     // ORGANIZATION BILLING
 
@@ -261,6 +293,7 @@ public enum EnvKey: String, CaseIterable {
 
     case projectCreateFullHandle = "TUIST_PROJECT_CREATE_FULL_HANDLE"
     case projectCreatePath = "TUIST_PROJECT_CREATE_PATH"
+    case projectCreateBuildSystem = "TUIST_PROJECT_CREATE_BUILD_SYSTEM"
 
     // PROJECT SHOW
 

@@ -7,8 +7,10 @@ This file provides guidance to AI agents when working with code in this reposito
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
+- `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `docs/` - Documentation and guides - see `docs/AGENTS.md`
+- `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
@@ -23,9 +25,11 @@ When making changes in a directory with an `AGENTS.md`, keep that node up to dat
 
 When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS and macOS app
+- `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
+- `skills` - Changes to the Agent Skills package
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
@@ -34,6 +38,7 @@ Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
 
 # Tuist CLI (Swift)
@@ -46,6 +51,7 @@ Examples:
 - When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme Tuist-Workspace` instead of `swift build`
 - When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests` instead of `swift test`.
 - Prefer running test suites or individual test cases, and not the whole test target, for performance
+- When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
 
 ## Testing
 - Use Swift Testing framework with custom traits for tests that need temporary directories
@@ -63,6 +69,11 @@ Examples:
   ```
 - Do not modify CHANGELOG.md as it is auto-generated
 
+## OpenAPI Code Generation
+- The server's OpenAPI spec and CLI Swift client code are regenerated with: `mise run generate-api-cli-code` (run from the `server/` directory)
+- This exports the spec to `cli/Sources/TuistServer/OpenAPI/server.yml` and regenerates `Types.swift` and `Client.swift`
+- Do not edit `server.yml`, `Types.swift`, or `Client.swift` manually — update the controller schemas in the server and regenerate
+
 ## Linting
 - To check for linting issues: `mise run lint`
 - To automatically fix fixable linting issues: `mise run lint --fix`
@@ -76,7 +87,7 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 **Key Technologies:**
 - **Backend**: Elixir 1.18.3 with Phoenix 1.7.12 framework
 - **Databases**: 
-  - PostgreSQL with TimescaleDB extension (primary database)
+  - PostgreSQL (primary database)
   - ClickHouse (analytics database, write-only through IngestRepo)
 - **Frontend**: Phoenix LiveView with JavaScript/TypeScript and esbuild
 - **Package Management**: pnpm for JavaScript dependencies
@@ -100,13 +111,14 @@ Tuist Server is an Elixir/Phoenix web application that extends the functionality
 ## Development Setup
 
 **Prerequisites:**
-- PostgreSQL 16 with TimescaleDB extension
+- PostgreSQL 16
 - Mise development environment manager
 - Private key from 1Password for `priv/secrets/dev.key`
 
 **Setup Commands:**
 ```bash
 mise install                    # Install system dependencies
+brew install postgresql@16      # Make sure `postgresql@16` is installed locally via Homebrew
 brew services start postgresql@16
 mise run clickhouse:start      # Start ClickHouse
 mise run db:create             # Create database
@@ -183,7 +195,7 @@ mix test test/tuist_web/live/dashboard_live_test.exs
 - **Imports/Aliases:** Use `alias` for modules used multiple times. Avoid `import` unless for specific DSLs (e.g., Ecto.Query).
 - **Modules Aliases:** Always declare module aliases at the module level in files, not within individual functions. This improves readability and avoids repetition.
 - **Mocking:** Copy the modules for mocking in @server/test/test_helper.exs not in the individual functions.
-- **Types:** Utilize typespecs (`@spec`) for public functions.
+- **Types:** Do not add typespecs (`@spec`, `@type`, etc.) to functions or modules.
 - **Naming Conventions:**
     - Modules: PascalCase (e.g., `MyModule`)
     - Functions: snake_case (e.g., `my_function`)
@@ -230,7 +242,6 @@ The application deploys to Render with different environments:
 
 - Always run `mix ecto.migrate` after pulling database migrations
 - Use `mise run install` after pulling dependency changes
-- The application requires TimescaleDB extension - install it if migrations fail
 - Local development connects to `http://localhost:8080` for Tuist CLI integration
 
 # Tuist Handbook
