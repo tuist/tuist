@@ -185,7 +185,6 @@ private fun PreviewDetailContent(
     ) {
         Spacer(Modifier.height(NooraSpacing.Spacing4))
 
-        // Header: icon on left, name + version to the right (matches iOS)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

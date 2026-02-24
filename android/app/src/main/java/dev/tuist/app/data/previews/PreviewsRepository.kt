@@ -145,12 +145,12 @@ class PreviewsRepository @Inject constructor(
     }
 
     private fun <T> Response<T>.serverErrorMessage(): String {
+        val errorJson = errorBody()?.string() ?: return ""
         return try {
-            val errorJson = errorBody()?.string() ?: return "${code()} ${message()}"
-            val adapter = moshi.adapter(dev.tuist.app.api.model.Error::class.java)
-            adapter.fromJson(errorJson)?.message ?: "${code()} ${message()}"
+            moshi.adapter(dev.tuist.app.api.model.Error::class.java)
+                .fromJson(errorJson)?.message ?: ""
         } catch (_: Exception) {
-            "${code()} ${message()}"
+            ""
         }
     }
 }
