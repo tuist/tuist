@@ -191,8 +191,7 @@ defmodule TuistWeb.API.PreviewsController do
             AppBuilds.storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
-              app_build_id: app_build.id,
-              type: type
+              app_build: app_build
             }),
             selected_project.account
           )
@@ -287,8 +286,7 @@ defmodule TuistWeb.API.PreviewsController do
       AppBuilds.storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        app_build_id: app_build_id,
-        type: app_build.type
+        app_build: app_build
       })
 
     url =
@@ -371,8 +369,7 @@ defmodule TuistWeb.API.PreviewsController do
             AppBuilds.storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
-              app_build_id: app_build_id,
-              type: app_build.type
+              app_build: app_build
             }),
             upload_id,
             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
@@ -786,8 +783,7 @@ defmodule TuistWeb.API.PreviewsController do
       AppBuilds.storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        app_build_id: app_build.id,
-        type: app_build.type
+        app_build: app_build
       })
 
     %{

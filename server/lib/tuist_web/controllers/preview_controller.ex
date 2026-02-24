@@ -126,7 +126,7 @@ defmodule TuistWeb.PreviewController do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
     if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
@@ -147,8 +147,7 @@ defmodule TuistWeb.PreviewController do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id,
-          type: :apk
+          app_build: app_build
         })
 
     if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
@@ -230,8 +229,7 @@ defmodule TuistWeb.PreviewController do
               AppBuilds.storage_key(%{
                 account_handle: account_handle,
                 project_handle: project_handle,
-                app_build_id: app_build.id,
-                type: app_build.type
+                app_build: app_build
               })
 
             content_stream = Storage.stream_object(storage_key, account)
@@ -261,8 +259,7 @@ defmodule TuistWeb.PreviewController do
           AppBuilds.storage_key(%{
             account_handle: account_handle,
             project_handle: project_handle,
-            app_build_id: app_build.id,
-            type: app_build.type
+            app_build: app_build
           })
 
         Storage.object_exists?(storage_key, account)

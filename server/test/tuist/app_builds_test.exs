@@ -465,9 +465,9 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "storage_key/1" do
-    test "returns the storage key with .zip extension by default" do
+    test "returns the storage key with .zip extension for non-apk builds" do
       # Given
-      app_build = %{id: "app-build-id"}
+      app_build = %{id: "app-build-id", type: :app_bundle}
       account_handle = "account-handle"
       project_handle = "project-handle"
 
@@ -476,16 +476,16 @@ defmodule Tuist.AppBuildsTest do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
       # Then
       assert result == "#{account_handle}/#{project_handle}/previews/#{app_build.id}.zip"
     end
 
-    test "returns the storage key with .apk extension for apk type" do
+    test "returns the storage key with .apk extension for apk builds" do
       # Given
-      app_build = %{id: "app-build-id"}
+      app_build = %{id: "app-build-id", type: :apk}
       account_handle = "account-handle"
       project_handle = "project-handle"
 
@@ -494,8 +494,7 @@ defmodule Tuist.AppBuildsTest do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id,
-          type: :apk
+          app_build: app_build
         })
 
       # Then
@@ -504,7 +503,7 @@ defmodule Tuist.AppBuildsTest do
 
     test "returns the storage key with downcased account and project handles" do
       # Given
-      app_build = %{id: "app-build-id"}
+      app_build = %{id: "app-build-id", type: :ipa}
       account_handle = "Account"
       project_handle = "Project"
 
@@ -513,7 +512,7 @@ defmodule Tuist.AppBuildsTest do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
       # Then
