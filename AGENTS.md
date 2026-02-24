@@ -25,6 +25,7 @@ When making changes in a directory with an `AGENTS.md`, keep that node up to dat
 
 When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS and macOS app
+- `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
