@@ -1,5 +1,6 @@
 defmodule Cache.SQLiteBufferTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
+  use Mimic
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
@@ -11,23 +12,81 @@ defmodule Cache.SQLiteBufferTest do
   alias Cache.SQLiteBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
+  setup :set_mimic_from_context
+
   setup do
     :ok = Sandbox.checkout(Repo)
-    Sandbox.mode(Repo, {:shared, self()})
 
-    allow_buffer(KeyValueBuffer)
-    allow_buffer(CacheArtifactsBuffer)
-    allow_buffer(S3TransfersBuffer)
+    suffix = :erlang.unique_integer([:positive])
 
-    :ok = KeyValueBuffer.flush()
-    :ok = CacheArtifactsBuffer.flush()
-    :ok = S3TransfersBuffer.flush()
+    kv_name = :"kv_buf_test_#{suffix}"
+    ca_name = :"ca_buf_test_#{suffix}"
+    s3_name = :"s3_buf_test_#{suffix}"
 
-    Repo.delete_all(S3Transfer)
-    Repo.delete_all(CacheArtifact)
-    Repo.delete_all(KeyValueEntry)
+    kv_pid = start_supervised!({SQLiteBuffer, [name: kv_name, buffer_module: KeyValueBuffer]})
+    ca_pid = start_supervised!({SQLiteBuffer, [name: ca_name, buffer_module: CacheArtifactsBuffer]}, id: ca_name)
+    s3_pid = start_supervised!({SQLiteBuffer, [name: s3_name, buffer_module: S3TransfersBuffer]}, id: s3_name)
 
-    :ok
+    Sandbox.allow(Repo, self(), kv_pid)
+    Sandbox.allow(Repo, self(), ca_pid)
+    Sandbox.allow(Repo, self(), s3_pid)
+
+    stub(KeyValueBuffer, :enqueue, fn key, json_payload ->
+      entry = %{key: key, json_payload: json_payload}
+      true = :ets.insert(kv_name, {key, {:write, entry}})
+      :ok
+    end)
+
+    stub(KeyValueBuffer, :enqueue_access, fn key ->
+      entry = %{key: key}
+      _inserted? = :ets.insert_new(kv_name, {key, {:access, entry}})
+      :ok
+    end)
+
+    stub(KeyValueBuffer, :flush, fn -> SQLiteBuffer.flush(kv_name) end)
+    stub(KeyValueBuffer, :queue_stats, fn -> SQLiteBuffer.queue_stats(kv_name) end)
+    stub(KeyValueBuffer, :reset, fn -> SQLiteBuffer.reset(kv_name) end)
+
+    stub(CacheArtifactsBuffer, :enqueue_access, fn key, size_bytes, last_accessed_at ->
+      entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
+      true = :ets.insert(ca_name, {key, {:access, entry}})
+      :ok
+    end)
+
+    stub(CacheArtifactsBuffer, :enqueue_delete, fn key ->
+      true = :ets.insert(ca_name, {key, :delete})
+      :ok
+    end)
+
+    stub(CacheArtifactsBuffer, :flush, fn -> SQLiteBuffer.flush(ca_name) end)
+    stub(CacheArtifactsBuffer, :queue_stats, fn -> SQLiteBuffer.queue_stats(ca_name) end)
+    stub(CacheArtifactsBuffer, :reset, fn -> SQLiteBuffer.reset(ca_name) end)
+
+    stub(S3TransfersBuffer, :enqueue, fn type, account_handle, project_handle, artifact_type, key ->
+      entry = %{
+        id: UUIDv7.generate(),
+        type: type,
+        account_handle: account_handle,
+        project_handle: project_handle,
+        artifact_type: artifact_type,
+        key: key,
+        inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+      }
+
+      true = :ets.insert(s3_name, {{:insert, type, key}, entry})
+      :ok
+    end)
+
+    stub(S3TransfersBuffer, :enqueue_delete, fn id ->
+      true = :ets.insert(s3_name, {{:delete, id}, :delete})
+      :ok
+    end)
+
+    stub(S3TransfersBuffer, :flush, fn -> SQLiteBuffer.flush(s3_name) end)
+    stub(S3TransfersBuffer, :queue_stats, fn -> SQLiteBuffer.queue_stats(s3_name) end)
+    stub(S3TransfersBuffer, :reset, fn -> SQLiteBuffer.reset(s3_name) end)
+
+    {:ok, kv_name: kv_name, ca_name: ca_name, s3_name: s3_name}
   end
 
   test "flush persists key values and keeps latest payload" do
@@ -96,6 +155,8 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.enqueue_access(key)
 
     assert %{key_values: 2, total: 2} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
   end
 
   test "flush writes and deletes cas artifacts" do
@@ -121,23 +182,26 @@ defmodule Cache.SQLiteBufferTest do
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
     :ok = S3TransfersBuffer.flush()
 
-    transfers = Repo.all(S3Transfer)
+    import Ecto.Query
+    transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))
     assert length(transfers) == 1
 
     :ok = S3TransfersBuffer.enqueue_delete(hd(transfers).id)
     :ok = S3TransfersBuffer.flush()
 
-    assert Repo.aggregate(S3Transfer, :count, :id) == 0
+    assert Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id) == 0
   end
 
   test "flushes queued entries on shutdown" do
     key = "keyvalue:shutdown:account:project"
     payload = Jason.encode!(%{entries: [%{"value" => "shutdown"}]})
 
-    {:ok, pid} = SQLiteBuffer.start_link(name: :sqlite_buffer_test, buffer_module: KeyValueBuffer)
+    suffix = :erlang.unique_integer([:positive])
+    shutdown_buf = :"sqlite_buffer_shutdown_test_#{suffix}"
+    {:ok, pid} = SQLiteBuffer.start_link(name: shutdown_buf, buffer_module: KeyValueBuffer)
 
     Sandbox.allow(Repo, self(), pid)
-    true = :ets.insert(:sqlite_buffer_test, {key, {:write, %{key: key, json_payload: payload}}})
+    true = :ets.insert(shutdown_buf, {key, {:write, %{key: key, json_payload: payload}}})
 
     :ok = GenServer.stop(pid)
 
@@ -214,14 +278,8 @@ defmodule Cache.SQLiteBufferTest do
 
     :ok = KeyValueBuffer.flush()
 
-    count = Repo.aggregate(KeyValueEntry, :count, :id)
+    import Ecto.Query
+    count = Repo.aggregate(from(e in KeyValueEntry, where: like(e.key, ^"#{base_key}%")), :count, :id)
     assert count == 100
-  end
-
-  defp allow_buffer(buffer) do
-    if pid = Process.whereis(buffer) do
-      Sandbox.allow(Repo, self(), pid)
-      buffer.reset()
-    end
   end
 end
