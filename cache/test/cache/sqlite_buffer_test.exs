@@ -113,13 +113,14 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "flush inserts and deletes s3 transfers with de-duplication" do
+    import Ecto.Query
+
     key = "account/project/cas/ab/cd/key"
 
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
     :ok = S3TransfersBuffer.flush()
 
-    import Ecto.Query
     transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))
     assert length(transfers) == 1
 
@@ -199,6 +200,8 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "writes during flush are not lost" do
+    import Ecto.Query
+
     base_key = "keyvalue:during_flush:account:project"
 
     for i <- 1..50 do
@@ -215,7 +218,6 @@ defmodule Cache.SQLiteBufferTest do
 
     :ok = KeyValueBuffer.flush()
 
-    import Ecto.Query
     count = Repo.aggregate(from(e in KeyValueEntry, where: like(e.key, ^"#{base_key}%")), :count, :id)
     assert count == 100
   end

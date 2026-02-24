@@ -35,8 +35,7 @@ defmodule Cache.KeyValueStore do
   Overwrites any existing values.
   """
 
-  def put_key_value(cas_id, account_handle, project_handle, values, opts \\ [])
-      when is_list(values) do
+  def put_key_value(cas_id, account_handle, project_handle, values, opts \\ []) when is_list(values) do
     key = build_key(account_handle, project_handle, cas_id)
     json = encode_entries(values)
     cache = Keyword.get(opts, :cache_name, @cache_name)

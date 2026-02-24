@@ -3,19 +3,20 @@ defmodule CacheWeb.CleanControllerTest do
   use Oban.Testing, repo: Cache.Repo
   use Mimic
 
+  import ExUnit.CaptureLog
   import Phoenix.ConnTest
   import Plug.Conn
-  import ExUnit.CaptureLog
-
-  @endpoint CacheWeb.Endpoint
 
   alias Cache.Authentication
   alias Cache.CleanProjectWorker
+  alias Ecto.Adapters.SQL.Sandbox
+
+  @endpoint CacheWeb.Endpoint
 
   setup :set_mimic_from_context
 
   setup do
-    Ecto.Adapters.SQL.Sandbox.checkout(Cache.Repo)
+    Sandbox.checkout(Cache.Repo)
     {:ok, conn: build_conn()}
   end
 

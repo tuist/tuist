@@ -2,17 +2,17 @@ defmodule CacheWeb.CASControllerTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import Phoenix.ConnTest
   import Plug.Conn
-  import ExUnit.CaptureLog
-
-  @endpoint CacheWeb.Endpoint
 
   alias Cache.Authentication
   alias Cache.CacheArtifacts
   alias Cache.CAS
   alias Cache.S3Transfers
   alias Ecto.Adapters.SQL.Sandbox
+
+  @endpoint CacheWeb.Endpoint
 
   setup :set_mimic_from_context
 

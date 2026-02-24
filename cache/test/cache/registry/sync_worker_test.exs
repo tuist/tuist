@@ -3,7 +3,6 @@ defmodule Cache.Registry.SyncWorkerTest do
   use Oban.Testing, repo: Cache.Repo
   use Mimic
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias Cache.Config
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
@@ -11,6 +10,7 @@ defmodule Cache.Registry.SyncWorkerTest do
   alias Cache.Registry.SwiftPackageIndex
   alias Cache.Registry.SyncCursor
   alias Cache.Registry.SyncWorker
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 

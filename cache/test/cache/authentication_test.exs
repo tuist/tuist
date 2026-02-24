@@ -151,7 +151,9 @@ defmodule Cache.AuthenticationTest do
 
       tasks =
         Enum.map(1..15, fn _ ->
-          Task.async(fn -> Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name) end)
+          Task.async(fn ->
+            Authentication.ensure_project_accessible(conn, "account", "project", cache_name: cache_name)
+          end)
         end)
 
       results = Enum.map(tasks, &Task.await(&1, 5_000))
@@ -235,7 +237,10 @@ defmodule Cache.AuthenticationTest do
       {:ok, jwt_token: jwt_token, projects: projects, exp: exp, cache_name: cache_name}
     end
 
-    test "successfully authorizes with valid JWT containing requested project", %{jwt_token: jwt_token, cache_name: cache_name} do
+    test "successfully authorizes with valid JWT containing requested project", %{
+      jwt_token: jwt_token,
+      cache_name: cache_name
+    } do
       auth_header = "Bearer #{jwt_token}"
       conn = build_conn([{"authorization", auth_header}])
 
@@ -286,7 +291,10 @@ defmodule Cache.AuthenticationTest do
       {:ok, :ok} = Cachex.get(cache_name, cache_key)
     end
 
-    test "falls back to API and caches rejection when project not found in API either", %{jwt_token: jwt_token, cache_name: cache_name} do
+    test "falls back to API and caches rejection when project not found in API either", %{
+      jwt_token: jwt_token,
+      cache_name: cache_name
+    } do
       auth_header = "Bearer #{jwt_token}"
       conn = build_conn([{"authorization", auth_header}])
 

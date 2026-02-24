@@ -1,10 +1,11 @@
 defmodule Cache.Registry.MetadataTest do
   use ExUnit.Case, async: true
   use Mimic
-  setup :set_mimic_from_context
 
   alias Cache.Registry.Metadata
   alias ExAws.Operation.S3
+
+  setup :set_mimic_from_context
 
   @moduletag capture_log: true
 
@@ -194,7 +195,8 @@ defmodule Cache.Registry.MetadataTest do
         {:error, {:http_error, 429, "Too Many Requests"}}
       end)
 
-      assert {:error, {:s3_error, :rate_limited}} = Metadata.put_package(scope, name, @sample_metadata, cache_name: cache_name)
+      assert {:error, {:s3_error, :rate_limited}} =
+               Metadata.put_package(scope, name, @sample_metadata, cache_name: cache_name)
     end
   end
 

@@ -2,12 +2,12 @@ defmodule Cache.S3Test do
   use ExUnit.Case, async: true
   use Mimic
 
-  setup :set_mimic_from_context
-
   import ExUnit.CaptureLog
 
   alias Cache.S3
   alias ExAws.S3.Upload
+
+  setup :set_mimic_from_context
 
   describe "etag_from_headers/1" do
     test "extracts etag from lowercase header key" do

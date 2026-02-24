@@ -10,6 +10,8 @@ config :cache, Cache.Repo,
   pool_size: System.schedulers_online() * 2,
   show_sensitive_data_on_connection_error: false
 
+config :cache, Cache.SQLiteBuffer, shutdown_ms: 0, flush_interval_ms: to_timeout(hour: 1)
+
 config :cache, CacheWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "test_secret_key_base_at_least_64_characters_long_for_security_purposes",
@@ -19,8 +21,6 @@ config :cache, Oban,
   queues: false,
   plugins: false,
   testing: :manual
-
-config :cache, Cache.SQLiteBuffer, shutdown_ms: 0, flush_interval_ms: :timer.hours(1)
 
 config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
 config :cache, :s3, bucket: "test-bucket", registry_bucket: "test-registry-bucket"
