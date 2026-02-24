@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -80,13 +81,16 @@ fun LoginScreen(
 
             Spacer(Modifier.weight(1f))
 
+            val isDark = isSystemInDarkTheme()
+            val cardBackground = if (isDark) Color(0xFF0E0E0E).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.6f)
+            val cardBorder = if (isDark) Color(0xFF1F1F1F) else Color.White
             val cardShape = RoundedCornerShape(topStart = NooraSpacing.Spacing9, topEnd = NooraSpacing.Spacing9)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(cardShape)
-                    .background(Color.White.copy(alpha = 0.6f))
-                    .border(NooraSpacing.Spacing1, Color.White, cardShape)
+                    .background(cardBackground)
+                    .border(NooraSpacing.Spacing1, cardBorder, cardShape)
                     .padding(horizontal = NooraSpacing.Spacing8)
                     .padding(top = NooraSpacing.Spacing9)
                     .padding(bottom = NooraSpacing.Spacing9 + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),

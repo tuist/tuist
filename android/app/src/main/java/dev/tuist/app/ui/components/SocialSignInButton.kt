@@ -20,12 +20,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.tuist.app.ui.noora.Noora
 import dev.tuist.app.ui.noora.NooraSpacing
+import dev.tuist.app.ui.noora.NooraTheme
 
 enum class SignInButtonStyle { PRIMARY, SECONDARY }
 
@@ -39,21 +41,17 @@ fun SocialSignInButton(
 ) {
     val shape = RoundedCornerShape(Noora.CornerRadius.Large)
 
-    // Primary: iOS uses purple500 (#6F2CFF) with a white overlay at 16% opacity at top fading to clear.
-    // #6F2CFF blended with 16% white ≈ #854DFF
+    val semanticColors = NooraTheme.colors
+
+    // Primary: gradient from a white-blended purple to buttonPrimaryBackground
     val backgroundBrush = when (style) {
         SignInButtonStyle.PRIMARY -> Brush.verticalGradient(
             colors = listOf(
                 Color(0xFF854DFF),
-                Noora.Colors.Purple500,
+                semanticColors.buttonPrimaryBackground,
             ),
         )
-        SignInButtonStyle.SECONDARY -> Brush.verticalGradient(
-            colors = listOf(
-                Noora.Colors.NeutralLight50,
-                Color(0xFFF7F7F8),
-            ),
-        )
+        SignInButtonStyle.SECONDARY -> SolidColor(semanticColors.buttonSecondaryBackground)
     }
 
     val borderColor = when (style) {
@@ -62,8 +60,8 @@ fun SocialSignInButton(
     }
 
     val textColor = when (style) {
-        SignInButtonStyle.PRIMARY -> Noora.Colors.NeutralLight50
-        SignInButtonStyle.SECONDARY -> Noora.Colors.NeutralLight1200
+        SignInButtonStyle.PRIMARY -> semanticColors.buttonPrimaryLabel
+        SignInButtonStyle.SECONDARY -> semanticColors.buttonSecondaryLabel
     }
 
     Box(
