@@ -232,7 +232,7 @@ defmodule TuistWeb.PreviewControllerTest do
         Tuist.AppBuilds.storage_key(%{
           account_handle: account_name,
           project_handle: project_name,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
       expect(Storage, :object_exists?, fn ^storage_key, _actor -> true end)
@@ -263,7 +263,7 @@ defmodule TuistWeb.PreviewControllerTest do
         Tuist.AppBuilds.storage_key(%{
           account_handle: account_name,
           project_handle: project_name,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
       expect(Storage, :object_exists?, fn ^storage_key, _actor -> false end)
