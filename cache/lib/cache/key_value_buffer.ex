@@ -109,10 +109,14 @@ defmodule Cache.KeyValueBuffer do
       end)
 
     Repo.transaction(fn ->
-      Repo.insert_all(KeyValueEntry, rows,
-        conflict_target: :key,
-        on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
-      )
+      rows
+      |> Enum.chunk_every(@query_chunk_size)
+      |> Enum.each(fn rows_chunk ->
+        Repo.insert_all(KeyValueEntry, rows_chunk,
+          conflict_target: :key,
+          on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
+        )
+      end)
 
       persisted_entries =
         keys

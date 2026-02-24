@@ -2,7 +2,7 @@ defmodule Cache.Repo.Migrations.CreateKeyValueEntryHashes do
   @moduledoc false
   use Ecto.Migration
 
-  def up do
+  def change do
     create table(:key_value_entry_hashes) do
       add(:key_value_entry_id, references(:key_value_entries, on_delete: :delete_all), null: false)
       add(:account_handle, :text, null: false)
@@ -13,9 +13,5 @@ defmodule Cache.Repo.Migrations.CreateKeyValueEntryHashes do
     create(unique_index(:key_value_entry_hashes, [:key_value_entry_id, :cas_hash]))
     create(index(:key_value_entry_hashes, [:account_handle, :project_handle, :cas_hash]))
     create(index(:key_value_entry_hashes, [:key_value_entry_id]))
-  end
-
-  def down do
-    drop(table(:key_value_entry_hashes))
   end
 end

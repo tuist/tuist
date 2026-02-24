@@ -57,9 +57,7 @@ defmodule Cache.KeyValueEntries do
           ids_chunk = entries_chunk |> Enum.map(& &1.id) |> Enum.uniq()
 
           {_, _} = Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
-        end)
 
-        Enum.each(entry_chunks, fn entries_chunk ->
           entries_chunk
           |> Enum.flat_map(&entry_hash_rows/1)
           |> Enum.chunk_every(@insert_chunk_size)
