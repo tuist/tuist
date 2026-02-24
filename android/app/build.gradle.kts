@@ -66,6 +66,12 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
+
     sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
 }
 
