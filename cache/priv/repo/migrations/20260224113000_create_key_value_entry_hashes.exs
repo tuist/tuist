@@ -80,7 +80,7 @@ defmodule Cache.Repo.Migrations.CreateKeyValueEntryHashes do
           WHERE instr(remainder, ':') > 0
             AND instr(substr(remainder, instr(remainder, ':') + 1), ':') > 0
         )
-    INSERT OR IGNORE INTO key_value_entry_hashes (key_value_entry_id, account_handle, project_handle, cas_hash)
+        INSERT OR IGNORE INTO key_value_entry_hashes (key_value_entry_id, account_handle, project_handle, cas_hash)
         SELECT
           scoped.id,
           scoped.account_handle,

@@ -11,7 +11,7 @@ defmodule Cache.KeyValueEntries do
 
   @id_chunk_size 500
   @hash_chunk_size 500
-  @insert_chunk_size 1_000
+  @insert_chunk_size 200
   @delete_limit 10_000
 
   @doc """
