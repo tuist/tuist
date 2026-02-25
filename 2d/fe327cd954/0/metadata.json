@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "2dfe327cd954",
+  "session_id": "873f3736-a80a-4b1e-9944-4d2461921d49",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-25T15:39:38.760249Z",
+  "branch": "safari-ios",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "cli/Tests/TuistKitAcceptanceTests/RunAcceptanceTests.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "304f062e-4a3a-45f9-b3a0-5c6640fdf92f",
+  "checkpoint_transcript_start": 928,
+  "transcript_lines_at_start": 928,
+  "token_usage": {
+    "input_tokens": 161,
+    "cache_creation_tokens": 1811899,
+    "cache_read_tokens": 10501813,
+    "output_tokens": 5017,
+    "api_call_count": 131
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-25T15:39:38.450653Z",
+    "agent_lines": 0,
+    "human_added": 638435,
+    "human_modified": 10,
+    "human_removed": 0,
+    "total_committed": 638435,
+    "agent_percentage": 0
+  }
+}

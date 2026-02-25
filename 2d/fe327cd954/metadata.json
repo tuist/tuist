@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "2dfe327cd954",
+  "strategy": "manual-commit",
+  "branch": "safari-ios",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "cli/Tests/TuistKitAcceptanceTests/RunAcceptanceTests.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2d/fe327cd954/0/metadata.json",
+      "transcript": "/2d/fe327cd954/0/full.jsonl",
+      "context": "/2d/fe327cd954/0/context.md",
+      "content_hash": "/2d/fe327cd954/0/content_hash.txt",
+      "prompt": "/2d/fe327cd954/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 161,
+    "cache_creation_tokens": 1811899,
+    "cache_read_tokens": 10501813,
+    "output_tokens": 5017,
+    "api_call_count": 131
+  }
+}
