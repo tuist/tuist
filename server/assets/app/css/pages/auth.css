@@ -160,7 +160,10 @@
   }
 
   & [data-part="background"] {
-    @media (max-width: 768px) {
+    /* This is necessary because in Safari iOS, "filter: blur()" makes the main thread hang;
+       causing the rendering to be slow, and other cascading issues, like the websocket connection
+       timing out */
+    @supports (-webkit-touch-callout: none) {
       display: none;
     }
 
@@ -215,9 +218,7 @@
       left: 0px;
       translate: -50% 20%;
       z-index: var(--noora-z-index-2);
-      @media (min-width: 768px) {
-        filter: blur(150px);
-      }
+      filter: blur(150px);
       border-radius: 1000px;
       background: light-dark(oklch(54.2% 0.27 286.9 / 0.1), oklch(54.2% 0.27 286.9 / 0.15));
       width: 90%;
