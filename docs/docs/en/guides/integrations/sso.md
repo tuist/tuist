@@ -52,5 +52,7 @@ Okta SSO uses the OIDC protocol to allow members of your Okta organization to si
 5. Click **Save changes**.
 
 ::: warning
+<!-- -->
 Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users. Once they sign in via Okta, they will be automatically added to your Tuist organization.
+<!-- -->
 :::
