@@ -56,7 +56,7 @@ struct GeneratorAcceptanceTests {
         // When
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
         try await TuistAcceptanceTest.withXcodeBuildLock {
-            try System.shared.run([
+            try await CommandRunner().run(arguments: [
                 "/usr/bin/xcodebuild",
                 "-scheme",
                 "App",
@@ -65,7 +65,7 @@ struct GeneratorAcceptanceTests {
                 "-destination",
                 "generic/platform=iOS Simulator",
                 "build",
-            ])
+            ]).pipedStream().awaitCompletion()
         }
     }
 
@@ -1043,7 +1043,14 @@ struct GenerateAcceptanceTestmacOSAppWithExtensions {
         if try await !fileSystem.exists(
             AbsolutePath(validating: "/Library/Developer/SDKs/WorkflowExtensionSDK.sdk")
         ) {
-            try System.shared.run(["sudo", "installer", "-package", sdkPkgPath.pathString, "-target", "/"])
+            try await CommandRunner().run(arguments: [
+                "sudo",
+                "installer",
+                "-package",
+                sdkPkgPath.pathString,
+                "-target",
+                "/",
+            ]).pipedStream().awaitCompletion()
         }
 
         try await run(GenerateCommand.self)
@@ -1462,7 +1469,7 @@ struct GenerateAcceptanceTestAppWithMacBundle {
     /// Tests that external local Swift packages configured as dynamic frameworks
     /// compile and run without crashing when accessing Bundle.module.
     /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
-    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory, .withTestingSimulator("iPhone 16 Pro"))
+    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory, .withTestingSimulator())
     func app_with_external_dynamic_framework_with_resources() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
@@ -1768,18 +1775,16 @@ private func XCTAssertSchemeContainsBuildSettings(
     let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath, sourceLocation: sourceLocation)
     var standardOutput = ""
     try await TuistAcceptanceTest.withXcodeBuildLock {
-        standardOutput = try await System.shared.runAndCollectOutput(
-            [
-                "/usr/bin/xcodebuild",
-                "-scheme",
-                scheme,
-                "-workspace",
-                workspacePath.pathString,
-                "-configuration",
-                configuration,
-                "-showBuildSettings",
-            ]
-        ).standardOutput
+        standardOutput = try await CommandRunner().run(arguments: [
+            "/usr/bin/xcodebuild",
+            "-scheme",
+            scheme,
+            "-workspace",
+            workspacePath.pathString,
+            "-configuration",
+            configuration,
+            "-showBuildSettings",
+        ]).concatenatedString()
     }
 
     #expect(
@@ -1812,14 +1817,12 @@ private func XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
         return
     }
 
-    let fileInfo = try await System.shared.runAndCollectOutput(
-        [
-            "file",
-            appClipPath.appending(component: appClip).pathString,
-        ]
-    )
+    let fileInfo = try await CommandRunner().run(arguments: [
+        "file",
+        appClipPath.appending(component: appClip).pathString,
+    ]).concatenatedString()
     #expect(
-        fileInfo.standardOutput.contains(architecture),
+        fileInfo.contains(architecture),
         sourceLocation: sourceLocation
     )
 }
@@ -1921,17 +1924,15 @@ private func XCTAssertProductWithDestinationContainsInfoPlistKey(
         resource: "Info.plist",
         sourceLocation: sourceLocation
     )
-    let output = try await System.shared.runAndCollectOutput(
-        [
-            "/usr/libexec/PlistBuddy",
-            "-c",
-            "print :\(key)",
-            infoPlistPath.pathString,
-        ]
-    )
+    let output = try await CommandRunner().run(arguments: [
+        "/usr/libexec/PlistBuddy",
+        "-c",
+        "print :\(key)",
+        infoPlistPath.pathString,
+    ]).concatenatedString()
 
     #expect(
-        output.standardOutput.isEmpty == false,
+        output.isEmpty == false,
         "Key \(key) not found in the \(product) Info.plist",
         sourceLocation: sourceLocation
     )

@@ -18,10 +18,14 @@ actor SimulatorPool {
         forcedSimulator: String? = ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_SIMULATOR_MODEL"],
         processIdentifier: Int32 = ProcessInfo.processInfo.processIdentifier
     ) {
-        self.poolSize = poolSize
-        self.forcedSimulator = forcedSimulator?
+        let trimmedForcedSimulator = forcedSimulator?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nonEmpty
+        self.poolSize = poolSize
+        self.forcedSimulator = if let trimmedForcedSimulator, trimmedForcedSimulator.isEmpty == false {
+            trimmedForcedSimulator
+        } else {
+            nil
+        }
         self.processIdentifier = processIdentifier
     }
 
@@ -92,11 +96,5 @@ actor SimulatorPool {
             return 2
         }
         return parsed
-    }
-}
-
-extension String {
-    fileprivate var nonEmpty: String? {
-        isEmpty ? nil : self
     }
 }

@@ -26,7 +26,7 @@ struct DependenciesAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_app_with_spm_dependencies"),
-        .withTestingSimulator("iPhone 16 Pro")
+        .withTestingSimulator()
     )
     func app_with_spm_dependencies() async throws {
         // Given
@@ -252,7 +252,7 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
     @Test(
         .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
         .inTemporaryDirectory,
-        .withTestingSimulator("iPhone 16 Pro")
+        .withTestingSimulator()
     )
     func app_with_objc_static_framework_with_resources() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -312,7 +312,7 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
         @Test(
             .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
             .inTemporaryDirectory,
-            .withTestingSimulator("iPhone 16 Pro")
+            .withTestingSimulator()
         )
         func app_with_objc_static_framework_with_resources_from_cache() async throws {
             let fileSystem = FileSystem()

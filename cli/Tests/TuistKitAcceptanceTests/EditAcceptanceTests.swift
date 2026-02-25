@@ -1,3 +1,4 @@
+import Command
 import Path
 import Testing
 import TuistAcceptanceTesting
@@ -53,17 +54,15 @@ struct EditAcceptanceTests {
 
 private func build(scheme: String, workspacePath: AbsolutePath) async throws {
     try await TuistAcceptanceTest.withXcodeBuildLock {
-        try System.shared.runAndPrint(
-            [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "build",
-                "-scheme",
-                scheme,
-                "-workspace",
-                workspacePath.pathString,
-            ]
-        )
+        try await CommandRunner().run(arguments: [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "build",
+            "-scheme",
+            scheme,
+            "-workspace",
+            workspacePath.pathString,
+        ]).pipedStream().awaitCompletion()
     }
 }

@@ -135,14 +135,14 @@ public enum TuistTest {
 
         let runWithXcodeBuildLock = {
             if shouldAcquireXcodeBuildLock {
-                try await TestingSimulators.acquiringXcodeBuildPoolLock(runWithSimulatorLock)
+                try await TestingCommandLocks.acquiringXcodeBuildPoolLock(runWithSimulatorLock)
             } else {
                 try await runWithSimulatorLock()
             }
         }
 
         if shouldAcquireInstallLock {
-            try await TestingSimulators.acquiringInstallPoolLock(runWithXcodeBuildLock)
+            try await TestingCommandLocks.acquiringInstallPoolLock(runWithXcodeBuildLock)
         } else {
             try await runWithXcodeBuildLock()
         }

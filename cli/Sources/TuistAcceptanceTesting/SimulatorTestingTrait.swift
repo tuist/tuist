@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 public struct Simulator: CustomStringConvertible {
@@ -12,6 +13,18 @@ public struct Simulator: CustomStringConvertible {
 
 public struct SimulatorTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let simulator: String
+
+    private static let fallbackSimulator = "iPhone 17"
+
+    private static func defaultSimulatorName() -> String {
+        if let value = ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_SIMULATOR_MODEL"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            value.isEmpty == false
+        {
+            return value
+        }
+        return fallbackSimulator
+    }
 
     public func provideScope(
         for _: Test,
@@ -32,7 +45,7 @@ public struct SimulatorTestingTrait: TestTrait, SuiteTrait, TestScoping {
 }
 
 extension Trait where Self == SimulatorTestingTrait {
-    public static func withTestingSimulator(_ simulator: String) -> Self {
-        return Self(simulator: simulator)
+    public static func withTestingSimulator(_ simulator: String? = nil) -> Self {
+        return Self(simulator: simulator ?? SimulatorTestingTrait.defaultSimulatorName())
     }
 }

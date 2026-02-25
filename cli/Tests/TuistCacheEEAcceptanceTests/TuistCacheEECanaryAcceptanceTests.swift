@@ -30,7 +30,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withTestingSimulator("iPhone 17"),
+        .withTestingSimulator(),
         .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func ios_app_with_frameworks() async throws {
         // Given
@@ -156,7 +156,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withTestingSimulator("iPhone 17"),
+        .withTestingSimulator(),
         .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func ios_app_with_frameworks_legacy() async throws {
         // Given
@@ -601,7 +601,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("generated_project_with_caching_enabled"),
-        .withTestingSimulator("iPhone 17")
+        .withTestingSimulator()
     ) func generated_project_with_caching_enabled() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")

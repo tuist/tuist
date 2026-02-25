@@ -2,28 +2,11 @@ import Foundation
 
 public enum TestingSimulators {
     @TaskLocal public static var simulatorPoolLock: PoolLock = .init(
-        capacity: capacity(from: "TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE", default: 2)
-    )
-    @TaskLocal public static var xcodeBuildPoolLock: PoolLock = .init(
-        capacity: capacity(
-            from: "TUIST_ACCEPTANCE_XCODEBUILD_POOL_SIZE",
-            default: max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
-        )
-    )
-    @TaskLocal public static var installPoolLock: PoolLock = .init(
-        capacity: capacity(from: "TUIST_ACCEPTANCE_INSTALL_POOL_SIZE", default: 2)
+        capacity: simulatorPoolSize()
     )
 
     public static func acquiringSimulatorPoolLock(_ closure: () async throws -> Void) async throws {
         try await withPoolLock(simulatorPoolLock, closure)
-    }
-
-    public static func acquiringXcodeBuildPoolLock(_ closure: () async throws -> Void) async throws {
-        try await withPoolLock(xcodeBuildPoolLock, closure)
-    }
-
-    public static func acquiringInstallPoolLock(_ closure: () async throws -> Void) async throws {
-        try await withPoolLock(installPoolLock, closure)
     }
 
     /// Backward-compatible alias.
@@ -45,12 +28,12 @@ public enum TestingSimulators {
         await lock.release()
     }
 
-    private static func capacity(from envVar: String, default defaultValue: Int) -> Int {
-        guard let value = ProcessInfo.processInfo.environment[envVar],
+    private static func simulatorPoolSize() -> Int {
+        guard let value = ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE"],
               let parsed = Int(value),
               parsed > 0
         else {
-            return defaultValue
+            return 2
         }
         return parsed
     }
