@@ -23,7 +23,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     outputs:
       cli-should-release: ${{ steps.cli-check.outputs.should-release }}
@@ -415,7 +415,7 @@ jobs:
     name: Release CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -435,9 +435,6 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.resolved') }}
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist git-cliff 1password-cli"
@@ -564,7 +561,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -581,9 +578,6 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist git-cliff 1password-cli"
@@ -657,7 +651,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -670,9 +664,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "tuist 1password-cli"
@@ -708,7 +699,7 @@ jobs:
     name: Release Android App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -754,7 +745,7 @@ jobs:
     name: Release Server
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -848,7 +839,7 @@ jobs:
     name: Release Cache
     needs: check-releases
     if: needs.check-releases.outputs.cache-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -941,7 +932,7 @@ jobs:
     name: Release Gradle Plugin
     needs: check-releases
     if: needs.check-releases.outputs.gradle-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1054,7 +1045,7 @@ jobs:
     name: Release Skills
     needs: check-releases
     if: needs.check-releases.outputs.skills-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -1150,7 +1141,7 @@ jobs:
       (needs.release-cache.result == 'success' || needs.release-cache.result == 'skipped') &&
       (needs.release-gradle.result == 'success' || needs.release-gradle.result == 'skipped') &&
       (needs.release-skills.result == 'success' || needs.release-skills.result == 'skipped')
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     concurrency:
       group: commit-and-release-${{ github.run_id }}

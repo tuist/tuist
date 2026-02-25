@@ -86,8 +86,6 @@ struct AnalyticsUploadCommandServiceTests {
         )
 
         // Then
-        // File deletion happens in a deferred Task, so we need a small delay to allow it to complete
-        try await Task.sleep(nanoseconds: 100_000_000)
         let exists = try await fileSystem.exists(eventFilePath)
         #expect(exists == false)
     }
@@ -120,8 +118,6 @@ struct AnalyticsUploadCommandServiceTests {
         }
 
         // Then
-        // File deletion happens in a deferred Task, so we need a small delay to allow it to complete
-        try await Task.sleep(nanoseconds: 100_000_000)
         let exists = try await fileSystem.exists(eventFilePath)
         #expect(exists == false)
     }

@@ -9,7 +9,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.tuist.app.data.model.AuthState
 import dev.tuist.app.ui.login.LoginScreen
-import dev.tuist.app.ui.projects.ProjectsScreen
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
@@ -22,7 +21,7 @@ fun TuistNavGraph(
     LaunchedEffect(currentAuthState) {
         when (currentAuthState) {
             is AuthState.LoggedIn, is AuthState.Authenticating -> {
-                navController.navigate(Routes.Projects) {
+                navController.navigate(Routes.Home) {
                     popUpTo(Routes.Login) { inclusive = true }
                 }
             }
@@ -35,7 +34,7 @@ fun TuistNavGraph(
     }
 
     val startDestination: Routes = when (currentAuthState) {
-        is AuthState.LoggedIn, is AuthState.Authenticating -> Routes.Projects
+        is AuthState.LoggedIn, is AuthState.Authenticating -> Routes.Home
         is AuthState.LoggedOut -> Routes.Login
     }
 
@@ -46,8 +45,8 @@ fun TuistNavGraph(
         composable<Routes.Login> {
             LoginScreen()
         }
-        composable<Routes.Projects> {
-            ProjectsScreen()
+        composable<Routes.Home> {
+            HomeScreen()
         }
     }
 }

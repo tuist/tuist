@@ -16,7 +16,13 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Time
 
   def list_command_events(attrs, _opts \\ []) do
-    {results, meta} = ClickHouseFlop.validate_and_run!(Event, attrs, for: Event)
+    queryable =
+      case sort_optimized_table(attrs) do
+        nil -> Event
+        table -> from(_ in {table, Event})
+      end
+
+    {results, meta} = ClickHouseFlop.validate_and_run!(queryable, attrs, for: Event)
 
     results =
       results
@@ -921,4 +927,12 @@ defmodule Tuist.CommandEvents do
       {run.id, user_name}
     end)
   end
+
+  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:duration, "duration"],
+    do: "command_events_by_duration"
+
+  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:hit_rate, "hit_rate"],
+    do: "command_events_by_hit_rate"
+
+  defp sort_optimized_table(_), do: nil
 end

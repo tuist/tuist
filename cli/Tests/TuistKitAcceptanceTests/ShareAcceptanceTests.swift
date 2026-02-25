@@ -6,10 +6,13 @@ import Path
 import SnapshotTesting
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
 import TuistCore
 import TuistEnvironment
 import TuistLoggerTesting
 import TuistNooraTesting
+import TuistRunCommand
+import TuistShareCommand
 import TuistSupport
 import TuistTesting
 

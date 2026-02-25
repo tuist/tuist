@@ -7,6 +7,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.tuist.app.BuildConfig
+import dev.tuist.app.api.PreviewsApi
 import dev.tuist.app.api.ProjectsApi
 import dev.tuist.app.data.EnvironmentConfig
 import okhttp3.OkHttpClient
@@ -76,4 +77,9 @@ object NetworkModule {
     @Singleton
     fun provideProjectsApi(retrofit: Retrofit): ProjectsApi =
         retrofit.create(ProjectsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePreviewsApi(retrofit: Retrofit): PreviewsApi =
+        retrofit.create(PreviewsApi::class.java)
 }
