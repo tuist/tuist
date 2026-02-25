@@ -161,20 +161,22 @@ struct ShareAcceptanceTests {
         let simulator = try #require(Simulator.testing)
 
         // When: Build
-        try await CommandRunner().run(arguments: [
-            "/usr/bin/xcrun",
-            "xcodebuild",
-            "clean",
-            "build",
-            "-project",
-            fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-            "-scheme",
-            "App",
-            "-sdk",
-            "iphonesimulator",
-            "-derivedDataPath",
-            temporaryDirectory.pathString,
-        ]).pipedStream().awaitCompletion()
+        try await TuistAcceptanceTest.withXcodeBuildLock {
+            try await CommandRunner().run(arguments: [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "build",
+                "-project",
+                fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                "-scheme",
+                "App",
+                "-sdk",
+                "iphonesimulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+            ]).pipedStream().awaitCompletion()
+        }
 
         // When: Share
         try await TuistTest.run(
@@ -220,21 +222,23 @@ struct ShareAcceptanceTests {
         let simulator = try #require(Simulator.testing)
 
         // When: Build
-        try await CommandRunner().run(arguments: [
-            "/usr/bin/xcrun",
-            "xcodebuild",
-            "clean",
-            "build",
-            "-project",
-            fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-            "-scheme",
-            "App",
-            "-sdk",
-            "iphonesimulator",
-            "-derivedDataPath",
-            temporaryDirectory.pathString,
-            "CONFIGURATION_BUILD_DIR=\(buildDirectory)",
-        ]).pipedStream().awaitCompletion()
+        try await TuistAcceptanceTest.withXcodeBuildLock {
+            try await CommandRunner().run(arguments: [
+                "/usr/bin/xcrun",
+                "xcodebuild",
+                "clean",
+                "build",
+                "-project",
+                fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                "-scheme",
+                "App",
+                "-sdk",
+                "iphonesimulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CONFIGURATION_BUILD_DIR=\(buildDirectory)",
+            ]).pipedStream().awaitCompletion()
+        }
 
         // When: Share
         try await TuistTest.run(

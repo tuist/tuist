@@ -182,9 +182,20 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         run: mise run --no-prepare cli:ee
       - name: Run tests
-        run: tuist test TuistCacheEEAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          MAX_PARALLEL_WORKERS=$(( $(sysctl -n hw.ncpu) / 2 ))
+          if [ "$MAX_PARALLEL_WORKERS" -lt 1 ]; then
+            MAX_PARALLEL_WORKERS=1
+          fi
+          tuist test TuistCacheEEAcceptanceTests -- \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers "$MAX_PARALLEL_WORKERS" \
+            -retry-tests-on-failure \
+            -test-iterations 2
         env:
           TUIST_EE: 1
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 3
+          TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
   unit-tests:
     name: Unit Tests
     runs-on: namespace-profile-default-macos

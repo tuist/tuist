@@ -1,5 +1,3 @@
-import Command
-import Foundation
 import Testing
 
 public struct Simulator: CustomStringConvertible {
@@ -20,23 +18,15 @@ public struct SimulatorTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        let commandRunner = CommandRunner()
-        let simulatorId = UUID().uuidString
-        try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, simulator]).pipedStream()
-            .awaitCompletion()
-        try await Simulator.$testing.withValue(Simulator(name: simulatorId)) {
-            let clean = {
-                try await commandRunner.run(arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId])
-                    .pipedStream()
-                    .awaitCompletion()
-            }
+        let checkout = try await SimulatorPool.shared.checkout(requestedSimulator: simulator)
+        try await Simulator.$testing.withValue(Simulator(name: checkout.identifier)) {
             do {
                 try await function()
             } catch {
-                try await clean()
+                await SimulatorPool.shared.release(identifier: checkout.identifier, model: checkout.model)
                 throw error
             }
-            try await clean()
+            await SimulatorPool.shared.release(identifier: checkout.identifier, model: checkout.model)
         }
     }
 }

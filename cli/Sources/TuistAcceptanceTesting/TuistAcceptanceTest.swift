@@ -3,6 +3,7 @@ import Foundation
 import Path
 import Testing
 import TuistEnvironment
+import TuistTesting
 import XcodeProj
 
 public enum TuistAcceptanceTest {
@@ -26,6 +27,10 @@ public enum TuistAcceptanceTest {
             candidates.first(where: { $0.extension == "xcworkspace" }),
             sourceLocation: sourceLocation
         )
+    }
+
+    public static func withXcodeBuildLock(_ closure: () async throws -> Void) async throws {
+        try await TestingSimulators.acquiringXcodeBuildPoolLock(closure)
     }
 
     public static func expectFrameworkLinked(

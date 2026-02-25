@@ -9,7 +9,6 @@ struct ScaffoldAcceptanceTests {
     func ios_app_with_templates_custom() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom",
@@ -40,7 +39,6 @@ struct ScaffoldAcceptanceTests {
     func ios_app_with_templates_custom_using_filters() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_filters",
@@ -64,7 +62,6 @@ struct ScaffoldAcceptanceTests {
     func ios_app_with_templates_custom_using_copy_folder() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_copy_folder",
@@ -171,7 +168,6 @@ struct ScaffoldAcceptanceTests {
     func ios_app_with_templates_custom_using_attribute() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "custom_using_attribute",
@@ -204,7 +200,6 @@ struct ScaffoldAcceptanceTests {
     func ios_app_with_local_template_and_project_description_helpers_plugin() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "example",
@@ -225,7 +220,6 @@ struct ScaffoldAcceptanceTests {
     func ios_app_with_plugin_template_and_project_description_helpers_plugin() async throws {
         defer { resetScaffoldOptions() }
         let fixturePath = try #require(TuistTest.fixtureDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await ScaffoldCommand.preprocess([
             "scaffold",
             "plugin",

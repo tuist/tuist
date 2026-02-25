@@ -54,18 +54,19 @@ struct GeneratorAcceptanceTests {
         let workspacePath = fixtureDirectory.appending(component: "App.xcworkspace")
 
         // When
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        try System.shared.run([
-            "/usr/bin/xcodebuild",
-            "-scheme",
-            "App",
-            "-workspace",
-            workspacePath.pathString,
-            "-destination",
-            "generic/platform=iOS Simulator",
-            "build",
-        ])
+        try await TuistAcceptanceTest.withXcodeBuildLock {
+            try System.shared.run([
+                "/usr/bin/xcodebuild",
+                "-scheme",
+                "App",
+                "-workspace",
+                workspacePath.pathString,
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "build",
+            ])
+        }
     }
 
     @Test(
@@ -1325,7 +1326,6 @@ struct GenerateAcceptanceTestAppWithNonLocalAppDependencies {
     @Test(.withFixture("generated_app_with_executable_non_local_dependencies"), .inTemporaryDirectory)
     func app_with_non_local_app_dependencies() async throws {
         let fixturePath = try fixtureDirectory()
-        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "TestHost")
         try await run(BuildCommand.self, "App-Workspace")
@@ -1358,7 +1358,6 @@ struct GenerateAcceptanceTestAppWithGeneratedSources {
     @Test(.withFixture("generated_app_with_generated_sources"), .inTemporaryDirectory)
     func app_with_generated_sources() async throws {
         let fixturePath = try fixtureDirectory()
-        try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App")
 
@@ -1463,11 +1462,13 @@ struct GenerateAcceptanceTestAppWithMacBundle {
     /// Tests that external local Swift packages configured as dynamic frameworks
     /// compile and run without crashing when accessing Bundle.module.
     /// This is a regression test for https://github.com/tuist/tuist/issues/XXXX
-    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_app_with_mac_bundle"), .inTemporaryDirectory, .withTestingSimulator("iPhone 16 Pro"))
     func app_with_external_dynamic_framework_with_resources() async throws {
         let fileSystem = FileSystem()
         let fixturePath = try fixtureDirectory()
         let derivedData = try derivedDataPath()
+        let simulator = try #require(Simulator.testing)
+        let simulatorId = simulator.name
 
         // Modify the Tuist/Package.swift to use dynamic framework for ResourcesFramework
         let packageSwiftPath = fixturePath.appending(components: "Tuist", "Package.swift")
@@ -1503,21 +1504,11 @@ struct GenerateAcceptanceTestAppWithMacBundle {
 
         // Launch app on simulator to verify it doesn't crash when accessing Bundle.module
         let commandRunner = CommandRunner()
-        let simulatorId = UUID().uuidString
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
+        _ = try? await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "terminate", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
-
-        defer {
-            Task {
-                try? await commandRunner.run(
-                    arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
-                ).pipedStream().awaitCompletion()
-            }
-        }
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
+        _ = try? await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "uninstall", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
 
         let appPath = derivedData
@@ -1775,21 +1766,24 @@ private func XCTAssertSchemeContainsBuildSettings(
 ) async throws {
     let fixturePath = try fixtureDirectory(sourceLocation: sourceLocation)
     let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixturePath, sourceLocation: sourceLocation)
-    let buildSettings = try await System.shared.runAndCollectOutput(
-        [
-            "/usr/bin/xcodebuild",
-            "-scheme",
-            scheme,
-            "-workspace",
-            workspacePath.pathString,
-            "-configuration",
-            configuration,
-            "-showBuildSettings",
-        ]
-    )
+    var standardOutput = ""
+    try await TuistAcceptanceTest.withXcodeBuildLock {
+        standardOutput = try await System.shared.runAndCollectOutput(
+            [
+                "/usr/bin/xcodebuild",
+                "-scheme",
+                scheme,
+                "-workspace",
+                workspacePath.pathString,
+                "-configuration",
+                configuration,
+                "-showBuildSettings",
+            ]
+        ).standardOutput
+    }
 
     #expect(
-        buildSettings.standardOutput.contains("\(buildSettingKey) = \"\(buildSettingValue)\""),
+        standardOutput.contains("\(buildSettingKey) = \"\(buildSettingValue)\""),
         "Couldn't find \(buildSettingKey) = \(buildSettingValue) for scheme \(scheme) and configuration \(configuration)",
         sourceLocation: sourceLocation
     )
