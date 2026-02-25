@@ -16,7 +16,14 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Time
 
   def list_command_events(attrs, _opts \\ []) do
-    {results, meta} = ClickHouseFlop.validate_and_run!(Event, attrs, for: Event)
+    queryable =
+      if duration_sort?(attrs) do
+        from(_ in {"command_events_by_duration", Event})
+      else
+        Event
+      end
+
+    {results, meta} = ClickHouseFlop.validate_and_run!(queryable, attrs, for: Event)
 
     results =
       results
@@ -921,4 +928,7 @@ defmodule Tuist.CommandEvents do
       {run.id, user_name}
     end)
   end
+
+  defp duration_sort?(%{order_by: [field | _]}) when field in [:duration, "duration"], do: true
+  defp duration_sort?(_), do: false
 end
