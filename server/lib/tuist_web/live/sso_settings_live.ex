@@ -183,32 +183,35 @@ defmodule TuistWeb.SSOSettingsLive do
   defp compute_form_valid(socket) do
     valid =
       if socket.assigns.sso_enabled do
-        params = socket.assigns.current_form_params
-
-        case socket.assigns.selected_provider do
-          "google" ->
-            String.trim(params["google_domain"] || "") != ""
-
-          "okta" ->
-            domain = String.trim(params["okta_domain"] || "")
-            client_id = String.trim(params["okta_client_id"] || "")
-            client_secret = String.trim(params["okta_client_secret"] || "")
-
-            has_existing_secret =
-              socket.assigns.organization.sso_provider == :okta and
-                not is_nil(socket.assigns.organization.okta_encrypted_client_secret)
-
-            domain != "" and client_id != "" and (client_secret != "" or has_existing_secret)
-
-          _ ->
-            true
-        end
+        form_fields_valid?(
+          socket.assigns.selected_provider,
+          socket.assigns.current_form_params,
+          socket.assigns.organization
+        )
       else
         true
       end
 
     assign(socket, form_valid: valid)
   end
+
+  defp form_fields_valid?("google", params, _organization) do
+    String.trim(params["google_domain"] || "") != ""
+  end
+
+  defp form_fields_valid?("okta", params, organization) do
+    domain = String.trim(params["okta_domain"] || "")
+    client_id = String.trim(params["okta_client_id"] || "")
+    client_secret = String.trim(params["okta_client_secret"] || "")
+
+    has_existing_secret =
+      organization.sso_provider == :okta and
+        not is_nil(organization.okta_encrypted_client_secret)
+
+    domain != "" and client_id != "" and (client_secret != "" or has_existing_secret)
+  end
+
+  defp form_fields_valid?(_provider, _params, _organization), do: true
 
   defp compute_has_changes(socket) do
     saved = socket.assigns.saved_state
