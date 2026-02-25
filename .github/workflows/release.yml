@@ -23,7 +23,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     outputs:
       cli-should-release: ${{ steps.cli-check.outputs.should-release }}
@@ -699,7 +699,7 @@ jobs:
     name: Release Android App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -745,7 +745,7 @@ jobs:
     name: Release Server
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -839,7 +839,7 @@ jobs:
     name: Release Cache
     needs: check-releases
     if: needs.check-releases.outputs.cache-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -932,7 +932,7 @@ jobs:
     name: Release Gradle Plugin
     needs: check-releases
     if: needs.check-releases.outputs.gradle-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1045,7 +1045,7 @@ jobs:
     name: Release Skills
     needs: check-releases
     if: needs.check-releases.outputs.skills-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -1133,7 +1133,7 @@ jobs:
     if: |
       !cancelled() && !failure() &&
       needs.check-releases.outputs.should-release-any == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     concurrency:
       group: commit-and-release-${{ github.run_id }}

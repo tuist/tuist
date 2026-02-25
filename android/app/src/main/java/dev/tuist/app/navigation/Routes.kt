@@ -8,5 +8,20 @@ sealed class Routes {
     data object Login : Routes()
 
     @Serializable
-    data object Projects : Routes()
+    data object Home : Routes()
+}
+
+@Serializable
+sealed class HomeTabs {
+    @Serializable
+    data object Previews : HomeTabs()
+
+    @Serializable
+    data object Profile : HomeTabs()
+
+    @Serializable
+    data class PreviewDetail(
+        val previewId: String,
+        val fullHandle: String,
+    ) : HomeTabs()
 }
