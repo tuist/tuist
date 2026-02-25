@@ -9,6 +9,25 @@ extension Tuist {
             case excluding([String])
         }
 
+        /// Categories of warnings that can be promoted to errors.
+        public enum GenerationWarning: String, Codable, Equatable, Hashable, Sendable {
+            case outdatedDependencies
+            case staticSideEffects
+            case schemeTargetNotFound
+            case mismatchedConfigurations
+            case duplicateProductNames
+        }
+
+        /// Controls which generation warnings are promoted to errors.
+        public enum WarningsAsErrors: Codable, Equatable, Sendable {
+            /// No warnings are promoted to errors (default behavior).
+            case none
+            /// All warnings are promoted to errors.
+            case all
+            /// Only the specified warning categories are promoted to errors.
+            case only([GenerationWarning])
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -85,6 +104,9 @@ extension Tuist {
         /// This eliminates the need to run `tuist registry setup` separately.
         public var registryEnabled: Bool
 
+        /// Controls which generation warnings are promoted to errors, causing `tuist generate` to fail.
+        public var warningsAsErrors: WarningsAsErrors
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -96,7 +118,8 @@ extension Tuist {
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
             registryEnabled: Bool = false,
-            additionalPackageResolutionArguments: [String] = []
+            additionalPackageResolutionArguments: [String] = [],
+            warningsAsErrors: WarningsAsErrors = .none
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -112,7 +135,8 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
-                registryEnabled: registryEnabled
+                registryEnabled: registryEnabled,
+                warningsAsErrors: warningsAsErrors
             )
         }
 
@@ -149,7 +173,8 @@ extension Tuist {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
-                registryEnabled: false
+                registryEnabled: false,
+                warningsAsErrors: .none
             )
         }
 
@@ -181,7 +206,8 @@ extension Tuist {
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false,
-                registryEnabled: false
+                registryEnabled: false,
+                warningsAsErrors: .none
             )
         }
     }

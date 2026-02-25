@@ -170,14 +170,11 @@ public protocol PreviewsUploadServicing {
         ) async throws -> Components.Schemas.Preview {
             switch previewUploadType {
             case let .apk(apkPath, metadata):
-                let bundleArchivePath = try await fileArchiver
-                    .makeFileArchiver(for: [apkPath])
-                    .zip(name: apkPath.basename)
                 let buildVersion = resolvedBuildVersion(metadata.versionCode)
                 let binaryId = try await apkBinaryId(at: apkPath)
 
                 let preview = try await uploadPreviewBuild(
-                    buildPath: bundleArchivePath,
+                    buildPath: apkPath,
                     previewType: .apk,
                     displayName: metadata.displayName,
                     version: metadata.versionName,

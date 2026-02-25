@@ -37,7 +37,9 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
             disableSandbox: manifest.disableSandbox,
             includeGenerateScheme: manifest.includeGenerateScheme,
             enableCaching: manifest.enableCaching,
-            registryEnabled: manifest.registryEnabled
+            registryEnabled: manifest.registryEnabled,
+            warningsAsErrors: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
+                .from(manifest: manifest.warningsAsErrors)
         )
     }
 }
@@ -58,6 +60,29 @@ extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.StaticSideE
         case .all: return .all
         case .none: return .none
         case let .excluding(excludedTargets): return .excluding(excludedTargets)
+        }
+    }
+}
+
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.WarningsAsErrors) -> Self {
+        switch manifest {
+        case .none: return .none
+        case .all: return .all
+        case let .only(warnings):
+            return .only(Set(warnings.map { .from(manifest: $0) }))
+        }
+    }
+}
+
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.GenerationWarning {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.GenerationWarning) -> Self {
+        switch manifest {
+        case .outdatedDependencies: return .outdatedDependencies
+        case .staticSideEffects: return .staticSideEffects
+        case .schemeTargetNotFound: return .schemeTargetNotFound
+        case .mismatchedConfigurations: return .mismatchedConfigurations
+        case .duplicateProductNames: return .duplicateProductNames
         }
     }
 }

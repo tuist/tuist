@@ -76,7 +76,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     needs: [check-team-membership]
     if: |

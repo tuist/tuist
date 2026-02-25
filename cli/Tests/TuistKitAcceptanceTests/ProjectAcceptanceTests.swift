@@ -4,6 +4,7 @@ import TuistAcceptanceTesting
 import TuistLoggerTesting
 import TuistLogging
 import TuistNooraTesting
+import TuistProjectCommand
 import TuistSupport
 import TuistTesting
 

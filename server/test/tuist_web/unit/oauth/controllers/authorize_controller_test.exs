@@ -71,6 +71,63 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
     end
   end
 
+  describe "authorize_with_apple/2" do
+    test "stores the OAuth return URL in session and redirects to Apple auth", %{conn: conn} do
+      params = %{
+        "client_id" => Environment.oauth_client_id(),
+        "redirect_uri" => "tuist://oauth-callback",
+        "response_type" => "code",
+        "state" => "test_state"
+      }
+
+      conn = AuthorizeController.authorize_with_apple(conn, params)
+
+      assert conn.status == 302
+      assert redirected_to(conn) == "/users/auth/apple"
+
+      assert get_session(conn, :oauth_return_to) =~
+               "/oauth2/authorize?"
+    end
+  end
+
+  describe "authorize_with_github/2" do
+    test "stores the OAuth return URL in session and redirects to GitHub auth", %{conn: conn} do
+      params = %{
+        "client_id" => Environment.oauth_client_id(),
+        "redirect_uri" => "tuist://oauth-callback",
+        "response_type" => "code",
+        "state" => "test_state"
+      }
+
+      conn = AuthorizeController.authorize_with_github(conn, params)
+
+      assert conn.status == 302
+      assert redirected_to(conn) == "/users/auth/github"
+
+      assert get_session(conn, :oauth_return_to) =~
+               "/oauth2/authorize?"
+    end
+  end
+
+  describe "authorize_with_google/2" do
+    test "stores the OAuth return URL in session and redirects to Google auth", %{conn: conn} do
+      params = %{
+        "client_id" => Environment.oauth_client_id(),
+        "redirect_uri" => "tuist://oauth-callback",
+        "response_type" => "code",
+        "state" => "test_state"
+      }
+
+      conn = AuthorizeController.authorize_with_google(conn, params)
+
+      assert conn.status == 302
+      assert redirected_to(conn) == "/users/auth/google"
+
+      assert get_session(conn, :oauth_return_to) =~
+               "/oauth2/authorize?"
+    end
+  end
+
   describe "authorize_error/2" do
     test "redirects to login on unauthorized error", %{conn: conn} do
       error = %Error{

@@ -118,6 +118,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
 
         let dependenciesGraph: XcodeGraph.DependenciesGraph
         let packageSettings: TuistCore.PackageSettings?
+        var spmLintingIssues: [LintingIssue] = []
 
         // Load SPM graph only if is SPM Project only or the workspace is using external dependencies
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
@@ -129,11 +130,12 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
                 disableSandbox: disableSandbox
             )
 
-            let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
+            let (manifestsDependencyGraph, loadedSpmLintingIssues) = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings,
                 disableSandbox: disableSandbox
             )
+            spmLintingIssues = loadedSpmLintingIssues
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings
         } else {
@@ -158,7 +160,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         // Lint Manifests
         let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
         let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
-        let lintingIssues = workspaceLintingIssues + projectLintingIssues
+        let lintingIssues = workspaceLintingIssues + projectLintingIssues + spmLintingIssues
         try lintingIssues.printAndThrowErrorsIfNeeded()
 
         // Convert to models

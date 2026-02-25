@@ -197,6 +197,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
                     .target(name: "TuistCacheEE"),
                     .external(name: "XcodeGraph"),
                     .external(name: "XcodeProj"),
@@ -336,8 +339,15 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "Command"),
                 ]
             case .automation:
                 [
@@ -349,6 +359,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -362,9 +375,14 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.kit.targetName),
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.testCommand.targetName),
+                    .target(name: Module.registryCommand.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .kit:
                 [
@@ -380,6 +398,12 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.accountCommand.targetName),
+                    .target(name: Module.buildCommand.targetName),
+                    .target(name: Module.generateCommand.targetName),
+                    .target(name: Module.projectCommand.targetName),
+                    .target(name: Module.runCommand.targetName),
+                    .target(name: Module.shareCommand.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),

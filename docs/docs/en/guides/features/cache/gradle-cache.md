@@ -21,7 +21,13 @@ Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cac
 <!-- -->
 :::
 
-The build cache is enabled by default once the <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> is installed. Gradle will use Tuist as a remote build cache, downloading cached task outputs on cache hits and uploading them after task execution.
+Once the <LocalizedLink href="/guides/install-gradle-plugin">Tuist Gradle plugin</LocalizedLink> is installed, you also need to enable Gradle's build cache in your `gradle.properties` file:
+
+```properties
+org.gradle.caching=true
+```
+
+Without this, Gradle does not activate its build cache subsystem — even with a remote cache configured — and all tasks will execute without hitting or populating the cache. Once enabled, Gradle will use Tuist as a remote build cache, downloading cached task outputs on cache hits and uploading them after task execution.
 
 ## Cache upload policy {#cache-upload-policy}
 

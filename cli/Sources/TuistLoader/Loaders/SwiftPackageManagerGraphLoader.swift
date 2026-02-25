@@ -3,7 +3,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
-import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistLogging
@@ -51,7 +50,7 @@ public protocol SwiftPackageManagerGraphLoading {
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool
-    ) async throws -> TuistLoader.DependenciesGraph
+    ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue])
 }
 
 public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
@@ -80,7 +79,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool
-    ) async throws -> TuistLoader.DependenciesGraph {
+    ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
@@ -94,7 +93,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
-        try await validatePackageResolved(at: packagePath.parentDirectory)
+        let outdatedDependencyIssues = try await validatePackageResolved(at: packagePath.parentDirectory)
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
@@ -257,13 +256,16 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 }
             }
 
-        return DependenciesGraph(
-            externalDependencies: externalDependencies,
-            externalProjects: externalProjects
+        return (
+            DependenciesGraph(
+                externalDependencies: externalDependencies,
+                externalProjects: externalProjects
+            ),
+            outdatedDependencyIssues
         )
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) async throws {
+    private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {
         let savedPackageResolvedPath = path.appending(components: [
             Constants.SwiftPackageManager.packageBuildDirectoryName,
             Constants.DerivedDirectory.name,
@@ -285,11 +287,13 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
 
         if currentData != savedData {
-            AlertController.current.warning(.alert(
-                "We detected outdated dependencies.",
-                takeaway: "Run \(.command("tuist install")) to update them."
-            ))
+            return [LintingIssue(
+                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
+                severity: .warning,
+                category: .outdatedDependencies
+            )]
         }
+        return []
     }
 }
 

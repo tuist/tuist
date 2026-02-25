@@ -447,13 +447,14 @@ defmodule TuistWeb.PreviewsControllerTest do
   describe "POST /api/projects/:account_handle/:project_handle/previews/generate-url" do
     test "generates multipart url", %{conn: conn, user: user, project: project, account: account} do
       # Given
-      preview_id = "preview-id"
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
       upload_id = "12344"
       part_number = 3
       upload_url = "https://url.com"
 
       object_key =
-        "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
+        "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -470,7 +471,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
-          preview_id: preview_id,
+          preview_id: app_build.id,
           multipart_upload_part: %{
             part_number: part_number,
             upload_id: upload_id,
@@ -492,13 +493,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      app_build_id = "app-build-id"
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
       upload_id = "12344"
       part_number = 3
       platform = "ios"
       upload_url = "https://url.com/ios"
 
-      object_key = "#{account.name}/#{project.name}/previews/#{app_build_id}.zip"
+      object_key = "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -515,7 +517,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
-          preview_id: app_build_id,
+          preview_id: app_build.id,
           platform: platform,
           multipart_upload_part: %{
             part_number: part_number,

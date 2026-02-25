@@ -1,7 +1,10 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import Testing
 import TuistCore
+import TuistSupport
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
@@ -96,6 +99,75 @@ struct TargetGeneratorTests {
         #expect(exception.publicHeaders == ["Headers/Public.h"])
         #expect(exception.privateHeaders == ["Headers/Private.h"])
         #expect(exception.platformFiltersByRelativePath == ["Resources/ios_only.mp4": ["ios"]])
+    }
+
+    @Test(.inTemporaryDirectory) func generateTarget_synchronizedGroups_withExcludedFolders() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = temporaryPath.appending(component: "Sources")
+        let excludedFolderPath = sourcesPath.appending(component: "ExcludedFolder")
+        try FileHandler.shared.createFolder(excludedFolderPath)
+
+        let target = Target.test(
+            name: "MyFramework",
+            product: .framework,
+            scripts: [],
+            buildableFolders: [
+                BuildableFolder(path: sourcesPath, exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(
+                        excluded: [
+                            excludedFolderPath,
+                            sourcesPath.appending(component: "ExcludedFile.swift"),
+                        ],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: [],
+                        platformFilters: [:]
+                    ),
+                ]), resolvedFiles: [
+                    BuildableFolderFile(path: sourcesPath.appending(component: "Included.swift"), compilerFlags: nil),
+                ]),
+            ]
+        )
+        let project = Project.test(
+            path: temporaryPath,
+            sourceRootPath: temporaryPath,
+            xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let pbxproj = PBXProj()
+        let pbxProject = createPbxProject(pbxproj: pbxproj)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        let fileElements = ProjectFileElements([:])
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let generatedTarget = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: temporaryPath,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
+        #expect(group.explicitFolders == ["ExcludedFolder"])
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == ["ExcludedFolder", "ExcludedFile.swift"])
     }
 
     @Test func generateTarget_productName() async throws {

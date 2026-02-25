@@ -48,7 +48,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disableSandbox: true,
                 includeGenerateScheme: false,
                 enableCaching: false,
-                registryEnabled: false
+                registryEnabled: false,
+                warningsAsErrors: .none
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(
@@ -67,6 +68,28 @@ extension TuistGeneratedProjectOptions {
             case excluding([String])
         }
 
+        public enum GenerationWarning: String, Codable, Hashable, Equatable, Sendable {
+            case outdatedDependencies
+            case staticSideEffects
+            case schemeTargetNotFound
+            case mismatchedConfigurations
+            case duplicateProductNames
+        }
+
+        public enum WarningsAsErrors: Codable, Hashable, Equatable {
+            case none
+            case all
+            case only(Set<GenerationWarning>)
+
+            public func shouldPromote(_ warning: GenerationWarning) -> Bool {
+                switch self {
+                case .none: return false
+                case .all: return true
+                case let .only(set): return set.contains(warning)
+                }
+            }
+        }
+
         @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
         public let resolveDependenciesWithSystemScm: Bool
         public let disablePackageVersionLocking: Bool
@@ -83,6 +106,7 @@ extension TuistGeneratedProjectOptions {
         public let includeGenerateScheme: Bool
         public let enableCaching: Bool
         public let registryEnabled: Bool
+        public let warningsAsErrors: WarningsAsErrors
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -98,7 +122,8 @@ extension TuistGeneratedProjectOptions {
             disableSandbox: Bool,
             includeGenerateScheme: Bool,
             enableCaching: Bool = false,
-            registryEnabled: Bool = false
+            registryEnabled: Bool = false,
+            warningsAsErrors: WarningsAsErrors = .none
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -114,6 +139,7 @@ extension TuistGeneratedProjectOptions {
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
             self.registryEnabled = registryEnabled
+            self.warningsAsErrors = warningsAsErrors
         }
     }
 
@@ -165,7 +191,8 @@ extension TuistGeneratedProjectOptions {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
-            registryEnabled: Bool = false
+            registryEnabled: Bool = false,
+            warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -181,7 +208,8 @@ extension TuistGeneratedProjectOptions {
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
                 enableCaching: enableCaching,
-                registryEnabled: registryEnabled
+                registryEnabled: registryEnabled,
+                warningsAsErrors: warningsAsErrors
             )
         }
     }

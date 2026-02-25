@@ -5,9 +5,12 @@ defmodule Cache.KeyValueBuffer do
 
   import Ecto.Query
 
+  alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.Repo
   alias Cache.SQLiteBuffer
+
+  @query_chunk_size 500
 
   def start_link(opts) do
     SQLiteBuffer.start_link(Keyword.merge(opts, name: __MODULE__, buffer_module: __MODULE__))
@@ -92,6 +95,7 @@ defmodule Cache.KeyValueBuffer do
   def write_batch(:key_values, entries) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     last_accessed_at = DateTime.utc_now()
+    keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
 
     rows =
       Enum.map(entries, fn {_key, entry} ->
@@ -104,10 +108,30 @@ defmodule Cache.KeyValueBuffer do
         }
       end)
 
-    Repo.insert_all(KeyValueEntry, rows,
-      conflict_target: :key,
-      on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
-    )
+    Repo.transaction(fn ->
+      rows
+      |> Enum.chunk_every(@query_chunk_size)
+      |> Enum.each(fn rows_chunk ->
+        Repo.insert_all(KeyValueEntry, rows_chunk,
+          conflict_target: :key,
+          on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
+        )
+      end)
+
+      persisted_entries =
+        keys
+        |> Enum.chunk_every(@query_chunk_size)
+        |> Enum.flat_map(fn keys_chunk ->
+          Repo.all(
+            from(e in KeyValueEntry,
+              where: e.key in ^keys_chunk,
+              select: struct(e, [:id, :key, :json_payload])
+            )
+          )
+        end)
+
+      :ok = KeyValueEntries.replace_entry_hashes(persisted_entries)
+    end)
   end
 
   @impl true
@@ -116,9 +140,13 @@ defmodule Cache.KeyValueBuffer do
     last_accessed_at = DateTime.utc_now()
     keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
 
-    Repo.update_all(
-      from(e in KeyValueEntry, where: e.key in ^keys),
-      set: [last_accessed_at: last_accessed_at, updated_at: now]
-    )
+    keys
+    |> Enum.chunk_every(@query_chunk_size)
+    |> Enum.each(fn keys_chunk ->
+      Repo.update_all(
+        from(e in KeyValueEntry, where: e.key in ^keys_chunk),
+        set: [last_accessed_at: last_accessed_at, updated_at: now]
+      )
+    end)
   end
 end

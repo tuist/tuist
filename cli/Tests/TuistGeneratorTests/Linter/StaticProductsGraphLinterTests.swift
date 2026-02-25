@@ -1243,7 +1243,8 @@ class StaticProductsGraphLinterTests: XCTestCase {
                 .uppercasingFirst
         return LintingIssue(
             reason: reason,
-            severity: .warning
+            severity: .warning,
+            category: .staticSideEffects
         )
     }
 }

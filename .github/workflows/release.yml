@@ -23,7 +23,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     outputs:
       cli-should-release: ${{ steps.cli-check.outputs.should-release }}
@@ -49,7 +49,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "git-cliff"
+          cache: "false"
 
       - name: Check CLI for releasable changes
         id: cli-check
@@ -409,7 +415,7 @@ jobs:
     name: Release CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -429,7 +435,10 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-release-${{ hashFiles('.xcode-version-releases') }}-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist git-cliff 1password-cli"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -569,7 +578,10 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist git-cliff 1password-cli"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -639,7 +651,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -652,7 +664,10 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "tuist 1password-cli"
+          cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
@@ -680,11 +695,57 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
+  release-android:
+    name: Release Android App
+    needs: check-releases
+    if: needs.check-releases.outputs.app-should-release == 'true'
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 30
+    env:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "java gradle 1password-cli"
+          cache: "false"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Update version
+        working-directory: android
+        run: |
+          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
+          VERSION_NUMBER="${VERSION_NUMBER#app@}"
+          sed -i "s/versionCode = .*/versionCode = ${{ github.run_number }}/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION_NUMBER\"/" app/build.gradle.kts
+
+      - name: Setup signing and credentials
+        run: |
+          op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore
+          op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json
+
+      - name: Publish to Google Play
+        working-directory: android
+        run: |
+          export ANDROID_KEYSTORE_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          export ANDROID_KEY_ALIAS=tuist
+          export ANDROID_KEY_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          ./gradlew publishReleaseBundle
+
   release-server:
     name: Release Server
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -695,7 +756,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "git-cliff"
+          cache: "false"
 
       - name: Get release notes
         id: release-notes
@@ -772,7 +839,7 @@ jobs:
     name: Release Cache
     needs: check-releases
     if: needs.check-releases.outputs.cache-should-release == 'true'
-    runs-on: namespace-profile-default
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -783,7 +850,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "git-cliff"
+          cache: "false"
 
       - name: Get release notes
         id: release-notes
@@ -859,7 +932,7 @@ jobs:
     name: Release Gradle Plugin
     needs: check-releases
     if: needs.check-releases.outputs.gradle-should-release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -871,13 +944,13 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v2
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
         with:
-          distribution: temurin
-          java-version: 21
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "java gradle git-cliff 1password-cli"
+          cache: "false"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -972,7 +1045,7 @@ jobs:
     name: Release Skills
     needs: check-releases
     if: needs.check-releases.outputs.skills-should-release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -982,7 +1055,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "git-cliff"
+          cache: "false"
 
       - name: Get release notes
         id: release-notes
@@ -1045,6 +1124,7 @@ jobs:
         release-cli-linux,
         release-app,
         release-ios,
+        release-android,
         release-server,
         release-cache,
         release-gradle,
@@ -1053,7 +1133,7 @@ jobs:
     if: |
       !cancelled() && !failure() &&
       needs.check-releases.outputs.should-release-any == 'true'
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default-with-volume
     timeout-minutes: 30
     concurrency:
       group: commit-and-release-${{ github.run_id }}
@@ -1066,7 +1146,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.TUIST_GITHUB_TOKEN }}
 
-      - uses: jdx/mise-action@v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: mise
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "git-cliff"
+          cache: "false"
 
       - name: Download CLI artifacts
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success'
@@ -1265,10 +1351,12 @@ jobs:
 
           if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
             sed -i 's/public static let gradlePluginVersion = ".*"/public static let gradlePluginVersion = "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' cli/Sources/TuistConstants/Constants.swift
+            sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' android/settings.gradle.kts
             git add gradle/CHANGELOG.md
             git add gradle/settings.gradle.kts
             git add gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt || true
             git add cli/Sources/TuistConstants/Constants.swift
+            git add android/settings.gradle.kts
             FILES_ADDED=true
           fi
 

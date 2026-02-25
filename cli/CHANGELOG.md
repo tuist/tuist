@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.152.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add warningsAsErrors generation option by [@fortmarek](https://github.com/fortmarek) in [#9574](https://github.com/tuist/tuist/pull/9574)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.151.1...4.152.0
+
 ## What's Changed in 4.151.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

@@ -572,10 +572,6 @@ struct PreviewsUploadServiceTests {
         let apkContent = Data("fake-apk-content".utf8)
         try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
 
-        given(fileArchiver)
-            .zip(name: .value("app.apk"))
-            .willReturn(temporaryDirectory.appending(component: "app.zip"))
-
         let unzippedPath = temporaryDirectory.appending(component: "unzipped-apk")
         let iconPath = unzippedPath.appending(
             components: ["res", "mipmap-xxxhdpi-v4", "ic_launcher.png"]
@@ -595,7 +591,7 @@ struct PreviewsUploadServiceTests {
             ((MultipartUploadArtifactPart) async throws -> String)!
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
-                artifactPath: .value(temporaryDirectory.appending(component: "app.zip")),
+                artifactPath: .value(apkPath),
                 generateUploadURL: .matching { callback in
                     multipartUploadCapturedGenerateUploadURLCallback = callback
                     return true
@@ -678,13 +674,9 @@ struct PreviewsUploadServiceTests {
         let apkContent = Data("fake-apk-content".utf8)
         try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
 
-        given(fileArchiver)
-            .zip(name: .value("app.apk"))
-            .willReturn(temporaryDirectory.appending(component: "app.zip"))
-
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(
-                artifactPath: .value(temporaryDirectory.appending(component: "app.zip")),
+                artifactPath: .value(apkPath),
                 generateUploadURL: .any,
                 updateProgress: .any
             )
@@ -727,10 +719,6 @@ struct PreviewsUploadServiceTests {
         let apkPath = temporaryDirectory.appending(component: "app.apk")
         let apkContent = Data("deterministic-content".utf8)
         try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
-
-        given(fileArchiver)
-            .zip(name: .any)
-            .willReturn(temporaryDirectory.appending(component: "app.zip"))
 
         given(multipartUploadArtifactService)
             .multipartUploadArtifact(

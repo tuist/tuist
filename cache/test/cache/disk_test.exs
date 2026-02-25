@@ -82,7 +82,7 @@ end
 defmodule Cache.DiskIntegrationTest do
   use ExUnit.Case, async: true
 
-  alias Cache.CAS.Disk, as: CASDisk
+  alias Cache.CAS
   alias Cache.Disk
 
   defp unique_account do
@@ -94,15 +94,15 @@ defmodule Cache.DiskIntegrationTest do
       account = unique_account()
       project = "test_project"
 
-      CASDisk.put(account, project, "hash1", "content1")
-      CASDisk.put(account, project, "hash2", "content2")
-      assert CASDisk.exists?(account, project, "hash1")
-      assert CASDisk.exists?(account, project, "hash2")
+      CAS.Disk.put(account, project, "hash1", "content1")
+      CAS.Disk.put(account, project, "hash2", "content2")
+      assert CAS.Disk.exists?(account, project, "hash1")
+      assert CAS.Disk.exists?(account, project, "hash2")
 
       assert :ok = Disk.delete_project(account, project)
 
-      refute CASDisk.exists?(account, project, "hash1")
-      refute CASDisk.exists?(account, project, "hash2")
+      refute CAS.Disk.exists?(account, project, "hash1")
+      refute CAS.Disk.exists?(account, project, "hash2")
     end
 
     test "returns :ok when project directory does not exist" do

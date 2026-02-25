@@ -95,7 +95,7 @@ jobs:
             }
   inspect-implicit-imports:
     name: Inspect Implicit Imports
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 60
     needs: [check-team-membership]
     if: |
@@ -117,9 +117,6 @@ jobs:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -144,7 +141,7 @@ jobs:
           TUIST_EE: 1
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 40
     needs: [check-team-membership]
     if: |
@@ -166,9 +163,6 @@ jobs:
           submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:

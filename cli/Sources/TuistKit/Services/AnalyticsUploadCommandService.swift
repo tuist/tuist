@@ -33,25 +33,25 @@ struct AnalyticsUploadCommandService {
 
     func run(eventFilePath: String, fullHandle: String, serverURL: String) async throws {
         let eventPath = try AbsolutePath(validating: eventFilePath)
-
-        defer {
-            Task {
-                try await fileSystem.remove(eventPath)
+        do {
+            guard let url = URL(string: serverURL) else {
+                throw AnalyticsUploadCommandServiceError.invalidServerURL(serverURL)
             }
+
+            let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)
+
+            _ = try await retryProvider.runWithRetries {
+                try await uploadAnalyticsService.upload(
+                    commandEvent: commandEvent,
+                    fullHandle: fullHandle,
+                    serverURL: url
+                )
+            }
+        } catch {
+            try? await fileSystem.remove(eventPath)
+            throw error
         }
 
-        guard let url = URL(string: serverURL) else {
-            throw AnalyticsUploadCommandServiceError.invalidServerURL(serverURL)
-        }
-
-        let commandEvent: CommandEvent = try await fileSystem.readJSONFile(at: eventPath)
-
-        _ = try await retryProvider.runWithRetries {
-            try await uploadAnalyticsService.upload(
-                commandEvent: commandEvent,
-                fullHandle: fullHandle,
-                serverURL: url
-            )
-        }
+        try? await fileSystem.remove(eventPath)
     }
 }
