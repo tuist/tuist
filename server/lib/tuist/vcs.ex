@@ -707,7 +707,7 @@ defmodule Tuist.VCS do
 
     from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
-    |> where([t], t.scheme != "")
+    |> where([t], t.build_system == "gradle" or t.scheme != "")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()
     |> Enum.reduce(%{}, fn test_run, acc ->
