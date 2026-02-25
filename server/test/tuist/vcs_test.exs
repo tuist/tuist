@@ -1022,7 +1022,11 @@ defmodule Tuist.VCSTest do
           status: "success",
           duration_ms: 45_000,
           git_commit_sha: @git_commit_sha,
-          git_ref: @git_ref
+          git_ref: @git_ref,
+          tasks: [
+            %{task_path: ":app:compileKotlin", outcome: "remote_hit", cacheable: true},
+            %{task_path: ":app:test", outcome: "executed", cacheable: true}
+          ]
         )
 
       stub(Req, :get, fn _opts ->
@@ -1039,7 +1043,7 @@ defmodule Tuist.VCSTest do
 
         | Project | Status | Duration | Cache hit rate | Commit |
         |:-:|:-:|:-:|:-:|:-:|
-        | [MyAndroidApp](https://tuist.dev/build-runs/#{build_id}) | ✅ | 45.0s | N/A | #{commit_link} |
+        | [MyAndroidApp](https://tuist.dev/build-runs/#{build_id}) | ✅ | 45.0s | 50.0% | #{commit_link} |
 
         """
 
