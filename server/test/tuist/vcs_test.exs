@@ -427,6 +427,80 @@ defmodule Tuist.VCSTest do
       })
     end
 
+    test "creates a comment with apk previews" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          display_name: "App",
+          bundle_identifier: "dev.tuist.app",
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          inserted_at: ~N[2024-04-30 03:00:00]
+        )
+
+      _app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          display_name: "App",
+          type: :apk
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Previews 📦
+
+        | App | Commit | Open on device |
+        | - | - | - |
+        | [App](https://tuist.dev/previews/#{preview.id}) | #{commit_link} | <img width=100px src="https://tuist.dev/#{project.name}/previews/#{preview.id}/qr-code.svg" /> |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+        preview_qr_code_url: fn %{preview: preview, project: project} ->
+          "https://tuist.dev/#{project.name}/previews/#{preview.id}/qr-code.svg"
+        end,
+        command_run_url: fn %{command_event: command_event} ->
+          "https://tuist.dev/runs/#{command_event.id}"
+        end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
     test "creates a comment when full handle and provider is the same but url is different" do
       # Given
       project =

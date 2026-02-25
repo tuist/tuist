@@ -528,19 +528,19 @@ defmodule Tuist.VCS do
     if Enum.empty?(previews) do
       nil
     else
-      contains_ipas =
-        previews |> Enum.flat_map(& &1.app_builds) |> Enum.any?(&(&1.type == :ipa))
+      contains_installable =
+        previews |> Enum.flat_map(& &1.app_builds) |> Enum.any?(&(&1.type in [:ipa, :apk]))
 
       """
 
       #### Previews 📦
 
-      | App | Commit |#{if contains_ipas, do: " Open on device |", else: ""}
-      | - | - |#{if contains_ipas, do: " - |", else: ""}
+      | App | Commit |#{if contains_installable, do: " Open on device |", else: ""}
+      | - | - |#{if contains_installable, do: " - |", else: ""}
       #{Enum.map(previews, fn preview ->
         git_commit_sha = preview.git_commit_sha
         preview_url = preview_url.(%{project: project, preview: preview})
-        qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_ipas: contains_ipas, preview_qr_code_url: preview_qr_code_url})
+        qr_code_image = get_qr_code_image(%{project: project, preview: preview, contains_installable: contains_installable, preview_qr_code_url: preview_qr_code_url})
 
         """
         | [#{preview.display_name}](#{preview_url}) | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |#{qr_code_image}
@@ -553,17 +553,21 @@ defmodule Tuist.VCS do
   defp get_qr_code_image(%{
          project: project,
          preview: preview,
-         contains_ipas: contains_ipas,
+         contains_installable: contains_installable,
          preview_qr_code_url: preview_qr_code_url
        }) do
-    case {AppBuilds.latest_ipa_app_build_for_preview(preview), contains_ipas} do
-      {nil, true} ->
+    has_installable =
+      AppBuilds.latest_ipa_app_build_for_preview(preview) != nil or
+        AppBuilds.latest_apk_app_build_for_preview(preview) != nil
+
+    case {has_installable, contains_installable} do
+      {false, true} ->
         " |"
 
-      {nil, false} ->
+      {false, false} ->
         ""
 
-      {_, _} ->
+      {true, _} ->
         " <img width=100px src=\"#{preview_qr_code_url.(%{project: project, preview: preview})}\" /> |"
     end
   end
