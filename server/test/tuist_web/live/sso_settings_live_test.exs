@@ -69,18 +69,13 @@ defmodule TuistWeb.SSOSettingsLiveTest do
   end
 
   describe "Google SSO" do
-    test "shows error when domain is empty", %{conn: conn, account: account} do
+    test "disables save button when domain is empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
       render_hook(lv, "toggle_sso")
-      render_hook(lv, "select_provider", %{"value" => ["google"]})
+      html = render_hook(lv, "select_provider", %{"value" => ["google"]})
 
-      html =
-        lv
-        |> form("#sso-form", %{"sso" => %{"google_domain" => ""}})
-        |> render_submit()
-
-      assert html =~ "Please enter your Google Workspace domain"
+      assert html =~ "disabled"
     end
 
     test "shows error when user has no Google OAuth identity", %{conn: conn, account: account} do
@@ -124,23 +119,16 @@ defmodule TuistWeb.SSOSettingsLiveTest do
   end
 
   describe "Okta SSO" do
-    test "shows error when required fields are empty", %{conn: conn, account: account} do
+    test "disables save button when required fields are empty", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/sso")
 
       render_hook(lv, "toggle_sso")
-      render_hook(lv, "select_provider", %{"value" => ["okta"]})
+      html = render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
-      html =
-        lv
-        |> form("#sso-form", %{
-          "sso" => %{"okta_domain" => "", "okta_client_id" => "", "okta_client_secret" => ""}
-        })
-        |> render_submit()
-
-      assert html =~ "Please fill in all required fields"
+      assert html =~ "disabled"
     end
 
-    test "shows error when client secret is missing for new configuration", %{
+    test "disables save button when client secret is missing for new configuration", %{
       conn: conn,
       account: account
     } do
@@ -150,17 +138,15 @@ defmodule TuistWeb.SSOSettingsLiveTest do
       render_hook(lv, "select_provider", %{"value" => ["okta"]})
 
       html =
-        lv
-        |> form("#sso-form", %{
+        render_hook(lv, "validate_sso", %{
           "sso" => %{
             "okta_domain" => "company.okta.com",
             "okta_client_id" => "test_client_id",
             "okta_client_secret" => ""
           }
         })
-        |> render_submit()
 
-      assert html =~ "Please enter the client secret"
+      assert html =~ "disabled"
     end
 
     test "configures Okta SSO with all fields", %{conn: conn, account: account} do

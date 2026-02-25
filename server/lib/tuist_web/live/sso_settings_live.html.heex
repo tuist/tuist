@@ -212,7 +212,7 @@
           label={dgettext("dashboard_account", "Save changes")}
           variant="primary"
           size="medium"
-          disabled={not @has_changes}
+          disabled={not @has_changes or not @form_valid}
         />
       </div>
     </.card_section>

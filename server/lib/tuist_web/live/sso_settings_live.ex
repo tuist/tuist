@@ -41,6 +41,7 @@ defmodule TuistWeb.SSOSettingsLive do
   def handle_event("toggle_sso", _params, socket) do
     socket
     |> assign(sso_enabled: not socket.assigns.sso_enabled, flash_message: nil)
+    |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
@@ -48,6 +49,7 @@ defmodule TuistWeb.SSOSettingsLive do
   def handle_event("select_provider", %{"value" => [provider]}, socket) do
     socket
     |> assign(selected_provider: provider, flash_message: nil)
+    |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
@@ -55,6 +57,7 @@ defmodule TuistWeb.SSOSettingsLive do
   def handle_event("validate_sso", %{"sso" => form_params}, socket) do
     socket
     |> assign(current_form_params: form_params)
+    |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
   end
@@ -74,23 +77,20 @@ defmodule TuistWeb.SSOSettingsLive do
     if is_nil(organization.sso_provider) do
       {:noreply, socket}
     else
-      case Accounts.update_organization(organization, %{
-             sso_provider: nil,
-             sso_organization_id: nil,
-             okta_client_id: nil,
-             okta_encrypted_client_secret: nil
-           }) do
-        {:ok, updated_organization} ->
-          {:noreply,
-           socket
-           |> assign(organization: updated_organization)
-           |> assign_form_from_organization(updated_organization)
-           |> assign_saved_state()
-           |> assign(flash_message: nil)}
+      {:ok, updated_organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: nil,
+          sso_organization_id: nil,
+          okta_client_id: nil,
+          okta_encrypted_client_secret: nil
+        })
 
-        {:error, _} ->
-          {:noreply, socket}
-      end
+      {:noreply,
+       socket
+       |> assign(organization: updated_organization)
+       |> assign_form_from_organization(updated_organization)
+       |> assign_saved_state()
+       |> assign(flash_message: nil)}
     end
   end
 
@@ -99,31 +99,20 @@ defmodule TuistWeb.SSOSettingsLive do
 
     case validate_google_sso(domain, current_user) do
       :ok ->
-        case Accounts.update_organization(organization, %{
-               sso_provider: :google,
-               sso_organization_id: domain,
-               okta_client_id: nil,
-               okta_encrypted_client_secret: nil
-             }) do
-          {:ok, updated_organization} ->
-            {:noreply,
-             socket
-             |> assign(organization: updated_organization)
-             |> assign_form_from_organization(updated_organization)
-             |> assign_saved_state()
-             |> assign(flash_message: nil)}
+        {:ok, updated_organization} =
+          Accounts.update_organization(organization, %{
+            sso_provider: :google,
+            sso_organization_id: domain,
+            okta_client_id: nil,
+            okta_encrypted_client_secret: nil
+          })
 
-          {:error, _changeset} ->
-            {:noreply,
-             assign(socket,
-               flash_message:
-                 {"error",
-                  dgettext(
-                    "dashboard_account",
-                    "Failed to configure Google SSO. Please try again."
-                  )}
-             )}
-        end
+        {:noreply,
+         socket
+         |> assign(organization: updated_organization)
+         |> assign_form_from_organization(updated_organization)
+         |> assign_saved_state()
+         |> assign(flash_message: nil)}
 
       {:error, message} ->
         {:noreply, assign(socket, flash_message: {"error", message})}
@@ -135,43 +124,21 @@ defmodule TuistWeb.SSOSettingsLive do
     client_id = String.trim(params["sso"]["okta_client_id"] || "")
     client_secret = String.trim(params["sso"]["okta_client_secret"] || "")
 
-    case validate_okta_sso(domain, client_id, client_secret, organization) do
-      :ok ->
-        attrs = %{sso_organization_id: domain, okta_client_id: client_id}
+    attrs = %{sso_organization_id: domain, okta_client_id: client_id}
 
-        attrs =
-          if client_secret == "",
-            do: attrs,
-            else: Map.put(attrs, :okta_client_secret, client_secret)
+    attrs =
+      if client_secret == "",
+        do: attrs,
+        else: Map.put(attrs, :okta_client_secret, client_secret)
 
-        case Accounts.update_okta_configuration(organization.id, attrs) do
-          {:ok, updated_organization} ->
-            {:noreply,
-             socket
-             |> assign(organization: updated_organization)
-             |> assign_form_from_organization(updated_organization)
-             |> assign_saved_state()
-             |> assign(flash_message: nil)}
+    {:ok, updated_organization} = Accounts.update_okta_configuration(organization.id, attrs)
 
-          {:error, _} ->
-            {:noreply,
-             assign(socket,
-               flash_message:
-                 {"error",
-                  dgettext(
-                    "dashboard_account",
-                    "Failed to configure Okta SSO. Please try again."
-                  )}
-             )}
-        end
-
-      {:error, message} ->
-        {:noreply, assign(socket, flash_message: {"error", message})}
-    end
-  end
-
-  defp validate_google_sso("", _current_user) do
-    {:error, dgettext("dashboard_account", "Please enter your Google Workspace domain.")}
+    {:noreply,
+     socket
+     |> assign(organization: updated_organization)
+     |> assign_form_from_organization(updated_organization)
+     |> assign_saved_state()
+     |> assign(flash_message: nil)}
   end
 
   defp validate_google_sso(domain, current_user) do
@@ -190,18 +157,8 @@ defmodule TuistWeb.SSOSettingsLive do
     end
   end
 
-  defp validate_okta_sso(domain, client_id, _client_secret, _organization) when domain == "" or client_id == "" do
-    {:error, dgettext("dashboard_account", "Please fill in all required fields.")}
-  end
-
-  defp validate_okta_sso(_domain, _client_id, "", %{okta_encrypted_client_secret: nil}) do
-    {:error, dgettext("dashboard_account", "Please enter the client secret.")}
-  end
-
-  defp validate_okta_sso(_domain, _client_id, _client_secret, _organization), do: :ok
-
   defp assign_form_from_organization(socket, organization) do
-    provider = provider_to_string(organization.sso_provider)
+    provider = if organization.sso_provider, do: Atom.to_string(organization.sso_provider), else: "google"
     form_data = build_form_data(provider, organization)
 
     socket
@@ -211,7 +168,9 @@ defmodule TuistWeb.SSOSettingsLive do
   end
 
   defp assign_saved_state(socket) do
-    assign(socket,
+    socket
+    |> compute_form_valid()
+    |> assign(
       saved_state: %{
         sso_enabled: socket.assigns.sso_enabled,
         selected_provider: socket.assigns.selected_provider,
@@ -219,6 +178,36 @@ defmodule TuistWeb.SSOSettingsLive do
       },
       has_changes: false
     )
+  end
+
+  defp compute_form_valid(socket) do
+    valid =
+      if socket.assigns.sso_enabled do
+        params = socket.assigns.current_form_params
+
+        case socket.assigns.selected_provider do
+          "google" ->
+            String.trim(params["google_domain"] || "") != ""
+
+          "okta" ->
+            domain = String.trim(params["okta_domain"] || "")
+            client_id = String.trim(params["okta_client_id"] || "")
+            client_secret = String.trim(params["okta_client_secret"] || "")
+
+            has_existing_secret =
+              socket.assigns.organization.sso_provider == :okta and
+                not is_nil(socket.assigns.organization.okta_encrypted_client_secret)
+
+            domain != "" and client_id != "" and (client_secret != "" or has_existing_secret)
+
+          _ ->
+            true
+        end
+      else
+        true
+      end
+
+    assign(socket, form_valid: valid)
   end
 
   defp compute_has_changes(socket) do
@@ -231,10 +220,6 @@ defmodule TuistWeb.SSOSettingsLive do
 
     assign(socket, has_changes: has_changes)
   end
-
-  defp provider_to_string(:google), do: "google"
-  defp provider_to_string(:okta), do: "okta"
-  defp provider_to_string(_), do: "google"
 
   defp build_form_data("google", organization) do
     %{
