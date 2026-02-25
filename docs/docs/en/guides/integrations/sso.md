@@ -41,6 +41,7 @@ Okta SSO uses the OIDC protocol to allow members of your Okta organization to si
 4. Set the **Sign-in redirect URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta/callback`).
 5. Under **Assignments**, choose the desired access control and save.
 6. Copy the **Client ID** and **Client Secret** from the application's general settings. Note your **Okta domain** (e.g., `your-company.okta.com`).
+7. Optionally, to allow login from the Okta dashboard, click **Edit** on General Settings, change **Login initiated by** to **Either Okta or App**, select **Display application icon to users**, and set the **Initiate login URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
 
 ### Step 2: Configure Tuist {#okta-step-2}
 
@@ -50,18 +51,6 @@ Okta SSO uses the OIDC protocol to allow members of your Okta organization to si
 4. Enter your **Okta domain**, **Client ID**, and **Client Secret**.
 5. Click **Save changes**.
 
-### Step 3: Configure Okta-initiated login (optional) {#okta-step-3}
-
-1. In your Okta application settings, click **Edit** on General Settings.
-2. Change **Login initiated by** to **Either Okta or App**.
-3. Select **Display application icon to users**.
-4. Set the **Initiate login URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
-5. Click **Save**.
-
 ::: warning
 Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users. Once they sign in via Okta, they will be automatically added to your Tuist organization.
 :::
-
-## Disabling SSO {#disabling-sso}
-
-To disable SSO, navigate to the **SSO** settings tab, turn off the toggle, and click **Save changes**. Note that once disabled, users who relied on SSO will need to use an alternative sign-in method.
