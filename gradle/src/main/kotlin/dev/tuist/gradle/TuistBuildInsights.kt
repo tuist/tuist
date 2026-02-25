@@ -91,6 +91,7 @@ data class BuildReportRequest(
     @SerializedName("git_branch") val gitBranch: String?,
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
+    @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("root_project_name") val rootProjectName: String?,
     val tasks: List<TaskReportEntry>
 )
@@ -397,6 +398,7 @@ internal fun buildReport(
         gitBranch = gitInfoProvider.branch(),
         gitCommitSha = gitInfoProvider.commitSha(),
         gitRef = gitInfoProvider.ref(),
+        gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
         rootProjectName = rootProjectName,
         tasks = taskOutcomes.map { task ->
             TaskReportEntry(

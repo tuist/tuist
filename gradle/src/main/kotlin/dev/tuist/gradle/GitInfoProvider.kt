@@ -4,12 +4,14 @@ interface GitInfoProvider {
     fun branch(): String?
     fun commitSha(): String?
     fun ref(): String?
+    fun remoteUrlOrigin(): String?
 }
 
 class ProcessGitInfoProvider : GitInfoProvider {
     override fun branch(): String? = runCatching { runGitCommand("rev-parse", "--abbrev-ref", "HEAD") }.getOrNull()
     override fun commitSha(): String? = runCatching { runGitCommand("rev-parse", "HEAD") }.getOrNull()
     override fun ref(): String? = runCatching { runGitCommand("describe", "--tags", "--always") }.getOrNull()
+    override fun remoteUrlOrigin(): String? = runCatching { runGitCommand("remote", "get-url", "origin") }.getOrNull()
 
     private fun runGitCommand(vararg args: String): String {
         val process = ProcessBuilder(listOf("git") + args)

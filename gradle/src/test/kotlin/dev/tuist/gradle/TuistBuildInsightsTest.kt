@@ -11,11 +11,13 @@ import kotlin.test.assertTrue
 private class TestGitInfoProvider(
     private val branch: String? = null,
     private val commitSha: String? = null,
-    private val ref: String? = null
+    private val ref: String? = null,
+    private val remoteUrlOrigin: String? = null
 ) : GitInfoProvider {
     override fun branch(): String? = branch
     override fun commitSha(): String? = commitSha
     override fun ref(): String? = ref
+    override fun remoteUrlOrigin(): String? = remoteUrlOrigin
 }
 
 private class TestCIDetector(private val isCi: Boolean = false) : CIDetector {
@@ -107,6 +109,7 @@ class TuistBuildInsightsTest {
             gitBranch = "main",
             gitCommitSha = "abc",
             gitRef = "v1",
+            gitRemoteUrlOrigin = "https://github.com/tuist/tuist.git",
             rootProjectName = null,
             tasks = emptyList()
         )
@@ -119,6 +122,7 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"git_branch\""))
         assertTrue(json.contains("\"git_commit_sha\""))
         assertTrue(json.contains("\"git_ref\""))
+        assertTrue(json.contains("\"git_remote_url_origin\""))
     }
 
     @Test
