@@ -118,7 +118,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         |> form("#sso-form", %{"sso" => %{"google_domain" => "example.com"}})
         |> render_submit()
 
-      assert html =~ "Google SSO has been configured successfully"
+      refute html =~ "Failed to configure"
+      assert html =~ "Enable Single Sign-On"
     end
   end
 
@@ -179,7 +180,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         })
         |> render_submit()
 
-      assert html =~ "Okta SSO has been configured successfully"
+      refute html =~ "Failed to configure"
+      assert html =~ "Enable Single Sign-On"
     end
 
     test "displays Okta setup instructions when okta is selected", %{conn: conn, account: account} do
@@ -213,7 +215,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         |> form("#sso-form")
         |> render_submit()
 
-      assert html =~ "SSO has been disabled"
+      refute html =~ "error"
+      assert html =~ "Enable Single Sign-On"
     end
 
     test "disables Okta SSO", %{conn: conn, user: user} do
@@ -237,7 +240,8 @@ defmodule TuistWeb.SSOSettingsLiveTest do
         |> form("#sso-form")
         |> render_submit()
 
-      assert html =~ "SSO has been disabled"
+      refute html =~ "error"
+      assert html =~ "Enable Single Sign-On"
     end
   end
 end

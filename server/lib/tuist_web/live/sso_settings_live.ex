@@ -31,6 +31,7 @@ defmodule TuistWeb.SSOSettingsLive do
       |> assign(sso_enabled: sso_enabled)
       |> assign(flash_message: nil)
       |> assign_form_from_organization(organization)
+      |> assign_saved_state()
       |> assign(:head_title, "#{dgettext("dashboard_account", "SSO")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
@@ -38,15 +39,24 @@ defmodule TuistWeb.SSOSettingsLive do
 
   @impl true
   def handle_event("toggle_sso", _params, socket) do
-    {:noreply, assign(socket, sso_enabled: not socket.assigns.sso_enabled, flash_message: nil)}
+    socket
+    |> assign(sso_enabled: not socket.assigns.sso_enabled, flash_message: nil)
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
   end
 
   def handle_event("select_provider", %{"value" => [provider]}, socket) do
-    {:noreply, assign(socket, selected_provider: provider, flash_message: nil)}
+    socket
+    |> assign(selected_provider: provider, flash_message: nil)
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
   end
 
-  def handle_event("validate_sso", _params, socket) do
-    {:noreply, socket}
+  def handle_event("validate_sso", %{"sso" => form_params}, socket) do
+    socket
+    |> assign(current_form_params: form_params)
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
   end
 
   def handle_event("save_sso", _params, %{assigns: %{sso_enabled: false}} = socket) do
@@ -75,7 +85,8 @@ defmodule TuistWeb.SSOSettingsLive do
            socket
            |> assign(organization: updated_organization)
            |> assign_form_from_organization(updated_organization)
-           |> assign(flash_message: {"success", dgettext("dashboard_account", "SSO has been disabled.")})}
+           |> assign_saved_state()
+           |> assign(flash_message: nil)}
 
         {:error, _} ->
           {:noreply, socket}
@@ -99,9 +110,8 @@ defmodule TuistWeb.SSOSettingsLive do
              socket
              |> assign(organization: updated_organization)
              |> assign_form_from_organization(updated_organization)
-             |> assign(
-               flash_message: {"success", dgettext("dashboard_account", "Google SSO has been configured successfully.")}
-             )}
+             |> assign_saved_state()
+             |> assign(flash_message: nil)}
 
           {:error, _changeset} ->
             {:noreply,
@@ -140,9 +150,8 @@ defmodule TuistWeb.SSOSettingsLive do
              socket
              |> assign(organization: updated_organization)
              |> assign_form_from_organization(updated_organization)
-             |> assign(
-               flash_message: {"success", dgettext("dashboard_account", "Okta SSO has been configured successfully.")}
-             )}
+             |> assign_saved_state()
+             |> assign(flash_message: nil)}
 
           {:error, _} ->
             {:noreply,
@@ -197,7 +206,30 @@ defmodule TuistWeb.SSOSettingsLive do
 
     socket
     |> assign(selected_provider: provider)
+    |> assign(current_form_params: form_data)
     |> assign(form: to_form(form_data, as: "sso"))
+  end
+
+  defp assign_saved_state(socket) do
+    assign(socket,
+      saved_state: %{
+        sso_enabled: socket.assigns.sso_enabled,
+        selected_provider: socket.assigns.selected_provider,
+        form_params: socket.assigns.current_form_params
+      },
+      has_changes: false
+    )
+  end
+
+  defp compute_has_changes(socket) do
+    saved = socket.assigns.saved_state
+
+    has_changes =
+      socket.assigns.sso_enabled != saved.sso_enabled or
+        socket.assigns.selected_provider != saved.selected_provider or
+        socket.assigns.current_form_params != saved.form_params
+
+    assign(socket, has_changes: has_changes)
   end
 
   defp provider_to_string(:google), do: "google"

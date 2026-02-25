@@ -185,27 +185,22 @@
             {dgettext("dashboard_account", "Client secret")}
           </span>
           <span data-part="description">
-            <%= if @organization.sso_provider == :okta and @organization.okta_encrypted_client_secret do %>
-              {dgettext(
-                "dashboard_account",
-                "Leave blank to keep the current secret. Enter a new value to update it."
-              )}
-            <% else %>
-              {dgettext(
-                "dashboard_account",
-                "The client secret from your Okta OIDC application."
-              )}
-            <% end %>
+            {dgettext(
+              "dashboard_account",
+              "The client secret from your Okta OIDC application."
+            )}
           </span>
         </div>
         <div data-part="field">
           <.text_input
             field={@form[:okta_client_secret]}
             type="password"
+            input_type="password"
             placeholder={
-              if @organization.sso_provider == :okta and @organization.okta_encrypted_client_secret do
-                dgettext("dashboard_account", "Secret is configured. Enter a new value to update.")
-              end
+              if @organization.sso_provider == :okta and
+                   @organization.okta_encrypted_client_secret,
+                 do: "••••••••••••",
+                 else: nil
             }
           />
         </div>
@@ -217,6 +212,7 @@
           label={dgettext("dashboard_account", "Save changes")}
           variant="primary"
           size="medium"
+          disabled={not @has_changes}
         />
       </div>
     </.card_section>

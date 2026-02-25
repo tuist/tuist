@@ -7,57 +7,60 @@
 ---
 # SSO {#sso}
 
-You can configure Single Sign-On (SSO) for your organization from the **SSO** tab in your organization settings. Both Google and Okta SSO can be set up directly from the dashboard without contacting support.
+Tuist offers Single Sign-On (SSO) as a login option to provide additional account security for your organization. This allows organization admins to enforce the use of an identity provider when logging into Tuist, improving onboarding and offboarding through centralized credential management.
+
+SSO can be configured from the **SSO** tab in your organization settings. Both Google and Okta are supported as identity providers.
 
 ## Google {#google}
 
-If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization:
+Google SSO allows any developer who signs in with a Google Workspace account from your domain to be automatically added to your Tuist organization.
+
+### Prerequisites
+
+- A Google Workspace organization with a verified domain.
+- You must be authenticated with Google using an email tied to the domain you are setting up.
+
+### Setup
 
 1. Navigate to your organization's **SSO** settings tab.
-2. Enter your Google Workspace domain (e.g., `my-google-domain.com`).
-3. Click **Enable Google SSO**.
-
-::: warning
-<!-- -->
-You must be authenticated with Google using an email tied to the organization whose domain you are setting up.
-<!-- -->
-:::
-
-Alternatively, you can set it up via the CLI:
-```bash
-tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
-```
+2. Enable Single Sign-On using the toggle.
+3. Select **Google** as the provider.
+4. Enter your Google Workspace domain (e.g., `example.com`).
+5. Click **Save changes**.
 
 ## Okta {#okta}
 
-You can set up Okta SSO directly from the dashboard:
+Okta SSO uses the OIDC protocol to allow members of your Okta organization to sign in to Tuist and be automatically added to your organization.
 
-### Step 1: Create an Okta application
+### Step 1: Create an Okta application {#okta-step-1}
 
-1. Go to your Okta admin dashboard.
-2. Navigate to Applications > Applications > Create App Integration.
-3. Select "OIDC - OpenID Connect" and "Web Application".
-4. Enter the display name for the application, for example, "Tuist". Optionally upload a Tuist logo located at [this URL](https://tuist.dev/images/tuist_dashboard.png).
-5. Set the sign-in redirect URI to the value shown on the SSO settings page (e.g., `https://tuist.dev/users/auth/okta/callback`).
-6. Under "Assignments" choose the desired access control to the SSO Application and save.
-7. After saving, copy the **Client ID** and **Client Secret** from the application's general settings. Also note your Okta domain (e.g., `your-company.okta.com`).
+1. In your Okta admin dashboard, go to **Applications > Applications > Create App Integration**.
+2. Select **OIDC - OpenID Connect** and **Web Application**.
+3. Set the application name (e.g., "Tuist"). Optionally upload the [Tuist logo](https://tuist.dev/images/tuist_dashboard.png).
+4. Set the **Sign-in redirect URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta/callback`).
+5. Under **Assignments**, choose the desired access control and save.
+6. Copy the **Client ID** and **Client Secret** from the application's general settings. Note your **Okta domain** (e.g., `your-company.okta.com`).
 
-### Step 2: Configure Tuist
+### Step 2: Configure Tuist {#okta-step-2}
 
 1. Navigate to your organization's **SSO** settings tab.
-2. Enter your **Okta domain**, **Client ID**, and **Client Secret**.
-3. Click **Enable Okta SSO**.
+2. Enable Single Sign-On using the toggle.
+3. Select **Okta** as the provider.
+4. Enter your **Okta domain**, **Client ID**, and **Client Secret**.
+5. Click **Save changes**.
 
-### Step 3: Configure Okta-initiated login (optional)
+### Step 3: Configure Okta-initiated login (optional) {#okta-step-3}
 
-1. In your Okta application settings, click "Edit" on General Settings.
-2. Change "Login initiated by" to "Either Okta or App".
-3. Select "Display application icon to users".
-4. Set the "Initiate login URI" to the value shown on the SSO settings page (e.g., `https://tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
-5. Click "Save".
+1. In your Okta application settings, click **Edit** on General Settings.
+2. Change **Login initiated by** to **Either Okta or App**.
+3. Select **Display application icon to users**.
+4. Set the **Initiate login URI** to the value shown on the SSO settings page (e.g., `https://cloud.tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
+5. Click **Save**.
 
 ::: warning
-<!-- -->
-Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users from your Okta organization. Once they sign in via their Okta dashboard, they will be automatically added to your Tuist organization.
-<!-- -->
+Users need to initially sign in via their Okta dashboard as Tuist currently doesn't support automatic provisioning and deprovisioning of users. Once they sign in via Okta, they will be automatically added to your Tuist organization.
 :::
+
+## Disabling SSO {#disabling-sso}
+
+To disable SSO, navigate to the **SSO** settings tab, turn off the toggle, and click **Save changes**. Note that once disabled, users who relied on SSO will need to use an alternative sign-in method.
