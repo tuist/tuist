@@ -7,12 +7,15 @@
 ---
 # SSO {#sso}
 
+You can configure Single Sign-On (SSO) for your organization from the **SSO** tab in your organization settings. Both Google and Okta SSO can be set up directly from the dashboard without contacting support.
+
 ## Google {#google}
 
-If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization, you can set it up with:
-```bash
-tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
-```
+If you have a Google Workspace organization and you want any developer who signs in with the same Google hosted domain to be added to your Tuist organization:
+
+1. Navigate to your organization's **SSO** settings tab.
+2. Enter your Google Workspace domain (e.g., `my-google-domain.com`).
+3. Click **Enable Google SSO**.
 
 ::: warning
 <!-- -->
@@ -20,27 +23,38 @@ You must be authenticated with Google using an email tied to the organization wh
 <!-- -->
 :::
 
+Alternatively, you can set it up via the CLI:
+```bash
+tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
+```
+
 ## Okta {#okta}
 
-SSO with Okta is available only for enterprise customers. If you are interested in setting it up, please contact us at [contact@tuist.dev](mailto:contact@tuist.dev).
+You can set up Okta SSO directly from the dashboard:
 
-During the process, you will be assigned a point of contact to help you set up the Okta SSO.
+### Step 1: Create an Okta application
 
-Firstly, you will need to create an Okta application and configure it to work with Tuist:
-1. Go to Okta admin dashboard
-2. Applications > Applications > Create App Integration
-3. Select "OIDC - OpenID Connect" and "Web Application"
-4. Enter the display name for the application, for example, "Tuist". Upload a Tuist logo located at [this URL](https://tuist.dev/images/tuist_dashboard.png).
-5. Leave sign-in redirect URIs as it is for now
+1. Go to your Okta admin dashboard.
+2. Navigate to Applications > Applications > Create App Integration.
+3. Select "OIDC - OpenID Connect" and "Web Application".
+4. Enter the display name for the application, for example, "Tuist". Optionally upload a Tuist logo located at [this URL](https://tuist.dev/images/tuist_dashboard.png).
+5. Set the sign-in redirect URI to the value shown on the SSO settings page (e.g., `https://tuist.dev/users/auth/okta/callback`).
 6. Under "Assignments" choose the desired access control to the SSO Application and save.
-7. After saving, the general settings for the application will be available. Copy the "Client ID" and "Client Secret". Also note your Okta organization URL (e.g., `https://your-company.okta.com`) – you will need to safely share all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit" button.
-9. Paste the following redirect URL: `https://tuist.dev/users/auth/okta/callback`
-10. Change "Login initiated by" to "Either Okta or App".
-11. Select "Display application icon to users"
-12. Update the "Initiate login URL" with `https://tuist.dev/users/auth/okta?organization_id=1`. The `organization_id` will be supplied by your point of contact.
-13. Click "Save".
-14. Initiate Tuist login from your Okta dashboard.
+7. After saving, copy the **Client ID** and **Client Secret** from the application's general settings. Also note your Okta domain (e.g., `your-company.okta.com`).
+
+### Step 2: Configure Tuist
+
+1. Navigate to your organization's **SSO** settings tab.
+2. Enter your **Okta domain**, **Client ID**, and **Client Secret**.
+3. Click **Enable Okta SSO**.
+
+### Step 3: Configure Okta-initiated login (optional)
+
+1. In your Okta application settings, click "Edit" on General Settings.
+2. Change "Login initiated by" to "Either Okta or App".
+3. Select "Display application icon to users".
+4. Set the "Initiate login URI" to the value shown on the SSO settings page (e.g., `https://tuist.dev/users/auth/okta?organization_id=YOUR_ORG_ID`).
+5. Click "Save".
 
 ::: warning
 <!-- -->

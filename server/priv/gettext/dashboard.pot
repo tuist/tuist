@@ -264,7 +264,7 @@ msgid "Server error"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:330
-#: lib/tuist_web/components/layouts/account.html.heex:56
+#: lib/tuist_web/components/layouts/account.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -491,4 +491,9 @@ msgstr ""
 #: lib/tuist_web/controllers/preview_controller.ex:154
 #, elixir-autogen, elixir-format
 msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
+#: lib/tuist_web/components/layouts/account.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "SSO"
 msgstr ""

@@ -780,6 +780,7 @@ defmodule TuistWeb.Router do
       live "/members", MembersLive
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
+      live "/sso", SSOSettingsLive
       live "/settings", AccountSettingsLive
     end
   end
