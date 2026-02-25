@@ -17,7 +17,6 @@ defmodule Cache.AuthenticationTest do
     start_supervised!({Cachex, name: cache_name})
 
     Req.Test.set_req_test_to_shared()
-    on_exit(fn -> Req.Test.set_req_test_to_private() end)
 
     stub(Authentication, :server_url, fn -> @test_server_url end)
 
