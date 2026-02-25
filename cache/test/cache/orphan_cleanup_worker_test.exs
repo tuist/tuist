@@ -223,6 +223,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   end
 
   defp set_old_mtime(path) do
+    # File.touch!/2 accepts POSIX timestamps (seconds since epoch)
     two_hours_ago = System.os_time(:second) - 7200
     File.touch!(path, two_hours_ago)
   end
