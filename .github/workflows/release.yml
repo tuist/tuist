@@ -1140,8 +1140,16 @@ jobs:
         release-skills,
       ]
     if: |
-      !cancelled() && !failure() &&
-      needs.check-releases.outputs.should-release-any == 'true'
+      needs.check-releases.outputs.should-release-any == 'true' &&
+      (needs.release-cli.result == 'success' || needs.release-cli.result == 'skipped') &&
+      (needs.release-cli-linux.result == 'success' || needs.release-cli-linux.result == 'skipped') &&
+      (needs.release-app.result == 'success' || needs.release-app.result == 'skipped') &&
+      (needs.release-ios.result == 'success' || needs.release-ios.result == 'skipped') &&
+      (needs.release-android.result == 'success' || needs.release-android.result == 'skipped') &&
+      (needs.release-server.result == 'success' || needs.release-server.result == 'skipped') &&
+      (needs.release-cache.result == 'success' || needs.release-cache.result == 'skipped') &&
+      (needs.release-gradle.result == 'success' || needs.release-gradle.result == 'skipped') &&
+      (needs.release-skills.result == 'success' || needs.release-skills.result == 'skipped')
     runs-on: namespace-profile-default
     timeout-minutes: 30
     concurrency:
