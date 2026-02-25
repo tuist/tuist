@@ -230,7 +230,6 @@ jobs:
         env:
           TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
           TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
-          TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -292,7 +291,6 @@ jobs:
         env:
           TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
           TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
-          TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -347,7 +345,6 @@ jobs:
         env:
           TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
           TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
-          TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -400,7 +397,6 @@ jobs:
         env:
           TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
           TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
-          TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

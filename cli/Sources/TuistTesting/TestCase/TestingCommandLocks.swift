@@ -4,16 +4,9 @@ public enum TestingCommandLocks {
     @TaskLocal public static var xcodeBuildPoolLock: PoolLock = .init(
         capacity: xcodeBuildPoolSize()
     )
-    @TaskLocal public static var installPoolLock: PoolLock = .init(
-        capacity: installPoolSize()
-    )
 
     public static func acquiringXcodeBuildPoolLock(_ closure: () async throws -> Void) async throws {
         try await withPoolLock(xcodeBuildPoolLock, closure)
-    }
-
-    public static func acquiringInstallPoolLock(_ closure: () async throws -> Void) async throws {
-        try await withPoolLock(installPoolLock, closure)
     }
 
     private static func withPoolLock(
@@ -36,16 +29,6 @@ public enum TestingCommandLocks {
               parsed > 0
         else {
             return max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
-        }
-        return parsed
-    }
-
-    private static func installPoolSize() -> Int {
-        guard let value = ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_INSTALL_POOL_SIZE"],
-              let parsed = Int(value),
-              parsed > 0
-        else {
-            return 2
         }
         return parsed
     }

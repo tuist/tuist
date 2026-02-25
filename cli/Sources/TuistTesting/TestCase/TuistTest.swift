@@ -67,7 +67,6 @@ public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () asyn
 public enum TuistTestRunOption {
     case useSimulatorLock
     case useXcodeBuildLock
-    case useInstallLock
 }
 
 public enum TuistTest {
@@ -122,8 +121,6 @@ public enum TuistTest {
         let shouldAcquireSimulatorLock = requiresSimulatorLock(arguments: arguments, options: options)
         let shouldAcquireXcodeBuildLock = options.contains(.useXcodeBuildLock)
             || commandLikelyUsesXcodebuild(commandTypeName)
-        let shouldAcquireInstallLock = options.contains(.useInstallLock)
-            || commandLikelyRunsInstall(commandTypeName)
 
         let runWithSimulatorLock = {
             if shouldAcquireSimulatorLock {
@@ -141,11 +138,7 @@ public enum TuistTest {
             }
         }
 
-        if shouldAcquireInstallLock {
-            try await TestingCommandLocks.acquiringInstallPoolLock(runWithXcodeBuildLock)
-        } else {
-            try await runWithXcodeBuildLock()
-        }
+        try await runWithXcodeBuildLock()
     }
 
     private static func requiresSimulatorLock(
@@ -176,10 +169,6 @@ public enum TuistTest {
             || commandTypeName.contains("TuistTestCommand.TestCommand")
             || commandTypeName.contains("TuistRunCommand.RunCommand")
             || commandTypeName.contains("XcodeBuild")
-    }
-
-    private static func commandLikelyRunsInstall(_ commandTypeName: String) -> Bool {
-        commandTypeName.contains("InstallCommand")
     }
 
     #if os(macOS)
