@@ -7,9 +7,9 @@
 ---
 # SSO {#sso}
 
-Tuist offers Single Sign-On (SSO) as a login option to provide additional account security for your organization. This allows organization admins to enforce the use of an identity provider when logging into Tuist, improving onboarding and offboarding through centralized credential management.
+Tuist offers Single Sign-On (SSO) as a login option to provide additional account security for your organization.
 
-SSO can be configured from the **SSO** tab in your organization settings. Both Google and Okta are supported as identity providers.
+SSO can be configured from the **SSO** tab in your organization settings. Google and Okta are supported as identity providers.
 
 ## Google {#google}
 
@@ -23,7 +23,7 @@ Google SSO allows any developer who signs in with a Google Workspace account fro
 ### Setup
 
 1. Navigate to your organization's **SSO** settings tab.
-2. Enable Single Sign-On using the toggle.
+2. Enable SSO using the toggle.
 3. Select **Google** as the provider.
 4. Enter your Google Workspace domain (e.g., `example.com`).
 5. Click **Save changes**.
