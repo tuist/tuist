@@ -16,6 +16,8 @@ defmodule Tuist.VCS do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
+  alias Tuist.Gradle
+  alias Tuist.Gradle.Build, as: GradleBuild
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Repo
@@ -356,6 +358,12 @@ defmodule Tuist.VCS do
         project: project
       })
 
+    gradle_builds =
+      get_latest_gradle_builds(%{
+        git_ref: git_ref,
+        project: project
+      })
+
     previews_body =
       get_previews_body(%{
         previews: previews,
@@ -389,13 +397,21 @@ defmodule Tuist.VCS do
         project: project
       })
 
+    gradle_builds_body =
+      get_gradle_builds_body(%{
+        gradle_builds: gradle_builds,
+        git_remote_url_origin: git_remote_url_origin,
+        build_url: build_url,
+        project: project
+      })
+
     flaky_tests_body =
       get_flaky_tests_body(%{
         test_runs: test_runs,
         project: project
       })
 
-    bodies = [previews_body, test_body, flaky_tests_body, builds_body, bundles_body]
+    bodies = [previews_body, test_body, flaky_tests_body, builds_body, gradle_builds_body, bundles_body]
 
     if Enum.all?(bodies, &is_nil/1) do
       nil
@@ -710,6 +726,70 @@ defmodule Tuist.VCS do
       end
     end)
     |> Map.values()
+  end
+
+  defp get_latest_gradle_builds(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
+    from(b in GradleBuild)
+    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> order_by([b], desc: b.inserted_at)
+    |> ClickHouseRepo.all()
+    |> Enum.reduce(%{}, fn build, acc ->
+      key = if build.root_project_name == "", do: "unknown", else: build.root_project_name
+
+      current_build = Map.get(acc, key)
+
+      if current_build == nil or
+           NaiveDateTime.after?(
+             build.inserted_at,
+             current_build.inserted_at
+           ) do
+        Map.put(acc, key, build)
+      else
+        acc
+      end
+    end)
+    |> Map.values()
+  end
+
+  defp get_gradle_builds_body(%{
+         gradle_builds: gradle_builds,
+         git_remote_url_origin: git_remote_url_origin,
+         build_url: build_url,
+         project: project
+       }) do
+    if Enum.empty?(gradle_builds) do
+      nil
+    else
+      """
+
+      #### Gradle Builds 🐘
+
+      | Project | Status | Duration | Cache hit rate | Commit |
+      |:-:|:-:|:-:|:-:|:-:|
+      #{Enum.map(gradle_builds, fn build ->
+        git_commit_sha = build.git_commit_sha
+        build_url = build_url.(%{project: project, build: build})
+        project_name = if build.root_project_name == "", do: "Unknown", else: build.root_project_name
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
+        cache_hit_rate = Gradle.cache_hit_rate(build)
+        cache_hit_rate_text = if cache_hit_rate, do: "#{cache_hit_rate}%", else: "N/A"
+
+        """
+        | [#{project_name}](#{build_url}) | #{get_gradle_build_status_text(build)} | #{duration} | #{cache_hit_rate_text} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+        """
+      end)}
+      """
+    end
+  end
+
+  defp get_gradle_build_status_text(build) do
+    case build.status do
+      "failure" -> "❌"
+      "success" -> "✅"
+      "cancelled" -> "⏹️"
+    end
   end
 
   defp get_builds_body(%{

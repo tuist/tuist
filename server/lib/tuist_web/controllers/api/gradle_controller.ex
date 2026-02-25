@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
+  alias Tuist.VCS
   alias TuistWeb.API.Schemas.Error
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -47,6 +48,7 @@ defmodule TuistWeb.API.GradleController do
            git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
            git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
            git_ref: %Schema{type: :string, nullable: true, description: "Git ref."},
+           git_remote_url_origin: %Schema{type: :string, nullable: true, description: "Git remote URL origin."},
            root_project_name: %Schema{
              type: :string,
              nullable: true,
@@ -127,11 +129,26 @@ defmodule TuistWeb.API.GradleController do
       git_branch: body[:git_branch],
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
+      git_remote_url_origin: body[:git_remote_url_origin],
       root_project_name: body[:root_project_name],
       tasks: tasks
     }
 
     {:ok, build_id} = Gradle.create_build(attrs)
+
+    VCS.enqueue_vcs_pull_request_comment(%{
+      build_id: build_id,
+      git_commit_sha: body[:git_commit_sha] || "",
+      git_ref: body[:git_ref] || "",
+      git_remote_url_origin: body[:git_remote_url_origin],
+      project_id: project.id,
+      preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+      preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+      command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+      test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+      bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+      build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+    })
 
     conn
     |> put_status(:created)

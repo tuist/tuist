@@ -16,6 +16,7 @@ defmodule Tuist.VCSTest do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.GradleFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
@@ -985,6 +986,57 @@ defmodule Tuist.VCSTest do
         assert opts[:headers] == @default_headers
         assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
         assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn _ -> "" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn %{build: build} -> "https://tuist.dev/build-runs/#{build.id}" end
+      })
+    end
+
+    test "creates a comment with android builds" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      _build_id =
+        GradleFixtures.build_fixture(
+          project_id: project.id,
+          root_project_name: "MyAndroidApp",
+          status: "success",
+          duration_ms: 45_000,
+          git_commit_sha: @git_commit_sha,
+          git_ref: @git_ref
+        )
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expect(Req, :post, fn opts ->
+        assert opts[:json][:body] =~ "#### Gradle Builds 🐘"
+        assert opts[:json][:body] =~ "MyAndroidApp"
+        assert opts[:json][:body] =~ "✅"
+        assert opts[:json][:body] =~ "45.0s"
+        assert opts[:json][:body] =~ commit_link
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
