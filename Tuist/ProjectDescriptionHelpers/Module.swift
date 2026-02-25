@@ -402,6 +402,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.buildCommand.targetName),
                     .target(name: Module.generateCommand.targetName),
                     .target(name: Module.projectCommand.targetName),
+                    .target(name: Module.runCommand.targetName),
+                    .target(name: Module.shareCommand.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),

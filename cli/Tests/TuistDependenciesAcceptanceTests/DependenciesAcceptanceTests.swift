@@ -247,9 +247,8 @@ struct DependenciesAcceptanceTestAppAlamofire {
 }
 
 struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
-    @Test(.withFixture("generated_app_with_objc_static_framework_with_resources"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory)
     func app_with_objc_static_framework_with_resources() async throws {
-        let fileSystem = FileSystem()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
@@ -285,7 +284,7 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
         ).pipedStream().awaitCompletion()
 
         try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
+            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
 
         try await Task.sleep(for: .seconds(2))
@@ -295,7 +294,7 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
         ).concatenatedString()
 
         #expect(
-            listOutput.contains("UIKitApplication:dev.tuist.app"),
+            listOutput.contains("UIKitApplication:dev.tuist.App"),
             "App should still be running after launch. If it crashed, the bundle accessor for ObjC static frameworks with resources may be broken."
         )
 
@@ -306,97 +305,108 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
         ).concatenatedString()
 
         #expect(
-            finalListOutput.contains("UIKitApplication:dev.tuist.app"),
+            finalListOutput.contains("UIKitApplication:dev.tuist.App"),
             "App should remain running. If it crashed after initial launch, there may be a delayed resource loading issue."
         )
     }
 
-    @Test(.withFixture("generated_app_with_objc_static_framework_with_resources"), .inTemporaryDirectory)
-    func app_with_objc_static_framework_with_resources_from_cache() async throws {
-        let fileSystem = FileSystem()
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
-        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
-        try await TuistTest.run(
-            BuildCommand.self,
-            ["App", "--platform", "ios", "--path", fixtureDirectory.pathString, "--derived-data-path", derivedDataPath.pathString]
-        )
+    #if canImport(TuistCacheEE)
+        @Test(.withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory)
+        func app_with_objc_static_framework_with_resources_from_cache() async throws {
+            let fileSystem = FileSystem()
+            let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+            let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+            try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+            try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+            try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+            try await TuistTest.run(
+                BuildCommand.self,
+                [
+                    "App",
+                    "--platform",
+                    "ios",
+                    "--path",
+                    fixtureDirectory.pathString,
+                    "--derived-data-path",
+                    derivedDataPath.pathString,
+                ]
+            )
 
-        let commandRunner = CommandRunner()
-        let simulatorId = UUID().uuidString
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
-        ).pipedStream().awaitCompletion()
+            let commandRunner = CommandRunner()
+            let simulatorId = UUID().uuidString
+            try await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
+            ).pipedStream().awaitCompletion()
 
-        defer {
-            Task {
-                try? await commandRunner.run(
-                    arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
-                ).pipedStream().awaitCompletion()
+            defer {
+                Task {
+                    try? await commandRunner.run(
+                        arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
+                    ).pipedStream().awaitCompletion()
+                }
             }
-        }
 
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
-        ).pipedStream().awaitCompletion()
+            try await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
+            ).pipedStream().awaitCompletion()
 
-        let appPath = derivedDataPath
-            .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
+            let appPath = derivedDataPath
+                .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
 
-        let frameworksPath = appPath.appending(component: "Frameworks")
-        let frameworksExist = await (try? fileSystem.exists(frameworksPath)) ?? false
-        #expect(
-            frameworksExist,
-            "Frameworks directory should exist when using cached XCFrameworks"
-        )
-
-        if frameworksExist {
-            let frameworkContents = try await fileSystem.glob(directory: frameworksPath, include: ["*.framework"]).collect()
+            let frameworksPath = appPath.appending(component: "Frameworks")
+            let frameworksExist = await (try? fileSystem.exists(frameworksPath)) ?? false
             #expect(
-                frameworkContents.contains { $0.basename.contains("SVProgressHUD") },
-                "SVProgressHUD.framework should be embedded in the app bundle when using cached static XCFramework with resources"
+                frameworksExist,
+                "Frameworks directory should exist when using cached XCFrameworks"
+            )
+
+            if frameworksExist {
+                let frameworkContents = try await fileSystem.glob(directory: frameworksPath, include: ["*.framework"]).collect()
+                #expect(
+                    frameworkContents.contains { $0.basename == "D.framework" },
+                    "D.framework should be embedded in the app bundle when using cached static frameworks with resources"
+                )
+            }
+
+            for bundleName in ["A_A.bundle", "B_B.bundle", "C_C.bundle"] {
+                let bundlePath = appPath.appending(component: bundleName)
+                #expect(
+                    await (try? fileSystem.exists(bundlePath)) == true,
+                    "\(bundleName) should be present in the app bundle when using cached static frameworks with resources"
+                )
+            }
+
+            try await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
+            ).pipedStream().awaitCompletion()
+
+            try await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.App"]
+            ).pipedStream().awaitCompletion()
+
+            try await Task.sleep(for: .seconds(2))
+
+            let listOutput = try await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
+            ).concatenatedString()
+
+            #expect(
+                listOutput.contains("UIKitApplication:dev.tuist.App"),
+                "App should still be running after launch when using cached XCFrameworks. If it crashed, the static XCFramework with resources may not be embedded correctly."
+            )
+
+            try await Task.sleep(for: .seconds(1))
+
+            let finalListOutput = try await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
+            ).concatenatedString()
+
+            #expect(
+                finalListOutput.contains("UIKitApplication:dev.tuist.App"),
+                "App should remain running when using cached XCFrameworks. If it crashed, the bundle accessor for cached static frameworks with resources may be broken."
             )
         }
-
-        let resourceBundlePath = appPath.appending(component: "SVProgressHUD_SVProgressHUD.bundle")
-        let resourceBundleExists = await (try? fileSystem.exists(resourceBundlePath)) ?? false
-        #expect(
-            !resourceBundleExists,
-            "SVProgressHUD_SVProgressHUD.bundle should not exist; resources live inside the framework itself"
-        )
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
-        ).pipedStream().awaitCompletion()
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
-        ).pipedStream().awaitCompletion()
-
-        try await Task.sleep(for: .seconds(2))
-
-        let listOutput = try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
-        ).concatenatedString()
-
-        #expect(
-            listOutput.contains("UIKitApplication:dev.tuist.app"),
-            "App should still be running after launch when using cached XCFrameworks. If it crashed, the static XCFramework with resources may not be embedded correctly."
-        )
-
-        try await Task.sleep(for: .seconds(1))
-
-        let finalListOutput = try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
-        ).concatenatedString()
-
-        #expect(
-            finalListOutput.contains("UIKitApplication:dev.tuist.app"),
-            "App should remain running when using cached XCFrameworks. If it crashed, the bundle accessor for cached static frameworks with resources may be broken."
-        )
-    }
+    #endif
 }
 
 struct DependenciesAcceptanceTestAppPocketSVG {
