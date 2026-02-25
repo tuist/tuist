@@ -11,27 +11,29 @@ defmodule Cache.OrphanScanCursors do
   end
 
   def update_cursor(cursor_path) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    %OrphanScanCursor{id: @singleton_id}
-    |> OrphanScanCursor.changeset(%{cursor_path: cursor_path})
-    |> Repo.insert(
-      on_conflict: [set: [cursor_path: cursor_path, updated_at: now]],
-      conflict_target: :id
-    )
+    {:ok, _} =
+      %OrphanScanCursor{id: @singleton_id}
+      |> OrphanScanCursor.changeset(%{cursor_path: cursor_path})
+      |> Repo.insert(
+        on_conflict: [set: [cursor_path: cursor_path, updated_at: now]],
+        conflict_target: :id
+      )
 
     :ok
   end
 
   def reset_cursor do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
-    %OrphanScanCursor{id: @singleton_id}
-    |> OrphanScanCursor.changeset(%{cursor_path: nil, last_completed_at: now})
-    |> Repo.insert(
-      on_conflict: [set: [cursor_path: nil, last_completed_at: now, updated_at: now]],
-      conflict_target: :id
-    )
+    {:ok, _} =
+      %OrphanScanCursor{id: @singleton_id}
+      |> OrphanScanCursor.changeset(%{cursor_path: nil, last_completed_at: now})
+      |> Repo.insert(
+        on_conflict: [set: [cursor_path: nil, last_completed_at: now, updated_at: now]],
+        conflict_target: :id
+      )
 
     :ok
   end

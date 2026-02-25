@@ -5,6 +5,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
   alias Cache.CacheArtifact
   alias Cache.CacheArtifacts
   alias Cache.CacheArtifactsBuffer
+  alias Cache.Config
   alias Cache.Disk
   alias Cache.OrphanCleanupWorker
   alias Cache.OrphanScanCursors
@@ -30,7 +31,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     refute File.exists?(path)
@@ -44,7 +45,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     :ok = CacheArtifactsBuffer.flush()
 
     set_old_mtime(path)
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     assert File.exists?(path)
@@ -54,7 +55,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     key = "acct/proj/cas/IJ/KL/file3"
     path = write_artifact_file(storage_dir, key)
 
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     assert File.exists?(path)
@@ -65,7 +66,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     assert File.exists?(path)
@@ -76,7 +77,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     path = write_artifact_file(storage_dir, key)
 
     set_old_mtime(path)
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     assert File.exists?(path)
@@ -86,7 +87,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     path = write_artifact_file(storage_dir, "acct/proj/cas/MM/NN/orphan")
 
     set_old_mtime(path)
-    put_max_dirs_per_run(1)
+    stub(Config, :orphan_scan_max_dirs, fn -> 1 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
@@ -109,7 +110,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
         path
       end)
 
-    put_max_dirs_per_run(1)
+    stub(Config, :orphan_scan_max_dirs, fn -> 1 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
     assert OrphanScanCursors.get_cursor()
@@ -127,7 +128,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
     path = write_artifact_file(storage_dir, "acct/proj/cas/DD/EE/file-reset")
 
     set_old_mtime(path)
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
@@ -142,13 +143,13 @@ defmodule Cache.OrphanCleanupWorkerTest do
     shard_dir = Path.dirname(path)
 
     File.rm_rf!(shard_dir)
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
   end
 
   test "handles empty storage directory", %{storage_dir: _storage_dir} do
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
   end
@@ -167,7 +168,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
         path
       end)
 
-    put_max_dirs_per_run(3)
+    stub(Config, :orphan_scan_max_dirs, fn -> 3 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
@@ -205,7 +206,7 @@ defmodule Cache.OrphanCleanupWorkerTest do
       end)
 
     :ok = CacheArtifactsBuffer.flush()
-    put_max_dirs_per_run(100)
+    stub(Config, :orphan_scan_max_dirs, fn -> 100 end)
 
     assert :ok = OrphanCleanupWorker.perform(%Oban.Job{args: %{}})
 
@@ -228,16 +229,4 @@ defmodule Cache.OrphanCleanupWorkerTest do
     File.touch!(path, two_hours_ago)
   end
 
-  defp put_max_dirs_per_run(value) do
-    previous = Application.get_env(:cache, :orphan_scan_max_dirs_per_run)
-    Application.put_env(:cache, :orphan_scan_max_dirs_per_run, value)
-
-    on_exit(fn ->
-      if is_nil(previous) do
-        Application.delete_env(:cache, :orphan_scan_max_dirs_per_run)
-      else
-        Application.put_env(:cache, :orphan_scan_max_dirs_per_run, previous)
-      end
-    end)
-  end
 end

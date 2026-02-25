@@ -22,18 +22,18 @@ defmodule Cache.OrphanCleanupWorker do
   use Oban.Worker, queue: :maintenance, max_attempts: 1
 
   alias Cache.CacheArtifacts
+  alias Cache.Config
   alias Cache.Disk
   alias Cache.OrphanScanCursors
 
   require Logger
 
-  @default_max_dirs 50
   @min_age_seconds 3600
 
   @impl Oban.Worker
   def perform(_job) do
     storage_dir = Disk.storage_dir()
-    max_dirs = Application.get_env(:cache, :orphan_scan_max_dirs_per_run, @default_max_dirs)
+    max_dirs = Config.orphan_scan_max_dirs()
     cursor = OrphanScanCursors.get_cursor()
     cursor_path = if cursor, do: cursor.cursor_path
 
@@ -49,15 +49,13 @@ defmodule Cache.OrphanCleanupWorker do
   end
 
   defp scan(storage_dir, cursor_path, max_dirs) do
-    dirs_to_process = collect_leaf_dirs(storage_dir, cursor_path, max_dirs)
-    dirs_count = length(dirs_to_process)
     now = System.os_time(:second)
+    dir_results = walk_and_collect(storage_dir, cursor_path, max_dirs, now)
+    dirs_count = length(dir_results)
 
     {all_entries, files_checked} =
-      Enum.reduce(dirs_to_process, {[], 0}, fn relative_dir, {acc_entries, acc_files_checked} ->
-        dir = Path.join(storage_dir, relative_dir)
-        {entries, checked} = keys_for_dir(dir, storage_dir, now)
-        {[entries | acc_entries], acc_files_checked + checked}
+      Enum.reduce(dir_results, {[], 0}, fn {_relative_dir, file_entries, checked}, {acc_entries, acc_checked} ->
+        {[file_entries | acc_entries], acc_checked + checked}
       end)
 
     all_entries = List.flatten(all_entries)
@@ -73,7 +71,8 @@ defmodule Cache.OrphanCleanupWorker do
       if dirs_count < max_dirs do
         nil
       else
-        List.last(dirs_to_process)
+        {last_dir, _entries, _checked} = List.last(dir_results)
+        last_dir
       end
 
     summary = %{
@@ -87,38 +86,77 @@ defmodule Cache.OrphanCleanupWorker do
   end
 
   # Walks the directory tree depth-first, collecting leaf directories (those
-  # containing regular files) in sorted order. Prunes subtrees that fall
-  # entirely before the cursor to avoid re-scanning already-visited branches.
-  defp collect_leaf_dirs(root, cursor_path, max_dirs) do
-    do_collect([root], root, cursor_path, max_dirs, [])
+  # containing regular files) in sorted order. For each leaf, performs a
+  # single lstat per entry to gather both directory structure and file
+  # metadata in one pass, avoiding the double I/O of separate classify + stat.
+  defp walk_and_collect(root, cursor_path, max_dirs, now) do
+    do_walk([root], root, cursor_path, max_dirs, now, [])
   end
 
-  defp do_collect([], _root, _cursor_path, _remaining, acc), do: Enum.reverse(acc)
-  defp do_collect(_stack, _root, _cursor_path, 0, acc), do: Enum.reverse(acc)
+  defp do_walk([], _root, _cursor_path, _remaining, _now, acc), do: Enum.reverse(acc)
+  defp do_walk(_stack, _root, _cursor_path, 0, _now, acc), do: Enum.reverse(acc)
 
-  defp do_collect([dir | rest], root, cursor_path, remaining, acc) do
+  defp do_walk([dir | rest], root, cursor_path, remaining, now, acc) do
     relative = Path.relative_to(dir, root)
 
     if skip_subtree?(relative, cursor_path) do
-      do_collect(rest, root, cursor_path, remaining, acc)
+      do_walk(rest, root, cursor_path, remaining, now, acc)
     else
       case File.ls(dir) do
         {:ok, entries} ->
-          {subdirs, has_files} =
-            entries
-            |> Enum.sort()
-            |> classify_entries(dir)
+          {subdirs, file_entries, files_checked} =
+            classify_and_stat(entries, dir, root, now)
+
+          has_files = files_checked > 0
 
           if has_files and after_cursor?(relative, cursor_path) do
-            do_collect(subdirs ++ rest, root, cursor_path, remaining - 1, [relative | acc])
+            do_walk(subdirs ++ rest, root, cursor_path, remaining - 1, now, [
+              {relative, file_entries, files_checked} | acc
+            ])
           else
-            do_collect(subdirs ++ rest, root, cursor_path, remaining, acc)
+            do_walk(subdirs ++ rest, root, cursor_path, remaining, now, acc)
           end
 
         {:error, _} ->
-          do_collect(rest, root, cursor_path, remaining, acc)
+          do_walk(rest, root, cursor_path, remaining, now, acc)
       end
     end
+  end
+
+  # Single-pass classification and stat: one lstat per entry, returns sorted
+  # subdirectory paths, file entries eligible for orphan checking, and total
+  # file count. Only subdirs are sorted (for deterministic traversal order);
+  # file entries are unordered since they're consumed as a flat batch.
+  defp classify_and_stat(entries, dir, root, now) do
+    storage_dir = Path.join(root, "")
+
+    {subdirs, file_entries, files_checked} =
+      Enum.reduce(entries, {[], [], 0}, fn entry, {dirs, files, checked} ->
+        full = Path.join(dir, entry)
+
+        case File.lstat(full, time: :posix) do
+          {:ok, %File.Stat{type: :directory}} ->
+            {[full | dirs], files, checked}
+
+          {:ok, %File.Stat{type: :regular, size: size, mtime: mtime}} ->
+            cond do
+              tmp_file?(entry) ->
+                {dirs, files, checked + 1}
+
+              now - mtime >= @min_age_seconds ->
+                key = Path.relative_to(full, storage_dir)
+                {dirs, [{key, size} | files], checked + 1}
+
+              true ->
+                {dirs, files, checked + 1}
+            end
+
+          _ ->
+            {dirs, files, checked}
+        end
+      end)
+
+    {Enum.sort(subdirs), file_entries, files_checked}
   end
 
   # Returns true when `relative` is entirely before cursor_path and is NOT
@@ -135,48 +173,6 @@ defmodule Cache.OrphanCleanupWorker do
   defp after_cursor?(_relative, nil), do: true
   defp after_cursor?(".", _cursor_path), do: false
   defp after_cursor?(relative, cursor_path), do: relative > cursor_path
-
-  defp classify_entries(sorted_entries, dir) do
-    {subdirs, has_files} =
-      Enum.reduce(sorted_entries, {[], false}, fn entry, {dirs, found_files} ->
-        full = Path.join(dir, entry)
-
-        case File.lstat(full) do
-          {:ok, %File.Stat{type: :directory}} -> {[full | dirs], found_files}
-          {:ok, %File.Stat{type: :regular}} -> {dirs, true}
-          _ -> {dirs, found_files}
-        end
-      end)
-
-    {Enum.reverse(subdirs), has_files}
-  end
-
-  defp keys_for_dir(dir, storage_dir, now) do
-    case File.ls(dir) do
-      {:ok, entries} ->
-        entries
-        |> Enum.reject(&tmp_file?/1)
-        |> Enum.reduce({[], 0}, fn entry, {acc, count} ->
-          full = Path.join(dir, entry)
-
-          case File.lstat(full, time: :posix) do
-            {:ok, %File.Stat{type: :regular, size: size, mtime: mtime}} ->
-              if now - mtime >= @min_age_seconds do
-                key = Path.relative_to(full, storage_dir)
-                {[{key, size} | acc], count + 1}
-              else
-                {acc, count + 1}
-              end
-
-            _ ->
-              {acc, count + 1}
-          end
-        end)
-
-      {:error, _} ->
-        {[], 0}
-    end
-  end
 
   defp delete_orphans(orphan_entries, storage_dir) do
     {deleted_count, freed_bytes, parents} =
@@ -227,12 +223,7 @@ defmodule Cache.OrphanCleanupWorker do
     Logger.info("Orphan scan: scanned #{dirs} directories, no orphans found")
   end
 
-  defp log_summary(%{
-         orphans_deleted: count,
-         bytes_freed: bytes,
-         dirs_scanned: dirs,
-         files_checked: files
-       }) do
+  defp log_summary(%{orphans_deleted: count, bytes_freed: bytes, dirs_scanned: dirs, files_checked: files}) do
     Logger.info(
       "Orphan scan: scanned #{dirs} directories, checked #{files} files, " <>
         "deleted #{count} orphans freeing #{Disk.format_bytes(bytes)}"
