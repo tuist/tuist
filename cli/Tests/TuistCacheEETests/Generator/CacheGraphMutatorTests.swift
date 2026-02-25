@@ -1627,6 +1627,148 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             ]
         )
     }
+
+    /// Fifteenth scenario - reproduces https://github.com/tuist/tuist/issues/9594
+    /// A unit test target depends on a dynamic framework that transitively depends
+    /// on static libraries. When all are cached, the static dependencies should be
+    /// pruned from the dynamic xcframework's edges to avoid duplicate symbols.
+    ///
+    /// ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+    /// │ SharedCounterTest├──►│ SharedCounter     ├──►│ TCALib (static)  │
+    /// │ (unitTests)      │   │ (framework, dyn.) │   │ (staticFw, cached)│
+    /// └──────────────────┘   └──────────────────┘   └────────┬─────────┘
+    ///                                                         │
+    ///                                                ┌────────▼─────────┐
+    ///                                                │ DepLib (static)  │
+    ///                                                │ (staticFw, cached)│
+    ///                                                └──────────────────┘
+    func test_map_when_unit_test_depends_on_cached_dynamic_framework_with_static_deps() async throws {
+        let path = try temporaryPath()
+
+        // Given: DepLib (static framework, cached)
+        let depLib = Target.test(name: "DepLib", destinations: [.iPhone], product: .staticFramework)
+        let depLibProject = Project.test(
+            path: path.appending(component: "DepLib"), name: "DepLib", targets: [depLib]
+        )
+        let depLibGraphTarget = GraphTarget.test(
+            path: depLibProject.path, target: depLib, project: depLibProject
+        )
+
+        // Given: TCALib (static framework, cached, depends on DepLib)
+        let tcaLib = Target.test(name: "TCALib", destinations: [.iPhone], product: .staticFramework)
+        let tcaLibProject = Project.test(
+            path: path.appending(component: "TCALib"), name: "TCALib", targets: [tcaLib]
+        )
+        let tcaLibGraphTarget = GraphTarget.test(
+            path: tcaLibProject.path, target: tcaLib, project: tcaLibProject
+        )
+
+        // Given: SharedCounter (dynamic framework, cached, depends on TCALib)
+        let sharedCounter = Target.test(name: "SharedCounter", destinations: [.iPhone], product: .framework)
+        let sharedCounterProject = Project.test(
+            path: path.appending(component: "SharedCounter"), name: "SharedCounter", targets: [sharedCounter]
+        )
+        let sharedCounterGraphTarget = GraphTarget.test(
+            path: sharedCounterProject.path, target: sharedCounter, project: sharedCounterProject
+        )
+
+        // Given: SharedCounterTests (unit tests, NOT cached)
+        let tests = Target.test(name: "SharedCounterTests", destinations: [.iPhone], product: .unitTests)
+        let testsProject = Project.test(
+            path: path.appending(component: "Tests"), name: "Tests", targets: [tests]
+        )
+        let testsGraphTarget = GraphTarget.test(
+            path: testsProject.path, target: tests, project: testsProject
+        )
+
+        // Given: Graph
+        let graph = Graph.test(
+            projects: [
+                depLibProject.path: depLibProject,
+                tcaLibProject.path: tcaLibProject,
+                sharedCounterProject.path: sharedCounterProject,
+                testsProject.path: testsProject,
+            ],
+            dependencies: [
+                .target(name: tests.name, path: testsGraphTarget.path): [
+                    .target(name: sharedCounter.name, path: sharedCounterGraphTarget.path),
+                ],
+                .target(name: sharedCounter.name, path: sharedCounterGraphTarget.path): [
+                    .target(name: tcaLib.name, path: tcaLibGraphTarget.path),
+                ],
+                .target(name: tcaLib.name, path: tcaLibGraphTarget.path): [
+                    .target(name: depLib.name, path: depLibGraphTarget.path),
+                ],
+            ]
+        )
+
+        // Given: xcframeworks for all cacheable targets
+        let depLibXCFrameworkPath = path.appending(component: "DepLib.xcframework")
+        let tcaLibXCFrameworkPath = path.appending(component: "TCALib.xcframework")
+        let sharedCounterXCFrameworkPath = path.appending(component: "SharedCounter.xcframework")
+
+        let xcframeworks = [
+            depLibGraphTarget: depLibXCFrameworkPath,
+            tcaLibGraphTarget: tcaLibXCFrameworkPath,
+            sharedCounterGraphTarget: sharedCounterXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == depLibXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: depLibXCFrameworkPath, linking: .static)
+            } else if path == tcaLibXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: tcaLibXCFrameworkPath, linking: .static)
+            } else if path == sharedCounterXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic)
+            } else {
+                fatalError("Unexpected load call for \(path)")
+            }
+        }
+
+        // When
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["SharedCounterTests"]),
+            keepSourceTargets: false
+        )
+
+        // Then: the test target should depend only on the dynamic xcframework.
+        // The static xcframeworks (TCALib, DepLib) should NOT appear as deps of
+        // SharedCounter.xcframework because they are baked into the dynamic binary.
+        let testDependencies = got.dependencies[
+            .target(name: tests.name, path: testsGraphTarget.path), default: Set()
+        ]
+        XCTAssertEqual(
+            testDependencies,
+            [
+                .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+
+        let sharedCounterDeps = got.dependencies[
+            .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic), default: Set()
+        ]
+        XCTAssertEqual(
+            sharedCounterDeps,
+            [],
+            "Dynamic xcframework should not have static deps as edges (they are baked in)"
+        )
+
+        // TCALib is a static framework so it does NOT bake in its static deps.
+        // Its edge to DepLib should be preserved in the graph.
+        let tcaLibDeps = got.dependencies[
+            .testXCFramework(path: tcaLibXCFrameworkPath, linking: .static), default: Set()
+        ]
+        XCTAssertEqual(tcaLibDeps, [
+            .testXCFramework(path: depLibXCFrameworkPath, linking: .static),
+        ])
+
+        let depLibDeps = got.dependencies[
+            .testXCFramework(path: depLibXCFrameworkPath, linking: .static), default: Set()
+        ]
+        XCTAssertEqual(depLibDeps, [])
+    }
 }
 
 final class MockArtifactLoader: ArtifactLoading {
