@@ -128,8 +128,6 @@ defmodule Cache.OrphanCleanupWorker do
   # file count. Only subdirs are sorted (for deterministic traversal order);
   # file entries are unordered since they're consumed as a flat batch.
   defp classify_and_stat(entries, dir, root, now) do
-    storage_dir = Path.join(root, "")
-
     {subdirs, file_entries, files_checked} =
       Enum.reduce(entries, {[], [], 0}, fn entry, {dirs, files, checked} ->
         full = Path.join(dir, entry)
@@ -144,7 +142,7 @@ defmodule Cache.OrphanCleanupWorker do
                 {dirs, files, checked + 1}
 
               now - mtime >= @min_age_seconds ->
-                key = Path.relative_to(full, storage_dir)
+                key = Path.relative_to(full, root)
                 {dirs, [{key, size} | files], checked + 1}
 
               true ->
