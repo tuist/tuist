@@ -90,7 +90,7 @@ let config = Config(
 примерно так:
 `App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
 
-Для пакетов Swift и интеграции на основе XcodeProj мы можем использовать
+Для Swift packages и интеграции на основе XcodeProj мы можем использовать
 стандартный каталог `.build`, расположенный либо в корневом каталоге проекта,
 либо в каталоге `Tuist`. Убедитесь, что путь указан правильно при настройке
 конвейера.
