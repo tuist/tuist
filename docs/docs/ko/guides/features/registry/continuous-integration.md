@@ -7,7 +7,7 @@
 ---
 # 지속 통합 {#continuous-integration}
 
-CI에서 레지스트리를 사용하려면 워크플로 일환으로 `tuist registry login` 을 실행하여 레지스트리에 로그인했는지 확인해야
+CI에서 레지스트리를 사용하려면 워크플로 일환으로 `tuist registry login` 를 실행하여 레지스트리에 로그인했는지 확인해야
 합니다.
 
 ::: info ONLY XCODE INTEGRATION
@@ -29,10 +29,10 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist 레지스트리 로그인` 은 이후 기본 키체인에 자격 증명을 저장합니다. tuist 레지스트리 로그인` 을 실행하기 전에 기본 키체인이
-생성되고 잠금 해제되었는지 확인하십시오. __ `
+`_ `tuist 레지스트리 로그인` 은 이후 기본 키체인에 자격 증명을 저장합니다. tuist 레지스트리 로그인` 을 실행하기 전에 기본
+키체인이 생성되고 잠금 해제되었는지 확인하십시오. _
 
-추가로, `TUIST_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다.
+추가로, 환경 변수 ` `` 또는 `TUIST_TOKEN`(` )이 설정되어 있는지 확인해야 합니다.
 <LocalizedLink href="/guides/server/authentication#as-a-project">여기</LocalizedLink>의
 문서를 따라 생성할 수 있습니다.
 
@@ -62,7 +62,7 @@ jobs:
 
 ### 환경 전반에 걸친 점진적 해상도 향상 {#incremental-resolution-across-environments}
 
-레지스트리를 사용하면 클린/콜드 해결 속도가 약간 빨라지며, CI 빌드 간에 해결된 의존성을 지속하면 더 큰 개선 효과를 경험할 수 있습니다.
+레지스트리를 사용하면 클린/콜드 해결 속도가 약간 빨라지며, CI 빌드 간에 해결된 의존성을 유지하면 더 큰 개선 효과를 경험할 수 있습니다.
 레지스트리 덕분에 저장 및 복원해야 하는 디렉터리 크기가 레지스트리 미사용 시보다 훨씬 작아져 시간이 크게 단축됩니다. 기본 Xcode 패키지
 통합을 사용할 때 의존성을 캐시하는 가장 좋은 방법은 `xcodebuild` 를 통해 의존성을 해결할 때 커스텀
 `clonedSourcePackagesDirPath` 를 지정하는 것입니다. 이는 `Config.swift` 파일에 다음을 추가하여 수행할 수
