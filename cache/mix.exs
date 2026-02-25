@@ -37,6 +37,7 @@ defmodule Cache.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10"},
       {:ecto_sqlite3, "~> 0.17"},
+      {:configparser_ex, "~> 5.0"},
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
       {:ex_aws_sts, "~> 2.2"},
