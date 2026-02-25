@@ -228,5 +228,4 @@ defmodule Cache.OrphanCleanupWorkerTest do
     two_hours_ago = System.os_time(:second) - 7200
     File.touch!(path, two_hours_ago)
   end
-
 end
