@@ -15,10 +15,10 @@ defmodule Tuist.IngestRepo.Migrations.MakeProjectIdAndRanAtNonNullableInTestCase
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_test_case_runs_by_project_ran_at"
+    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_test_case_runs_by_project_ran_at SETTINGS mutations_sync = 1"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_project_flaky"
+    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_project_flaky SETTINGS mutations_sync = 1"
 
     # ClickHouse requires a DEFAULT when converting from Nullable to non-nullable,
     # even when no NULLs exist. We remove it immediately after so the column
