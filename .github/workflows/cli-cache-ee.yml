@@ -194,7 +194,8 @@ jobs:
             -test-iterations 2
         env:
           TUIST_EE: 1
-          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 3
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
           TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
   unit-tests:
     name: Unit Tests

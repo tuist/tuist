@@ -249,7 +249,11 @@ struct DependenciesAcceptanceTestAppAlamofire {
 }
 
 struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
-    @Test(.withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory, .withTestingSimulator("iPhone 16 Pro"))
+    @Test(
+        .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+        .inTemporaryDirectory,
+        .withTestingSimulator("iPhone 16 Pro")
+    )
     func app_with_objc_static_framework_with_resources() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -305,7 +309,11 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
     }
 
     #if canImport(TuistCacheEE)
-        @Test(.withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory, .withTestingSimulator("iPhone 16 Pro"))
+        @Test(
+            .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+            .inTemporaryDirectory,
+            .withTestingSimulator("iPhone 16 Pro")
+        )
         func app_with_objc_static_framework_with_resources_from_cache() async throws {
             let fileSystem = FileSystem()
             let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

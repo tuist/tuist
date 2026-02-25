@@ -228,7 +228,8 @@ jobs:
             -retry-tests-on-failure \
             -test-iterations 2
         env:
-          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 3
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
           TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
@@ -289,7 +290,8 @@ jobs:
             -retry-tests-on-failure \
             -test-iterations 2
         env:
-          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 3
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
           TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
@@ -343,7 +345,8 @@ jobs:
             -retry-tests-on-failure \
             -test-iterations 2
         env:
-          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 3
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
           TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save
@@ -395,7 +398,8 @@ jobs:
             -retry-tests-on-failure \
             -test-iterations 2
         env:
-          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 3
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
           TUIST_ACCEPTANCE_INSTALL_POOL_SIZE: 2
       - name: Save cache
         id: cache-save

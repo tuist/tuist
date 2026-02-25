@@ -26,7 +26,7 @@ public enum TestingSimulators {
         try await withPoolLock(installPoolLock, closure)
     }
 
-    // Backward-compatible alias.
+    /// Backward-compatible alias.
     public static func acquiringPoolLock(_ closure: () async throws -> Void) async throws {
         try await acquiringSimulatorPoolLock(closure)
     }
@@ -46,10 +46,9 @@ public enum TestingSimulators {
     }
 
     private static func capacity(from envVar: String, default defaultValue: Int) -> Int {
-        guard
-            let value = ProcessInfo.processInfo.environment[envVar],
-            let parsed = Int(value),
-            parsed > 0
+        guard let value = ProcessInfo.processInfo.environment[envVar],
+              let parsed = Int(value),
+              parsed > 0
         else {
             return defaultValue
         }

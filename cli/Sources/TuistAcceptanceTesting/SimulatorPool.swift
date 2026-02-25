@@ -85,10 +85,9 @@ actor SimulatorPool {
     }
 
     private static func poolSizeFromEnvironment() -> Int {
-        guard
-            let value = ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE"],
-            let parsed = Int(value),
-            parsed > 0
+        guard let value = ProcessInfo.processInfo.environment["TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE"],
+              let parsed = Int(value),
+              parsed > 0
         else {
             return 2
         }
@@ -96,8 +95,8 @@ actor SimulatorPool {
     }
 }
 
-private extension String {
-    var nonEmpty: String? {
+extension String {
+    fileprivate var nonEmpty: String? {
         isEmpty ? nil : self
     }
 }
