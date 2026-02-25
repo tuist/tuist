@@ -1005,7 +1005,7 @@ defmodule Tuist.VCSTest do
       })
     end
 
-    test "creates a comment with android builds" do
+    test "creates a comment with gradle builds" do
       # Given
       project =
         ProjectsFixtures.project_fixture(
@@ -1015,7 +1015,7 @@ defmodule Tuist.VCSTest do
           ]
         )
 
-      _build_id =
+      build_id =
         GradleFixtures.build_fixture(
           project_id: project.id,
           root_project_name: "MyAndroidApp",
@@ -1031,12 +1031,23 @@ defmodule Tuist.VCSTest do
 
       commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
 
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Gradle Builds 🐘
+
+        | Project | Status | Duration | Cache hit rate | Commit |
+        |:-:|:-:|:-:|:-:|:-:|
+        | [MyAndroidApp](https://tuist.dev/build-runs/#{build_id}) | ✅ | 45.0s | N/A | #{commit_link} |
+
+        """
+
       expect(Req, :post, fn opts ->
-        assert opts[:json][:body] =~ "#### Gradle Builds 🐘"
-        assert opts[:json][:body] =~ "MyAndroidApp"
-        assert opts[:json][:body] =~ "✅"
-        assert opts[:json][:body] =~ "45.0s"
-        assert opts[:json][:body] =~ commit_link
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
