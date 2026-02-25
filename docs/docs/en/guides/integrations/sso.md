@@ -15,10 +15,11 @@ SSO can be configured from the **SSO** tab in your organization settings. Google
 
 Google SSO allows any developer who signs in with a Google Workspace account from your domain to be automatically added to your Tuist organization.
 
-### Prerequisites
-
-- A Google Workspace organization with a verified domain.
-- You must be authenticated with Google using an email tied to the domain you are setting up.
+::: info PREREQUISITES
+<!-- -->
+You need a Google Workspace organization with a verified domain. You must also be authenticated with Google using an email tied to the domain you are setting up.
+<!-- -->
+:::
 
 ### Setup
 
