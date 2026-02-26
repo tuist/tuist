@@ -80,7 +80,7 @@ public struct MenuBarView: View {
                 )
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
-                .padding(.bottom, 12)
+                .padding(.bottom, 8)
 
                 DevicesView(
                     viewModel: DevicesViewModel(deviceService: deviceService)

@@ -1,18 +1,23 @@
 defmodule Cache.Registry.ReleaseWorkerTest do
-  use CacheWeb.ConnCase, async: false
+  use ExUnit.Case, async: true
+  use Oban.Testing, repo: Cache.Repo
   use Mimic
 
+  alias Cache.Config
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
+  alias Ecto.Adapters.SQL.Sandbox
   alias ExAws.Operation.S3
   alias ExAws.S3.Upload
 
   setup :set_mimic_from_context
 
   setup do
-    Application.put_env(:cache, :registry_github_token, "token")
-    on_exit(fn -> Application.delete_env(:cache, :registry_github_token) end)
+    Sandbox.checkout(Cache.Repo)
+    stub(Config, :registry_github_token, fn -> "token" end)
+    stub(Config, :registry_bucket, fn -> "test-bucket" end)
+    stub(Config, :registry_enabled?, fn -> true end)
     stub(Lock, :release, fn _ -> :ok end)
     :ok
   end

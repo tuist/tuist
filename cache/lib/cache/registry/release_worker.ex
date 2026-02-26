@@ -3,7 +3,7 @@ defmodule Cache.Registry.ReleaseWorker do
   Downloads and uploads missing registry artifacts, and updates metadata in S3.
   """
 
-  use Oban.Worker, queue: :registry_sync
+  use Oban.Worker, queue: :registry_release
 
   alias Cache.Config
   alias Cache.Registry.KeyNormalizer

@@ -115,6 +115,66 @@ defmodule Tuist.AlertsTest do
       # Then
       assert result == :ok
     end
+
+    test "filters by scheme when set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" builds with matching scheme and high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1500,
+            scheme: "MyApp",
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" builds with matching scheme and normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            scheme: "MyApp",
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create builds with different scheme (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 500,
+            scheme: "OtherApp",
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :average,
+          deviation_percentage: 20.0,
+          rolling_window_size: 5,
+          scheme: "MyApp"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 1500.0
+      assert data.previous == 1000.0
+    end
   end
 
   describe "evaluate/1 for test_run_duration" do
@@ -513,7 +573,7 @@ defmodule Tuist.AlertsTest do
       assert result == :ok
     end
 
-    test "ignores bundles with different app_bundle_id" do
+    test "ignores bundles with different name" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -523,7 +583,7 @@ defmodule Tuist.AlertsTest do
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.other",
+          name: "OtherApp",
           install_size: 1_000_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
         )
@@ -533,7 +593,7 @@ defmodule Tuist.AlertsTest do
           project: project,
           uploaded_by_account: user.account,
           git_branch: "main",
-          app_bundle_id: "com.example.app",
+          name: "MyApp",
           install_size: 2_000_000,
           inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
         )
@@ -544,14 +604,70 @@ defmodule Tuist.AlertsTest do
           category: :bundle_size,
           metric: :install_size,
           git_branch: "main",
+          bundle_name: "MyApp",
           deviation_percentage: 20.0
         )
 
       # When
       result = Alerts.evaluate(alert_rule)
 
-      # Then - only one bundle with app_bundle_id "com.example.app", so no previous to compare
+      # Then - only one bundle named "MyApp", so no previous to compare
       assert result == :ok
+    end
+
+    test "filters by bundle_name when set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "MyApp",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "MyApp",
+          install_size: 1_500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      # Create a bundle for a different app (should be ignored by the filter)
+      _other_app_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "OtherApp",
+          install_size: 500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -30, :minute)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          bundle_name: "MyApp",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 1_500_000.0
+      assert data.previous == 1_000_000.0
     end
 
     test "returns :ok when size decreased" do

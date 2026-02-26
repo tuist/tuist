@@ -1698,24 +1698,25 @@ defmodule Tuist.Builds.Analytics do
   def build_duration_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    scheme = Keyword.get(opts, :scheme)
 
-    query = """
-    SELECT duration
-    FROM build_runs
-    WHERE project_id = {project_id:Int64}
-    ORDER BY inserted_at DESC
-    LIMIT {limit:UInt32}
-    OFFSET {offset:UInt32}
-    """
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        select: b.duration
+      )
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        limit: limit,
-        offset: offset
-      })
+    query =
+      if is_binary(scheme) and scheme != "" do
+        where(query, [b], b.scheme == ^scheme)
+      else
+        query
+      end
 
-    durations = Enum.map(rows, fn [duration] -> duration end)
+    durations = ClickHouseRepo.all(query)
 
     calculate_metric_from_values(durations, metric)
   end

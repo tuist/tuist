@@ -37,14 +37,15 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     """
     # Fix Flaky Test
 
-    Follow the same workflow as the `fix-flaky-tests` skill. Use MCP tools first, and use CLI fallback commands when MCP data is not enough.
+    Use MCP tools to discover flaky behavior, inspect failure details, and guide a targeted fix.
 
     ## Available MCP tools
 
     - **list_projects**: List all accessible projects.
     - **list_test_cases**: List test cases for a project (requires account_handle and project_handle; use flaky=true to focus on flaky tests).
-    - **get_test_case**: Get detailed metrics for a test case (requires test_case_id).
-    - **get_test_run**: Get aggregate metrics for a test run (requires test_run_id).
+    - **get_test_case**: Get detailed metrics for a test case (requires `test_case_id` or `identifier` with `account_handle` and `project_handle`).
+      `test_case_id` is the `id` field returned by `list_test_cases`.
+    - **get_test_run**: Get detailed metrics for a test run (requires test_run_id).
     - **get_test_case_run**: Get failure details for a specific test case run (requires test_case_run_id).
 
     ## Workflow
@@ -53,28 +54,22 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
 
     ### 2. Get test case metrics
 
-    Use `get_test_case` with the test case ID. Key fields:
+    Use `get_test_case` with the test case ID (`list_test_cases[].id`), or with identifier + account/project handles. Key fields:
 
     - **reliability_rate**: percentage of successful runs (higher is better)
     - **flakiness_rate**: percentage of runs marked flaky in the last 30 days
     - **total_runs** / **failed_runs**: volume context
     - **last_status**: current state
 
-    ### 3. Inspect flaky and full run history
+    ### 3. Correlate with related flaky tests
 
-    If you need to enumerate run history (flaky-only or full history), use CLI fallback:
-
-    ```bash
-    tuist test case run list Module/Suite/TestCase --flaky --json
-    tuist test case run list Module/Suite/TestCase --json --page-size 20
-    ```
-
-    Identifier format is `Module/Suite/TestCase` (or `Module/TestCase` when no suite).
+    Use `list_test_cases` with focused filters such as `module_name`, `suite_name`, `name`, and `flaky=true` to inspect nearby failures in the same area.
+    Compare with `get_test_case` metrics to identify whether the issue is isolated or systematic.
 
     Look for patterns:
 
     - Does it fail on specific branches?
-    - Does it fail only on CI (`is_ci: true`) or also locally?
+    - Does it fail only in CI (`is_ci: true`)?
     - Are failures clustered around specific commits?
 
     ### 4. Get failure details for a run
@@ -113,25 +108,30 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - Implicit ordering between tests. Fix: make each test self-contained.
     - Parallel execution conflicts. Fix: use unique resources per test.
 
-    ### 6. Apply the fix
+    ### 6. Reproduce the failure before changing code
+
+    Reproduce at least one failure first in your test environment.
+    If you cannot reproduce it, do not claim a fix. Instead:
+
+    - document that reproduction failed
+    - compare CI context from MCP data (`is_ci`, branch, commit, scheme)
+    - explain what additional signal is needed to proceed
+
+    ### 7. Apply the fix
 
     - Apply the smallest fix that addresses the root cause.
     - Do not refactor unrelated code.
     - Reuse existing test utilities before creating new ones.
 
-    ### 7. Verify
+    ### 8. Verify
 
-    Run the specific test repeatedly until failure using:
-
-    ```bash
-    xcodebuild test -workspace <workspace> -scheme <scheme> -only-testing <module>/<suite>/<test> -test-iterations <count> -run-tests-until-failure
-    ```
-
-    Use 50-100 iterations for fast unit tests, 2-5 for slower integration tests.
+    Run the specific test repeatedly in your test environment until intermittent failures stop appearing.
+    Use 50-100 iterations for fast unit tests, and 2-5 iterations for slower integration tests.
 
     ### Done checklist
 
     - Identified the root cause of flakiness.
+    - Reproduced the flaky failure before applying the fix.
     - Applied a targeted fix.
     - Verified the test passes consistently across repeated runs.
     - Did not introduce new shared state or hidden dependencies.
@@ -145,7 +145,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
 
     1. Use `list_projects` to find available projects.
     2. Use `list_test_cases` with account_handle and project_handle and set flaky=true.
-    3. Pick a flaky test case and call `get_test_case` with its ID.
+    3. Pick a flaky test case and use its `id` as `test_case_id` in `get_test_case`.
     """
   end
 
@@ -155,7 +155,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     ### 1. Discover flaky tests
 
     1. Use `list_test_cases` with account_handle="#{account_handle}" and project_handle="#{project_handle}" and set flaky=true.
-    2. Pick a flaky test case and call `get_test_case` with its ID.
+    2. Pick a flaky test case and use its `id` as `test_case_id` in `get_test_case`.
     """
   end
 

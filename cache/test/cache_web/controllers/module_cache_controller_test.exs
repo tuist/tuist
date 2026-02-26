@@ -1,8 +1,10 @@
 defmodule CacheWeb.ModuleCacheControllerTest do
-  use CacheWeb.ConnCase, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   import ExUnit.CaptureLog
+  import Phoenix.ConnTest
+  import Plug.Conn
 
   alias Cache.Authentication
   alias Cache.CacheArtifacts
@@ -11,13 +13,21 @@ defmodule CacheWeb.ModuleCacheControllerTest do
   alias Cache.MultipartUploads
   alias Cache.S3
   alias Cache.S3Transfers
+  alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  @endpoint CacheWeb.Endpoint
+
+  setup :set_mimic_from_context
+
+  setup context do
+    :ok = Sandbox.checkout(Cache.Repo)
+
+    context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
+
     {:ok, test_storage_dir} = Briefly.create(directory: true)
-
     stub(Disk, :storage_dir, fn -> test_storage_dir end)
 
-    {:ok, test_storage_dir: test_storage_dir}
+    {:ok, Map.merge(context, %{conn: build_conn(), test_storage_dir: test_storage_dir})}
   end
 
   describe "GET /api/cache/module/:id (download)" do

@@ -2,8 +2,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Tests
-  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -32,19 +31,10 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           git_branch: "main"
         )
 
-      stub(Tests, :list_test_case_runs, fn options ->
-        assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
-
-        {[%{struct(TestCaseRun, test_case_run) | status: :success}],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 1,
-           total_pages: 1
-         }}
-      end)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: UUIDv7.generate()
+      )
 
       # When
       conn =
@@ -68,20 +58,17 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       # Given
       test_case_id = UUIDv7.generate()
 
-      expect(Tests, :list_test_case_runs, fn options ->
-        assert %{field: :is_flaky, op: :==, value: true} in options.filters
-        assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true
+      )
 
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 0,
-           total_pages: 0
-         }}
-      end)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: false
+      )
 
       # When
       conn =
@@ -91,33 +78,22 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
         )
 
       # Then
-      assert json_response(conn, :ok)
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["is_flaky"] == true
     end
 
     test "supports pagination parameters", %{conn: conn, user: user, project: project} do
       # Given
-      test_case_id = UUIDv7.generate()
-
-      expect(Tests, :list_test_case_runs, fn options ->
-        assert options.page == 2
-        assert options.page_size == 5
-
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: true,
-           current_page: 2,
-           page_size: 5,
-           total_count: 6,
-           total_pages: 2
-         }}
-      end)
+      for _ <- 1..6 do
+        RunsFixtures.test_case_run_fixture(project_id: project.id)
+      end
 
       # When
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?test_case_id=#{test_case_id}&page=2&page_size=5"
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs?page=2&page_size=5"
         )
 
       # Then
@@ -128,26 +104,36 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["pagination_metadata"]["has_previous_page"] == true
     end
 
-    test "lists all runs when no filters are provided", %{
+    test "scopes results to the requested project", %{
       conn: conn,
       user: user,
       project: project
     } do
       # Given
-      stub(Tests, :list_test_case_runs, fn options ->
-        assert options.filters == []
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id)
 
-        {[],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 0,
-           total_pages: 0
-         }}
-      end)
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      RunsFixtures.test_case_run_fixture(project_id: other_project.id)
 
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == test_case_run.id
+    end
+
+    test "returns empty list when no runs exist", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
       # When
       conn =
         get(
@@ -188,7 +174,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       %{conn: conn, user: user, project: project}
     end
 
-    test "lists runs for a test case via legacy route", %{
+    test "lists runs for a test case via legacy route and scopes by project", %{
       conn: conn,
       user: user,
       project: project
@@ -205,19 +191,8 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           git_branch: "main"
         )
 
-      stub(Tests, :list_test_case_runs, fn options ->
-        assert %{field: :test_case_id, op: :==, value: test_case_id} in options.filters
-
-        {[%{struct(TestCaseRun, test_case_run) | status: :success}],
-         %{
-           has_next_page?: false,
-           has_previous_page?: false,
-           current_page: 1,
-           page_size: 20,
-           total_count: 1,
-           total_pages: 1
-         }}
-      end)
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      RunsFixtures.test_case_run_fixture(project_id: other_project.id, test_case_id: test_case_id)
 
       # When
       conn =
@@ -229,6 +204,45 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == test_case_run.id
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/tests/:test_run_id/test-case-runs (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "scopes results to the requested project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_run_id = UUIDv7.generate()
+
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(project_id: project.id, test_run_id: test_run_id)
+
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      RunsFixtures.test_case_run_fixture(project_id: other_project.id, test_run_id: test_run_id)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/#{test_run_id}/test-case-runs"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert length(response["test_case_runs"]) == 1
+      assert hd(response["test_case_runs"])["id"] == test_case_run.id
     end
   end
 
@@ -260,39 +274,20 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           git_commit_sha: "abc1234"
         )
 
-      failure =
-        RunsFixtures.test_case_failure_fixture(
-          test_case_run_id: test_case_run.id,
-          message: "Expected true, got false",
-          path: "Tests/MyTests.swift",
-          line_number: 42,
-          issue_type: "assertion_failure"
-        )
+      RunsFixtures.test_case_failure_fixture(
+        test_case_run_id: test_case_run.id,
+        message: "Expected true, got false",
+        path: "Tests/MyTests.swift",
+        line_number: 42,
+        issue_type: "assertion_failure"
+      )
 
-      repetition =
-        RunsFixtures.test_case_run_repetition_fixture(
-          test_case_run_id: test_case_run.id,
-          repetition_number: 1,
-          status: "failure",
-          duration: 50
-        )
-
-      run_struct = %{
-        struct(TestCaseRun, test_case_run)
-        | status: :failure,
-          git_commit_sha: "abc1234"
-      }
-
-      stub(Tests, :get_test_case_run_by_id, fn _id, _opts ->
-        run_with_preloads = %{
-          run_struct
-          | failures: [struct(Tuist.Tests.TestCaseFailure, failure)],
-            repetitions: [struct(Tuist.Tests.TestCaseRunRepetition, repetition)],
-            crash_report: nil
-        }
-
-        {:ok, run_with_preloads}
-      end)
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 1,
+        status: "failure",
+        duration: 50
+      )
 
       # When
       conn =
@@ -333,9 +328,6 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       user: user,
       project: project
     } do
-      # Given
-      stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:error, :not_found} end)
-
       # When
       conn =
         get(
@@ -357,15 +349,6 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
 
       test_case_run =
         RunsFixtures.test_case_run_fixture(project_id: other_project.id)
-
-      run_struct = %{
-        struct(TestCaseRun, test_case_run)
-        | status: :success,
-          failures: [],
-          repetitions: []
-      }
-
-      stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:ok, run_struct} end)
 
       # When
       conn =
@@ -393,29 +376,10 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
           status: 1
         )
 
-      run_struct = %{
-        struct(TestCaseRun, test_case_run)
-        | status: :failure,
-          failures: [],
-          repetitions: []
-      }
+      crash_report = RunsFixtures.crash_report_fixture(test_case_run_id: test_case_run.id)
 
-      crash_report = %Tuist.Tests.CrashReport{
-        id: UUIDv7.generate(),
-        exception_type: "EXC_BAD_ACCESS",
-        signal: "SIGSEGV",
-        exception_subtype: "KERN_INVALID_ADDRESS",
-        triggered_thread_frames: "0  libswiftCore.dylib  _assertionFailure + 156",
-        test_case_run_id: test_case_run.id,
-        test_case_run_attachment: %Tuist.Tests.TestCaseRunAttachment{
-          id: UUIDv7.generate(),
-          file_name: "crash-report.ips",
-          test_case_run_id: test_case_run.id
-        }
-      }
-
-      stub(Tests, :get_test_case_run_by_id, fn _id, _opts ->
-        {:ok, %{run_struct | crash_report: crash_report}}
+      stub(Storage, :generate_download_url, fn _key, _account, _opts ->
+        "https://s3.example.com/download?signed=true"
       end)
 
       # When
@@ -430,11 +394,11 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["id"] == test_case_run.id
 
       cr = response["crash_report"]
-      assert cr["exception_type"] == "EXC_BAD_ACCESS"
-      assert cr["signal"] == "SIGSEGV"
-      assert cr["exception_subtype"] == "KERN_INVALID_ADDRESS"
-      assert cr["triggered_thread_frames"] == "0  libswiftCore.dylib  _assertionFailure + 156"
-      assert cr["attachment_url"] =~ "/tests/test-cases/runs/#{test_case_run.id}/attachments/crash-report.ips"
+      assert cr["exception_type"] == crash_report.exception_type
+      assert cr["signal"] == crash_report.signal
+      assert cr["exception_subtype"] == crash_report.exception_subtype
+      assert cr["triggered_thread_frames"] == crash_report.triggered_thread_frames
+      assert cr["attachment_url"] =~ "/tests/test-cases/runs/#{test_case_run.id}/attachments/"
     end
 
     test "returns null crash_report when none exists", %{
@@ -445,16 +409,6 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       # Given
       test_case_run =
         RunsFixtures.test_case_run_fixture(project_id: project.id, status: 0)
-
-      run_struct = %{
-        struct(TestCaseRun, test_case_run)
-        | status: :success,
-          failures: [],
-          repetitions: [],
-          crash_report: nil
-      }
-
-      stub(Tests, :get_test_case_run_by_id, fn _id, _opts -> {:ok, run_struct} end)
 
       # When
       conn =

@@ -137,7 +137,8 @@ struct GraphLinterTests {
             result ==
                 [LintingIssue(
                     reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
-                    severity: .warning
+                    severity: .warning,
+                    category: .schemeTargetNotFound
                 )]
         )
     }
@@ -961,7 +962,8 @@ struct GraphLinterTests {
         #expect(result == [
             LintingIssue(
                 reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Debug (debug), Release (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
-                severity: .warning
+                severity: .warning,
+                category: .mismatchedConfigurations
             ),
         ])
     }
@@ -1036,7 +1038,8 @@ struct GraphLinterTests {
         #expect(result == [
             LintingIssue(
                 reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Beta (release), Debug (release), Release (release), Testing (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
-                severity: .warning
+                severity: .warning,
+                category: .mismatchedConfigurations
             ),
         ])
     }
@@ -2203,7 +2206,8 @@ struct GraphLinterTests {
             results ==
                 [LintingIssue(
                     reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                    severity: .warning
+                    severity: .warning,
+                    category: .duplicateProductNames
                 )]
         )
     }
@@ -2244,7 +2248,8 @@ struct GraphLinterTests {
             results ==
                 [LintingIssue(
                     reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                    severity: .warning
+                    severity: .warning,
+                    category: .duplicateProductNames
                 )]
         )
     }
@@ -2484,5 +2489,109 @@ struct GraphLinterTests {
 
         // Then
         #expect(result.isEmpty == true)
+    }
+
+    // MARK: - warningsAsErrors
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_all_promotesSchemeWarningToError() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .all))
+        )
+
+        // Then
+        #expect(result.contains { $0.severity == .error && $0.category == .schemeTargetNotFound })
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_only_promotesMatchingWarning() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When — promote only schemeTargetNotFound
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .only([.schemeTargetNotFound])))
+        )
+
+        // Then
+        #expect(result.contains { $0.severity == .error && $0.category == .schemeTargetNotFound })
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_only_doesNotPromoteNonMatchingWarning() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When — promote only duplicateProductNames (not schemeTargetNotFound)
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .only([.duplicateProductNames])))
+        )
+
+        // Then — schemeTargetNotFound stays a warning
+        #expect(result.contains { $0.severity == .warning && $0.category == .schemeTargetNotFound })
+        #expect(!result.contains { $0.severity == .error && $0.category == .schemeTargetNotFound })
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_none_keepsWarnings() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .none))
+        )
+
+        // Then
+        #expect(result.contains { $0.severity == .warning && $0.category == .schemeTargetNotFound })
+        #expect(!result.contains { $0.severity == .error })
     }
 }

@@ -57,7 +57,7 @@ defmodule TuistWeb.API.PreviewsController do
          properties: %{
            display_name: %Schema{type: :string, description: "The display name of the preview."},
            type: %Schema{
-             enum: ["app_bundle", "ipa"],
+             enum: ["app_bundle", "ipa", "apk"],
              type: :string,
              description: "The type of the preview to upload.",
              default: "app_bundle"
@@ -89,7 +89,7 @@ defmodule TuistWeb.API.PreviewsController do
            },
            binary_id: %Schema{
              type: :string,
-             description: "The Mach-O UUID of the binary"
+             description: "A unique identifier for the binary (Mach-O UUID for Apple platforms, SHA256 hash for Android)."
            },
            track: %Schema{
              type: :string,
@@ -97,7 +97,7 @@ defmodule TuistWeb.API.PreviewsController do
            },
            build_version: %Schema{
              type: :string,
-             description: "The CFBundleVersion of the app."
+             description: "The build version of the app (CFBundleVersion for Apple platforms, versionCode for Android)."
            }
          }
        }},
@@ -191,7 +191,7 @@ defmodule TuistWeb.API.PreviewsController do
             AppBuilds.storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
-              app_build_id: app_build.id
+              app_build: app_build
             }),
             selected_project.account
           )
@@ -280,11 +280,13 @@ defmodule TuistWeb.API.PreviewsController do
     expires_in = 120
     content_length = Map.get(multipart_upload_part, :content_length)
 
+    {:ok, app_build} = AppBuilds.app_build_by_id(app_build_id)
+
     object_key =
       AppBuilds.storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        app_build_id: app_build_id
+        app_build: app_build
       })
 
     url =
@@ -367,7 +369,7 @@ defmodule TuistWeb.API.PreviewsController do
             AppBuilds.storage_key(%{
               account_handle: account_handle,
               project_handle: project_handle,
-              app_build_id: app_build_id
+              app_build: app_build
             }),
             upload_id,
             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
@@ -406,7 +408,7 @@ defmodule TuistWeb.API.PreviewsController do
   operation(:show,
     summary: "Returns a preview with a given id.",
     description: "This endpoint returns a preview with a given id, including the url to download the preview.",
-    operation_id: "downloadPreview",
+    operation_id: "getPreview",
     parameters: [
       account_handle: [
         in: :path,
@@ -781,7 +783,7 @@ defmodule TuistWeb.API.PreviewsController do
       AppBuilds.storage_key(%{
         account_handle: account_handle,
         project_handle: project_handle,
-        app_build_id: app_build.id
+        app_build: app_build
       })
 
     %{
@@ -864,11 +866,17 @@ defmodule TuistWeb.API.PreviewsController do
       |> Enum.map(&map_app_build(&1, account_handle, project_handle, account, opts))
       |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
 
+    device_url =
+      if preview.supported_platforms == [:android] do
+        url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.apk")
+      else
+        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}"
+      end
+
     %{
       id: preview.id,
       url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}"),
-      device_url:
-        "itms-services://?action=download-manifest&url=#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/manifest.plist")}",
+      device_url: device_url,
       qr_code_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/qr-code.png"),
       icon_url: url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/icon.png"),
       version: preview.version,

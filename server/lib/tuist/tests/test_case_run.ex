@@ -14,6 +14,7 @@ defmodule Tuist.Tests.TestCaseRun do
       :test_module_run_id,
       :test_suite_run_id,
       :test_case_id,
+      :project_id,
       :name,
       :status,
       :is_flaky,
@@ -33,11 +34,11 @@ defmodule Tuist.Tests.TestCaseRun do
     field :test_module_run_id, Ecto.UUID
     field :test_suite_run_id, Ecto.UUID
     field :test_case_id, Ch, type: "Nullable(UUID)"
-    field :project_id, Ch, type: "Nullable(Int64)"
+    field :project_id, Ch, type: "Int64"
     field :is_ci, :boolean, default: false
     field :scheme, Ch, type: "String"
     field :account_id, Ch, type: "Nullable(Int64)"
-    field :ran_at, Ch, type: "Nullable(DateTime64(6))"
+    field :ran_at, Ch, type: "DateTime64(6)"
     field :git_branch, Ch, type: "String"
     field :git_commit_sha, Ch, type: "String"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"

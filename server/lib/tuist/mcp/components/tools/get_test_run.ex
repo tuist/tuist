@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetTestRun do
   @moduledoc """
-  Get details and aggregate metrics for a specific test run.
+  Get detailed metrics for a specific test run.
   """
 
   use Hermes.Server.Component, type: :tool

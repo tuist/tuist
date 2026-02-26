@@ -3,6 +3,7 @@ import TuistAppStorage
 import TuistAuthentication
 import TuistLogging
 import TuistServer
+import TuistSimulator
 import TuistSupport
 
 struct AppPreviewsKey: AppStorageKey {
@@ -83,16 +84,30 @@ final class AppPreviewsViewModel: Sendable {
             .previews
             .compactMap { preview in
                 guard let bundleIdentifier = preview.bundleIdentifier else { return nil }
+                let platformName = Self.preferredPlatformName(from: preview.supportedPlatforms)
                 return AppPreview(
                     fullHandle: project.fullName,
                     displayName: preview.displayName ?? project.fullName,
                     bundleIdentifier: bundleIdentifier,
-                    iconURL: preview.iconURL
+                    iconURL: preview.iconURL,
+                    platformName: platformName
                 )
             }
         }
         .flatMap { $0 }
         .sorted(by: { $0.displayName < $1.displayName })
+    }
+
+    private static func preferredPlatformName(from platforms: [DestinationType]) -> String? {
+        for platform in platforms {
+            switch platform {
+            case .device(.iOS), .simulator(.iOS):
+                return "iOS"
+            default:
+                continue
+            }
+        }
+        return platforms.first.map(\.description)
     }
 
     func launchAppPreview(_ appPreview: AppPreview) async throws {

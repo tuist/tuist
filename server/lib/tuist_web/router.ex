@@ -306,6 +306,7 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
+    get "/assetlinks.json", WellKnownController, :assetlinks
   end
 
   scope "/" do
@@ -545,6 +546,7 @@ defmodule TuistWeb.Router do
     get "/authorize", AuthorizeController, :authorize
     get "/github", AuthorizeController, :authorize_with_github
     get "/google", AuthorizeController, :authorize_with_google
+    get "/apple", AuthorizeController, :authorize_with_apple
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -552,6 +554,12 @@ defmodule TuistWeb.Router do
 
     post "/token", TokenController, :token
     post "/register", RegistrationController, :register
+  end
+
+  scope "/oauth/callback", TuistWeb.Oauth do
+    pipe_through [:browser_app]
+
+    get "/android", AndroidCallbackController, :callback
   end
 
   # Ops Routes
@@ -733,6 +741,7 @@ defmodule TuistWeb.Router do
 
     get "/manifest.plist", PreviewController, :manifest
     get "/app.ipa", PreviewController, :download_archive
+    get "/app.apk", PreviewController, :download_apk
   end
 
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
@@ -787,6 +796,7 @@ defmodule TuistWeb.Router do
       live "/members", MembersLive
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
+      live "/sso", SSOSettingsLive
       live "/settings", AccountSettingsLive
     end
   end

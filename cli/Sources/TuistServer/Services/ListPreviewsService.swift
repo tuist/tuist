@@ -89,7 +89,7 @@
             case let .ok(okResponse):
                 switch okResponse.body {
                 case let .json(previewsIndex):
-                    return ServerPreviewsPage(previewsIndex)
+                    return try ServerPreviewsPage(previewsIndex)
                 }
             case let .undocumented(statusCode: statusCode, _):
                 throw ListPreviewsServiceError.unknownError(statusCode)
@@ -136,6 +136,8 @@
                 case .visionOS:
                     self = .visionos_simulator
                 }
+            case .android:
+                self = .android
             }
         }
     }

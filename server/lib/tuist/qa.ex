@@ -552,7 +552,7 @@ defmodule Tuist.QA do
       AppBuilds.storage_key(%{
         account_handle: app_build.preview.project.account.name,
         project_handle: app_build.preview.project.name,
-        app_build_id: app_build.id
+        app_build: app_build
       })
 
     Storage.generate_download_url(storage_key, app_build.preview.project.account)

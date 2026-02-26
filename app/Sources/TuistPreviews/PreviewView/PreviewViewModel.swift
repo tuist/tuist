@@ -60,10 +60,12 @@ final class PreviewViewModel: Sendable {
         isLoading = true
         defer { isLoading = false }
 
-        preview = try await getPreviewService.getPreview(
-            previewId,
-            fullHandle: fullHandle,
-            serverURL: serverEnvironmentService.url()
+        preview = try await ServerPreview(
+            getPreviewService.getPreview(
+                previewId,
+                fullHandle: fullHandle,
+                serverURL: serverEnvironmentService.url()
+            )
         )
     }
 

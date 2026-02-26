@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
@@ -13,7 +14,11 @@ import XcodeGraph
 /// Side effects (running the foreign build script) are handled separately by `ForeignBuildSideEffectGraphMapper`,
 /// which runs after cache and tree-shaking mappers so that cached/pruned targets don't trigger unnecessary builds.
 public struct ForeignBuildGraphMapper: GraphMapping {
-    public init() {}
+    private let fileSystem: FileSystem
+
+    public init(fileSystem: FileSystem = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     public func map(
         graph: Graph,
@@ -29,7 +34,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             for (targetName, target) in project.targets {
                 guard let foreignBuild = target.foreignBuild else { continue }
 
-                let inputPaths = inputPaths(from: foreignBuild.inputs)
+                let inputPaths = try await inputPaths(from: foreignBuild.inputs)
                 var updatedTarget = target
                 updatedTarget.scripts = [
                     TargetScript(
@@ -73,13 +78,26 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         return (graph, [], environment)
     }
 
-    private func inputPaths(from inputs: [ForeignBuild.Input]) -> [String] {
-        inputs.compactMap { input in
+    private func inputPaths(from inputs: [ForeignBuild.Input]) async throws -> [String] {
+        var pathStrings: [String] = []
+
+        for input in inputs {
             switch input {
-            case let .file(path): return path.pathString
-            case let .folder(path): return path.pathString
-            case .script: return nil
+            case let .file(path):
+                pathStrings.append(path.pathString)
+            case let .folder(path):
+                let filePathStrings = try await fileSystem.glob(directory: path, include: ["**/*"])
+                    .collect()
+                    .concurrentFilter {
+                        try await fileSystem.exists($0, isDirectory: false)
+                    }
+                    .map(\.pathString)
+                pathStrings.append(contentsOf: filePathStrings)
+            case .script:
+                break
             }
         }
+
+        return pathStrings
     }
 }

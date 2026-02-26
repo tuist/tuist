@@ -41,6 +41,7 @@ defmodule TuistWeb.TestsLive do
           URI.encode_query(
             Map.take(params, [
               "analytics-environment",
+              "analytics-test-scheme",
               "analytics-date-range",
               "analytics-selected-widget",
               "duration-type",
@@ -169,6 +170,7 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
+    analytics_test_scheme = params["analytics-test-scheme"] || "any"
     analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
     selected_duration_type = params["duration-type"] || "avg"
 
@@ -183,6 +185,8 @@ defmodule TuistWeb.TestsLive do
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
       end
+
+    opts = opts_with_analytics_test_scheme(opts, analytics_test_scheme)
 
     [test_runs_analytics, flaky_test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
       Task.await_many(
@@ -202,6 +206,8 @@ defmodule TuistWeb.TestsLive do
     |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
+    |> assign(:analytics_test_scheme, analytics_test_scheme)
+    |> assign(:test_schemes, Tests.project_test_schemes(project))
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, trend_label(preset))
@@ -305,4 +311,10 @@ defmodule TuistWeb.TestsLive do
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+
+  defp opts_with_analytics_test_scheme(opts, "any"), do: opts
+  defp opts_with_analytics_test_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
+
+  def test_scheme_label("any"), do: dgettext("dashboard_tests", "Any")
+  def test_scheme_label(scheme), do: scheme
 end

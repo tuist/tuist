@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import Testing
@@ -131,14 +133,24 @@ struct ForeignBuildGraphMapperTests {
         #expect(mappedGraph.dependencies[dep2]?.contains(expectedOutputDep) == true)
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func map_setsInputPathsFromInputs() async throws {
         // Given
-        let projectPath = try AbsolutePath(validating: "/Project")
-        let outputPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
-        let srcFolder = try AbsolutePath(validating: "/Project/SharedKMP/src")
-        let gradleFile = try AbsolutePath(validating: "/Project/SharedKMP/build.gradle.kts")
-        let ktFile = try AbsolutePath(validating: "/Project/SharedKMP/src/Main.kt")
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let srcFolder = temporaryDirectory.appending(components: "SharedKMP", "src")
+        let subFolder = srcFolder.appending(component: "sub")
+        let greetingFile = srcFolder.appending(component: "Greeting.kt")
+        let mainFile = subFolder.appending(component: "Main.kt")
+        let gradleFile = temporaryDirectory.appending(components: "SharedKMP", "build.gradle.kts")
+
+        try await fileSystem.makeDirectory(at: subFolder)
+        try await fileSystem.writeText("", at: greetingFile, options: [.overwrite])
+        try await fileSystem.writeText("", at: mainFile, options: [.overwrite])
+        try await fileSystem.writeText("", at: gradleFile, options: [.overwrite])
+
+        let outputPath = temporaryDirectory.appending(components: "build", "SharedKMP.xcframework")
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
@@ -146,7 +158,6 @@ struct ForeignBuildGraphMapperTests {
                 inputs: [
                     .folder(srcFolder),
                     .file(gradleFile),
-                    .file(ktFile),
                     .script("git rev-parse HEAD"),
                 ],
                 output: .xcframework(path: outputPath, linking: .dynamic)
@@ -156,24 +167,28 @@ struct ForeignBuildGraphMapperTests {
             name: "Framework1",
             dependencies: [.target(name: "SharedKMP")]
         )
-        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
+        let project = Project.test(
+            path: temporaryDirectory,
+            targets: [foreignBuildTarget, consumingTarget]
+        )
         let graph = Graph.test(
-            path: projectPath,
-            projects: [projectPath: project]
+            path: temporaryDirectory,
+            projects: [temporaryDirectory: project]
         )
 
         // When
-        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+        let mapper = ForeignBuildGraphMapper(fileSystem: fileSystem)
+        let (mappedGraph, _, _) = try await mapper.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let mappedProject = try #require(mappedGraph.projects[temporaryDirectory])
         let mappedForeignTarget = try #require(mappedProject.targets["SharedKMP"])
         let script = try #require(mappedForeignTarget.scripts.first)
-        #expect(script.inputPaths == [
-            srcFolder.pathString,
+        #expect(script.inputPaths.sorted() == [
+            greetingFile.pathString,
+            mainFile.pathString,
             gradleFile.pathString,
-            ktFile.pathString,
-        ])
+        ].sorted())
     }
 
     @Test

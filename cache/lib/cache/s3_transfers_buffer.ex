@@ -17,7 +17,7 @@ defmodule Cache.S3TransfersBuffer do
     SQLiteBuffer.child_spec(Keyword.merge(opts, name: __MODULE__, buffer_module: __MODULE__))
   end
 
-  def enqueue(type, account_handle, project_handle, artifact_type, key) do
+  def enqueue(type, account_handle, project_handle, artifact_type, key, name \\ __MODULE__) do
     entry = %{
       id: UUIDv7.generate(),
       type: type,
@@ -28,12 +28,12 @@ defmodule Cache.S3TransfersBuffer do
       inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
 
-    true = :ets.insert(__MODULE__, {{:insert, type, key}, entry})
+    true = :ets.insert(name, {{:insert, type, key}, entry})
     :ok
   end
 
-  def enqueue_delete(id) do
-    true = :ets.insert(__MODULE__, {{:delete, id}, :delete})
+  def enqueue_delete(id, name \\ __MODULE__) do
+    true = :ets.insert(name, {{:delete, id}, :delete})
     :ok
   end
 

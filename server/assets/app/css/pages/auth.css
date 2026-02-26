@@ -16,9 +16,18 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  box-sizing: border-box;
   background-color: var(--surface-background-primary);
   padding: var(--noora-spacing-10) var(--noora-spacing-4);
+  width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
+
+  @media (max-width: 768px) {
+    & {
+      padding: 0;
+    }
+  }
 
   & * {
     box-sizing: border-box;
@@ -39,8 +48,7 @@
       & {
         box-shadow: unset;
         border-radius: 0;
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
       }
     }
 
@@ -51,6 +59,13 @@
       gap: var(--noora-spacing-9);
       padding: var(--noora-spacing-10) var(--noora-spacing-11) var(--noora-spacing-3) var(--noora-spacing-11);
       max-width: 438px;
+
+      @media (max-width: 768px) {
+        & {
+          width: 100%;
+          max-width: 100%;
+        }
+      }
 
       & > [data-part="logo"] {
         z-index: 103;
@@ -145,6 +160,13 @@
   }
 
   & [data-part="background"] {
+    /* This is necessary because in Safari iOS, "filter: blur()" makes the main thread hang;
+       causing the rendering to be slow, and other cascading issues, like the websocket connection
+       timing out */
+    @supports (-webkit-touch-callout: none) {
+      display: none;
+    }
+
     position: absolute;
     top: 0px;
     left: 0px;
@@ -237,6 +259,18 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--noora-spacing-3);
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      & > :last-child {
+        align-self: flex-start;
+      }
+    }
   }
 }
 

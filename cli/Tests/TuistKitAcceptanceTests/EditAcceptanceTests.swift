@@ -1,65 +1,67 @@
+import Path
+import Testing
 import TuistAcceptanceTesting
 import TuistSupport
 import TuistTesting
-import XcodeProj
-import XCTest
 
-final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
-    func test_ios_app_with_helpers() async throws {
-        try await setUpFixture("generated_ios_app_with_helpers")
-        try await run(EditCommand.self)
-        try build(scheme: "Manifests")
+@testable import TuistKit
+
+struct EditAcceptanceTests {
+    @Test(.withFixture("generated_ios_app_with_helpers"))
+    func ios_app_with_helpers() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        try build(scheme: "Manifests", workspacePath: workspacePath)
+    }
+
+    @Test(.withFixture("generated_plugin"))
+    func plugin() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        try build(scheme: "Plugins", workspacePath: workspacePath)
+    }
+
+    @Test(.withFixture("generated_app_with_plugins"))
+    func app_with_plugins() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        try build(scheme: "Manifests", workspacePath: workspacePath)
+        try build(scheme: "Plugins", workspacePath: workspacePath)
+        try build(scheme: "LocalPlugin", workspacePath: workspacePath)
+    }
+
+    @Test(.withFixture("generated_app_with_spm_dependencies"))
+    func app_with_spm_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        try build(scheme: "Manifests", workspacePath: workspacePath)
+    }
+
+    @Test(.withFixture("generated_spm_package"))
+    func spm_package() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
+        let workspacePath = try await TuistAcceptanceTest.xcworkspacePath(in: fixtureDirectory)
+        try build(scheme: "Manifests", workspacePath: workspacePath)
     }
 }
 
-final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
-    func test_plugin() async throws {
-        try await setUpFixture("generated_plugin")
-        try await run(EditCommand.self)
-        try build(scheme: "Plugins")
-    }
-}
-
-final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
-    func test_app_with_plugins() async throws {
-        try await setUpFixture("generated_app_with_plugins")
-        try await run(InstallCommand.self)
-        try await run(EditCommand.self)
-        try build(scheme: "Manifests")
-        try build(scheme: "Plugins")
-        try build(scheme: "LocalPlugin")
-    }
-}
-
-final class EditAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
-    func test_app_with_spm_dependencies() async throws {
-        try await setUpFixture("generated_app_with_spm_dependencies")
-        try await run(EditCommand.self)
-        try build(scheme: "Manifests")
-    }
-}
-
-final class EditAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
-    func test_spm_package() async throws {
-        try await setUpFixture("generated_spm_package")
-        try await run(EditCommand.self)
-        try build(scheme: "Manifests")
-    }
-}
-
-extension TuistAcceptanceTestCase {
-    fileprivate func build(scheme: String) throws {
-        try System.shared.runAndPrint(
-            [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "build",
-                "-scheme",
-                scheme,
-                "-workspace",
-                workspacePath.pathString,
-            ]
-        )
-    }
+private func build(scheme: String, workspacePath: AbsolutePath) throws {
+    try System.shared.runAndPrint(
+        [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "build",
+            "-scheme",
+            scheme,
+            "-workspace",
+            workspacePath.pathString,
+        ]
+    )
 }

@@ -21,17 +21,40 @@
         public let insertedAt: Date
     }
 
+    public enum ServerPreviewError: LocalizedError {
+        case invalidURL(String)
+        case invalidDate(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .invalidURL(value):
+                return "Invalid preview URL: \(value)"
+            case let .invalidDate(value):
+                return "Invalid preview date: \(value)"
+            }
+        }
+    }
+
     extension ServerPreview {
         private static let dateFormatter = ISO8601DateFormatter()
 
-        init?(_ preview: Components.Schemas.Preview) {
+        public init(_ preview: Components.Schemas.Preview) throws {
             id = preview.id
-            guard let url = URL(string: preview.url),
-                  let qrCodeURL = URL(string: preview.qr_code_url),
-                  let iconURL = URL(string: preview.icon_url),
-                  let deviceURL = URL(string: preview.device_url),
-                  let insertedAt = Self.dateFormatter.date(from: preview.inserted_at)
-            else { return nil }
+            guard let url = URL(string: preview.url) else {
+                throw ServerPreviewError.invalidURL(preview.url)
+            }
+            guard let qrCodeURL = URL(string: preview.qr_code_url) else {
+                throw ServerPreviewError.invalidURL(preview.qr_code_url)
+            }
+            guard let iconURL = URL(string: preview.icon_url) else {
+                throw ServerPreviewError.invalidURL(preview.icon_url)
+            }
+            guard let deviceURL = URL(string: preview.device_url) else {
+                throw ServerPreviewError.invalidURL(preview.device_url)
+            }
+            guard let insertedAt = Self.dateFormatter.date(from: preview.inserted_at) else {
+                throw ServerPreviewError.invalidDate(preview.inserted_at)
+            }
             self.url = url
             self.qrCodeURL = qrCodeURL
             self.iconURL = iconURL
@@ -46,7 +69,7 @@
             gitCommitSHA = preview.git_commit_sha
             gitBranch = preview.git_branch
             appBuilds = preview.builds.compactMap(AppBuild.init)
-            supportedPlatforms = preview.supported_platforms.map(DestinationType.init)
+            supportedPlatforms = preview.supported_platforms.compactMap(DestinationType.init)
             createdFromCI = preview.created_from_ci
             if let createdBy = preview.created_by {
                 self.createdBy = ServerAccount(createdBy)

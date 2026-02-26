@@ -17,7 +17,10 @@ if config_env() == :prod do
       nil ->
         [
           ip: {0, 0, 0, 0, 0, 0, 0, 0},
-          port: port
+          port: port,
+          thousand_island_options: [
+            transport_options: [backlog: 16_384]
+          ]
         ]
 
       path ->
@@ -26,7 +29,10 @@ if config_env() == :prod do
 
         [
           ip: {:local, path},
-          port: 0
+          port: 0,
+          thousand_island_options: [
+            transport_options: [backlog: 16_384]
+          ]
         ]
     end
 
@@ -40,33 +46,55 @@ if config_env() == :prod do
 
   s3_endpoint = System.get_env("S3_ENDPOINT")
 
-  {s3_scheme, s3_host} =
+  {s3_scheme, s3_host, s3_port} =
     case s3_endpoint do
       nil ->
-        {"https://", System.get_env("S3_HOST")}
+        {"https://", System.get_env("S3_HOST"), nil}
 
       "" ->
-        {"https://", System.get_env("S3_HOST")}
+        {"https://", System.get_env("S3_HOST"), nil}
 
       endpoint ->
         uri = URI.parse(endpoint)
 
-        host =
+        {host, port} =
           case {uri.host, uri.port} do
-            {nil, _} -> System.get_env("S3_HOST")
-            {host, nil} -> host
-            {host, port} -> "#{host}:#{port}"
+            {nil, _} -> {System.get_env("S3_HOST"), nil}
+            {host, nil} -> {host, nil}
+            {host, port} -> {host, port}
           end
 
         scheme = (uri.scheme || "https") <> "://"
-        {scheme, host}
+        {scheme, host, port}
     end
 
   s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID") || System.get_env("AWS_ACCESS_KEY_ID")
   s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("AWS_SECRET_ACCESS_KEY")
   s3_region = System.get_env("S3_REGION") || System.get_env("AWS_REGION")
 
+  s3_protocol =
+    case System.get_env("S3_PROTOCOL") do
+      protocol when is_binary(protocol) and protocol != "" -> [String.to_atom(protocol)]
+      _ -> [:http1]
+    end
+
+  s3_virtual_host =
+    case System.get_env("S3_VIRTUAL_HOST") do
+      val when val in ["1", "true"] -> true
+      _ -> false
+    end
+
   otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+  s3_config =
+    [
+      scheme: s3_scheme,
+      host: s3_host,
+      region: s3_region,
+      virtual_host: s3_virtual_host
+    ]
+
+  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
 
   config :cache, Cache.Guardian,
     issuer: "tuist",
@@ -89,7 +117,8 @@ if config_env() == :prod do
 
   config :cache, :s3,
     bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
-    registry_bucket: System.get_env("S3_REGISTRY_BUCKET")
+    registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
+    protocols: s3_protocol
 
   config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
@@ -98,14 +127,12 @@ if config_env() == :prod do
     disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
     api_key: System.get_env("TUIST_CACHE_API_KEY"),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
-    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
-    registry_sync_limit: Cache.Config.int_env("REGISTRY_SYNC_LIMIT", 350),
-    registry_sync_min_interval_seconds: Cache.Config.int_env("REGISTRY_SYNC_MIN_INTERVAL_SECONDS", 21_600)
+    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST")
 
-  config :ex_aws, :s3,
-    scheme: s3_scheme,
-    host: s3_host,
-    region: s3_region
+  # Note: connect_options cannot be used with Finch
+  # Connection settings are handled at the Finch pool level
+  config :ex_aws, :req_opts, []
+  config :ex_aws, :s3, s3_config
 
   config :ex_aws,
     region: s3_region,

@@ -1,3 +1,4 @@
+import TuistAndroid
 import TuistCore
 import TuistSimulator
 
@@ -8,6 +9,8 @@ extension Device {
             .device(physicalDevice.platform)
         case let .simulator(simulator):
             try .simulator(simulator.runtime.platform())
+        case .androidDevice:
+            .android
         }
     }
 }

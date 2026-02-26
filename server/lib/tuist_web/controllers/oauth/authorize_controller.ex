@@ -10,6 +10,8 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   alias Boruta.Oauth.ResourceOwner
   alias TuistWeb.Errors.BadRequestError
 
+  require Logger
+
   @max_state_length 10_000
 
   def authorize(%Plug.Conn{assigns: %{current_user: %Tuist.Accounts.User{} = current_user}} = conn, params) do
@@ -46,13 +48,30 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     |> halt()
   end
 
-  @impl AuthorizeApplication
-  def authorize_success(conn, %AuthorizeResponse{} = response) do
-    redirect(conn, external: AuthorizeResponse.redirect_to_url(response))
+  def authorize_with_apple(conn, params) do
+    oauth_return_url = "/oauth2/authorize?" <> URI.encode_query(params)
+
+    conn
+    |> put_session(:oauth_return_to, oauth_return_url)
+    |> redirect(to: "/users/auth/apple")
+    |> halt()
   end
 
   @impl AuthorizeApplication
-  def authorize_error(%Plug.Conn{} = conn, %Error{status: :unauthorized}) do
+  def authorize_success(conn, %AuthorizeResponse{} = response) do
+    redirect_url = AuthorizeResponse.redirect_to_url(response)
+    redirect(conn, external: redirect_url)
+  end
+
+  @impl AuthorizeApplication
+  def authorize_error(%Plug.Conn{} = conn, %Error{status: :unauthorized} = error) do
+    Logger.error("OAuth authorize unauthorized: #{inspect(error)}")
+    redirect_to_login(conn)
+  end
+
+  @impl AuthorizeApplication
+  def authorize_error(%Plug.Conn{} = conn, %Error{} = error) do
+    Logger.error("OAuth authorize error: #{inspect(error)}")
     redirect_to_login(conn)
   end
 

@@ -1,5 +1,5 @@
 {
-  "originHash" : "68d6110c2e3db6af769550c78a773b22fa1f54a70851a2b1585dcd202eb9e3df",
+  "originHash" : "07dacaced23f9de517ada34c0c6c70f1fbe73dd478e802d2c5635d06d34ff988",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -94,7 +94,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.9.1"
+        "version" : "1.10.1"
       }
     },
     {
@@ -335,7 +335,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.0"
+        "version" : "0.6.1"
       }
     },
     {
@@ -591,7 +591,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.14.14"
+        "version" : "0.14.38"
       }
     },
     {
@@ -607,7 +607,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.54.0"
+        "version" : "0.55.0"
       }
     },
     {
@@ -635,19 +635,11 @@
       }
     },
     {
-      "identity" : "tuist.XcodeGraph",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.32.0"
-      }
-    },
-    {
       "identity" : "tuist.XcodeProj",
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.7.2"
+        "version" : "9.9.0"
       }
     },
     {

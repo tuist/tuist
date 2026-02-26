@@ -165,6 +165,40 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert app_build.type == :ipa
     end
 
+    test "starts multipart upload of an apk preview", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "upload-id"
+
+      expect(Storage, :multipart_start, fn _object_key, _actor ->
+        upload_id
+      end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+          type: "apk",
+          display_name: "MyApp",
+          bundle_identifier: "com.example.myapp",
+          version: "1.0.0",
+          supported_platforms: ["android"]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, app_build} = AppBuilds.app_build_by_id(response["data"]["app_build_id"])
+      assert app_build.type == :apk
+      assert app_build.supported_platforms == [:android]
+    end
+
     test "does not create a new preview when account and commit_sha are the same", %{
       conn: conn,
       user: user,
@@ -413,13 +447,14 @@ defmodule TuistWeb.PreviewsControllerTest do
   describe "POST /api/projects/:account_handle/:project_handle/previews/generate-url" do
     test "generates multipart url", %{conn: conn, user: user, project: project, account: account} do
       # Given
-      preview_id = "preview-id"
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
       upload_id = "12344"
       part_number = 3
       upload_url = "https://url.com"
 
       object_key =
-        "#{account.name}/#{project.name}/previews/#{preview_id}.zip"
+        "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -436,7 +471,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
-          preview_id: preview_id,
+          preview_id: app_build.id,
           multipart_upload_part: %{
             part_number: part_number,
             upload_id: upload_id,
@@ -458,13 +493,14 @@ defmodule TuistWeb.PreviewsControllerTest do
       account: account
     } do
       # Given
-      app_build_id = "app-build-id"
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
       upload_id = "12344"
       part_number = 3
       platform = "ios"
       upload_url = "https://url.com/ios"
 
-      object_key = "#{account.name}/#{project.name}/previews/#{app_build_id}.zip"
+      object_key = "#{account.name}/#{project.name}/previews/#{app_build.id}.zip"
 
       expect(Storage, :multipart_generate_url, fn ^object_key,
                                                   ^upload_id,
@@ -481,7 +517,7 @@ defmodule TuistWeb.PreviewsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/generate-url",
-          preview_id: app_build_id,
+          preview_id: app_build.id,
           platform: platform,
           multipart_upload_part: %{
             part_number: part_number,
@@ -684,6 +720,60 @@ defmodule TuistWeb.PreviewsControllerTest do
       response = json_response(conn, :ok)
 
       assert response["track"] == "beta"
+    end
+
+    test "completes multipart upload for apk preview with android device_url", %{
+      conn: conn,
+      user: user,
+      project: project,
+      account: account
+    } do
+      # Given
+      upload_id = "1234"
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          git_commit_sha: "commit-sha",
+          git_branch: "main",
+          bundle_identifier: "com.example.myapp",
+          display_name: "MyApp",
+          version: "1.0.0"
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      expect(Storage, :multipart_complete_upload, fn _object_key, _upload_id, _parts, _actor ->
+        :ok
+      end)
+
+      expect(Storage, :generate_download_url, fn _object_key, _actor, _opts -> "https://mocked-url.com" end)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/complete",
+          preview_id: app_build.id,
+          multipart_upload_parts: %{
+            parts: [],
+            upload_id: upload_id
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["supported_platforms"] == ["android"]
+
+      assert response["device_url"] ==
+               url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/app.apk")
     end
 
     test "returns error when project doesn't exist", %{

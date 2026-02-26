@@ -39,4 +39,5 @@
 @import "./pages/test_case.css";
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";
+@import "./pages/sso_settings.css";
 @import "./pages/xcode_cache.css";

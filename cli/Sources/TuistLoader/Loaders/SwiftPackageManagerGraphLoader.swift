@@ -3,7 +3,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
-import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistLogging
@@ -51,7 +50,7 @@ public protocol SwiftPackageManagerGraphLoading {
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool
-    ) async throws -> TuistLoader.DependenciesGraph
+    ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue])
 }
 
 public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
@@ -80,7 +79,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
         disableSandbox: Bool
-    ) async throws -> TuistLoader.DependenciesGraph {
+    ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
@@ -94,7 +93,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
-        try await validatePackageResolved(at: packagePath.parentDirectory)
+        let outdatedDependencyIssues = try await validatePackageResolved(at: packagePath.parentDirectory)
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
@@ -155,14 +154,35 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             )
         }
 
-        packageInfos = packageInfos.filter { packageInfo in
-            if packageInfo.kind == "registry" {
-                return true
+        // When the same package appears from multiple sources (e.g. local path, registry, or source control),
+        // we keep a single entry to avoid duplicates. Selection is based on the following precedence:
+        //
+        //   1) Local (path-based)
+        //   2) Registry
+        //   3) Source Control (SCM)
+        //
+        // If multiple candidates exist, the highest-precedence source wins and the others are discarded.
+        //
+        // References:
+        // - https://github.com/tuist/tuist/pull/7518
+        // - https://community.tuist.dev/t/swift-package-registry-overriding-local-dependency-in-tuist-generated-project/902
+        packageInfos = Dictionary(grouping: packageInfos, by: {
+            if $0.kind == "registry" {
+                // A package is uniquely identified by a scoped identifier in the form scope.package-name.
+                return String($0.name.split(separator: ".").last ?? "")
             } else {
-                return !packageInfos
-                    .contains(where: {
-                        $0.kind == "registry" && String($0.name.split(separator: ".").last ?? "") == packageInfo.name
-                    })
+                return $0.name
+            }
+        })
+        .compactMap { _, groupedPackageInfos in
+            if let localPackage = groupedPackageInfos.first(where: {
+                ["local", "fileSystem", "localSourceControl"].contains($0.kind)
+            }) {
+                return localPackage
+            } else if let registryPackage = groupedPackageInfos.first(where: { $0.kind == "registry" }) {
+                return registryPackage
+            } else {
+                return groupedPackageInfos.first
             }
         }
 
@@ -236,13 +256,16 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 }
             }
 
-        return DependenciesGraph(
-            externalDependencies: externalDependencies,
-            externalProjects: externalProjects
+        return (
+            DependenciesGraph(
+                externalDependencies: externalDependencies,
+                externalProjects: externalProjects
+            ),
+            outdatedDependencyIssues
         )
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) async throws {
+    private func validatePackageResolved(at path: AbsolutePath) async throws -> [LintingIssue] {
         let savedPackageResolvedPath = path.appending(components: [
             Constants.SwiftPackageManager.packageBuildDirectoryName,
             Constants.DerivedDirectory.name,
@@ -264,11 +287,13 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         }
 
         if currentData != savedData {
-            AlertController.current.warning(.alert(
-                "We detected outdated dependencies.",
-                takeaway: "Run \(.command("tuist install")) to update them."
-            ))
+            return [LintingIssue(
+                reason: "We detected outdated dependencies. Run `tuist install` to update them.",
+                severity: .warning,
+                category: .outdatedDependencies
+            )]
         }
+        return []
     }
 }
 

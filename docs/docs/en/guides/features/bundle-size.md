@@ -13,11 +13,13 @@
 <!-- -->
 :::
 
-As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimize that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist Bundle Insights provides you with tools and insights to help your app size stay small, and we also monitor your app size over time.
+As you add more features to your app, your app bundle size keeps growing. While some of the bundle size growth is inevitable as you ship more code and assets, there are many ways to minimize that growth, such as by ensuring your assets are not duplicated across your bundles or stripping unused binary symbols. Tuist Bundle Insights supports both **Apple** and **Android** bundles, providing you with tools and insights to help your app size stay small, and we also monitor your app size over time.
 
 ## Usage {#usage}
 
 To analyze a bundle, you can use the `tuist inspect bundle` command:
+
+### Apple {#usage-apple}
 
 ::: code-group
 ```bash [Analyze an .ipa]
@@ -32,6 +34,18 @@ tuist inspect bundle App.app
 <!-- -->
 :::
 
+### Android {#usage-android}
+
+::: code-group
+```bash [Analyze an .aab (recommended)]
+tuist inspect bundle App.aab
+```
+```bash [Analyze an .apk]
+tuist inspect bundle App.apk
+```
+<!-- -->
+:::
+
 The `tuist inspect bundle` command analyzes the bundle and provides you with a link to see a detailed overview of the bundle including a scan of the contents of the bundle or a module breakdown:
 
 ![Analyzed bundle](/images/guides/features/bundle-size/analyzed-bundle.png)
@@ -42,7 +56,8 @@ To track bundle size over time, you will need to analyze the bundle on the CI. F
 
 An example workflow for GitHub Actions could then look like this:
 
-```yaml
+::: code-group
+```yaml [Apple]
 name: Build
 
 jobs:
@@ -54,6 +69,21 @@ jobs:
         env:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
+```yaml [Android]
+name: Build
+
+jobs:
+  build:
+    steps:
+      - # Build your app
+      - name: Analyze bundle
+        # .aab is recommended over .apk for more accurate size analysis
+        run: tuist inspect bundle App.aab
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+```
+<!-- -->
+:::
 
 Once set up, you will be able to see how your bundle size evolves over time:
 

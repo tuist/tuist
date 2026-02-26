@@ -15,6 +15,7 @@ enum BuildServiceError: LocalizedError {
     case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
     case schemeNotFound(scheme: String, existing: [String])
+    case unspecifiedPlatform(target: String, platforms: [String])
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +26,9 @@ enum BuildServiceError: LocalizedError {
         case let .schemeNotFound(scheme, existing):
             return
                 "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
+        case let .unspecifiedPlatform(target, platforms):
+            return
+                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
         }
     }
 }
@@ -140,8 +144,15 @@ public struct BuildService {
 
             if let platform {
                 buildPlatform = platform
+            } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
+                      graphTarget.target.destinations.platforms.count == 1
+            {
+                buildPlatform = resolvedPlatform
             } else {
-                buildPlatform = try graphTarget.target.servicePlatform
+                throw BuildServiceError.unspecifiedPlatform(
+                    target: graphTarget.target.name,
+                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                )
             }
 
             try await targetBuilder.buildTarget(
@@ -177,8 +188,15 @@ public struct BuildService {
 
                 if let platform {
                     buildPlatform = platform
+                } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
+                          graphTarget.target.destinations.platforms.count == 1
+                {
+                    buildPlatform = resolvedPlatform
                 } else {
-                    buildPlatform = try graphTarget.target.servicePlatform
+                    throw BuildServiceError.unspecifiedPlatform(
+                        target: graphTarget.target.name,
+                        platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                    )
                 }
 
                 try await targetBuilder.buildTarget(

@@ -1,9 +1,11 @@
 defmodule Cache.Registry.MetadataTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Cache.Registry.Metadata
   alias ExAws.Operation.S3
+
+  setup :set_mimic_from_context
 
   @moduletag capture_log: true
 
@@ -24,8 +26,9 @@ defmodule Cache.Registry.MetadataTest do
   }
 
   setup do
-    Cachex.clear(Metadata.cache_name())
-    :ok
+    cache_name = :"registry_metadata_test_#{:erlang.unique_integer([:positive])}"
+    start_supervised!({Cachex, name: cache_name})
+    {:ok, cache_name: cache_name}
   end
 
   describe "child_spec/1" do
@@ -38,7 +41,7 @@ defmodule Cache.Registry.MetadataTest do
   end
 
   describe "get_package/2" do
-    test "returns metadata from cache when present" do
+    test "returns metadata from cache when present", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
 
@@ -48,13 +51,13 @@ defmodule Cache.Registry.MetadataTest do
         checked_at: DateTime.truncate(DateTime.utc_now(), :second)
       }
 
-      Cachex.put(Metadata.cache_name(), {scope, name}, cached)
+      Cachex.put(cache_name, {scope, name}, cached)
 
-      assert {:ok, metadata} = Metadata.get_package(scope, name)
+      assert {:ok, metadata} = Metadata.get_package(scope, name, cache_name: cache_name)
       assert metadata == @sample_metadata
     end
 
-    test "fetches from S3 and caches when not in cache" do
+    test "fetches from S3 and caches when not in cache", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -68,14 +71,14 @@ defmodule Cache.Registry.MetadataTest do
         {:ok, %{body: json_body, headers: %{"etag" => "\"etag\""}}}
       end)
 
-      assert {:ok, metadata} = Metadata.get_package(scope, name)
+      assert {:ok, metadata} = Metadata.get_package(scope, name, cache_name: cache_name)
       assert metadata == @sample_metadata
 
-      assert {:ok, cached} = Cachex.get(Metadata.cache_name(), {scope, name})
+      assert {:ok, cached} = Cachex.get(cache_name, {scope, name})
       assert cached.metadata == @sample_metadata
     end
 
-    test "returns :not_found when S3 returns 404" do
+    test "returns :not_found when S3 returns 404", %{cache_name: cache_name} do
       scope = "nonexistent"
       name = "package"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -88,10 +91,10 @@ defmodule Cache.Registry.MetadataTest do
         {:error, {:http_error, 404, "Not Found"}}
       end)
 
-      assert {:error, :not_found} = Metadata.get_package(scope, name)
+      assert {:error, :not_found} = Metadata.get_package(scope, name, cache_name: cache_name)
     end
 
-    test "returns s3_error when S3 request fails with non-404 error" do
+    test "returns s3_error when S3 request fails with non-404 error", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -104,10 +107,10 @@ defmodule Cache.Registry.MetadataTest do
         {:error, :timeout}
       end)
 
-      assert {:error, {:s3_error, :timeout}} = Metadata.get_package(scope, name)
+      assert {:error, {:s3_error, :timeout}} = Metadata.get_package(scope, name, cache_name: cache_name)
     end
 
-    test "returns s3_error with :rate_limited on 429 response" do
+    test "returns s3_error with :rate_limited on 429 response", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -120,10 +123,10 @@ defmodule Cache.Registry.MetadataTest do
         {:error, {:http_error, 429, "Too Many Requests"}}
       end)
 
-      assert {:error, {:s3_error, :rate_limited}} = Metadata.get_package(scope, name)
+      assert {:error, {:s3_error, :rate_limited}} = Metadata.get_package(scope, name, cache_name: cache_name)
     end
 
-    test "returns :not_found when JSON decode fails" do
+    test "returns :not_found when JSON decode fails", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -136,17 +139,17 @@ defmodule Cache.Registry.MetadataTest do
         {:ok, %{body: "invalid json {", headers: %{"etag" => "\"etag\""}}}
       end)
 
-      assert {:error, :not_found} = Metadata.get_package(scope, name)
+      assert {:error, :not_found} = Metadata.get_package(scope, name, cache_name: cache_name)
     end
   end
 
   describe "put_package/3" do
-    test "writes metadata to S3 and invalidates cache" do
+    test "writes metadata to S3 and invalidates cache", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      Cachex.put(Metadata.cache_name(), {scope, name}, %{"old" => "data"})
+      Cachex.put(cache_name, {scope, name}, %{"old" => "data"})
 
       expect(ExAws.S3, :put_object, fn "test-registry-bucket", ^s3_key, body, opts ->
         assert Jason.decode!(body) == @sample_metadata
@@ -158,12 +161,12 @@ defmodule Cache.Registry.MetadataTest do
         {:ok, %{status_code: 200}}
       end)
 
-      assert :ok = Metadata.put_package(scope, name, @sample_metadata)
+      assert :ok = Metadata.put_package(scope, name, @sample_metadata, cache_name: cache_name)
 
-      assert {:ok, nil} = Cachex.get(Metadata.cache_name(), {scope, name})
+      assert {:ok, nil} = Cachex.get(cache_name, {scope, name})
     end
 
-    test "returns error when S3 write fails" do
+    test "returns error when S3 write fails", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -176,10 +179,10 @@ defmodule Cache.Registry.MetadataTest do
         {:error, :timeout}
       end)
 
-      assert {:error, :timeout} = Metadata.put_package(scope, name, @sample_metadata)
+      assert {:error, :timeout} = Metadata.put_package(scope, name, @sample_metadata, cache_name: cache_name)
     end
 
-    test "returns s3_error with :rate_limited on 429 response" do
+    test "returns s3_error with :rate_limited on 429 response", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -192,17 +195,18 @@ defmodule Cache.Registry.MetadataTest do
         {:error, {:http_error, 429, "Too Many Requests"}}
       end)
 
-      assert {:error, {:s3_error, :rate_limited}} = Metadata.put_package(scope, name, @sample_metadata)
+      assert {:error, {:s3_error, :rate_limited}} =
+               Metadata.put_package(scope, name, @sample_metadata, cache_name: cache_name)
     end
   end
 
   describe "delete_package/2" do
-    test "deletes from S3 and invalidates cache" do
+    test "deletes from S3 and invalidates cache", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      Cachex.put(Metadata.cache_name(), {scope, name}, @sample_metadata)
+      Cachex.put(cache_name, {scope, name}, @sample_metadata)
 
       expect(ExAws.S3, :delete_object, fn "test-registry-bucket", ^s3_key ->
         %S3{bucket: "test-registry-bucket", path: s3_key}
@@ -212,12 +216,12 @@ defmodule Cache.Registry.MetadataTest do
         {:ok, %{status_code: 204}}
       end)
 
-      assert :ok = Metadata.delete_package(scope, name)
+      assert :ok = Metadata.delete_package(scope, name, cache_name: cache_name)
 
-      assert {:ok, nil} = Cachex.get(Metadata.cache_name(), {scope, name})
+      assert {:ok, nil} = Cachex.get(cache_name, {scope, name})
     end
 
-    test "returns error when S3 delete fails" do
+    test "returns error when S3 delete fails", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -230,10 +234,10 @@ defmodule Cache.Registry.MetadataTest do
         {:error, :access_denied}
       end)
 
-      assert {:error, :access_denied} = Metadata.delete_package(scope, name)
+      assert {:error, :access_denied} = Metadata.delete_package(scope, name, cache_name: cache_name)
     end
 
-    test "returns s3_error with :rate_limited on 429 response" do
+    test "returns s3_error with :rate_limited on 429 response", %{cache_name: cache_name} do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -246,12 +250,12 @@ defmodule Cache.Registry.MetadataTest do
         {:error, {:http_error, 429, "Too Many Requests"}}
       end)
 
-      assert {:error, {:s3_error, :rate_limited}} = Metadata.delete_package(scope, name)
+      assert {:error, {:s3_error, :rate_limited}} = Metadata.delete_package(scope, name, cache_name: cache_name)
     end
   end
 
   describe "list_all_packages/0" do
-    test "returns list of scope/name tuples from S3" do
+    test "returns list of scope/name tuples from S3", %{cache_name: _cache_name} do
       expect(ExAws.S3, :list_objects_v2, fn "test-registry-bucket", opts ->
         assert Keyword.get(opts, :prefix) == "registry/metadata/"
         %S3{bucket: "test-registry-bucket", path: "registry/metadata/"}
@@ -273,7 +277,7 @@ defmodule Cache.Registry.MetadataTest do
              ]
     end
 
-    test "returns empty list when no packages exist" do
+    test "returns empty list when no packages exist", %{cache_name: _cache_name} do
       expect(ExAws.S3, :list_objects_v2, fn "test-registry-bucket", _opts ->
         %S3{bucket: "test-registry-bucket", path: "registry/metadata/"}
       end)

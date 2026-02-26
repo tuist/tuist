@@ -142,14 +142,16 @@ import TuistSupport
             shared: Bool = false,
             buildAction: BuildAction? = nil,
             testAction: TestAction? = nil,
-            runAction: RunAction? = nil
+            runAction: RunAction? = nil,
+            profileAction: ProfileAction? = nil
         ) -> Scheme {
             .scheme(
                 name: name,
                 shared: shared,
                 buildAction: buildAction,
                 testAction: testAction,
-                runAction: runAction
+                runAction: runAction,
+                profileAction: profileAction
             )
         }
     }
@@ -194,11 +196,12 @@ import TuistSupport
             filePath: Path? = nil,
             arguments: Arguments? = nil,
             options: RunActionOptions = .options(),
+            askForAppToLaunch: Bool = false,
             appClipInvocationURLString: String? = nil
         ) -> RunAction {
             RunAction(
                 configuration: configuration,
-                executable: executable,
+                executable: askForAppToLaunch ? .askOnLaunch : executable.map { .executable($0) },
                 customWorkingDirectory: customWorkingDirectory,
                 filePath: filePath,
                 arguments: arguments,

@@ -3,9 +3,9 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
   use Mimic
 
   alias Tuist.Storage
-  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
   describe "POST /api/projects/:account_handle/:project_handle/tests/attachments" do
@@ -27,13 +27,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       project: project
     } do
       # Given
-      test_case_run_id = UUIDv7.generate()
-
-      stub(Tests, :create_test_case_run_attachment, fn attrs ->
-        assert attrs.test_case_run_id == test_case_run_id
-        assert attrs.file_name == "crash-report.ips"
-        {:ok, %{id: attrs.id}}
-      end)
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
 
       stub(Storage, :generate_upload_url, fn _key, _account, _opts ->
         "https://s3.example.com/upload?signed=true"
@@ -45,7 +39,7 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
           conn,
           "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
           %{
-            test_case_run_id: test_case_run_id,
+            test_case_run_id: test_case_run.id,
             file_name: "crash-report.ips"
           }
         )
@@ -55,6 +49,50 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["id"]
       assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
       assert response["expires_at"]
+    end
+
+    test "returns 404 when test case run belongs to a different project", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: other_project.id)
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: test_case_run.id,
+            file_name: "crash-report.ips"
+          }
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
+    end
+
+    test "returns 404 when test case run does not exist", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # When
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: UUIDv7.generate(),
+            file_name: "crash-report.ips"
+          }
+        )
+
+      # Then
+      assert json_response(conn, :not_found)
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

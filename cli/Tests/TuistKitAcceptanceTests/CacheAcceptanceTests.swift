@@ -1,21 +1,21 @@
 import FileSystem
 import Foundation
 import Testing
-import TuistAcceptanceTesting
 import TuistCacheCommand
 import TuistEnvironment
-import TuistLoggerTesting
 import TuistNooraTesting
 import TuistTesting
 
 @testable import TuistKit
 
-final class CacheAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {
-    func test_ios_app_with_frameworks() async throws {
-        try await withMockedDependencies {
-            try await setUpFixture("generated_ios_app_with_frameworks")
-            try await run(CacheCommand.self, "--print-hashes")
-        }
+struct CacheAcceptanceTests {
+    @Test(.withFixture("generated_ios_app_with_frameworks"), .withMockedDependencies())
+    func ios_app_with_frameworks() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--print-hashes", "--path", fixtureDirectory.pathString]
+        )
     }
 }
 

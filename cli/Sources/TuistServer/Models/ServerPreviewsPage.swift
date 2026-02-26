@@ -7,8 +7,8 @@
     }
 
     extension ServerPreviewsPage {
-        init(_ previewsPage: Operations.listPreviews.Output.Ok.Body.jsonPayload) {
-            previews = previewsPage.previews.compactMap(ServerPreview.init)
+        init(_ previewsPage: Operations.listPreviews.Output.Ok.Body.jsonPayload) throws {
+            previews = try previewsPage.previews.map(ServerPreview.init)
             paginationMetadata = ServerPaginationMetadata(previewsPage.pagination_metadata)
         }
     }

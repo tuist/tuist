@@ -8,6 +8,7 @@ defmodule Cache.KeyValueEntry do
   schema "key_value_entries" do
     field :key, :string
     field :json_payload, :string
+    field :last_accessed_at, :utc_datetime_usec
 
     timestamps(type: :utc_datetime)
   end
@@ -15,10 +16,11 @@ defmodule Cache.KeyValueEntry do
   @doc false
   def changeset(entry, attrs) do
     entry
-    |> cast(attrs, [:key, :json_payload])
+    |> cast(attrs, [:key, :json_payload, :last_accessed_at])
     |> validate_required([
       :key,
-      :json_payload
+      :json_payload,
+      :last_accessed_at
     ])
     |> unique_constraint(:key)
   end

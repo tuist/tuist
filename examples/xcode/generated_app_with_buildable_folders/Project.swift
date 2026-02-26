@@ -15,7 +15,12 @@ let project = Project(
                         "App/Sources/WithCompilerFlags.swift": "-print-stats",
                     ]),
                 ])),
-                "App/Resources",
+                .folder("App/Resources", exceptions: .exceptions([
+                    .exception(platformFilters: [
+                        "PlatformSpecific/ios_only.json": [.ios],
+                        "PlatformSpecific/tvos_only.json": [.macos],
+                    ]),
+                ])),
             ],
             dependencies: []
         ),

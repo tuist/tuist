@@ -1,5 +1,6 @@
 import Foundation
 import TuistAlert
+import TuistConfig
 import TuistLogging
 import TuistSupport
 
@@ -20,12 +21,18 @@ public struct LintingIssue: CustomStringConvertible, Equatable {
 
     public let reason: String
     public let severity: Severity
+    public let category: TuistGeneratedProjectOptions.GenerationOptions.GenerationWarning?
 
     // MARK: - Init
 
-    public init(reason: String, severity: Severity) {
+    public init(
+        reason: String,
+        severity: Severity,
+        category: TuistGeneratedProjectOptions.GenerationOptions.GenerationWarning? = nil
+    ) {
         self.reason = reason
         self.severity = severity
+        self.category = category
     }
 
     // MARK: - CustomStringConvertible
@@ -56,6 +63,31 @@ extension [LintingIssue] {
         let warningIssues = filter { $0.severity == .warning }
         for issue in warningIssues {
             AlertController.current.warning(.alert("\(issue.description)"))
+        }
+    }
+
+    public func promotingWarnings(
+        with warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors
+    ) -> [LintingIssue] {
+        map { issue in
+            guard issue.severity == .warning else { return issue }
+            let shouldPromote: Bool
+            switch warningsAsErrors {
+            case .none:
+                shouldPromote = false
+            case .all:
+                shouldPromote = true
+            case let .only(categories):
+                if let category = issue.category {
+                    shouldPromote = categories.contains(category)
+                } else {
+                    shouldPromote = false
+                }
+            }
+            if shouldPromote {
+                return LintingIssue(reason: issue.reason, severity: .error, category: issue.category)
+            }
+            return issue
         }
     }
 }

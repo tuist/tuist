@@ -81,8 +81,7 @@ defmodule Tuist.PromEx do
       if Tuist.Environment.tuist_hosted?() do
         plugins ++
           [
-            {PromEx.Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
-            PromEx.Plugins.Ecto
+            {PromEx.Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint}
           ]
       else
         plugins

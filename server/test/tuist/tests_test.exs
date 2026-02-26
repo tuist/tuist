@@ -4441,6 +4441,72 @@ defmodule Tuist.TestsTest do
       assert existing_run.is_new == false
       assert new_run.is_new == true
     end
+
+    test "creates only one first_run event even when test case is run multiple times" do
+      # Given - a project with default_branch "main"
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_module = %{
+        name: "RepeatedNewModule",
+        status: "success",
+        duration: 1000,
+        test_cases: [
+          %{
+            name: "testRepeatedNew",
+            status: "success",
+            duration: 500
+          }
+        ]
+      }
+
+      # When - run the same new test case twice on a feature branch
+      {:ok, test1} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "feature-branch",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [test_module]
+        })
+
+      {:ok, _test2} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 1000,
+          status: "success",
+          model_identifier: "Mac15,6",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "feature-branch",
+          git_commit_sha: "def456",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [test_module]
+        })
+
+      # Then - there should be exactly one first_run event
+      {test_case_runs, _meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test1.id}]
+        })
+
+      test_case_id = hd(test_case_runs).test_case_id
+
+      {events, _meta} = Tests.list_test_case_events(test_case_id)
+      first_run_events = Enum.filter(events, &(&1.event_type == "first_run"))
+      assert length(first_run_events) == 1
+    end
   end
 
   describe "list_test_case_events/2" do
@@ -5294,6 +5360,69 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert key == "myorg/myproject/tests/test-case-runs/run-123/attachments/att-456/crash-report.ips"
+    end
+  end
+
+  describe "project_test_schemes/1" do
+    test "returns distinct schemes for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "Framework",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "App",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: nil,
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: other_project.id,
+        scheme: "OtherApp",
+        ran_at: NaiveDateTime.utc_now()
+      )
+
+      old_date = NaiveDateTime.add(NaiveDateTime.utc_now(), -31, :day)
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        scheme: "OldScheme",
+        ran_at: old_date
+      )
+
+      # When
+      schemes = Tests.project_test_schemes(project)
+
+      # Then
+      assert Enum.sort(schemes) == ["App", "Framework"]
+    end
+
+    test "returns an empty list when no tests exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      schemes = Tests.project_test_schemes(project)
+
+      # Then
+      assert schemes == []
     end
   end
 end

@@ -28,6 +28,7 @@ public enum TestServiceError: FatalError, Equatable {
     case duplicatedTestTargets(Set<TestIdentifier>)
     case nothingToSkip(skipped: [TestIdentifier], included: [TestIdentifier])
     case actionInvalid
+    case unspecifiedPlatform(target: String, platforms: [String])
 
     // Error description
 
@@ -66,6 +67,9 @@ public enum TestServiceError: FatalError, Equatable {
                 "Some of the targets specified in --skip-test-targets (\(skippedTargets.map(\.description).joined(separator: ", "))) will always be skipped as they are not included in the targets specified (\(includedTargets.map(\.description).joined(separator: ", ")))"
         case .actionInvalid:
             return "Cannot specify both --build-only and --without-building"
+        case let .unspecifiedPlatform(target, platforms):
+            return
+                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
         }
     }
 
@@ -75,7 +79,7 @@ public enum TestServiceError: FatalError, Equatable {
         switch self {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
-             .nothingToSkip, .actionInvalid:
+             .nothingToSkip, .actionInvalid, .unspecifiedPlatform:
             return .abort
         }
     }
@@ -804,8 +808,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         if let platform {
             buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
+        } else if let resolvedPlatform = buildableTarget.target.destinations.first?.platform,
+                  buildableTarget.target.destinations.platforms.count == 1
+        {
+            buildPlatform = resolvedPlatform
         } else {
-            buildPlatform = try buildableTarget.target.servicePlatform
+            throw TestServiceError.unspecifiedPlatform(
+                target: buildableTarget.target.name,
+                platforms: buildableTarget.target.supportedPlatforms.map(\.rawValue)
+            )
         }
 
         let destination: XcodeBuildDestination?

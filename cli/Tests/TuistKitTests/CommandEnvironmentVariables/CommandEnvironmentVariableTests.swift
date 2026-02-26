@@ -14,6 +14,7 @@ import TuistVersionCommand
 @testable import TuistKit
 @testable import TuistOrganizationCommand
 @testable import TuistProjectCommand
+@testable import TuistRunCommand
 @testable import TuistSupport
 @testable import TuistTestCommand
 @testable import TuistTesting

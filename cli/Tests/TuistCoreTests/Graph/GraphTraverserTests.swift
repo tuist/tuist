@@ -818,6 +818,89 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_containsResources_is_true_when_buildable_folders_contain_resources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/greeting.md", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertTrue(target.containsResources)
+    }
+
+    func test_containsResources_is_false_when_buildable_folders_contain_only_sources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertFalse(target.containsResources)
+    }
+
+    func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
+        // Given
+        // App -> StaticFramework (buildable folder resources) -> ResourceBundle
+        let bundle = Target.test(name: "App_StaticFramework", product: .bundle)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/StaticFramework",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/StaticFramework/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/StaticFramework/image.png", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [app, staticFramework, bundle])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: staticFramework.name, path: project.path),
+            ]),
+            .target(name: staticFramework.name, path: project.path): Set([
+                .target(name: bundle.name, path: project.path),
+            ]),
+            .target(name: bundle.name, path: project.path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension),
+        ])
+    }
+
     func test_target_from_dependency() {
         // Given
         let app = Target.test(name: "App", product: .app)
