@@ -827,3 +827,89 @@ msgstr ""
 "Пользовательские конечные точки кэша не настроены. Tuist будет использовать "
 "кэш по умолчанию, размещенный на Tuist, до тех пор, пока не будут добавлены "
 "конечные точки."
+
+msgid "Client ID"
+msgstr ""
+
+msgid "Client secret"
+msgstr ""
+
+msgid "Copy the Client ID and Client Secret from the application settings"
+msgstr ""
+
+msgid "Go to Applications > Applications > Create App Integration"
+msgstr ""
+
+msgid "Google Workspace domain"
+msgstr ""
+
+msgid "Okta application client ID"
+msgstr ""
+
+msgid "Okta domain"
+msgstr ""
+
+msgid "Provider"
+msgstr ""
+
+msgid "SSO"
+msgstr ""
+
+msgid "SSO settings are only available for organizations."
+msgstr ""
+
+msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
+msgstr ""
+
+msgid "Single Sign-On"
+msgstr ""
+
+msgid ""
+"You must be authenticated with Google using an email tied to this domain. "
+"Please sign in with Google first."
+msgstr ""
+
+msgid ""
+"Create an OIDC Web Application in your Okta admin dashboard before "
+"configuring the fields below."
+msgstr ""
+
+msgid "SSO provider"
+msgstr ""
+
+msgid "Save changes"
+msgstr ""
+
+msgid ""
+"Select an SSO provider to allow users to sign in to Tuist and automatically "
+"join this organization."
+msgstr ""
+
+msgid "Setup instructions"
+msgstr ""
+
+msgid "The client ID from your Okta OIDC application."
+msgstr ""
+
+msgid "The client secret from your Okta OIDC application."
+msgstr ""
+
+msgid ""
+"Users signing in with a Google account from this domain will be "
+"automatically added to this organization."
+msgstr ""
+
+msgid "Your Okta organization URL without the https:// prefix."
+msgstr ""
+
+msgid "Enable Single Sign-On"
+msgstr ""
+
+msgid "Enable and configure SSO for your organization."
+msgstr ""
+
+msgid "Set the initiate login URI to:"
+msgstr ""
+
+msgid "Set the sign-in redirect URI to:"
+msgstr ""
