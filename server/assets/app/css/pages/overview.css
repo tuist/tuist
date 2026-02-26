@@ -33,6 +33,12 @@
     }
   }
 
+  & .tuist-loading-placeholder {
+    border-radius: var(--noora-radius-medium);
+    background-color: var(--noora-surface-background-secondary);
+    animation: tuist-loading-pulse 1.5s ease-in-out infinite;
+  }
+
   & [data-part="average-build-time-card-section"] {
     position: unset;
     & [data-part="view-more"] {
@@ -192,5 +198,16 @@
         width: 100%;
       }
     }
+  }
+}
+
+@keyframes tuist-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.7;
   }
 }

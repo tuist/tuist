@@ -83,6 +83,11 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <div :if={!@cache_hit_rate_analytics.ok?} data-part="widgets">
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+    </div>
     <div :if={@cache_hit_rate_analytics.ok?} data-part="widgets">
       <.widget
         title={dgettext("dashboard_gradle", "Cache hit rate")}
@@ -237,6 +242,8 @@
         disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
+    <div :if={!@recent_test_runs.ok?} class="tuist-loading-placeholder" style="min-height: 200px">
+    </div>
     <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
@@ -397,6 +404,8 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <div :if={!@recent_build_runs.ok?} class="tuist-loading-placeholder" style="min-height: 200px">
+    </div>
     <div :if={@recent_build_runs.ok?} data-part="builds-card-sections">
       <.card_section :if={not Enum.empty?(@recent_build_runs.result)}>
         <div data-part="build-runs-chart">

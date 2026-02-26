@@ -85,6 +85,12 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <div :if={!@binary_cache_hit_rate_analytics.ok?} data-part="widgets">
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
+    </div>
     <div :if={@binary_cache_hit_rate_analytics.ok?} data-part="widgets">
       <% binary_cache_hit_rate =
         (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
@@ -168,6 +174,12 @@
         trend_type={:inverse}
         empty={@test_analytics.result.total_average_duration == 0}
       />
+    </div>
+    <div
+      :if={!@binary_cache_hit_rate_analytics.ok?}
+      class="tuist-loading-placeholder"
+      style="min-height: 200px"
+    >
     </div>
     <div :if={@binary_cache_hit_rate_analytics.ok?} data-part="cache-cards-section">
       <% binary_cache_hit_rate =
@@ -409,6 +421,8 @@
         disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
+    <div :if={!@recent_test_runs.ok?} class="tuist-loading-placeholder" style="min-height: 200px">
+    </div>
     <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
@@ -495,6 +509,12 @@
         disabled={!@latest_app_previews.ok? || Enum.empty?(@latest_app_previews.result)}
       />
     </:actions>
+    <div
+      :if={!@latest_app_previews.ok?}
+      class="tuist-loading-placeholder"
+      style="min-height: 150px"
+    >
+    </div>
     <.card_section
       :if={@latest_app_previews.ok? && not Enum.empty?(@latest_app_previews.result)}
       data-part="latest-app-previews"
@@ -589,6 +609,12 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <div
+      :if={!@bundle_size_analytics.ok?}
+      class="tuist-loading-placeholder"
+      style="min-height: 200px"
+    >
+    </div>
     <.card_section
       :if={
         @bundle_size_analytics.ok? &&
@@ -751,6 +777,8 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <div :if={!@recent_build_runs.ok?} class="tuist-loading-placeholder" style="min-height: 200px">
+    </div>
     <div :if={@recent_build_runs.ok?} data-part="builds-card-sections">
       <.card_section :if={not Enum.empty?(@recent_build_runs.result)}>
         <div data-part="build-runs-chart">
