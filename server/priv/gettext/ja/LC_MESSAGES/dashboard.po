@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-02-20 07:20+0000\n"
+"PO-Revision-Date: 2026-02-26 10:17+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard-1/ja/>\n"
@@ -400,8 +400,9 @@ msgstr "キャッシュ"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "プレビューAPKが存在しないか、期限切れです。"
 
+#, fuzzy
 msgid "SSO"
-msgstr ""
+msgstr "SSO"
 
 #, fuzzy
 #~ msgid "Generate Runs"
