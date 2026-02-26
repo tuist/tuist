@@ -4,14 +4,6 @@
     icon="chart_arcs"
     data-part="analytics"
   >
-    <% binary_cache_hit_rate =
-      (@binary_cache_hit_rate_analytics.cache_hit_rate * 100)
-      |> Decimal.from_float()
-      |> Decimal.round(1) %>
-    <% selective_testing_hit_rate =
-      (@selective_testing_analytics.hit_rate * 100)
-      |> Decimal.from_float()
-      |> Decimal.round(1) %>
     <:actions>
       <.dropdown
         id="overview-analytics-environment-dropdown"
@@ -93,7 +85,15 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <div data-part="widgets">
+    <div :if={@binary_cache_hit_rate_analytics.ok?} data-part="widgets">
+      <% binary_cache_hit_rate =
+        (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+        |> Decimal.from_float()
+        |> Decimal.round(1) %>
+      <% selective_testing_hit_rate =
+        (@selective_testing_analytics.result.hit_rate * 100)
+        |> Decimal.from_float()
+        |> Decimal.round(1) %>
       <.widget
         title={dgettext("dashboard_projects", "Cache effectiveness")}
         description={
@@ -108,9 +108,9 @@
           )
         }
         id="widget-binary-cache-effectiveness"
-        trend_value={@binary_cache_hit_rate_analytics.trend}
+        trend_value={@binary_cache_hit_rate_analytics.result.trend}
         trend_label={@analytics_trend_label}
-        empty={@binary_cache_hit_rate_analytics.cache_hit_rate == 0.0}
+        empty={@binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0}
       />
       <.widget
         title={dgettext("dashboard_projects", "Selective test effectiveness")}
@@ -126,9 +126,9 @@
           )
         }
         id="widget-selective-tests-effectiveness"
-        trend_value={@selective_testing_analytics.trend}
+        trend_value={@selective_testing_analytics.result.trend}
         trend_label={@analytics_trend_label}
-        empty={@selective_testing_analytics.hit_rate == 0.0}
+        empty={@selective_testing_analytics.result.hit_rate == 0.0}
       />
       <.widget
         title={dgettext("dashboard_projects", "Average build time")}
@@ -140,14 +140,14 @@
         }
         value={
           dgettext("dashboard_projects", "%{duration}s",
-            duration: Float.round(@build_analytics.total_average_duration / 1000, 1)
+            duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
           )
         }
         id="widget-average-build-time"
-        trend_value={@build_analytics.trend}
+        trend_value={@build_analytics.result.trend}
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
-        empty={@build_analytics.total_average_duration == 0}
+        empty={@build_analytics.result.total_average_duration == 0}
       />
       <.widget
         title={dgettext("dashboard_projects", "Average test time")}
@@ -159,19 +159,27 @@
         }
         value={
           dgettext("dashboard_projects", "%{duration}s",
-            duration: Float.round(@test_analytics.total_average_duration / 1000, 1)
+            duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
           )
         }
         id="widget-average-test-time"
-        trend_value={@test_analytics.trend}
+        trend_value={@test_analytics.result.trend}
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
-        empty={@test_analytics.total_average_duration == 0}
+        empty={@test_analytics.result.total_average_duration == 0}
       />
     </div>
-    <div data-part="cache-cards-section">
+    <div :if={@binary_cache_hit_rate_analytics.ok?} data-part="cache-cards-section">
+      <% binary_cache_hit_rate =
+        (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+        |> Decimal.from_float()
+        |> Decimal.round(1) %>
+      <% selective_testing_hit_rate =
+        (@selective_testing_analytics.result.hit_rate * 100)
+        |> Decimal.from_float()
+        |> Decimal.round(1) %>
       <.card_section
-        :if={@binary_cache_hit_rate_analytics.cache_hit_rate != 0.0}
+        :if={@binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0}
         data-part="cache-effectiveness-card-chart-section"
       >
         <div data-part="effectiveness-chart">
@@ -214,8 +222,8 @@
                     color: "var:noora-surface-label-secondary",
                     formatter: "fn:toLocaleDate",
                     customValues: [
-                      @binary_cache_hit_rate_analytics.dates |> hd(),
-                      @binary_cache_hit_rate_analytics.dates |> List.last()
+                      @binary_cache_hit_rate_analytics.result.dates |> hd(),
+                      @binary_cache_hit_rate_analytics.result.dates |> List.last()
                     ],
                     padding: [10, 0, 0, 0]
                   }
@@ -246,8 +254,8 @@
               %{
                 data:
                   Enum.zip(
-                    @binary_cache_hit_rate_analytics.dates,
-                    @binary_cache_hit_rate_analytics.values
+                    @binary_cache_hit_rate_analytics.result.dates,
+                    @binary_cache_hit_rate_analytics.result.values
                     |> Enum.map(&(&1 * 100))
                     |> Enum.map(&Decimal.from_float/1)
                     |> Enum.map(&Decimal.round(&1, 1))
@@ -261,8 +269,8 @@
               %{
                 data:
                   Enum.zip(
-                    @selective_testing_analytics.dates,
-                    @selective_testing_analytics.values
+                    @selective_testing_analytics.result.dates,
+                    @selective_testing_analytics.result.values
                     |> Enum.map(&(&1 * 100))
                     |> Enum.map(&Decimal.from_float/1)
                     |> Enum.map(&Decimal.round(&1, 1))
@@ -282,8 +290,8 @@
       <.card_section
         :if={
           @analytics_environment == "ci" &&
-            @build_time_analytics.total_time_saved != 0 &&
-            @build_time_analytics.total_build_time != 0
+            @build_time_analytics.result.total_time_saved != 0 &&
+            @build_time_analytics.result.total_build_time != 0
         }
         data-part="time-saved-card-chart-section"
       >
@@ -292,7 +300,7 @@
             title={dgettext("dashboard_projects", "Build time saved")}
             value={
               Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @build_time_analytics.total_time_saved,
+                @build_time_analytics.result.total_time_saved,
                 include_seconds: false
               )
             }
@@ -316,7 +324,7 @@
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
                   formatter:
-                    if(@build_time_analytics.total_build_time < 3_600_000,
+                    if(@build_time_analytics.result.total_build_time < 3_600_000,
                       do: "fn:formatSeconds",
                       else: "fn:formatHours"
                     ),
@@ -343,7 +351,7 @@
                 trigger: "axis",
                 axisPointer: %{type: "none"},
                 valueFormat:
-                  if(@build_time_analytics.total_build_time < 3_600_000,
+                  if(@build_time_analytics.result.total_build_time < 3_600_000,
                     do: "fn:formatSeconds",
                     else: "fn:formatHours"
                   )
@@ -360,13 +368,13 @@
                 borderRadius: [0, 4, 4, 0]
               },
               data: [
-                if(@build_time_analytics.total_build_time < 3_600_000,
+                if(@build_time_analytics.result.total_build_time < 3_600_000,
                   do:
-                    (@build_time_analytics.total_time_saved / 1000)
+                    (@build_time_analytics.result.total_time_saved / 1000)
                     |> Decimal.from_float()
                     |> Decimal.round(1),
                   else:
-                    (@build_time_analytics.total_time_saved / 3_600_000)
+                    (@build_time_analytics.result.total_time_saved / 3_600_000)
                     |> Decimal.from_float()
                     |> Decimal.round(2)
                 )
@@ -378,7 +386,10 @@
       </.card_section>
     </div>
     <.empty_card_section
-      :if={@binary_cache_hit_rate_analytics.cache_hit_rate == 0.0}
+      :if={
+        @binary_cache_hit_rate_analytics.ok? &&
+          @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
+      }
       title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
       get_started_href="https://docs.tuist.dev/en/"
     >
@@ -395,20 +406,20 @@
         label={dgettext("dashboard_projects", "View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
-        disabled={Enum.empty?(@recent_test_runs)}
+        disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
-    <.card_section :if={not Enum.empty?(@recent_test_runs)}>
+    <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.legend
             title={dgettext("dashboard_projects", "Passed runs")}
-            value={@passed_test_runs_count}
+            value={@passed_test_runs_count.result}
             style="primary"
           />
           <.legend
             title={dgettext("dashboard_projects", "Failed runs")}
-            value={@failed_test_runs_count}
+            value={@failed_test_runs_count.result}
             style="destructive"
           />
         </div>
@@ -430,7 +441,7 @@
               },
               xAxis: %{
                 axisLabel: %{show: false},
-                data: @recent_test_runs |> Enum.map(& &1.date)
+                data: @recent_test_runs.result |> Enum.map(& &1.date)
               },
               yAxis: %{
                 splitLine: %{
@@ -450,7 +461,7 @@
           }
           series={[
             %{
-              data: @recent_test_runs,
+              data: @recent_test_runs.result,
               name: "Test Run",
               type: "bar"
             }
@@ -464,7 +475,7 @@
       </div>
     </.card_section>
     <.empty_card_section
-      :if={Enum.empty?(@recent_test_runs)}
+      :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_projects", "Runs: no data yet")}
       get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
     >
@@ -481,19 +492,22 @@
         label={dgettext("dashboard_projects", "View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
-        disabled={Enum.empty?(@latest_app_previews)}
+        disabled={!@latest_app_previews.ok? || Enum.empty?(@latest_app_previews.result)}
       />
     </:actions>
-    <.card_section :if={not Enum.empty?(@latest_app_previews)} data-part="latest-app-previews">
+    <.card_section
+      :if={@latest_app_previews.ok? && not Enum.empty?(@latest_app_previews.result)}
+      data-part="latest-app-previews"
+    >
       <span data-part="title">{dgettext("dashboard_projects", "Latest app previews")}</span>
       <div data-part="apps">
-        <%= for preview <- @latest_app_previews do %>
+        <%= for preview <- @latest_app_previews.result do %>
           <.app_preview preview={preview} user_agent={@user_agent} />
         <% end %>
       </div>
     </.card_section>
     <.empty_card_section
-      :if={Enum.empty?(@latest_app_previews)}
+      :if={@latest_app_previews.ok? && Enum.empty?(@latest_app_previews.result)}
       data-part="empty-previews-card-section"
       title={dgettext("dashboard_projects", "No previews yet")}
       get_started_href="https://docs.tuist.dev/en/guides/features/previews"
@@ -515,15 +529,17 @@
         label={@bundle_size_selected_app}
         secondary_text={dgettext("dashboard_projects", "App:")}
       >
-        <%= for app <- @bundle_size_apps do %>
-          <.dropdown_item
-            value={app}
-            label={app}
-            patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
-            data-selected={@bundle_size_selected_app == app}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
+        <%= if @bundle_size_apps.ok? do %>
+          <%= for app <- @bundle_size_apps.result do %>
+            <.dropdown_item
+              value={app}
+              label={app}
+              patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
+              data-selected={@bundle_size_selected_app == app}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          <% end %>
         <% end %>
       </.dropdown>
       <.date_picker
@@ -574,7 +590,10 @@
       </.date_picker>
     </:actions>
     <.card_section
-      :if={Enum.any?(@bundle_size_analytics, fn [_date, value] -> value != 0 end)}
+      :if={
+        @bundle_size_analytics.ok? &&
+          Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
+      }
       data-part="bundle-size-chart-card-section"
     >
       <span data-part="legend">{dgettext("dashboard_projects", "Install size")}</span>
@@ -596,8 +615,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @bundle_size_analytics |> List.first() |> List.first(),
-                  @bundle_size_analytics |> List.last() |> List.first()
+                  @bundle_size_analytics.result |> List.first() |> List.first(),
+                  @bundle_size_analytics.result |> List.last() |> List.first()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -625,7 +644,7 @@
         series={[
           %{
             color: "var:noora-chart-primary",
-            data: @bundle_size_analytics,
+            data: @bundle_size_analytics.result,
             name: dgettext("dashboard_projects", "Bundle install size"),
             type: "line",
             smooth: 0.1,
@@ -636,7 +655,10 @@
       />
     </.card_section>
     <.empty_card_section
-      :if={Enum.all?(@bundle_size_analytics, fn [_date, value] -> value == 0 end)}
+      :if={
+        @bundle_size_analytics.ok? &&
+          Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
+      }
       title={dgettext("dashboard_projects", "No bundles yet")}
     >
       <:image>
@@ -729,18 +751,18 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <div data-part="builds-card-sections">
-      <.card_section :if={not Enum.empty?(@recent_build_runs)}>
+    <div :if={@recent_build_runs.ok?} data-part="builds-card-sections">
+      <.card_section :if={not Enum.empty?(@recent_build_runs.result)}>
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.legend
               title={dgettext("dashboard_projects", "Passed builds")}
-              value={@passed_build_runs_count}
+              value={@passed_build_runs_count.result}
               style="primary"
             />
             <.legend
               title={dgettext("dashboard_projects", "Failed builds")}
-              value={@failed_build_runs_count}
+              value={@failed_build_runs_count.result}
               style="destructive"
             />
           </div>
@@ -761,7 +783,7 @@
                 },
                 xAxis: %{
                   axisLabel: %{show: false},
-                  data: @recent_build_runs |> Enum.map(& &1.date)
+                  data: @recent_build_runs.result |> Enum.map(& &1.date)
                 },
                 yAxis: %{
                   splitLine: %{
@@ -781,7 +803,7 @@
             }
             series={[
               %{
-                data: @recent_build_runs,
+                data: @recent_build_runs.result,
                 name: "Build",
                 type: "bar"
               }
@@ -795,7 +817,7 @@
         </div>
       </.card_section>
       <.empty_card_section
-        :if={Enum.empty?(@recent_build_runs)}
+        :if={Enum.empty?(@recent_build_runs.result)}
         title={dgettext("dashboard_projects", "No recent builds yet")}
         get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
       >
@@ -805,7 +827,7 @@
         </:image>
       </.empty_card_section>
       <.card_section
-        :if={@builds_duration_analytics.total_average_duration != 0}
+        :if={@builds_duration_analytics.result.total_average_duration != 0}
         data-part="average-build-time-card-section"
       >
         <div data-part="average-build-time-chart">
@@ -822,7 +844,7 @@
               value={
                 dgettext("dashboard_projects", "%{average_build_time}s",
                   average_build_time:
-                    (@builds_duration_analytics.total_average_duration / 1000)
+                    (@builds_duration_analytics.result.total_average_duration / 1000)
                     |> Decimal.from_float()
                     |> Decimal.round(1)
                 )
@@ -848,8 +870,8 @@
                     color: "var:noora-surface-label-secondary",
                     formatter: "fn:toLocaleDate",
                     customValues: [
-                      @builds_duration_analytics.dates |> List.first(),
-                      @builds_duration_analytics.dates |> List.last()
+                      @builds_duration_analytics.result.dates |> List.first(),
+                      @builds_duration_analytics.result.dates |> List.last()
                     ],
                     padding: [10, 0, 0, 0]
                   }
@@ -882,8 +904,8 @@
                 color: "var:noora-chart-secondary",
                 data:
                   Enum.zip(
-                    @builds_duration_analytics.dates,
-                    @builds_duration_analytics.values
+                    @builds_duration_analytics.result.dates,
+                    @builds_duration_analytics.result.values
                     |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
                   )
                   |> Enum.map(&Tuple.to_list/1),
@@ -898,7 +920,7 @@
         </div>
       </.card_section>
       <.empty_card_section
-        :if={@builds_duration_analytics.total_average_duration == 0}
+        :if={@builds_duration_analytics.result.total_average_duration == 0}
         title={dgettext("dashboard_projects", "No builds yet")}
         get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
       >
