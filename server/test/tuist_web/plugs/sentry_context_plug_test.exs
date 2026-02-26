@@ -12,23 +12,43 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
 
   setup :set_mimic_from_context
 
+  setup do
+    Logger.metadata(auth_account_handle: nil, selected_account_handle: nil, selected_project_handle: nil)
+    stub(OpenTelemetry.Tracer, :set_attribute, fn _, _ -> :ok end)
+    :ok
+  end
+
   describe "call/2" do
-    test "does nothing when error tracking is disabled" do
+    test "skips sentry when error tracking is disabled but still sets observability context" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> false end)
       reject(&Sentry.Context.set_extra_context/1)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
+        assert value == user.account.name
+        :ok
+      end)
 
       conn =
         :get
         |> conn("/")
+        |> Authentication.put_current_user(user)
         |> SentryContextPlug.call(%{})
 
       assert conn
+      assert Logger.metadata()[:auth_account_handle] == user.account.name
     end
 
     test "sets auth context for authenticated user" do
       user = AccountsFixtures.user_fixture(preload: [:account])
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
+        assert value == user.account.name
+        :ok
+      end)
 
       expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
@@ -47,12 +67,18 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.call(%{})
 
       assert conn
+      assert Logger.metadata()[:auth_account_handle] == user.account.name
     end
 
     test "sets auth context for authenticated project" do
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
+        assert value == project.account.name
+        :ok
+      end)
 
       expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
@@ -71,6 +97,7 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.call(%{})
 
       assert conn
+      assert Logger.metadata()[:auth_account_handle] == project.account.name
     end
 
     test "sets auth context for authenticated account" do
@@ -78,6 +105,11 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
       authenticated_account = %AuthenticatedAccount{account: account, scopes: [:registry_read]}
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
+        assert value == account.name
+        :ok
+      end)
 
       expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{auth_account_id: account.id, auth_account_handle: account.name}
@@ -91,11 +123,13 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.call(%{})
 
       assert conn
+      assert Logger.metadata()[:auth_account_handle] == account.name
     end
 
     test "does not set auth context when no authentication" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       reject(&Sentry.Context.set_extra_context/1)
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
 
       conn =
         :get
@@ -103,13 +137,20 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.call(%{})
 
       assert conn
+      assert Logger.metadata()[:auth_account_handle] == nil
     end
   end
 
   describe "set_selection_context/1" do
-    test "does nothing when error tracking is disabled" do
+    test "skips sentry when error tracking is disabled but still sets observability context" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> false end)
       reject(&Sentry.Context.set_extra_context/1)
+      parent = self()
+
+      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn key, value ->
+        send(parent, {:trace_attribute, key, value})
+        :ok
+      end)
 
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
@@ -121,12 +162,26 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.set_selection_context()
 
       assert conn
+      assert Logger.metadata()[:selected_account_handle] == project.account.name
+      assert Logger.metadata()[:selected_project_handle] == project.name
+
+      account_handle = project.account.name
+      project_handle = project.name
+
+      assert_receive {:trace_attribute, "selected_account_handle", ^account_handle}
+      assert_receive {:trace_attribute, "selected_project_handle", ^project_handle}
     end
 
     test "sets selection context for selected project and account" do
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
+      parent = self()
+
+      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn key, value ->
+        send(parent, {:trace_attribute, key, value})
+        :ok
+      end)
 
       expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
@@ -148,12 +203,25 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.set_selection_context()
 
       assert conn
+      assert Logger.metadata()[:selected_account_handle] == project.account.name
+      assert Logger.metadata()[:selected_project_handle] == project.name
+
+      account_handle = project.account.name
+      project_handle = project.name
+
+      assert_receive {:trace_attribute, "selected_account_handle", ^account_handle}
+      assert_receive {:trace_attribute, "selected_project_handle", ^project_handle}
     end
 
     test "sets selection context for only selected account" do
       account = AccountsFixtures.account_fixture()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "selected_account_handle", value ->
+        assert value == account.name
+        :ok
+      end)
 
       expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
@@ -172,11 +240,14 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.set_selection_context()
 
       assert conn
+      assert Logger.metadata()[:selected_account_handle] == account.name
+      assert Logger.metadata()[:selected_project_handle] == nil
     end
 
     test "does not set context when no selection" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
       reject(&Sentry.Context.set_extra_context/1)
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
 
       conn =
         :get
@@ -184,6 +255,8 @@ defmodule TuistWeb.Plugs.SentryContextPlugTest do
         |> SentryContextPlug.set_selection_context()
 
       assert conn
+      assert Logger.metadata()[:selected_account_handle] == nil
+      assert Logger.metadata()[:selected_project_handle] == nil
     end
   end
 end
