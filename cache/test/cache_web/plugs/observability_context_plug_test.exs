@@ -1,0 +1,73 @@
+defmodule CacheWeb.Plugs.ObservabilityContextPlugTest do
+  use ExUnit.Case, async: true
+
+  import Mimic
+  import Plug.Conn
+  import Plug.Test
+
+  alias CacheWeb.Plugs.ObservabilityContextPlug
+
+  setup :verify_on_exit!
+
+  setup do
+    Logger.metadata(selected_account_handle: nil, selected_project_handle: nil)
+    :ok
+  end
+
+  describe "call/2" do
+    test "sets selected account and project context when both handles are present" do
+      parent = self()
+
+      expect(OpenTelemetry.Tracer, :set_attribute, 2, fn key, value ->
+        send(parent, {:trace_attribute, key, value})
+        :ok
+      end)
+
+      conn =
+        :get
+        |> conn("/api/cache/cas/some-hash?account_handle=tuist&project_handle=app")
+        |> fetch_query_params()
+
+      result = ObservabilityContextPlug.call(conn, ObservabilityContextPlug.init([]))
+
+      assert result
+      assert Logger.metadata()[:selected_account_handle] == "tuist"
+      assert Logger.metadata()[:selected_project_handle] == "app"
+      assert_receive {:trace_attribute, "selected_account_handle", "tuist"}
+      assert_receive {:trace_attribute, "selected_project_handle", "app"}
+    end
+
+    test "sets only selected account context when only account handle is present" do
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "selected_account_handle", value ->
+        assert value == "tuist"
+        :ok
+      end)
+
+      conn =
+        :get
+        |> conn("/api/cache/cas/some-hash?account_handle=tuist")
+        |> fetch_query_params()
+
+      result = ObservabilityContextPlug.call(conn, ObservabilityContextPlug.init([]))
+
+      assert result
+      assert Logger.metadata()[:selected_account_handle] == "tuist"
+      assert Logger.metadata()[:selected_project_handle] == nil
+    end
+
+    test "does not set selected context when handles are missing" do
+      reject(&OpenTelemetry.Tracer.set_attribute/2)
+
+      conn =
+        :get
+        |> conn("/api/cache/cas/some-hash")
+        |> fetch_query_params()
+
+      result = ObservabilityContextPlug.call(conn, ObservabilityContextPlug.init([]))
+
+      assert result
+      assert Logger.metadata()[:selected_account_handle] == nil
+      assert Logger.metadata()[:selected_project_handle] == nil
+    end
+  end
+end

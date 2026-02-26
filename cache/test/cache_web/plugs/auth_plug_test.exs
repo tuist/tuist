@@ -16,15 +16,13 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
   end
 
   describe "call/2" do
-    test "sets observability context using account and project handles" do
-      parent = self()
-
+    test "sets authenticated account context after successful authorization" do
       expect(Authentication, :ensure_project_accessible, fn _conn, "tuist", "app" ->
         {:ok, "Bearer token"}
       end)
 
-      expect(OpenTelemetry.Tracer, :set_attribute, 3, fn key, value ->
-        send(parent, {:trace_attribute, key, value})
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "auth_account_handle", value ->
+        assert value == "tuist"
         :ok
       end)
 
@@ -37,15 +35,11 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
 
       refute result.halted
       assert Logger.metadata()[:auth_account_handle] == "tuist"
-      assert Logger.metadata()[:selected_account_handle] == "tuist"
-      assert Logger.metadata()[:selected_project_handle] == "app"
-
-      assert_receive {:trace_attribute, "auth_account_handle", "tuist"}
-      assert_receive {:trace_attribute, "selected_account_handle", "tuist"}
-      assert_receive {:trace_attribute, "selected_project_handle", "app"}
+      assert Logger.metadata()[:selected_account_handle] == nil
+      assert Logger.metadata()[:selected_project_handle] == nil
     end
 
-    test "does not set observability context when account and project handles are missing" do
+    test "does not set authenticated account context when authorization does not succeed" do
       reject(&OpenTelemetry.Tracer.set_attribute/2)
 
       conn =

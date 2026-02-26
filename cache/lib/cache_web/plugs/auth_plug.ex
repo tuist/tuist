@@ -24,11 +24,10 @@ defmodule CacheWeb.Plugs.AuthPlug do
   def call(conn, _opts) do
     {account_handle, project_handle} = extract_handles(conn.query_params)
 
-    conn = set_observability_context(conn, account_handle, project_handle)
-
     with {:ok, account} when account != "" <- {:ok, account_handle},
          {:ok, project} when project != "" <- {:ok, project_handle},
          {:ok, _auth_header} <- Authentication.ensure_project_accessible(conn, account, project) do
+      set_auth_observability_context(account)
       conn
     else
       {:ok, _} -> error_response(conn, 400, "Missing account_handle")
@@ -45,37 +44,11 @@ defmodule CacheWeb.Plugs.AuthPlug do
   defp extract_handles(%{"project_handle" => project}), do: {nil, project}
   defp extract_handles(_), do: {nil, nil}
 
-  defp set_observability_context(conn, account_handle, project_handle) do
-    context = observability_context(account_handle, project_handle)
-
-    if context != %{} do
-      Logger.metadata(context)
-
-      Enum.each(context, fn {key, value} ->
-        OpenTelemetry.Tracer.set_attribute(Atom.to_string(key), value)
-      end)
-    end
-
-    conn
+  defp set_auth_observability_context(account_handle) do
+    context = %{auth_account_handle: account_handle}
+    Logger.metadata(context)
+    OpenTelemetry.Tracer.set_attribute("auth_account_handle", account_handle)
   end
-
-  defp observability_context(account_handle, project_handle)
-       when is_binary(account_handle) and is_binary(project_handle) and account_handle != "" and project_handle != "" do
-    %{
-      auth_account_handle: account_handle,
-      selected_account_handle: account_handle,
-      selected_project_handle: project_handle
-    }
-  end
-
-  defp observability_context(account_handle, _project_handle) when is_binary(account_handle) and account_handle != "" do
-    %{
-      auth_account_handle: account_handle,
-      selected_account_handle: account_handle
-    }
-  end
-
-  defp observability_context(_, _), do: %{}
 
   defp error_response(conn, status, message) do
     conn
