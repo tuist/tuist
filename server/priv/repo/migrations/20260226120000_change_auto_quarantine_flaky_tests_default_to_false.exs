@@ -3,7 +3,10 @@ defmodule Tuist.Repo.Migrations.ChangeAutoQuarantineFlakyTestsDefaultToFalse do
 
   def change do
     alter table(:projects) do
-      modify :auto_quarantine_flaky_tests, :boolean, default: false, from: {:boolean, default: true}
+      # excellent_migrations:safety-assured-for-next-line column_type_changed
+      modify :auto_quarantine_flaky_tests, :boolean,
+        default: false,
+        from: {:boolean, default: true}
     end
   end
 end

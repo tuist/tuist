@@ -115,22 +115,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       organization: organization,
       project: project
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
-
-      assert project.auto_quarantine_flaky_tests
-
-      _html = lv |> element(~s|#auto-quarantine-toggle|) |> render_click()
-
-      updated_project = Projects.get_project_by_id(project.id)
-      refute updated_project.auto_quarantine_flaky_tests
-    end
-
-    test "can toggle auto-quarantine back on", %{
-      conn: conn,
-      organization: organization,
-      project: project
-    } do
-      {:ok, _} = Projects.update_project(project, %{auto_quarantine_flaky_tests: false})
+      refute project.auto_quarantine_flaky_tests
 
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
 
@@ -138,6 +123,21 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       updated_project = Projects.get_project_by_id(project.id)
       assert updated_project.auto_quarantine_flaky_tests
+    end
+
+    test "can toggle auto-quarantine back off", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, _} = Projects.update_project(project, %{auto_quarantine_flaky_tests: true})
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/automations")
+
+      _html = lv |> element(~s|#auto-quarantine-toggle|) |> render_click()
+
+      updated_project = Projects.get_project_by_id(project.id)
+      refute updated_project.auto_quarantine_flaky_tests
     end
   end
 
