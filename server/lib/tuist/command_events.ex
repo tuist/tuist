@@ -242,7 +242,7 @@ defmodule Tuist.CommandEvents do
 
   def delete_account_events(account_id) do
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
-    IngestRepo.delete_all(from(c in Event, where: c.project_id in ^project_ids))
+    delete_events_for_project_ids(project_ids)
   end
 
   def list_billable_customers do
@@ -309,7 +309,30 @@ defmodule Tuist.CommandEvents do
   end
 
   def delete_project_events(project_id) do
-    IngestRepo.delete_all(from(c in Event, where: c.project_id == ^project_id))
+    delete_events_for_project_ids([project_id])
+  end
+
+  defp delete_events_for_project_ids([]), do: :ok
+
+  defp delete_events_for_project_ids(project_ids) do
+    tables = ["command_events" | materialized_view_tables("command_events")]
+
+    Enum.each(tables, fn table ->
+      IngestRepo.query!(
+        "ALTER TABLE #{table} DELETE WHERE project_id IN ({project_ids:Array(Int64)}) SETTINGS mutations_sync = 0",
+        %{"project_ids" => project_ids}
+      )
+    end)
+  end
+
+  defp materialized_view_tables(source_table) do
+    {:ok, %{rows: rows}} =
+      IngestRepo.query(
+        "SELECT name FROM system.tables WHERE database = currentDatabase() AND engine = 'MaterializedView' AND has(dependencies_table, {source:String})",
+        %{"source" => source_table}
+      )
+
+    List.flatten(rows)
   end
 
   def get_project_last_interaction_data(project_ids) do
