@@ -1,5 +1,5 @@
 {
-  "originHash" : "6e15ae1b0332f05b8bb45afe104a621f3229f5afa464120edd44eab4b99e8c95",
+  "originHash" : "07dacaced23f9de517ada34c0c6c70f1fbe73dd478e802d2c5635d06d34ff988",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -591,7 +591,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.14.33"
+        "version" : "0.14.38"
       }
     },
     {
@@ -635,19 +635,11 @@
       }
     },
     {
-      "identity" : "tuist.XcodeGraph",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.34.0"
-      }
-    },
-    {
       "identity" : "tuist.XcodeProj",
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.8.0"
+        "version" : "9.9.0"
       }
     },
     {
