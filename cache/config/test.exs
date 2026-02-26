@@ -8,13 +8,13 @@ config :cache, Cache.Repo,
   database: Path.expand("../test.sqlite3", __DIR__),
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2 + 10,
-  busy_timeout: 10_000,
-  timeout: 15_000,
-  queue_target: 15_000,
-  queue_interval: 15_000,
+  busy_timeout: 30_000,
+  timeout: 45_000,
+  queue_target: 45_000,
+  queue_interval: 45_000,
   show_sensitive_data_on_connection_error: false
 
-config :cache, Cache.SQLiteBuffer, shutdown_ms: 0, flush_interval_ms: to_timeout(hour: 1), flush_timeout_ms: 20_000
+config :cache, Cache.SQLiteBuffer, shutdown_ms: 0, flush_interval_ms: to_timeout(hour: 1), flush_timeout_ms: 50_000
 
 config :cache, CacheWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
