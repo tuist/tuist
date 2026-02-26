@@ -40,7 +40,7 @@ Oluşturulmuş proje otomatik olarak açılır. Daha sonra yeniden açmanız ger
 
 ::: info XED .
 <!-- -->
-`xed.` kullanarak projeyi açmaya çalışırsanız, Tuist tarafından oluşturulan
+`xed .` kullanarak projeyi açmaya çalışırsanız, Tuist tarafından oluşturulan
 çalışma alanı değil, paket açılır. `Tuist.xcworkspace` kullanın.
 <!-- -->
 :::
@@ -76,7 +76,7 @@ tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -config
 "$tuist_build_dir/tuist" generate --path /path/to/project --no-open
 ```
 
-Veya Swift paketi Yöneticisi aracılığıyla:
+Veya Swift package Yöneticisi aracılığıyla:
 
 ```bash
 swift build --product ProjectDescription
