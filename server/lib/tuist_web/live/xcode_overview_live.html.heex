@@ -229,20 +229,6 @@
           <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
         </div>
       </.card_section>
-      <.card_section data-part="time-saved-card-chart-section">
-        <div data-part="legends">
-          <div class="tuist-legend">
-            <div data-part="header">
-              <div data-part="indicator"></div>
-              <span data-part="title" class="tuist-loading-skeleton">
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              </span>
-            </div>
-            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-          </div>
-        </div>
-        <div class="noora-chart tuist-loading-skeleton" style="height: 100px">&nbsp;</div>
-      </.card_section>
     </div>
     <div
       :if={@binary_cache_hit_rate_analytics.ok? && @selective_testing_analytics.ok?}
@@ -364,6 +350,20 @@
             y_axis_max={100}
           />
         </div>
+      </.card_section>
+      <.card_section :if={!@build_time_analytics.ok?} data-part="time-saved-card-chart-section">
+        <div data-part="legends">
+          <div class="tuist-legend">
+            <div data-part="header">
+              <div data-part="indicator"></div>
+              <span data-part="title" class="tuist-loading-skeleton">
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              </span>
+            </div>
+            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+        <div class="noora-chart tuist-loading-skeleton" style="height: 100px">&nbsp;</div>
       </.card_section>
       <.card_section
         :if={
