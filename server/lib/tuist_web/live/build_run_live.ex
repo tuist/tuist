@@ -351,9 +351,9 @@ defmodule TuistWeb.BuildRunLive do
 
   defp file_breakdown_order_by(sort_by) do
     case sort_by do
-      "compilation-duration" -> [:compilation_duration]
+      "compilation-duration" -> [:compilation_duration, :path]
       "file" -> [:path]
-      _ -> [:compilation_duration]
+      _ -> [:compilation_duration, :path]
     end
   end
 
@@ -423,8 +423,8 @@ defmodule TuistWeb.BuildRunLive do
 
   defp module_breakdown_order_by(module_breakdown_sort_by) do
     case module_breakdown_sort_by do
-      "build-duration" -> [:build_duration]
-      "compilation-duration" -> [:compilation_duration]
+      "build-duration" -> [:build_duration, :name]
+      "compilation-duration" -> [:compilation_duration, :name]
       "name" -> [:name]
       _ -> [:name]
     end
@@ -432,9 +432,9 @@ defmodule TuistWeb.BuildRunLive do
 
   defp cacheable_tasks_order_by(cacheable_tasks_sort_by) do
     case cacheable_tasks_sort_by do
-      "description" -> [:description]
+      "description" -> [:description, :key]
       "key" -> [:key]
-      _ -> [:description]
+      _ -> [:description, :key]
     end
   end
 
@@ -1190,9 +1190,9 @@ defmodule TuistWeb.BuildRunLive do
   defp cas_outputs_order_by(sort_by) do
     case sort_by do
       "node-id" -> [:node_id]
-      "size" -> [:size]
-      "compressed-size" -> [:compressed_size]
-      _ -> [:compressed_size]
+      "size" -> [:size, :node_id]
+      "compressed-size" -> [:compressed_size, :node_id]
+      _ -> [:compressed_size, :node_id]
     end
   end
 
