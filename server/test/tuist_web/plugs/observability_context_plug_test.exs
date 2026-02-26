@@ -12,11 +12,6 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
   setup :set_mimic_from_context
 
-  setup do
-    Logger.metadata(auth_account_handle: nil, selected_account_handle: nil, selected_project_handle: nil)
-    :ok
-  end
-
   describe "call/2" do
     test "sets auth context for authenticated user" do
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -82,7 +77,7 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
         |> ObservabilityContextPlug.call(%{})
 
       assert conn
-      assert Logger.metadata()[:auth_account_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :auth_account_handle)
     end
   end
 
@@ -126,7 +121,7 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
 
       assert conn
       assert Logger.metadata()[:selected_account_handle] == account.name
-      assert Logger.metadata()[:selected_project_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
 
     test "does not set context when no selection" do
@@ -138,8 +133,8 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlugTest do
         |> ObservabilityContextPlug.set_selection_context()
 
       assert conn
-      assert Logger.metadata()[:selected_account_handle] == nil
-      assert Logger.metadata()[:selected_project_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :selected_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
   end
 end

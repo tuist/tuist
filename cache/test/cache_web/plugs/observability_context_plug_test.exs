@@ -9,11 +9,6 @@ defmodule CacheWeb.Plugs.ObservabilityContextPlugTest do
 
   setup :verify_on_exit!
 
-  setup do
-    Logger.metadata(selected_account_handle: nil, selected_project_handle: nil)
-    :ok
-  end
-
   describe "call/2" do
     test "sets selected account and project context when both handles are present" do
       parent = self()
@@ -52,7 +47,7 @@ defmodule CacheWeb.Plugs.ObservabilityContextPlugTest do
 
       assert result
       assert Logger.metadata()[:selected_account_handle] == "tuist"
-      assert Logger.metadata()[:selected_project_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
 
     test "does not set selected context when handles are missing" do
@@ -66,8 +61,8 @@ defmodule CacheWeb.Plugs.ObservabilityContextPlugTest do
       result = ObservabilityContextPlug.call(conn, ObservabilityContextPlug.init([]))
 
       assert result
-      assert Logger.metadata()[:selected_account_handle] == nil
-      assert Logger.metadata()[:selected_project_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :selected_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
   end
 end

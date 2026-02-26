@@ -10,11 +10,6 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
 
   setup :verify_on_exit!
 
-  setup do
-    Logger.metadata(auth_account_handle: nil, selected_account_handle: nil, selected_project_handle: nil)
-    :ok
-  end
-
   describe "call/2" do
     test "sets authenticated account context after successful authorization" do
       expect(Authentication, :ensure_project_accessible, fn _conn, "tuist", "app" ->
@@ -35,8 +30,8 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
 
       refute result.halted
       assert Logger.metadata()[:auth_account_handle] == "tuist"
-      assert Logger.metadata()[:selected_account_handle] == nil
-      assert Logger.metadata()[:selected_project_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :selected_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
 
     test "does not set authenticated account context when authorization does not succeed" do
@@ -51,9 +46,9 @@ defmodule CacheWeb.Plugs.AuthPlugTest do
 
       assert result.halted
       assert result.status == 401
-      assert Logger.metadata()[:auth_account_handle] == nil
-      assert Logger.metadata()[:selected_account_handle] == nil
-      assert Logger.metadata()[:selected_project_handle] == nil
+      refute Keyword.has_key?(Logger.metadata(), :auth_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :selected_account_handle)
+      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
     end
   end
 end
