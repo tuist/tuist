@@ -533,6 +533,9 @@
                         },
                         "authentication": {
                             "text": "المصادقة"
+                        },
+                        "network": {
+                            "text": "الشبكة"
                         }
                     },
                     "text": "السيرڤر"
