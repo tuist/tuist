@@ -182,4 +182,30 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
   }
+
+  }
+
+.tuist-loading-skeleton {
+  background-color: var(--noora-surface-background-secondary);
+  border-radius: var(--noora-radius-small);
+  color: transparent !important;
+  min-width: 80px;
+  display: inline-block;
+  animation: tuist-widget-loading-pulse 1.5s ease-in-out infinite;
+}
+
+.tuist-loading-skeleton--small {
+  min-width: 120px;
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+@keyframes tuist-widget-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }

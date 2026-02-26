@@ -122,6 +122,8 @@ defmodule TuistWeb.Widget do
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
 
+  attr(:loading, :boolean, default: false, doc: "Whether the widget is in a loading state")
+
   attr(:empty_label, :string, default: nil, doc: "Custom label to display when widget is empty")
 
   attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
@@ -164,7 +166,7 @@ defmodule TuistWeb.Widget do
 
   defp static_widget(assigns) do
     ~H"""
-    <.card_section class="tuist-widget" id={@id}>
+    <.card_section class="tuist-widget" id={@id} data-loading={@loading}>
       <div data-part="header">
         <div
           :if={not is_nil(Map.get(assigns, :legend_color))}
@@ -199,11 +201,18 @@ defmodule TuistWeb.Widget do
           </:trigger>
         </.tooltip>
       </div>
-      <span data-part="value">{@value}</span>
-      <div :if={@trend_value} data-part="trend">
-        <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
-        <span data-part="label">{@trend_label}</span>
-      </div>
+      <%= if @loading do %>
+        <span data-part="value" class="tuist-loading-skeleton">&nbsp;</span>
+        <div data-part="trend">
+          <span class="tuist-loading-skeleton tuist-loading-skeleton--small">&nbsp;</span>
+        </div>
+      <% else %>
+        <span data-part="value">{@value}</span>
+        <div :if={@trend_value} data-part="trend">
+          <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
+          <span data-part="label">{@trend_label}</span>
+        </div>
+      <% end %>
     </.card_section>
     """
   end
