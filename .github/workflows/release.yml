@@ -610,6 +610,9 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
+          # +10000 offset ensures build numbers stay above 9127, the last value produced by
+          # the previous scheme before github.run_number was adopted (the run counter reset
+          # to ~3200 when the workflow was recreated, going below the old high-water mark).
           BUILD_NUMBER=$(( ${{ github.run_number }} + 10000 ))
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
 
@@ -685,6 +688,9 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
+          # +10000 offset ensures build numbers stay above 9127, the last value produced by
+          # the previous scheme before github.run_number was adopted (the run counter reset
+          # to ~3200 when the workflow was recreated, going below the old high-water mark).
           BUILD_NUMBER=$(( ${{ github.run_number }} + 10000 ))
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
       - name: Install Tuist dependencies
