@@ -25,7 +25,7 @@ defmodule Tuist.IngestRepo.Migrations.FixBranchCiProjectionAfterNonNullableRanAt
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_branch_ci"
+    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_branch_ci SETTINGS mutations_sync = 1"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
