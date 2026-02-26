@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-05 07:22+0000\n"
+"PO-Revision-Date: 2026-02-26 10:17+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ja/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -547,7 +547,7 @@ msgstr "お客様の特定のニーズに合わせた契約書"
 
 #, fuzzy
 msgid "This action cannot be undone."
-msgstr "この操作は取り消せません。"
+msgstr "この操作は元に戻せません。"
 
 #, fuzzy
 msgid "To start using Tuist, verify your email and you are good to go:"
@@ -806,88 +806,124 @@ msgstr ""
 "カスタムキャッシュエンドポイントが設定されていません。エンドポイントが追加さ"
 "れるまで、TuistはデフォルトのTuistホスト型キャッシュを使用します。"
 
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "クライアントID"
 
+#, fuzzy
 msgid "Client secret"
-msgstr ""
+msgstr "クライアントシークレット"
 
+#, fuzzy
 msgid "Copy the Client ID and Client Secret from the application settings"
 msgstr ""
+"アプリケーション設定からクライアントIDとクライアントシークレットをコピーして"
+"ください"
 
+#, fuzzy
 msgid "Go to Applications > Applications > Create App Integration"
-msgstr ""
+msgstr "アプリケーション ＞ アプリケーション ＞ アプリ連携を作成"
 
+#, fuzzy
 msgid "Google Workspace domain"
-msgstr ""
+msgstr "Google Workspace ドメイン"
 
+#, fuzzy
 msgid "Okta application client ID"
-msgstr ""
+msgstr "OktaアプリケーションクライアントID"
 
+#, fuzzy
 msgid "Okta domain"
-msgstr ""
+msgstr "Okta ドメイン"
 
+#, fuzzy
 msgid "Provider"
-msgstr ""
+msgstr "プロバイダー"
 
+#, fuzzy
 msgid "SSO"
-msgstr ""
+msgstr "SSO"
 
+#, fuzzy
 msgid "SSO settings are only available for organizations."
-msgstr ""
+msgstr "SSO設定は組織のみ利用可能です。"
 
+#, fuzzy
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr ""
+msgstr "「OIDC - OpenID Connect」と「Web Application」を選択してください"
 
+#, fuzzy
 msgid "Single Sign-On"
-msgstr ""
+msgstr "シングルサインオン"
 
+#, fuzzy
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
 msgstr ""
+"このドメインに関連付けられたメールアドレスでGoogleに認証されている必要があり"
+"ます。まずGoogleでサインインしてください。"
 
+#, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
 msgstr ""
+"以下のフィールドを設定する前に、Okta管理ダッシュボードでOIDC Web"
+"アプリケーションを作成してください。"
 
+#, fuzzy
 msgid "SSO provider"
-msgstr ""
+msgstr "SSOプロバイダー"
 
+#, fuzzy
 msgid "Save changes"
-msgstr ""
+msgstr "変更を保存"
 
+#, fuzzy
 msgid ""
 "Select an SSO provider to allow users to sign in to Tuist and automatically "
 "join this organization."
 msgstr ""
+"SSOプロバイダーを選択し、ユーザーがTuistにサインインして自動的にこの組織に参"
+"加できるようにします。"
 
+#, fuzzy
 msgid "Setup instructions"
-msgstr ""
+msgstr "セットアップ手順"
 
+#, fuzzy
 msgid "The client ID from your Okta OIDC application."
-msgstr ""
+msgstr "Okta OIDCアプリケーションのクライアントID。"
 
+#, fuzzy
 msgid "The client secret from your Okta OIDC application."
-msgstr ""
+msgstr "Okta OIDCアプリケーションのクライアントシークレット。"
 
+#, fuzzy
 msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
 msgstr ""
+"このドメインからGoogleアカウントでサインインするユーザーは、自動的にこの組織"
+"に追加されます。"
 
+#, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr ""
+msgstr "https://プレフィックスを除いたOkta組織のURL"
 
+#, fuzzy
 msgid "Enable Single Sign-On"
-msgstr ""
+msgstr "シングルサインオンを有効にする"
 
+#, fuzzy
 msgid "Enable and configure SSO for your organization."
-msgstr ""
+msgstr "組織向けにSSOを有効化し設定してください。"
 
+#, fuzzy
 msgid "Set the initiate login URI to:"
-msgstr ""
+msgstr "ログイン開始URIを以下に設定してください："
 
+#, fuzzy
 msgid "Set the sign-in redirect URI to:"
-msgstr ""
+msgstr "サインインリダイレクトURIを以下に設定してください："
