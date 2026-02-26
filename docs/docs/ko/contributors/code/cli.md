@@ -48,7 +48,7 @@ CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테
 `tuist` scheme을 편집하고 `generate --no-open` 와 같은 인수를 설정하세요. 작업 디렉터리를 프로젝트 루트로
 설정하거나 (또는 `--path` 를 사용하세요).
 
-::: 경고 PROJECTDESCRIPTION 컴파일
+::: warning PROJECTDESCRIPTION 컴파일
 <!-- -->
 CLI는 `ProjectDescription` 빌드에 의존합니다. 실행에 실패할 경우, 먼저 `Tuist-Workspace` scheme을
 빌드하십시오.
