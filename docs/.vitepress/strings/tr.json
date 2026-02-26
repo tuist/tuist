@@ -489,6 +489,9 @@
                         },
                         "authentication": {
                             "text": "Kimlik doğrulama"
+                        },
+                        "network": {
+                            "text": "Ağ"
                         }
                     },
                     "text": "Sunucu"
