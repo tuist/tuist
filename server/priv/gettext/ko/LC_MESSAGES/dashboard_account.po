@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-26 10:17+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-02-26 14:54+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ko/>\n"
 "Language: ko\n"
@@ -610,79 +610,62 @@ msgstr ""
 "사용자 지정 캐시 주소가 구성되지 않았습니다. 주소가 추가될 때까지는 Tuist에"
 "서 호스팅하는 기본 캐시를 사용합니다."
 
-#, fuzzy
 msgid "Client ID"
 msgstr "클라이언트 ID"
 
-#, fuzzy
 msgid "Client secret"
 msgstr "클라이언트 시크릿"
 
-#, fuzzy
 msgid "Copy the Client ID and Client Secret from the application settings"
-msgstr "애플리케이션 설정에서 클라이언트 ID와 클라이언트 시크릿을 복사하세요."
+msgstr "애플리케이션 설정에서 클라이언트 ID와 클라이언트 시크릿을 복사하세요"
 
-#, fuzzy
 msgid "Go to Applications > Applications > Create App Integration"
 msgstr "애플리케이션 > 애플리케이션 > 앱 통합 생성으로 이동하세요"
 
-#, fuzzy
 msgid "Google Workspace domain"
 msgstr "Google Workspace 도메인"
 
-#, fuzzy
 msgid "Okta application client ID"
 msgstr "Okta 애플리케이션 클라이언트 ID"
 
-#, fuzzy
 msgid "Okta domain"
 msgstr "Okta 도메인"
 
-#, fuzzy
 msgid "Provider"
 msgstr "제공자"
 
-#, fuzzy
 msgid "SSO"
 msgstr "SSO"
 
-#, fuzzy
 msgid "SSO settings are only available for organizations."
 msgstr "SSO 설정은 조직에만 제공됩니다."
 
-#, fuzzy
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr "\"OIDC - OpenID Connect\"와 \"웹 애플리케이션\"을 선택하십시오."
+msgstr "\"OIDC - OpenID Connect\"와 \"웹 애플리케이션\"을 선택하세요"
 
-#, fuzzy
 msgid "Single Sign-On"
 msgstr "단일 로그인"
 
-#, fuzzy
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
 msgstr ""
-"이 도메인에 연결된 이메일로 Google에 인증되어야 합니다. 먼저 Google로 로그인"
-"하세요."
+"이 도메인에 연결된 이메일로 Google에 인증되어야 합니다. 먼저 Google로 "
+"로그인하세요."
 
-#, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
 msgstr ""
-"아래 필드를 구성하기 전에 Okta 관리자 대시보드에서 OIDC 웹 애플리케이션을 생"
-"성하십시오."
+"아래 필드를 구성하기 전에 Okta 관리자 대시보드에서 OIDC 웹 애플리케이션을 "
+"생성하십시오."
 
-#, fuzzy
 msgid "SSO provider"
 msgstr "SSO 제공자"
 
-#, fuzzy
 msgid "Save changes"
 msgstr "변경 사항 저장"
 
-#, fuzzy
 msgid ""
 "Select an SSO provider to allow users to sign in to Tuist and automatically "
 "join this organization."
@@ -690,25 +673,21 @@ msgstr ""
 "사용자가 Tuist에 로그인하고 자동으로 이 조직에 가입할 수 있도록 SSO 공급자를 "
 "선택하세요."
 
-#, fuzzy
 msgid "Setup instructions"
 msgstr "설정 방법"
 
-#, fuzzy
 msgid "The client ID from your Okta OIDC application."
 msgstr "Okta OIDC 애플리케이션의 클라이언트 ID."
 
-#, fuzzy
 msgid "The client secret from your Okta OIDC application."
 msgstr "Okta OIDC 애플리케이션의 클라이언트 시크릿."
 
-#, fuzzy
 msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
 msgstr ""
-"이 도메인의 Google 계정으로 로그인하는 사용자는 자동으로 이 조직에 추가됩니"
-"다."
+"이 도메인의 Google 계정으로 로그인하는 사용자는 자동으로 이 조직에 "
+"추가됩니다."
 
 #, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
