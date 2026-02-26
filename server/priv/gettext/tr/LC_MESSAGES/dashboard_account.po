@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-04 17:55+0000\n"
+"PO-Revision-Date: 2026-02-26 10:17+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/tr/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -813,88 +813,122 @@ msgstr ""
 "Özel önbellek uç noktaları yapılandırılmadı. Uç noktalar eklenene kadar "
 "Tuist, varsayılan Tuist barındırmalı önbelleği kullanacaktır."
 
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "Müşteri Kimliği"
 
+#, fuzzy
 msgid "Client secret"
-msgstr ""
+msgstr "Müşteri gizli anahtarı"
 
+#, fuzzy
 msgid "Copy the Client ID and Client Secret from the application settings"
 msgstr ""
+"Uygulama ayarlarından Müşteri Kimliği ve Müşteri Gizli Anahtarını kopyalayın."
 
+#, fuzzy
 msgid "Go to Applications > Applications > Create App Integration"
-msgstr ""
+msgstr "Uygulamalar > Uygulamalar > Uygulama Entegrasyonu Oluştur'a gidin."
 
+#, fuzzy
 msgid "Google Workspace domain"
-msgstr ""
+msgstr "Google Workspace etki alanı"
 
+#, fuzzy
 msgid "Okta application client ID"
-msgstr ""
+msgstr "Okta uygulama istemci kimliği"
 
+#, fuzzy
 msgid "Okta domain"
-msgstr ""
+msgstr "Okta etki alanı"
 
+#, fuzzy
 msgid "Provider"
-msgstr ""
+msgstr "Sağlayıcı"
 
 msgid "SSO"
 msgstr ""
 
+#, fuzzy
 msgid "SSO settings are only available for organizations."
-msgstr ""
+msgstr "SSO ayarları yalnızca kuruluşlar için kullanılabilir."
 
+#, fuzzy
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr ""
+msgstr "\"OIDC - OpenID Connect\" ve \"Web Uygulaması\"nı seçin."
 
+#, fuzzy
 msgid "Single Sign-On"
-msgstr ""
+msgstr "Tek Oturum Açma"
 
+#, fuzzy
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
 msgstr ""
+"Bu alana bağlı bir e-posta adresi kullanarak Google'da kimlik doğrulaması "
+"yapmanız gerekir. Lütfen önce Google'da oturum açın."
 
+#, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
 msgstr ""
+"Aşağıdaki alanları yapılandırmadan önce Okta yönetici panonuzda bir OIDC Web "
+"Uygulaması oluşturun."
 
+#, fuzzy
 msgid "SSO provider"
-msgstr ""
+msgstr "SSO sağlayıcısı"
 
+#, fuzzy
 msgid "Save changes"
-msgstr ""
+msgstr "Değişiklikleri kaydedin"
 
+#, fuzzy
 msgid ""
 "Select an SSO provider to allow users to sign in to Tuist and automatically "
 "join this organization."
 msgstr ""
+"Kullanıcıların Tuist'e giriş yapıp bu kuruluşa otomatik olarak "
+"katılabilmeleri için bir SSO sağlayıcısı seçin."
 
+#, fuzzy
 msgid "Setup instructions"
-msgstr ""
+msgstr "Kurulum talimatları"
 
+#, fuzzy
 msgid "The client ID from your Okta OIDC application."
-msgstr ""
+msgstr "Okta OIDC uygulamanızın müşteri kimliği."
 
+#, fuzzy
 msgid "The client secret from your Okta OIDC application."
-msgstr ""
+msgstr "Okta OIDC uygulamanızdan alınan müşteri gizli anahtarı."
 
+#, fuzzy
 msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
 msgstr ""
+"Bu etki alanından Google hesabıyla oturum açan kullanıcılar otomatik olarak "
+"bu kuruluşa eklenecektir."
 
+#, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr ""
+msgstr "https:// öneki olmadan Okta kuruluşunuzun URL'si."
 
+#, fuzzy
 msgid "Enable Single Sign-On"
-msgstr ""
+msgstr "Tek Oturum Açma'yı etkinleştirin"
 
+#, fuzzy
 msgid "Enable and configure SSO for your organization."
-msgstr ""
+msgstr "Kuruluşunuz için SSO'yu etkinleştirin ve yapılandırın."
 
+#, fuzzy
 msgid "Set the initiate login URI to:"
-msgstr ""
+msgstr "Başlangıç oturum açma URI'sini şu şekilde ayarlayın:"
 
+#, fuzzy
 msgid "Set the sign-in redirect URI to:"
-msgstr ""
+msgstr "Oturum açma yönlendirme URI'sini şu şekilde ayarlayın:"
