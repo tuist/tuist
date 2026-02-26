@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-05 07:22+0000\n"
+"PO-Revision-Date: 2026-02-26 10:47+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_account/zh_Hant/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -287,7 +287,7 @@ msgstr "您好 %{name}，您可點擊下方按鈕重設密碼："
 
 #, fuzzy
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr "若此郵件非您所發，請忽略此信。"
+msgstr "若非您提出此請求，請忽略此郵件。"
 
 #, fuzzy
 msgid "Invitation accepted!"
@@ -423,7 +423,7 @@ msgstr "優先支援"
 
 #, fuzzy
 msgid "Priority support via shared Slack channel"
-msgstr "透過共享 Slack 頻道提供優先支援"
+msgstr "透過共享 Slack 通道提供優先支援"
 
 #, fuzzy
 msgid "Priority support: Via shared Slack channel"
@@ -786,88 +786,114 @@ msgid ""
 "hosted cache until endpoints are added."
 msgstr "未設定自訂快取端點。在新增端點前，Tuist 將使用預設的 Tuist 主機快取。"
 
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "客戶識別碼"
 
+#, fuzzy
 msgid "Client secret"
-msgstr ""
+msgstr "客戶端密鑰"
 
+#, fuzzy
 msgid "Copy the Client ID and Client Secret from the application settings"
-msgstr ""
+msgstr "從應用程式設定中複製客戶端 ID 與客戶端密鑰"
 
+#, fuzzy
 msgid "Go to Applications > Applications > Create App Integration"
-msgstr ""
+msgstr "前往「應用程式」>「應用程式」>「建立應用程式整合」"
 
+#, fuzzy
 msgid "Google Workspace domain"
-msgstr ""
+msgstr "Google Workspace 網域"
 
+#, fuzzy
 msgid "Okta application client ID"
-msgstr ""
+msgstr "Okta 應用程式客戶端 ID"
 
+#, fuzzy
 msgid "Okta domain"
-msgstr ""
+msgstr "Okta 網域"
 
+#, fuzzy
 msgid "Provider"
-msgstr ""
+msgstr "供應商"
 
+#, fuzzy
 msgid "SSO"
-msgstr ""
+msgstr "SSO"
 
+#, fuzzy
 msgid "SSO settings are only available for organizations."
-msgstr ""
+msgstr "SSO 設定僅限組織使用。"
 
+#, fuzzy
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr ""
+msgstr "選擇「OIDC - OpenID Connect」與「Web Application」"
 
+#, fuzzy
 msgid "Single Sign-On"
-msgstr ""
+msgstr "單一登入"
 
+#, fuzzy
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
-msgstr ""
+msgstr "您必須使用與本網域綁定的電子郵件透過 Google 驗證身分。請先登入 Google 帳戶。"
 
+#, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
-msgstr ""
+msgstr "在 Okta 管理員儀表板中建立 OIDC 網頁應用程式後，再進行下方欄位的設定。"
 
+#, fuzzy
 msgid "SSO provider"
-msgstr ""
+msgstr "單一登入服務供應商"
 
+#, fuzzy
 msgid "Save changes"
-msgstr ""
+msgstr "儲存變更"
 
+#, fuzzy
 msgid ""
 "Select an SSO provider to allow users to sign in to Tuist and automatically "
 "join this organization."
-msgstr ""
+msgstr "選擇單一登入服務供應商，讓使用者能登入 Tuist 並自動加入此組織。"
 
+#, fuzzy
 msgid "Setup instructions"
-msgstr ""
+msgstr "設定說明"
 
+#, fuzzy
 msgid "The client ID from your Okta OIDC application."
-msgstr ""
+msgstr "來自您的 Okta OIDC 應用程式的客戶端 ID。"
 
+#, fuzzy
 msgid "The client secret from your Okta OIDC application."
-msgstr ""
+msgstr "來自您的 Okta OIDC 應用程式的客戶端密鑰。"
 
+#, fuzzy
 msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
-msgstr ""
+msgstr "從此網域使用 Google 帳戶登入的使用者，將自動加入此組織。"
 
+#, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr ""
+msgstr "您的 Okta 組織網址，請移除 https:// 前綴。"
 
+#, fuzzy
 msgid "Enable Single Sign-On"
-msgstr ""
+msgstr "啟用單一登入"
 
+#, fuzzy
 msgid "Enable and configure SSO for your organization."
-msgstr ""
+msgstr "為您的組織啟用並設定單一登入 (SSO)。"
 
+#, fuzzy
 msgid "Set the initiate login URI to:"
-msgstr ""
+msgstr "將初始登入 URI 設定為："
 
+#, fuzzy
 msgid "Set the sign-in redirect URI to:"
-msgstr ""
+msgstr "將登入重定向 URI 設定為："
