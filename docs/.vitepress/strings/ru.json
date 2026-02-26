@@ -492,6 +492,9 @@
                         },
                         "authentication": {
                             "text": "Аутентификация"
+                        },
+                        "network": {
+                            "text": "Сеть"
                         }
                     },
                     "text": "Сервер"
