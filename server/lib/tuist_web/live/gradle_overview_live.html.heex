@@ -83,13 +83,9 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <div :if={!@cache_hit_rate_analytics.ok?} data-part="widgets">
-      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
-      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
-      <div class="tuist-loading-placeholder" style="min-height: 120px; flex: 1"></div>
-    </div>
-    <div :if={@cache_hit_rate_analytics.ok?} data-part="widgets">
+    <div data-part="widgets">
       <.widget
+        loading={!@cache_hit_rate_analytics.ok?}
         title={dgettext("dashboard_gradle", "Cache hit rate")}
         description={
           dgettext(
@@ -97,13 +93,25 @@
             "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache rather than being executed."
           )
         }
-        value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate.result)}
+        value={
+          if @cache_hit_rate_analytics.ok?,
+            do: dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate.result),
+            else: ""
+        }
         id="widget-cache-hit-rate"
-        trend_value={@cache_hit_rate_analytics.result.trend}
+        trend_value={
+          if @cache_hit_rate_analytics.ok?,
+            do: @cache_hit_rate_analytics.result.trend,
+            else: nil
+        }
         trend_label={@analytics_trend_label}
-        empty={@cache_hit_rate_analytics.result.avg_hit_rate == 0.0}
+        empty={
+          @cache_hit_rate_analytics.ok? &&
+            @cache_hit_rate_analytics.result.avg_hit_rate == 0.0
+        }
       />
       <.widget
+        loading={!@build_duration_analytics.ok?}
         title={dgettext("dashboard_gradle", "Average build time")}
         description={
           dgettext(
@@ -112,18 +120,29 @@
           )
         }
         value={
-          dgettext("dashboard_gradle", "%{duration}s",
-            duration:
-              Float.round(@build_duration_analytics.result.total_average_duration / 1000, 1)
-          )
+          if @build_duration_analytics.ok?,
+            do:
+              dgettext("dashboard_gradle", "%{duration}s",
+                duration:
+                  Float.round(@build_duration_analytics.result.total_average_duration / 1000, 1)
+              ),
+            else: ""
         }
         id="widget-average-build-time"
-        trend_value={@build_duration_analytics.result.trend}
+        trend_value={
+          if @build_duration_analytics.ok?,
+            do: @build_duration_analytics.result.trend,
+            else: nil
+        }
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
-        empty={@build_duration_analytics.result.total_average_duration == 0}
+        empty={
+          @build_duration_analytics.ok? &&
+            @build_duration_analytics.result.total_average_duration == 0
+        }
       />
       <.widget
+        loading={!@test_duration_analytics.ok?}
         title={dgettext("dashboard_gradle", "Average test time")}
         description={
           dgettext(
@@ -132,16 +151,26 @@
           )
         }
         value={
-          dgettext("dashboard_gradle", "%{duration}s",
-            duration:
-              Float.round(@test_duration_analytics.result.total_average_duration / 1000, 1)
-          )
+          if @test_duration_analytics.ok?,
+            do:
+              dgettext("dashboard_gradle", "%{duration}s",
+                duration:
+                  Float.round(@test_duration_analytics.result.total_average_duration / 1000, 1)
+              ),
+            else: ""
         }
         id="widget-average-test-time"
-        trend_value={@test_duration_analytics.result.trend}
+        trend_value={
+          if @test_duration_analytics.ok?,
+            do: @test_duration_analytics.result.trend,
+            else: nil
+        }
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
-        empty={@test_duration_analytics.result.total_average_duration == 0}
+        empty={
+          @test_duration_analytics.ok? &&
+            @test_duration_analytics.result.total_average_duration == 0
+        }
       />
     </div>
     <.card_section
@@ -242,8 +271,31 @@
         disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
-    <div :if={!@recent_test_runs.ok?} class="tuist-loading-placeholder" style="min-height: 200px">
-    </div>
+    <.card_section :if={!@recent_test_runs.ok?}>
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <div class="tuist-legend">
+            <div data-part="header">
+              <div data-part="indicator"></div>
+              <span data-part="title" class="tuist-loading-skeleton">
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              </span>
+            </div>
+            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+          </div>
+          <div class="tuist-legend">
+            <div data-part="header">
+              <div data-part="indicator"></div>
+              <span data-part="title" class="tuist-loading-skeleton">
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              </span>
+            </div>
+            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+        <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+      </div>
+    </.card_section>
     <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
@@ -404,7 +456,48 @@
         </:actions>
       </.date_picker>
     </:actions>
-    <div :if={!@recent_build_runs.ok?} class="tuist-loading-placeholder" style="min-height: 200px">
+    <div :if={!@recent_build_runs.ok?} data-part="builds-card-sections">
+      <.card_section>
+        <div data-part="build-runs-chart">
+          <div data-part="legends">
+            <div class="tuist-legend">
+              <div data-part="header">
+                <div data-part="indicator"></div>
+                <span data-part="title" class="tuist-loading-skeleton">
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+              </div>
+              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+            </div>
+            <div class="tuist-legend">
+              <div data-part="header">
+                <div data-part="indicator"></div>
+                <span data-part="title" class="tuist-loading-skeleton">
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+              </div>
+              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+            </div>
+          </div>
+          <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+        </div>
+      </.card_section>
+      <.card_section>
+        <div data-part="average-build-time-chart">
+          <div data-part="legends">
+            <div class="tuist-legend">
+              <div data-part="header">
+                <div data-part="indicator"></div>
+                <span data-part="title" class="tuist-loading-skeleton">
+                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                </span>
+              </div>
+              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+            </div>
+          </div>
+          <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+        </div>
+      </.card_section>
     </div>
     <div :if={@recent_build_runs.ok?} data-part="builds-card-sections">
       <.card_section :if={not Enum.empty?(@recent_build_runs.result)}>
@@ -481,6 +574,27 @@
           <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
         </:image>
       </.empty_card_section>
+    </div>
+    <.card_section
+      :if={!@builds_duration_analytics.ok?}
+      data-part="average-build-time-card-section"
+    >
+      <div data-part="average-build-time-chart">
+        <div data-part="legends">
+          <div class="tuist-legend">
+            <div data-part="header">
+              <div data-part="indicator"></div>
+              <span data-part="title" class="tuist-loading-skeleton">
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              </span>
+            </div>
+            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+          </div>
+        </div>
+        <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+      </div>
+    </.card_section>
+    <%= if @builds_duration_analytics.ok? do %>
       <.card_section
         :if={@builds_duration_analytics.result.total_average_duration != 0}
         data-part="average-build-time-card-section"
@@ -585,6 +699,6 @@
           <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
         </:image>
       </.empty_card_section>
-    </div>
+    <% end %>
   </.card>
 </div>

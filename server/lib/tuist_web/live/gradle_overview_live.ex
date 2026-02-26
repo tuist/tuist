@@ -29,6 +29,8 @@ defmodule TuistWeb.GradleOverviewLive do
       DatePicker.date_picker_params(params, "builds")
 
     builds_environment = params["builds-environment"] || "any"
+    analytics_opts = build_opts(project.id, analytics_period, analytics_environment)
+    builds_opts = build_opts(project.id, builds_period, builds_environment)
 
     socket
     |> assign(:uri, uri)
@@ -42,21 +44,32 @@ defmodule TuistWeb.GradleOverviewLive do
     |> assign(:builds_period, builds_period)
     |> assign(:builds_environment, builds_environment)
     |> assign(:builds_environment_label, builds_environment_label(builds_environment))
-    |> assign_async(
-      [:cache_hit_rate_analytics, :cache_hit_rate, :build_duration_analytics, :test_duration_analytics],
-      fn -> fetch_analytics_data(project.id, analytics_period, analytics_environment) end
-    )
+    |> assign_async([:cache_hit_rate_analytics, :cache_hit_rate], fn ->
+      cache_hit_rate_analytics = GradleAnalytics.cache_hit_rate_analytics(project.id, analytics_opts)
+      cache_hit_rate = cache_hit_rate_analytics.avg_hit_rate |> Decimal.from_float() |> Decimal.round(1)
+
+      {:ok, %{cache_hit_rate_analytics: cache_hit_rate_analytics, cache_hit_rate: cache_hit_rate}}
+    end)
+    |> assign_async(:build_duration_analytics, fn ->
+      {:ok, %{build_duration_analytics: GradleAnalytics.build_duration_analytics(project.id, analytics_opts)}}
+    end)
+    |> assign_async(:test_duration_analytics, fn ->
+      {:ok, %{test_duration_analytics: TestsAnalytics.test_run_duration_analytics(project.id, analytics_opts)}}
+    end)
     |> assign_async(
       [:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count],
       fn -> fetch_test_runs_data(project.id) end
     )
     |> assign_async(
-      [:recent_build_runs, :successful_builds_count, :failed_builds_count, :builds_duration_analytics],
-      fn -> fetch_builds_data(project.id, builds_period, builds_environment) end
+      [:recent_build_runs, :successful_builds_count, :failed_builds_count],
+      fn -> fetch_build_runs_data(project.id) end
     )
+    |> assign_async(:builds_duration_analytics, fn ->
+      {:ok, %{builds_duration_analytics: GradleAnalytics.build_duration_analytics(project.id, builds_opts)}}
+    end)
   end
 
-  defp fetch_analytics_data(project_id, {start_datetime, end_datetime}, environment) do
+  defp build_opts(project_id, {start_datetime, end_datetime}, environment) do
     opts = [
       project_id: project_id,
       start_datetime: start_datetime,
@@ -70,19 +83,7 @@ defmodule TuistWeb.GradleOverviewLive do
         _ -> opts
       end
 
-    [cache_hit_rate_analytics, build_duration_analytics, test_duration_analytics] =
-      combined_overview_analytics(project_id, opts)
-
-    cache_hit_rate =
-      cache_hit_rate_analytics.avg_hit_rate |> Decimal.from_float() |> Decimal.round(1)
-
-    {:ok,
-     %{
-       cache_hit_rate_analytics: cache_hit_rate_analytics,
-       cache_hit_rate: cache_hit_rate,
-       build_duration_analytics: build_duration_analytics,
-       test_duration_analytics: test_duration_analytics
-     }}
+    opts
   end
 
   defp fetch_test_runs_data(project_id) do
@@ -122,20 +123,7 @@ defmodule TuistWeb.GradleOverviewLive do
      }}
   end
 
-  defp fetch_builds_data(project_id, {start_datetime, end_datetime}, environment) do
-    opts = [
-      project_id: project_id,
-      start_datetime: start_datetime,
-      end_datetime: end_datetime
-    ]
-
-    opts =
-      case environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
+  defp fetch_build_runs_data(project_id) do
     {builds, _meta} = Gradle.list_builds(project_id, %{page_size: 30})
 
     recent_builds_chart_data =
@@ -154,14 +142,12 @@ defmodule TuistWeb.GradleOverviewLive do
 
     successful_builds_count = Enum.count(builds, &(&1.status == "success"))
     failed_builds_count = Enum.count(builds, &(&1.status == "failure"))
-    builds_duration_analytics = GradleAnalytics.build_duration_analytics(project_id, opts)
 
     {:ok,
      %{
        recent_build_runs: recent_builds_chart_data,
        successful_builds_count: successful_builds_count,
-       failed_builds_count: failed_builds_count,
-       builds_duration_analytics: builds_duration_analytics
+       failed_builds_count: failed_builds_count
      }}
   end
 
@@ -178,14 +164,4 @@ defmodule TuistWeb.GradleOverviewLive do
   defp builds_environment_label("any"), do: dgettext("dashboard_gradle", "Any")
   defp builds_environment_label("local"), do: dgettext("dashboard_gradle", "Local")
   defp builds_environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
-
-  defp combined_overview_analytics(project_id, opts) do
-    queries = [
-      fn -> GradleAnalytics.cache_hit_rate_analytics(project_id, opts) end,
-      fn -> GradleAnalytics.build_duration_analytics(project_id, opts) end,
-      fn -> TestsAnalytics.test_run_duration_analytics(project_id, opts) end
-    ]
-
-    Tuist.Tasks.parallel_tasks(queries)
-  end
 end

@@ -38,6 +38,9 @@ defmodule TuistWeb.XcodeOverviewLive do
 
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
 
+    analytics_opts = build_opts(project.id, analytics_period, analytics_environment)
+    builds_opts = build_opts(project.id, builds_period, builds_environment)
+
     socket
     |> assign(:uri, uri)
     |> assign(:uri_path, uri_path)
@@ -53,58 +56,40 @@ defmodule TuistWeb.XcodeOverviewLive do
     |> assign(:bundle_size_preset, bundle_size_preset)
     |> assign(:bundle_size_period, bundle_size_period)
     |> assign(:bundle_size_selected_app, bundle_size_selected_app)
-    |> assign_async(
-      [
-        :binary_cache_hit_rate_analytics,
-        :selective_testing_analytics,
-        :build_analytics,
-        :test_analytics,
-        :build_time_analytics
-      ],
-      fn -> fetch_analytics_data(project.id, analytics_period, analytics_environment) end
-    )
-    |> assign_async(
-      [:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count, :latest_app_previews],
-      fn -> fetch_test_runs_data(project.id, project) end
-    )
-    |> assign_async(
-      [:recent_build_runs, :passed_build_runs_count, :failed_build_runs_count, :builds_duration_analytics],
-      fn -> fetch_builds_data(project.id, builds_period, builds_environment) end
-    )
+    |> assign_async(:binary_cache_hit_rate_analytics, fn ->
+      {:ok, %{binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts)}}
+    end)
+    |> assign_async(:selective_testing_analytics, fn ->
+      {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
+    end)
+    |> assign_async(:build_analytics, fn ->
+      {:ok, %{build_analytics: BuildsAnalytics.build_duration_analytics(project.id, analytics_opts)}}
+    end)
+    |> assign_async(:test_analytics, fn ->
+      {:ok, %{test_analytics: RunsAnalytics.runs_duration_analytics("test", analytics_opts)}}
+    end)
+    |> assign_async(:build_time_analytics, fn ->
+      {:ok, %{build_time_analytics: BuildsAnalytics.build_time_analytics(analytics_opts)}}
+    end)
+    |> assign_async([:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count], fn ->
+      fetch_test_runs_data(project.id)
+    end)
+    |> assign_async(:latest_app_previews, fn ->
+      {:ok, %{latest_app_previews: Tuist.AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
+    end)
+    |> assign_async([:recent_build_runs, :passed_build_runs_count, :failed_build_runs_count], fn ->
+      fetch_build_runs_data(project.id)
+    end)
+    |> assign_async(:builds_duration_analytics, fn ->
+      {:ok, %{builds_duration_analytics: BuildsAnalytics.build_duration_analytics(project.id, builds_opts)}}
+    end)
     |> assign_async(
       [:bundle_size_apps, :bundle_size_analytics],
       fn -> fetch_bundles_data(project, bundle_size_period, bundle_size_selected_app) end
     )
   end
 
-  defp fetch_analytics_data(project_id, {start_datetime, end_datetime}, environment) do
-    opts = [project_id: project_id, start_datetime: start_datetime, end_datetime: end_datetime]
-
-    opts =
-      case environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
-    [
-      binary_cache_hit_rate_analytics,
-      selective_testing_analytics,
-      build_analytics,
-      test_analytics
-    ] = combined_overview_analytics(project_id, opts)
-
-    {:ok,
-     %{
-       binary_cache_hit_rate_analytics: binary_cache_hit_rate_analytics,
-       selective_testing_analytics: selective_testing_analytics,
-       build_analytics: build_analytics,
-       test_analytics: test_analytics,
-       build_time_analytics: BuildsAnalytics.build_time_analytics(opts)
-     }}
-  end
-
-  defp fetch_test_runs_data(project_id, project) do
+  defp fetch_test_runs_data(project_id) do
     {recent_test_runs, _meta} =
       Tests.list_test_runs(%{
         last: 40,
@@ -138,21 +123,11 @@ defmodule TuistWeb.XcodeOverviewLive do
      %{
        recent_test_runs: recent_test_runs_chart_data,
        failed_test_runs_count: failed_test_runs_count,
-       passed_test_runs_count: passed_test_runs_count,
-       latest_app_previews: Tuist.AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+       passed_test_runs_count: passed_test_runs_count
      }}
   end
 
-  defp fetch_builds_data(project_id, {start_datetime, end_datetime}, environment) do
-    opts = [project_id: project_id, start_datetime: start_datetime, end_datetime: end_datetime]
-
-    opts =
-      case environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
+  defp fetch_build_runs_data(project_id) do
     {recent_build_runs, _meta} =
       Builds.list_build_runs(%{
         last: 30,
@@ -172,9 +147,18 @@ defmodule TuistWeb.XcodeOverviewLive do
      %{
        recent_build_runs: recent_build_runs_chart_data,
        passed_build_runs_count: passed_build_runs_count,
-       failed_build_runs_count: failed_build_runs_count,
-       builds_duration_analytics: BuildsAnalytics.build_duration_analytics(project_id, opts)
+       failed_build_runs_count: failed_build_runs_count
      }}
+  end
+
+  defp build_opts(project_id, {start_datetime, end_datetime}, environment) do
+    opts = [project_id: project_id, start_datetime: start_datetime, end_datetime: end_datetime]
+
+    case environment do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
+    end
   end
 
   defp fetch_bundles_data(project, {start_datetime, end_datetime}, _bundle_size_selected_app) do
@@ -222,15 +206,4 @@ defmodule TuistWeb.XcodeOverviewLive do
   defp environment_label("any"), do: dgettext("dashboard_projects", "Any")
   defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
-
-  defp combined_overview_analytics(project_id, opts) do
-    queries = [
-      fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
-      fn -> BuildsAnalytics.selective_testing_analytics(opts) end,
-      fn -> BuildsAnalytics.build_duration_analytics(project_id, opts) end,
-      fn -> RunsAnalytics.runs_duration_analytics("test", opts) end
-    ]
-
-    Tuist.Tasks.parallel_tasks(queries)
-  end
 end
