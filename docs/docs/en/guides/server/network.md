@@ -21,5 +21,7 @@ Tuist outbound network traffic can originate from one of the following IP addres
 | 74.220.59.0 – 74.220.59.255 | `74.220.59.0/24` |
 
 ::: tip
+<!-- -->
 Add both ranges to your allowlist to ensure uninterrupted connectivity with Tuist services.
+<!-- -->
 :::
