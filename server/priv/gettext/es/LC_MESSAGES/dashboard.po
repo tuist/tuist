@@ -406,6 +406,9 @@ msgstr "Cache"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "La APK de vista previa no existe o ha caducado."
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Generar ejecuciones"

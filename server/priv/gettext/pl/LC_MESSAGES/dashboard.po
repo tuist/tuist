@@ -407,6 +407,9 @@ msgstr "Buforowanie"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "Plik APK podglądu nie istnieje lub wygasł."
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Generuj przebiegi"

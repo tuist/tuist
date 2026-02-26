@@ -404,6 +404,9 @@ msgstr "Önbellek"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "Önizleme APK'sı mevcut değil veya süresi dolmuş."
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Çalıştırmalar Oluştur"

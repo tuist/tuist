@@ -401,6 +401,9 @@ msgstr "ذاكرة التخزين المؤقت"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "ملف APK للمعاينة غير موجود أو انتهت صلاحيته."
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "إنشاء عمليات تشغيل"

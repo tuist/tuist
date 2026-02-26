@@ -302,3 +302,6 @@ msgstr ""
 
 msgid "The preview APK doesn't exist or has expired."
 msgstr ""
+
+msgid "SSO"
+msgstr ""
