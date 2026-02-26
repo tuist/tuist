@@ -492,6 +492,9 @@
                         },
                         "authentication": {
                             "text": "Autentificación"
+                        },
+                        "network": {
+                            "text": "Red"
                         }
                     },
                     "text": "Servidor"
