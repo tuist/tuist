@@ -4,7 +4,6 @@ import Foundation
 import Path
 import ProjectDescription
 import Testing
-import TuistCore
 import XcodeGraph
 @testable import TuistLoader
 
@@ -20,7 +19,7 @@ struct BuildableFolderManifestMapperFolderExistsTests {
         )
         let manifest = ProjectDescription.BuildableFolder.folder(.path(folderPath.pathString))
 
-        await #expect(throws: TargetError.buildableFolderNotFound(targetName: "Target", path: folderPath)) {
+        await #expect(throws: BuildableFolderManifestMapperError.folderNotFound(targetName: "Target", path: folderPath)) {
             try await XcodeGraph.BuildableFolder.from(
                 manifest: manifest,
                 generatorPaths: generatorPaths,

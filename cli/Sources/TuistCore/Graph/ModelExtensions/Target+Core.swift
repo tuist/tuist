@@ -6,7 +6,6 @@ import XcodeGraph
 
 public enum TargetError: FatalError, Equatable {
     case invalidSourcesGlob(targetName: String, invalidGlobs: [InvalidGlob])
-    case buildableFolderNotFound(targetName: String, path: AbsolutePath)
 
     public var type: ErrorType { .abort }
 
@@ -15,8 +14,6 @@ public enum TargetError: FatalError, Equatable {
         case let .invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
             return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs
                 .invalidGlobsDescription
-        case let .buildableFolderNotFound(targetName: targetName, path: path):
-            return "The target \(targetName) has a buildableFolder at \(path.pathString) that does not exist."
         }
     }
 }
