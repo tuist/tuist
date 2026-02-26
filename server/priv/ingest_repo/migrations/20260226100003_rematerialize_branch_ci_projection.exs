@@ -1,4 +1,4 @@
-defmodule Tuist.IngestRepo.Migrations.MaterializeBranchCiProjection do
+defmodule Tuist.IngestRepo.Migrations.RematerializeBranchCiProjection do
   @moduledoc """
   Materializes the recreated `proj_by_branch_ci` projection for existing data parts.
   Separated from projection creation so new inserts benefit immediately.

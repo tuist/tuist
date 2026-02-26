@@ -1,4 +1,4 @@
-defmodule Tuist.IngestRepo.Migrations.RecreateBranchCiProjection do
+defmodule Tuist.IngestRepo.Migrations.FixBranchCiProjectionAfterNonNullableRanAt do
   @moduledoc """
   Recreates `proj_by_branch_ci` after `ran_at` was changed to non-nullable
   in migration 20260225100001.
