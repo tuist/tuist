@@ -165,9 +165,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
-    /**
-     When the graph dependency represents a pre-compiled static binary.
-     */
+    /// When the graph dependency represents a pre-compiled static binary.
     public var isStaticPrecompiled: Bool {
         switch self {
         case .macro: return false
@@ -183,9 +181,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         }
     }
 
-    /**
-     When the graph dependency represents a dynamic precompiled binary, it returns true.
-     */
+    /// When the graph dependency represents a dynamic precompiled binary, it returns true.
     public var isDynamicPrecompiled: Bool {
         switch self {
         case .macro: return false

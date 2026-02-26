@@ -102,11 +102,11 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider,
         )
     }
 
-    /**
-     An XCFramework that contains static frameworks that represent macros, those are frameworks with a Macros directory in them.
-     We assume that the Swift Macros, which are command line executables, are fat binaries for both architectures supported by macOS:
-     x86_64 and arm64.
-     */
+    /// An XCFramework that contains static frameworks that represent macros, those are frameworks with a Macros directory in
+    /// them.
+    /// We assume that the Swift Macros, which are command line executables, are fat binaries for both architectures supported by
+    /// macOS:
+    /// x86_64 and arm64.
     public func macroPath(xcframeworkPath: AbsolutePath) async throws -> AbsolutePath? {
         guard let frameworkPath = try await fileSystem.glob(directory: xcframeworkPath, include: ["*/*.framework"])
             .collect()

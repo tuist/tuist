@@ -54,10 +54,10 @@ protocol PBXTargetMapping {
 
 // swiftlint:disable function_body_length
 // swiftlint:disable type_body_length
-/// A mapper that converts a `PBXTarget` into a domain `Target` model.
-///
-/// `PBXTargetMapper` orchestrates various specialized mappers (e.g., sources, resources, headers)
-/// and dependency resolvers to produce a comprehensive `Target` suitable for downstream tasks.
+// A mapper that converts a `PBXTarget` into a domain `Target` model.
+//
+// `PBXTargetMapper` orchestrates various specialized mappers (e.g., sources, resources, headers)
+// and dependency resolvers to produce a comprehensive `Target` suitable for downstream tasks.
 struct PBXTargetMapper: PBXTargetMapping {
     private let settingsMapper: SettingsMapping
     private let sourcesMapper: PBXSourcesBuildPhaseMapping
