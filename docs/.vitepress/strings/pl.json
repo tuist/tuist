@@ -492,6 +492,9 @@
                         },
                         "authentication": {
                             "text": "Uwierzytelnianie"
+                        },
+                        "network": {
+                            "text": "Sieć"
                         }
                     },
                     "text": "Serwer"
