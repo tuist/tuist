@@ -10,6 +10,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
   alias Tuist.Projects
   alias TuistWeb.Errors.BadRequestError
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
 
   def init([]), do: [:project, :account, :run]
@@ -57,6 +58,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         conn
         |> assign(:selected_account, account)
         |> SentryContextPlug.set_selection_context()
+        |> ObservabilityContextPlug.set_selection_context()
     end
   end
 
@@ -87,6 +89,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         |> assign(:selected_project, project)
         |> assign(:selected_run, run)
         |> SentryContextPlug.set_selection_context()
+        |> ObservabilityContextPlug.set_selection_context()
 
       {:error, :not_found} ->
         raise NotFoundError,
@@ -106,6 +109,7 @@ defmodule TuistWeb.Plugs.LoaderPlug do
         |> assign(:selected_project, project)
         |> assign(:selected_account, project.account)
         |> SentryContextPlug.set_selection_context()
+        |> ObservabilityContextPlug.set_selection_context()
 
       {:error, :not_found} ->
         raise NotFoundError,

@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
@@ -51,6 +52,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :content_security_policy
   end
 
@@ -63,6 +65,7 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :content_security_policy
   end
 
@@ -90,6 +93,7 @@ defmodule TuistWeb.Router do
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :content_security_policy
   end
 
@@ -106,6 +110,7 @@ defmodule TuistWeb.Router do
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -134,6 +139,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug TuistWeb.RateLimit.Registry
   end
 
@@ -144,11 +150,13 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
     plug SentryContextPlug
+    plug ObservabilityContextPlug
   end
 
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug SentryContextPlug
+    plug ObservabilityContextPlug
   end
 
   pipeline :on_premise_api do

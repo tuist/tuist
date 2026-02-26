@@ -11,6 +11,7 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
   use TuistWeb, :controller
 
   alias Tuist.Projects
+  alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
 
   def init(opts), do: opts
@@ -26,6 +27,7 @@ defmodule TuistWeb.API.Cache.Plugs.LoaderQueryPlug do
         |> assign(:selected_project, project)
         |> assign(:selected_account, project.account)
         |> SentryContextPlug.set_selection_context()
+        |> ObservabilityContextPlug.set_selection_context()
 
       {:error, :not_found} ->
         conn
