@@ -18,6 +18,12 @@ After that, you can add a project connection between your GitHub repository and 
 
 ![An image that shows adding the project connection](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
+::: tip IP ALLOWLISTING
+<!-- -->
+If your GitHub organization uses [IP allow lists](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/managing-allowed-ip-addresses-for-your-organization) or your GitHub instance is behind a firewall, make sure to allowlist Tuist's <LocalizedLink href="/guides/server/network#outbound-ip-addresses">outbound IP addresses</LocalizedLink> so that the integration can communicate with your repository.
+<!-- -->
+:::
+
 ## Pull/merge request comments {#pull-merge-request-comments}
 
 The GitHub app posts a Tuist run report, which includes a summary of the PR, including links to the latest <LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink> or <LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>:
