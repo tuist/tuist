@@ -492,6 +492,9 @@
                         },
                         "authentication": {
                             "text": "認証"
+                        },
+                        "network": {
+                            "text": "ネットワーク"
                         }
                     },
                     "text": "サーバー"
