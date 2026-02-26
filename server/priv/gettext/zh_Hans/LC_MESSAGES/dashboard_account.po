@@ -838,7 +838,8 @@ msgstr "单点登录"
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
-msgstr "您必须使用与该域名关联的电子邮件通过Google进行身份验证。请先登录Google账户。"
+msgstr ""
+"您必须使用与该域名关联的电子邮件通过Google进行身份验证。请先登录Google账户。"
 
 #, fuzzy
 msgid ""
