@@ -610,7 +610,8 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
-          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
+          BUILD_NUMBER=$(( ${{ github.run_number }} + 10000 ))
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
 
       - name: Update CHANGELOG.md
         working-directory: app
@@ -684,7 +685,8 @@ jobs:
           VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
           VERSION_NUMBER="${VERSION_NUMBER#app@}"
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
-          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
+          BUILD_NUMBER=$(( ${{ github.run_number }} + 10000 ))
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
