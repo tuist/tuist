@@ -18,7 +18,45 @@ MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</Loc
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote MCP server in your client. Refer to your client's documentation for the exact steps. Authentication happens through OAuth automatically.
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically.
+
+::: details Claude Code
+Run:
+
+```bash
+claude mcp add --transport http tuist https://tuist.dev/mcp
+```
+:::
+
+::: details Claude Desktop
+Open **Settings → Connectors → Add custom connector**, then set:
+
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
+
+Complete OAuth in the browser when prompted.
+:::
+
+::: details Cursor
+Open **Cursor Settings → Tools & Integrations → MCP Tools** and add:
+
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
+:::
+
+::: details VS Code
+Use **Command Palette → MCP: Add Server**, then configure an HTTP server with:
+
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
+:::
+
+::: details Zed
+Open **Agent panel → Settings → Add Custom Server**, then set:
+
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
+:::
 
 ## Capabilities
 
@@ -31,7 +69,7 @@ The following tools are available through the Tuist MCP server:
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 | `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
 | `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
-| `get_test_run` | Get aggregate metrics for a test run. | `test_run_id` |
+| `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 
 #### `list_projects`
@@ -48,7 +86,7 @@ Returns detailed metrics for a specific test case: reliability rate (success per
 
 #### `get_test_run`
 
-Returns test run-level context: status, duration, CI metadata, and aggregate counts (total/failed/flaky). Use `get_test_case_run` to drill into individual failures or crashes.
+Returns detailed test run context: status, duration, CI metadata, and aggregate counts (total/failed/flaky). Use `get_test_case_run` to drill into individual failures or crashes.
 
 #### `get_test_case_run`
 
@@ -63,6 +101,6 @@ Returns the full details of a specific test case run, including failure messages
 The `fix_flaky_test` prompt accepts optional arguments:
 
 - `account_handle` and `project_handle`: scope the investigation to a specific project.
-- `test_case_id`: jump directly to investigating a specific flaky test case.
+- `test_case_id`: jump directly to investigating a specific flaky test case by UUID (`list_test_cases[].id`) or identifier (`Module/Suite/TestCase` or `Module/TestCase`).
 
 When invoked without arguments, the prompt guides the agent through discovering flaky tests across all accessible projects.
