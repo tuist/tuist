@@ -1555,7 +1555,7 @@ let package = Package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
-        .package(path: "cli/Vendor/XcodeGraph"),
+        .package(path: "cli/Sources/XcodeGraph"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.14.38")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.13.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),

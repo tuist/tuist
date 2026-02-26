@@ -1,6 +1,6 @@
-# Vendored XcodeGraph Package
+# Embedded XcodeGraph Package
 
-This directory vendors `tuist/XcodeGraph` into this repository as a local Swift package dependency.
+This directory embeds `tuist/XcodeGraph` into this repository as a local Swift package dependency.
 
 ## Scope
 - `Sources/XcodeGraph` - Core graph models.
@@ -9,7 +9,7 @@ This directory vendors `tuist/XcodeGraph` into this repository as a local Swift 
 - `Tests/` - Upstream tests copied with the package.
 
 ## Integration
-- The root package manifest references this package with `.package(path: "cli/Vendor/XcodeGraph")`.
+- The root package manifest references this package with `.package(path: "cli/Sources/XcodeGraph")`.
 - Product names exposed to the main package are:
   - `XcodeGraph`
   - `XcodeMetadata`
