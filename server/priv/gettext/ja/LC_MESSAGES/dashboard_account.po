@@ -869,8 +869,8 @@ msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
 msgstr ""
-"以下のフィールドを設定する前に、Okta管理ダッシュボードでOIDC Web"
-"アプリケーションを作成してください。"
+"以下のフィールドを設定する前に、Okta管理ダッシュボードでOIDC Webアプリケー"
+"ションを作成してください。"
 
 #, fuzzy
 msgid "SSO provider"

@@ -663,16 +663,16 @@ msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
 msgstr ""
-"이 도메인에 연결된 이메일로 Google에 인증되어야 합니다. 먼저 Google로 "
-"로그인하세요."
+"이 도메인에 연결된 이메일로 Google에 인증되어야 합니다. 먼저 Google로 로그인"
+"하세요."
 
 #, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
 msgstr ""
-"아래 필드를 구성하기 전에 Okta 관리자 대시보드에서 OIDC 웹 애플리케이션을 "
-"생성하십시오."
+"아래 필드를 구성하기 전에 Okta 관리자 대시보드에서 OIDC 웹 애플리케이션을 생"
+"성하십시오."
 
 #, fuzzy
 msgid "SSO provider"
@@ -707,8 +707,8 @@ msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
 msgstr ""
-"이 도메인의 Google 계정으로 로그인하는 사용자는 자동으로 이 조직에 "
-"추가됩니다."
+"이 도메인의 Google 계정으로 로그인하는 사용자는 자동으로 이 조직에 추가됩니"
+"다."
 
 #, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
