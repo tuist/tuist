@@ -1981,6 +1981,34 @@ defmodule Tuist.VCSTest do
         }
       )
     end
+
+    test "schedules the job with a delay to allow ClickHouse buffers to flush" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+
+      stub(Environment, :clickhouse_flush_interval_ms, fn -> 5000 end)
+
+      job_params = %{
+        build_id: build.id,
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/123/head",
+        git_remote_url_origin: "https://github.com/tuist/tuist",
+        project_id: project.id,
+        preview_url_template: "url",
+        preview_qr_code_url_template: "url",
+        command_run_url_template: "url",
+        test_run_url_template: "url",
+        bundle_url_template: "url",
+        build_url_template: "url"
+      }
+
+      # When
+      {:ok, job} = VCS.enqueue_vcs_pull_request_comment(job_params)
+
+      # Then: job should be scheduled in the future, not immediate
+      assert DateTime.after?(job.scheduled_at, DateTime.utc_now())
+    end
   end
 
   # GitHub App Installation tests
