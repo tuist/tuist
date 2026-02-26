@@ -397,6 +397,9 @@ msgstr "快取"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "預覽版 APK 不存在或已過期。"
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "生成執行階段"

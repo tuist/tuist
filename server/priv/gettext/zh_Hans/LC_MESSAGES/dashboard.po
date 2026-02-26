@@ -397,6 +397,9 @@ msgstr "缓存"
 msgid "The preview APK doesn't exist or has expired."
 msgstr "预览版APK不存在或已过期。"
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "生成运行"

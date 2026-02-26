@@ -409,6 +409,9 @@ msgid "The preview APK doesn't exist or has expired."
 msgstr ""
 "Предварительный просмотр ipa не существует или срок его действия истек."
 
+msgid "SSO"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Generate Runs"
 #~ msgstr "Запуски генерации"
