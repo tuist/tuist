@@ -492,6 +492,9 @@
                         },
                         "authentication": {
                             "text": "验证"
+                        },
+                        "network": {
+                            "text": "网络"
                         }
                     },
                     "text": "服务器"
