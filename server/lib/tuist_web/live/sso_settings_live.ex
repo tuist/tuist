@@ -47,8 +47,12 @@ defmodule TuistWeb.SSOSettingsLive do
   end
 
   def handle_event("select_provider", %{"value" => [provider]}, socket) do
+    form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
+
     socket
     |> assign(selected_provider: provider, flash_message: nil)
+    |> assign(current_form_params: form_params)
+    |> assign(form: to_form(form_params, as: "sso"))
     |> compute_form_valid()
     |> compute_has_changes()
     |> then(&{:noreply, &1})
