@@ -89,9 +89,11 @@
 
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
-        # Idle upstream connections held open per worker. Unix sockets
-        # have near-zero setup cost, so 64 is plenty even under burst.
-        keepalive 64;
+        # Idle upstream connections held open per worker. Sized to
+        # absorb 10 K+ req/s bursts so most requests reuse a warm
+        # connection instead of opening a new one (which would hit
+        # the listen backlog).
+        keepalive 256;
         keepalive_timeout 120s;
         keepalive_requests 50000;
       }

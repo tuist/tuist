@@ -17,7 +17,10 @@ if config_env() == :prod do
       nil ->
         [
           ip: {0, 0, 0, 0, 0, 0, 0, 0},
-          port: port
+          port: port,
+          thousand_island_options: [
+            transport_options: [backlog: 16_384]
+          ]
         ]
 
       path ->
@@ -26,7 +29,10 @@ if config_env() == :prod do
 
         [
           ip: {:local, path},
-          port: 0
+          port: 0,
+          thousand_island_options: [
+            transport_options: [backlog: 16_384]
+          ]
         ]
     end
 
