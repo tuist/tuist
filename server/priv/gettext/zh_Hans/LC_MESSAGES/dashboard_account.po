@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-05 07:22+0000\n"
+"PO-Revision-Date: 2026-02-26 10:47+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_account/zh_Hans/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -786,88 +786,113 @@ msgid ""
 "hosted cache until endpoints are added."
 msgstr "未配置自定义缓存端点。在添加端点前，Tuist将使用默认的Tuist托管缓存。"
 
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "客户ID"
 
+#, fuzzy
 msgid "Client secret"
-msgstr ""
+msgstr "客户端密钥"
 
+#, fuzzy
 msgid "Copy the Client ID and Client Secret from the application settings"
-msgstr ""
+msgstr "从应用程序设置中复制客户端ID和客户端密钥"
 
+#, fuzzy
 msgid "Go to Applications > Applications > Create App Integration"
-msgstr ""
+msgstr "前往 应用程序 > 应用程序 > 创建应用程序集成"
 
+#, fuzzy
 msgid "Google Workspace domain"
-msgstr ""
+msgstr "Google Workspace 域名"
 
+#, fuzzy
 msgid "Okta application client ID"
-msgstr ""
+msgstr "Okta应用程序客户端ID"
 
+#, fuzzy
 msgid "Okta domain"
-msgstr ""
+msgstr "Okta 域名"
 
+#, fuzzy
 msgid "Provider"
-msgstr ""
+msgstr "提供者"
 
 msgid "SSO"
 msgstr ""
 
+#, fuzzy
 msgid "SSO settings are only available for organizations."
-msgstr ""
+msgstr "SSO设置仅适用于组织。"
 
+#, fuzzy
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
-msgstr ""
+msgstr "选择\"OIDC - OpenID Connect\"和\"Web Application\""
 
+#, fuzzy
 msgid "Single Sign-On"
-msgstr ""
+msgstr "单点登录"
 
+#, fuzzy
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
-msgstr ""
+msgstr "您必须使用与该域名关联的电子邮件通过Google进行身份验证。请先登录Google账户。"
 
+#, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
-msgstr ""
+msgstr "在配置下方字段前，请先于Okta管理控制台创建OIDC网络应用程序。"
 
+#, fuzzy
 msgid "SSO provider"
-msgstr ""
+msgstr "SSO提供商"
 
+#, fuzzy
 msgid "Save changes"
-msgstr ""
+msgstr "保存更改"
 
+#, fuzzy
 msgid ""
 "Select an SSO provider to allow users to sign in to Tuist and automatically "
 "join this organization."
-msgstr ""
+msgstr "选择单点登录服务商，允许用户登录Tuist并自动加入本组织。"
 
+#, fuzzy
 msgid "Setup instructions"
-msgstr ""
+msgstr "设置说明"
 
+#, fuzzy
 msgid "The client ID from your Okta OIDC application."
-msgstr ""
+msgstr "来自您Okta OIDC应用程序的客户端ID。"
 
+#, fuzzy
 msgid "The client secret from your Okta OIDC application."
-msgstr ""
+msgstr "来自您的Okta OIDC应用程序的客户端密钥。"
 
+#, fuzzy
 msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
-msgstr ""
+msgstr "使用本域名的Google账户登录的用户将自动加入此组织。"
 
+#, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr ""
+msgstr "您的Okta组织网址（不含https://前缀）。"
 
+#, fuzzy
 msgid "Enable Single Sign-On"
-msgstr ""
+msgstr "启用单点登录"
 
+#, fuzzy
 msgid "Enable and configure SSO for your organization."
-msgstr ""
+msgstr "为您的组织启用并配置单点登录。"
 
+#, fuzzy
 msgid "Set the initiate login URI to:"
-msgstr ""
+msgstr "将初始登录URI设置为："
 
+#, fuzzy
 msgid "Set the sign-in redirect URI to:"
-msgstr ""
+msgstr "将登录重定向URI设置为："
