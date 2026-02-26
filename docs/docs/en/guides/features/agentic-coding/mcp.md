@@ -14,7 +14,7 @@ Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting
 
 ## MCP vs Skills
 
-MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> can overlap in what they do. Skills are static instruction files that guide agents through CLI commands, but every agent has its own installation path and there is no standard way to distribute them. MCP gives agents direct access to the same data through authenticated tool calls, with built-in OAuth, a standard protocol across clients, and without needing a CLI installed. Prefer MCP when your client supports it. Fall back to skills when it does not.
+MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently (either MCP or skills) instead of mixing both in the same flow.
 
 ## Configuration
 
