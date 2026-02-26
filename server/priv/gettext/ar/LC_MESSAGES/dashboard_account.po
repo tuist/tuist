@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-05 07:22+0000\n"
+"PO-Revision-Date: 2026-02-26 10:47+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ar/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16\n"
 
 # # This file is a PO Template file.
 # #
@@ -449,7 +449,7 @@ msgstr "نتائج ذاكرة التخزين المؤقتة عن بُعد"
 
 #, fuzzy
 msgid "Remote cache hits:"
-msgstr "نتائج البحث في ذاكرة التخزين المؤقتة عن بُعد:"
+msgstr "نتائج ذاكرة التخزين المؤقتة عن بُعد:"
 
 #, fuzzy
 msgid "Remove"
@@ -803,88 +803,119 @@ msgstr ""
 "لم يتم تكوين نقاط نهاية مخصصة للذاكرة المؤقتة. سيستخدم Tuist الذاكرة المؤقتة "
 "الافتراضية التي يستضيفها Tuist حتى يتم إضافة نقاط النهاية."
 
+#, fuzzy
 msgid "Client ID"
-msgstr ""
+msgstr "معرف العميل"
 
+#, fuzzy
 msgid "Client secret"
-msgstr ""
+msgstr "سر العميل"
 
+#, fuzzy
 msgid "Copy the Client ID and Client Secret from the application settings"
-msgstr ""
+msgstr "انسخ معرف العميل وسر العميل من إعدادات التطبيق"
 
+#, fuzzy
 msgid "Go to Applications > Applications > Create App Integration"
-msgstr ""
+msgstr "انتقل إلى التطبيقات > التطبيقات > إنشاء تكامل التطبيق"
 
+#, fuzzy
 msgid "Google Workspace domain"
-msgstr ""
+msgstr "نطاق Google Workspace"
 
+#, fuzzy
 msgid "Okta application client ID"
-msgstr ""
+msgstr "معرف عميل تطبيق Okta"
 
+#, fuzzy
 msgid "Okta domain"
-msgstr ""
+msgstr "نطاق Okta"
 
+#, fuzzy
 msgid "Provider"
-msgstr ""
+msgstr "المزود"
 
+#, fuzzy
 msgid "SSO"
-msgstr ""
+msgstr "SSO"
 
+#, fuzzy
 msgid "SSO settings are only available for organizations."
-msgstr ""
+msgstr "إعدادات SSO متاحة فقط للمؤسسات."
 
 msgid "Select \"OIDC - OpenID Connect\" and \"Web Application\""
 msgstr ""
 
+#, fuzzy
 msgid "Single Sign-On"
-msgstr ""
+msgstr "تسجيل الدخول الفردي"
 
+#, fuzzy
 msgid ""
 "You must be authenticated with Google using an email tied to this domain. "
 "Please sign in with Google first."
 msgstr ""
+"يجب أن تكون مصادقًا من Google باستخدام بريد إلكتروني مرتبط بهذا النطاق. يرجى "
+"تسجيل الدخول إلى Google أولاً."
 
+#, fuzzy
 msgid ""
 "Create an OIDC Web Application in your Okta admin dashboard before "
 "configuring the fields below."
-msgstr ""
+msgstr "قم بإنشاء تطبيق ويب OIDC في لوحة تحكم Okta قبل تكوين الحقول أدناه."
 
+#, fuzzy
 msgid "SSO provider"
-msgstr ""
+msgstr "مزود SSO"
 
+#, fuzzy
 msgid "Save changes"
-msgstr ""
+msgstr "احفظ التغييرات"
 
+#, fuzzy
 msgid ""
 "Select an SSO provider to allow users to sign in to Tuist and automatically "
 "join this organization."
 msgstr ""
+"حدد مزود SSO للسماح للمستخدمين بتسجيل الدخول إلى Tuist والانضمام تلقائيًا إلى "
+"هذه المؤسسة."
 
+#, fuzzy
 msgid "Setup instructions"
-msgstr ""
+msgstr "تعليمات الإعداد"
 
+#, fuzzy
 msgid "The client ID from your Okta OIDC application."
-msgstr ""
+msgstr "معرف العميل من تطبيق Okta OIDC الخاص بك."
 
+#, fuzzy
 msgid "The client secret from your Okta OIDC application."
-msgstr ""
+msgstr "السر السري للعميل من تطبيق Okta OIDC الخاص بك."
 
+#, fuzzy
 msgid ""
 "Users signing in with a Google account from this domain will be "
 "automatically added to this organization."
 msgstr ""
+"سيتم إضافة المستخدمين الذين يسجلون الدخول بحساب Google من هذا المجال تلقائيًا "
+"إلى هذه المؤسسة."
 
+#, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
-msgstr ""
+msgstr "عنوان URL لمنظمة Okta الخاص بك بدون البادئة https://."
 
+#, fuzzy
 msgid "Enable Single Sign-On"
-msgstr ""
+msgstr "تمكين تسجيل الدخول الفردي"
 
+#, fuzzy
 msgid "Enable and configure SSO for your organization."
-msgstr ""
+msgstr "قم بتمكين وتكوين SSO لمؤسستك."
 
+#, fuzzy
 msgid "Set the initiate login URI to:"
-msgstr ""
+msgstr "اضبط عنوان URI لتسجيل الدخول الأولي على:"
 
+#, fuzzy
 msgid "Set the sign-in redirect URI to:"
-msgstr ""
+msgstr "اضبط عنوان URI لإعادة التوجيه عند تسجيل الدخول على:"
