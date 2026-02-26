@@ -492,6 +492,9 @@
                         },
                         "authentication": {
                             "text": "인증"
+                        },
+                        "network": {
+                            "text": "네트워크"
                         }
                     },
                     "text": "서버"
