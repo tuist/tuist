@@ -165,6 +165,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
         "name" => "app@0.1.0",
+        "tag_name" => "app@0.1.0",
         "html_url" => "https://github.com/release",
         "assets" => [
           %{
@@ -196,6 +197,44 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.html_url == "https://github.com/release"
     end
 
+    test "returns latest release when the release name uses the new format (App X.Y.Z)" do
+      # Given
+      # Release names changed from "app@X.Y.Z" to "App X.Y.Z" at some point; the tag_name
+      # has always been "app@X.Y.Z" and is what we use to identify app releases.
+      published_at = DateTime.utc_now()
+
+      release = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "App 0.25.0",
+        "tag_name" => "app@0.25.0",
+        "html_url" => "https://github.com/release",
+        "assets" => [
+          %{
+            "name" => "Tuist.dmg",
+            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.25.0/Tuist.dmg"
+          }
+        ]
+      }
+
+      releases_url = Releases.releases_url()
+
+      stub(
+        Req,
+        :get,
+        fn ^releases_url, _opts ->
+          {:ok, %Req.Response{status: 200, body: [release]}}
+        end
+      )
+
+      # When
+      release = Releases.get_latest_app_release()
+
+      # Then
+      assert release.name == "App 0.25.0"
+      assert release.tag_name == "app@0.25.0"
+      assert release.html_url == "https://github.com/release"
+    end
+
     test "returns the latest App release if the latest release is a CLI release" do
       # Given
       published_at = DateTime.utc_now()
@@ -212,12 +251,14 @@ defmodule Tuist.GitHub.ReleasesTest do
                %{
                  "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
                  "name" => "0.1.0",
+                 "tag_name" => "0.1.0",
                  "html_url" => "https://github.com/release",
                  "assets" => []
                },
                %{
                  "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
                  "name" => "app@0.1.0",
+                 "tag_name" => "app@0.1.0",
                  "html_url" => "https://github.com/release",
                  "assets" => [
                    %{
@@ -258,6 +299,7 @@ defmodule Tuist.GitHub.ReleasesTest do
                %{
                  "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
                  "name" => "app@0.2.0",
+                 "tag_name" => "app@0.2.0",
                  "html_url" => "https://github.com/release",
                  "assets" => [
                    %{
@@ -269,6 +311,7 @@ defmodule Tuist.GitHub.ReleasesTest do
                %{
                  "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
                  "name" => "app@0.1.0",
+                 "tag_name" => "app@0.1.0",
                  "html_url" => "https://github.com/release",
                  "assets" => [
                    %{
@@ -303,6 +346,7 @@ defmodule Tuist.GitHub.ReleasesTest do
         %{
           "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
           "name" => "v1.0.0",
+          "tag_name" => "v1.0.0",
           "html_url" => "https://github.com/release-1",
           "assets" => []
         }
@@ -311,6 +355,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       app_release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
         "name" => "app@1.0.0",
+        "tag_name" => "app@1.0.0",
         "html_url" => "https://github.com/app-release",
         "assets" => [
           %{
