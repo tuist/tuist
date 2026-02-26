@@ -13,7 +13,10 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
 
     field :project_handle, :string, description: "The project handle. Required if account_handle is provided."
 
-    field :test_case_id, :string, description: "The UUID of a specific flaky test case to fix."
+    field :test_case_id, :string,
+      description:
+        "The test case UUID or identifier (`Module/Suite/TestCase` or `Module/TestCase`) to fix. " <>
+          "When using an identifier, provide account_handle and project_handle."
   end
 
   @impl true
