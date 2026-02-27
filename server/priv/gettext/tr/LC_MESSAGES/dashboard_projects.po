@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-23 16:46+0000\n"
+"PO-Revision-Date: 2026-02-27 15:57+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/tr/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -758,17 +758,21 @@ msgstr "Şema"
 msgid "e.g. MyApp (optional)"
 msgstr "Örnek: MyApp (isteğe bağlı)"
 
+#, fuzzy
 msgid "%{environment} %{unit}"
-msgstr ""
+msgstr "%{environment} %{unit}"
 
+#, fuzzy
 msgid "%{scheme} %{environment} %{unit}"
-msgstr ""
+msgstr "%{scheme} %{environment} %{unit}"
 
+#, fuzzy
 msgid "Environment"
-msgstr ""
+msgstr "Ortam"
 
+#, fuzzy
 msgid "local"
-msgstr ""
+msgstr "yerel"
 
 #, fuzzy
 #~ msgid ""
