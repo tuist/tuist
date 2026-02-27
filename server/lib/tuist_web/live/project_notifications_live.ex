@@ -98,7 +98,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       git_branch: rule.git_branch || "",
       scheme: rule.scheme || "",
       bundle_name: rule.bundle_name || "",
-      environment: rule.environment || "any",
+      environment: to_string(rule.environment || :any),
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }

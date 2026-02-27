@@ -174,8 +174,8 @@ defmodule Tuist.Alerts do
   defp maybe_add_scheme(opts, ""), do: opts
   defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
 
-  defp maybe_add_environment(opts, "ci"), do: Keyword.put(opts, :is_ci, true)
-  defp maybe_add_environment(opts, "local"), do: Keyword.put(opts, :is_ci, false)
+  defp maybe_add_environment(opts, :ci), do: Keyword.put(opts, :is_ci, true)
+  defp maybe_add_environment(opts, :local), do: Keyword.put(opts, :is_ci, false)
   defp maybe_add_environment(opts, _), do: opts
 
   defp maybe_add_bundle_name(opts, ""), do: opts
