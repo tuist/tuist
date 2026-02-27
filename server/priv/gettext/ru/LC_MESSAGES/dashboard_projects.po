@@ -723,10 +723,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"Предупреждение, когда <strong>%{metric_category}</strong> последнего <strong>"
-"%{rolling_window_size} %{current_unit}</strong> уменьшился на <strong>%"
-"{deviation}%</strong> по сравнению с предыдущим <strong>%"
-"{rolling_window_size} %{unit}</strong>."
+"Предупреждение, когда <strong>%{metric_category}</strong> последнего "
+"<strong>%{rolling_window_size} %{current_unit}</strong> уменьшился на "
+"<strong>%{deviation}%</strong> по сравнению с предыдущим "
+"<strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -735,10 +735,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"Предупреждение, когда <strong>%{metric_category}</strong> последнего <strong>"
-"%{rolling_window_size} %{current_unit}</strong> увеличился на <strong>%"
-"{deviation}%</strong> по сравнению с предыдущим <strong>%"
-"{rolling_window_size} %{unit}</strong>."
+"Предупреждение, когда <strong>%{metric_category}</strong> последнего "
+"<strong>%{rolling_window_size} %{current_unit}</strong> увеличился на "
+"<strong>%{deviation}%</strong> по сравнению с предыдущим "
+"<strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -747,10 +747,10 @@ msgid ""
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
-"Предупреждение, когда <strong>%{size_label}</strong> последнего <strong>%"
-"{bundle_name}</strong> пакета в ветке <strong>%{git_branch}</strong> "
-"увеличился на <strong>%{deviation}%</strong> по сравнению с предыдущим "
-"пакетом."
+"Предупреждение, когда <strong>%{size_label}</strong> последнего "
+"<strong>%{bundle_name}</strong> пакета в ветке <strong>%{git_branch}</"
+"strong> увеличился на <strong>%{deviation}%</strong> по сравнению с "
+"предыдущим пакетом."
 
 #, fuzzy
 msgid "Scheme"
@@ -759,6 +759,18 @@ msgstr "Схема"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "Например: MyApp (необязательно)"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""

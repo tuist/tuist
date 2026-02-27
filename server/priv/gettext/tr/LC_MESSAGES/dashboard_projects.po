@@ -722,8 +722,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
-"{current_unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</"
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
+"%{current_unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</"
 "strong> ile karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında "
 "uyarı verin."
 
@@ -734,8 +734,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
-"{current_unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</"
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
+"%{current_unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</"
 "strong> ile karşılaştırıldığında <strong>%{deviation}%</strong> oranında "
 "arttığında uyarı verin."
 
@@ -757,6 +757,18 @@ msgstr "Şema"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "Örnek: MyApp (isteğe bağlı)"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""

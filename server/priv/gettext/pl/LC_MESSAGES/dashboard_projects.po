@@ -724,10 +724,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"Powiadom, gdy <strong>%{metric_category}</strong> ostatniego <strong>%"
-"{rolling_window_size} %{current_unit}</strong> spadło o <strong>%{deviation}"
-"%</strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
-"strong>."
+"Powiadom, gdy <strong>%{metric_category}</strong> ostatniego "
+"<strong>%{rolling_window_size} %{current_unit}</strong> spadło o "
+"<strong>%{deviation}%</strong> w porównaniu z poprzednim "
+"<strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -736,10 +736,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"Powiadomienie, gdy <strong>%{metric_category}</strong> ostatniego <strong>%"
-"{rolling_window_size} %{current_unit}</strong> wzrosło o <strong>%{deviation}"
-"%</strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
-"strong>."
+"Powiadomienie, gdy <strong>%{metric_category}</strong> ostatniego "
+"<strong>%{rolling_window_size} %{current_unit}</strong> wzrosło o "
+"<strong>%{deviation}%</strong> w porównaniu z poprzednim "
+"<strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -748,9 +748,10 @@ msgid ""
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
-"Powiadomienie, gdy <strong>%{size_label}</strong> najnowszego <strong>%"
-"{bundle_name}</strong> pakietu w gałęzi <strong>%{git_branch}</strong> "
-"wzrosło o <strong>%{deviation}%</strong> w porównaniu z poprzednim pakietem."
+"Powiadomienie, gdy <strong>%{size_label}</strong> najnowszego "
+"<strong>%{bundle_name}</strong> pakietu w gałęzi <strong>%{git_branch}</"
+"strong> wzrosło o <strong>%{deviation}%</strong> w porównaniu z poprzednim "
+"pakietem."
 
 #, fuzzy
 msgid "Scheme"
@@ -759,6 +760,18 @@ msgstr "Schemat"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "Np. MyApp (opcjonalnie)"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""
