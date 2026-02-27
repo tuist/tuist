@@ -1,11 +1,17 @@
+#if os(macOS)
 import TuistLogging
 import TuistSupport
 
-struct InspectImportsIssue: Comparable {
+public struct InspectImportsIssue: Comparable {
     let target: String
     let dependencies: Set<String>
 
-    static func < (lhs: InspectImportsIssue, rhs: InspectImportsIssue) -> Bool {
+    public init(target: String, dependencies: Set<String>) {
+        self.target = target
+        self.dependencies = dependencies
+    }
+
+    public static func < (lhs: InspectImportsIssue, rhs: InspectImportsIssue) -> Bool {
         if lhs.target != rhs.target {
             return lhs.target < rhs.target
         }
@@ -13,10 +19,10 @@ struct InspectImportsIssue: Comparable {
     }
 }
 
-enum InspectImportsServiceError: FatalError, Equatable {
+public enum InspectImportsServiceError: FatalError, Equatable {
     case issuesFound(implicit: [InspectImportsIssue] = [], redundant: [InspectImportsIssue] = [])
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .issuesFound(implicit, redundant):
             var messages: [String] = []
@@ -48,7 +54,8 @@ enum InspectImportsServiceError: FatalError, Equatable {
         }
     }
 
-    var type: ErrorType {
+    public var type: ErrorType {
         .abort
     }
 }
+#endif

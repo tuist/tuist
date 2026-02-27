@@ -1,3 +1,4 @@
+#if os(macOS)
 import FileSystem
 import Foundation
 import Path
@@ -94,12 +95,6 @@ struct InspectBuildCommandService {
         {
             var environment = Environment.current.variables
             environment["TUIST_INSPECT_BUILD_WAIT"] = "YES"
-            // We don't want to prolongue the build action for analytics reasons.
-            // Additionally, the `.xcactivitylog` might not be immediately available.
-            // To resolve both issues, we run the `inspect build` command again when run from a post action (recognized by the
-            // presense of the `workspacePath` environment variable).
-            // We pass the `TUIST_INSPECT_BUILD_WAIT` environment variable to the new process, so we do actually upload the build
-            // analytics to the server.
             try backgroundProcessRunner.runInBackground(
                 [executablePath, "inspect", "build"],
                 environment: environment
@@ -218,9 +213,6 @@ struct InspectBuildCommandService {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             cacheableTasks: xcactivityLog.cacheableTasks,
-            // When upload is disabled, the cache proxy skips uploads but still returns a successful response
-            // to Xcode (which has no mechanism to skip an upload). To ensure CAS outputs don't show as
-            // "Uploaded" in analytics, we filter them out here.
             casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
                 xcactivityLog.casOutputs.filter { $0.operation != .upload }
         )
@@ -229,7 +221,6 @@ struct InspectBuildCommandService {
         )
     }
 
-    /// This method truncates the number of warnings to 1000 and the message to 1000 characters.
     private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
         issues
             .prefix(1000)
@@ -275,3 +266,4 @@ struct InspectBuildCommandService {
         )
     }
 }
+#endif

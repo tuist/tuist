@@ -1,3 +1,4 @@
+#if os(macOS)
 import TuistCore
 import TuistLoader
 import XcodeGraph
@@ -103,7 +104,6 @@ struct GraphImportsLinter: GraphImportsLinting {
                 !dependency.target.bundleId.hasSuffix(".generated.resources")
             }
             .filter { dependency in
-                // Macros are referenced by string name in #externalMacro, never via import statements.
                 dependency.target.product != .macro
             }
             .filter { dependency in
@@ -156,3 +156,4 @@ struct GraphImportsLinter: GraphImportsLinting {
         return Set(explicitTargetDependencies)
     }
 }
+#endif

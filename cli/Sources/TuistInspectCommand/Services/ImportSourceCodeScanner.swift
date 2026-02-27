@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 enum ProgrammingLanguage {
@@ -87,3 +88,4 @@ struct ImportSourceCodeScanner {
             .replacingOccurrences(of: #"(?m)^\s*\n"#, with: "", options: .regularExpression)
     }
 }
+#endif

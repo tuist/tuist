@@ -17,11 +17,11 @@ import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
 
-enum InspectResultBundleServiceError: Equatable, LocalizedError {
+public enum InspectResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case missingInvocationRecord
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return
@@ -33,7 +33,7 @@ enum InspectResultBundleServiceError: Equatable, LocalizedError {
 }
 
 @Mockable
-protocol InspectResultBundleServicing {
+public protocol InspectResultBundleServicing {
     func inspectResultBundle(
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
@@ -41,7 +41,7 @@ protocol InspectResultBundleServicing {
     ) async throws -> Components.Schemas.RunsTest
 }
 
-struct InspectResultBundleService: InspectResultBundleServicing {
+public struct InspectResultBundleService: InspectResultBundleServicing {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let createTestService: CreateTestServicing
     private let createCrashReportService: CreateCrashReportServicing
@@ -56,7 +56,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
     private let xcActivityLogController: XCActivityLogControlling
     private let fileSystem: FileSysteming
 
-    init(
+    public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         createTestService: CreateTestServicing = CreateTestService(),
         createCrashReportService: CreateCrashReportServicing = CreateCrashReportService(),
@@ -86,7 +86,7 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         self.fileSystem = fileSystem
     }
 
-    func inspectResultBundle(
+    public func inspectResultBundle(
         resultBundlePath: AbsolutePath,
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist

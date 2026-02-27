@@ -70,6 +70,7 @@ public enum Module: String, CaseIterable {
     case initCommand = "TuistInitCommand"
     case runCommand = "TuistRunCommand"
     case shareCommand = "TuistShareCommand"
+    case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
 
     func forceStaticLinking() -> Bool {
@@ -310,7 +311,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
-             .runCommand, .shareCommand, .android:
+             .runCommand, .shareCommand, .inspectCommand, .android:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -410,6 +411,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
+                    .target(name: Module.inspectCommand.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -467,7 +469,7 @@ public enum Module: String, CaseIterable {
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
-             .initCommand, .runCommand, .shareCommand, .android:
+             .initCommand, .runCommand, .shareCommand, .inspectCommand, .android:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -595,6 +597,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.registryCommand.targetName),
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
+                    .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.environment.targetName),
@@ -627,6 +630,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
+                    .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),
@@ -1370,6 +1374,37 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "Mockable"),
                 ]
+            case .inspectCommand:
+                [
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.encodable.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.automation.targetName),
+                    .target(name: Module.xcActivityLog.targetName),
+                    .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
+                    .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.ci.targetName, condition: .when([.macos])),
+                    .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Rosalind"),
+                    .external(name: "Mockable"),
+                    .external(name: "Command"),
+                    .target(name: Module.xcodeGraph.targetName),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -1387,7 +1422,7 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
-                 .runCommand, .shareCommand, .android:
+                 .runCommand, .shareCommand, .inspectCommand, .android:
                 []
             case .testCommand:
                 [
@@ -1536,6 +1571,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.runCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
+                    .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.android.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.envKey.targetName),
