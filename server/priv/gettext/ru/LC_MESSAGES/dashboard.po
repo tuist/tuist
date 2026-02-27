@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2026-02-27 15:28+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/ru/>\n"
 "Language: ru\n"
@@ -122,7 +123,7 @@ msgstr "Grafana"
 
 #, fuzzy
 msgid "Integrations"
-msgstr "Integrations"
+msgstr "Интеграции"
 
 #, fuzzy
 msgid "Invalid GitHub app installation. Please try again."
