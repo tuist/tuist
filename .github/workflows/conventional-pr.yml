@@ -1,7 +1,11 @@
 name: conventional-pr
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, edited]
+
+concurrency:
+  group: conventional-pr-${{ github.head_ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-pr:
@@ -9,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v2
       - uses: amannn/action-semantic-pull-request@v5
         with:
           requireScope: true

@@ -1,0 +1,50 @@
+[[tools.age]]
+version = "1.2.1"
+backend = "aqua:FiloSottile/age"
+"platforms.linux-arm64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-arm64.tar.gz"}
+"platforms.linux-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz"}
+"platforms.macos-arm64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-arm64.tar.gz"}
+"platforms.macos-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-amd64.tar.gz"}
+"platforms.windows-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-windows-amd64.zip"}
+
+[[tools."asdf:aeons/asdf-minio"]]
+version = "2025-09-07T16-13-09Z"
+backend = "asdf:aeons/asdf-minio"
+
+[[tools.clickhouse]]
+version = "26.1.2.11-stable"
+backend = "asdf:clickhouse"
+
+[[tools.node]]
+version = "24.11.0"
+backend = "core:node"
+"platforms.linux-arm64" = { checksum = "sha256:4786d00c4d259d3ff0b2328307f764ef3ced65f2d6e9502d433e68d66238509d", url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-linux-arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:b3c071cdf47aab867c3b2aa287257df12ec5d7c962bf922b32fd33226c4295fd", url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-linux-x64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:0be2ab2816a4fa02d1acff014a434f29f56d8d956f5af6a98b70ced6c5f4d201", url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:3884671e87f46f773832d98a0a6cabcc5ec4f637084f0f3515b69e66ea27f2f1", url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-darwin-x64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:1054540bce22b54ec7e50ebc078ec5d090700a77657607a58f6a64df21f49fdd", url = "https://nodejs.org/dist/v24.11.0/node-v24.11.0-win-x64.zip"}
+
+[[tools."npm:appium"]]
+version = "3.0.1"
+backend = "npm:appium"
+
+[[tools."npm:prettier"]]
+version = "3.4.2"
+backend = "npm:prettier"
+
+[[tools.pnpm]]
+version = "10.17.1"
+backend = "aqua:pnpm/pnpm"
+
+[[tools.sops]]
+version = "3.9.3"
+backend = "aqua:getsops/sops"
+"platforms.linux-arm64" = { checksum = "sha256:49515aba9264e507eab884ebf902098046b8922d32f588f9a2beecb4a601d2ef", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.arm64"}
+"platforms.linux-x64" = { checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:a087bd505b23dceb7debf60e02f4520c16fe32b02c0253c4e52821575f5d5027", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.arm64"}
+"platforms.macos-x64" = { checksum = "sha256:995a4571357b02fbbbba1f4ab1298b97eb5d976b02dc6f678edd6a3f7c7a952f", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.amd64"}
+"platforms.windows-x64" = { checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"}
+
+[[tools."ubi:aquasecurity/trivy"]]
+version = "0.63.0"
+backend = "ubi:aquasecurity/trivy"

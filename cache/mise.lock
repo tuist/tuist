@@ -1,0 +1,20 @@
+[[tools.elixir]]
+version = "1.19.2"
+backend = "core:elixir"
+
+[[tools.erlang]]
+version = "28.1"
+backend = "core:erlang"
+
+[[tools."gem:kamal"]]
+version = "2.10.1"
+backend = "gem:kamal"
+
+[[tools.ruby]]
+version = "3.3.10"
+backend = "core:ruby"
+"platforms.linux-arm64" = { checksum = "sha256:0265cb5f0626dd6ef20ef7043ed8dfb9daa38984793b26cadc8170653cc082e8", url = "https://github.com/jdx/ruby/releases/download/3.3.10/ruby-3.3.10.arm64_linux.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:864b2f58f33d88f2d3c8130b2d50f3289796c1a2a0e0cc945253abd2d329796e", url = "https://github.com/jdx/ruby/releases/download/3.3.10/ruby-3.3.10.x86_64_linux.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:bdbfeceee5981e29a64c0d515a29755fad723ef17c259317af7976aedca22098", url = "https://github.com/jdx/ruby/releases/download/3.3.10/ruby-3.3.10.macos.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:b555baa467a306cfc8e6c6ed24d0d27b27e9a1bed1d91d95509859eac6b0e928", url = "https://cache.ruby-lang.org/pub/ruby/3.3/ruby-3.3.10.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:b555baa467a306cfc8e6c6ed24d0d27b27e9a1bed1d91d95509859eac6b0e928", url = "https://cache.ruby-lang.org/pub/ruby/3.3/ruby-3.3.10.tar.gz"}
