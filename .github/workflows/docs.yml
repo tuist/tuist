@@ -210,7 +210,7 @@ jobs:
         with:
           path: .build
           key: ${{ steps.spm-cache.outputs.cache-primary-key }}
-      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v2
       - name: Deploy to Cloudflare Pages
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
