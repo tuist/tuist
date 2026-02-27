@@ -16,4 +16,3 @@ swift package --package-path "$MISE_PROJECT_ROOT" \
 echo "/ /documentation/projectdescription/project 301" > "$MISE_PROJECT_ROOT/.build/documentation/_redirects"
 
 echo "Documentation generated at $MISE_PROJECT_ROOT/.build/documentation"
-echo "Preview with: python3 -m http.server 8000 --directory $MISE_PROJECT_ROOT/.build/documentation"
