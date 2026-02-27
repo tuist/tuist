@@ -854,6 +854,15 @@ msgstr "مجموعة الاختبارات"
 msgid "Scheme:"
 msgstr "المخطط:"
 
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "مجموعة الاختبارات"

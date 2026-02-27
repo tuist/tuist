@@ -842,6 +842,15 @@ msgstr "测试套件"
 msgid "Scheme:"
 msgstr "方案："
 
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "测试套件"

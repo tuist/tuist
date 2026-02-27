@@ -855,6 +855,15 @@ msgstr "Test Seti"
 msgid "Scheme:"
 msgstr "Şema:"
 
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Test paketi"
