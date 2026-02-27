@@ -1315,9 +1315,8 @@ struct GenerateAcceptanceTesAppWithLocalSPMModuleWithRemoteDependencies {
             try RelativePath(validating: "xcshareddata/swiftpm/Package.resolved")
         )
         let fixturePackageResolved = fixturePath.appending(try RelativePath(validating: ".package.resolved"))
-        let fileSystem = FileSystem()
-        if try await fileSystem.exists(workspacePackageResolved),
-           try await fileSystem.exists(fixturePackageResolved)
+        if FileManager.default.fileExists(atPath: workspacePackageResolved.pathString),
+           FileManager.default.fileExists(atPath: fixturePackageResolved.pathString)
         {
             let workspacePackageResolvedData = try Data(contentsOf: workspacePackageResolved.url)
             let fixturePackageResolvedData = try Data(contentsOf: fixturePackageResolved.url)
