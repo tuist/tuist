@@ -31,10 +31,6 @@ const CLI_CONTENT_LOCALE = "en";
 export async function referencesSidebar(locale) {
   return [
     {
-      text: "Project Description",
-      link: "https://projectdescription.tuist.dev/documentation/projectdescription/project",
-    },
-    {
       text: localizedString(
         locale,
         "sidebars.references.items.configuration.text",
@@ -64,6 +60,10 @@ export async function referencesSidebar(locale) {
           ),
           collapsed: true,
           items: [
+            {
+              text: "Project Description",
+              link: "https://projectdescription.tuist.dev/documentation/projectdescription/project",
+            },
             {
               text: localizedString(
                 locale,
