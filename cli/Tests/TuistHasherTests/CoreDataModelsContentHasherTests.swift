@@ -102,8 +102,16 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
 
     func test_hash_isDeterministicRegardlessOfInputOrder() async throws {
         // Given
-        let modelA = try buildCoreDataModel(name: "AlphaModel", versions: ["v1"], currentVersion: "v1")
-        let modelB = try buildCoreDataModel(name: "BetaModel", versions: ["v1"], currentVersion: "v1")
+        let modelA = CoreDataModel(
+            path: try AbsolutePath(validating: "/AlphaModel+path"),
+            versions: [try AbsolutePath(validating: "/v1")],
+            currentVersion: "v1"
+        )
+        let modelB = CoreDataModel(
+            path: try AbsolutePath(validating: "/BetaModel+path"),
+            versions: [try AbsolutePath(validating: "/v1")],
+            currentVersion: "v1"
+        )
         given(contentHasher)
             .hash(path: .any)
             .willProduce { $0.basename }
