@@ -3,7 +3,6 @@ defmodule TuistWeb.TestCaseRunLive do
   use TuistWeb, :live_view
   use Noora
 
-  import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.TestLabels

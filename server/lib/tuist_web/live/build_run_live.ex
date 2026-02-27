@@ -4,7 +4,6 @@ defmodule TuistWeb.BuildRunLive do
   use Noora
 
   import Phoenix.Component
-  import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
