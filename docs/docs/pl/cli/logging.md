@@ -24,8 +24,8 @@ Tuist, który ma pierwszeństwo przed `$XDG_STATE_HOME`.
 ::: napiwek
 <!-- -->
 Dowiedz się więcej o organizacji katalogów Tuist i konfiguracji katalogów
-niestandardowych w <LocalizedLink href="/cli/directories">dokumentacji
-katalogów</LocalizedLink>.
+niestandardowych w dokumentacji
+<LocalizedLink href="/cli/directories">Katalogi</LocalizedLink>.
 <!-- -->
 :::
 
