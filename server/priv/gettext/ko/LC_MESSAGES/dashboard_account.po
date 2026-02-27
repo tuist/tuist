@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-26 14:54+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"PO-Revision-Date: 2026-02-27 09:07+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ko/>\n"
 "Language: ko\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -689,22 +689,17 @@ msgstr ""
 "이 도메인의 Google 계정으로 로그인하는 사용자는 자동으로 이 조직에 "
 "추가됩니다."
 
-#, fuzzy
 msgid "Your Okta organization URL without the https:// prefix."
 msgstr "https:// 접두사가 없는 Okta 조직 URL."
 
-#, fuzzy
 msgid "Enable Single Sign-On"
-msgstr "싱글 사인온 활성화"
+msgstr "싱글 사인온(SSO) 활성화"
 
-#, fuzzy
 msgid "Enable and configure SSO for your organization."
 msgstr "조직에 대해 SSO를 활성화하고 구성하십시오."
 
-#, fuzzy
 msgid "Set the initiate login URI to:"
 msgstr "초기 로그인 URI를 다음으로 설정하십시오:"
 
-#, fuzzy
 msgid "Set the sign-in redirect URI to:"
 msgstr "로그인 리디렉션 URI를 다음으로 설정하세요:"
