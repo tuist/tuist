@@ -81,18 +81,29 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path) do
     if has_submodules?(full_handle, tag, token) do
-      with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
-        zip_directory(source_directory, archive_path)
-      end
+      build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path)
     else
-      with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts),
-           {:ok, has_symlinks} <- archive_has_symlinks?(archive_path) do
-        if has_symlinks do
-          resolve_symlinks_in_archive(tmp_dir, archive_path)
-        else
-          :ok
-        end
-      end
+      build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path)
+    end
+  end
+
+  defp build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path) do
+    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
+      zip_directory(source_directory, archive_path)
+    end
+  end
+
+  defp build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path) do
+    with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
+      ensure_archive_without_symlinks(tmp_dir, archive_path)
+    end
+  end
+
+  defp ensure_archive_without_symlinks(tmp_dir, archive_path) do
+    case archive_has_symlinks?(archive_path) do
+      {:ok, true} -> resolve_symlinks_in_archive(tmp_dir, archive_path)
+      {:ok, false} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -226,7 +237,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
     with :ok <- ensure_extract_directory(extract_dir),
          :ok <- unzip_archive(archive_path, extract_dir),
-         {:ok, top_level_directory} <- extract_single_top_level_directory(extract_dir),
+         {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
          :ok <- remove_archive(archive_path) do
       zip_directory(top_level_directory, archive_path)
     end
@@ -246,7 +257,7 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
-  defp extract_single_top_level_directory(extract_dir) do
+  defp extract_archive_root_directory(extract_dir) do
     case File.ls(extract_dir) do
       {:ok, [top_level]} ->
         top_level_directory = Path.join(extract_dir, top_level)

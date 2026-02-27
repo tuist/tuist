@@ -13,6 +13,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   alias ExAws.Operation.S3
   alias ExAws.S3.Upload
 
+  @default_manifest_content "// swift-tools-version:5.9\nimport PackageDescription"
+
   setup :set_mimic_from_context
 
   setup do
@@ -65,8 +67,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   end
 
   test "downloads, uploads, and updates metadata for new release" do
-    manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-
     # Release lock acquired
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
@@ -92,12 +92,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                                                      "v1.0.0",
                                                      archive_path,
                                                      _ ->
-      tmp = Path.join(Path.dirname(archive_path), "zipball_content")
-      top_dir = Path.join(tmp, "repo-v1.0.0")
-      File.mkdir_p!(top_dir)
-      File.write!(Path.join(top_dir, "Package.swift"), "// swift-tools-version:5.9")
-      {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
-      File.rm_rf!(tmp)
+      write_basic_zipball(archive_path)
       :ok
     end)
 
@@ -130,7 +125,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                                                      "Package.swift",
                                                      "v1.0.0",
                                                      _ ->
-      {:ok, manifest_content}
+      {:ok, @default_manifest_content}
     end)
 
     # Metadata lock for update
@@ -168,7 +163,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
   test "downloads, uploads, and updates metadata with alternate manifests" do
     default_manifest = "// swift-tools-version:5.7\nimport PackageDescription"
-    alternate_manifest = "// swift-tools-version:5.9\nimport PackageDescription"
+    alternate_manifest = @default_manifest_content
 
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
@@ -183,12 +178,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                                                      "v1.0.0",
                                                      archive_path,
                                                      _ ->
-      tmp = Path.join(Path.dirname(archive_path), "zipball_content")
-      top_dir = Path.join(tmp, "repo-v1.0.0")
-      File.mkdir_p!(top_dir)
-      File.write!(Path.join(top_dir, "Package.swift"), "// swift-tools-version:5.9")
-      {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
-      File.rm_rf!(tmp)
+      write_basic_zipball(archive_path)
       :ok
     end)
 
@@ -288,23 +278,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end
 
     test "resolves symlinks in downloaded zipball" do
-      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-
-      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       ".gitmodules",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:error, :not_found}
-      end)
+      expect_release_sync_prerequisites()
 
       fixture_path = Path.join([__DIR__, "../../fixtures/with_symlinks.zip"])
       original_bytes = File.read!(fixture_path)
@@ -334,29 +308,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
-        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       "Package.swift",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:ok, manifest_content}
-      end)
-
-      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
-        :ok
-      end)
+      expect_manifest_fetch(@default_manifest_content)
+      expect_metadata_update_success()
 
       assert :ok =
                ReleaseWorker.perform(%Oban.Job{
@@ -370,23 +323,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end
 
     test "skips repack when archive has no symlinks" do
-      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-
-      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       ".gitmodules",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:error, :not_found}
-      end)
+      expect_release_sync_prerequisites()
 
       fixture_path = Path.join([__DIR__, "../../fixtures/no_symlinks.zip"])
       original_bytes = File.read!(fixture_path)
@@ -413,29 +350,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
-        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       "Package.swift",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:ok, manifest_content}
-      end)
-
-      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
-        :ok
-      end)
+      expect_manifest_fetch(@default_manifest_content)
+      expect_metadata_update_success()
 
       assert :ok =
                ReleaseWorker.perform(%Oban.Job{
@@ -449,23 +365,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end
 
     test "resolves nested symlinks (symlink chain)" do
-      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-
-      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       ".gitmodules",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:error, :not_found}
-      end)
+      expect_release_sync_prerequisites()
 
       expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
                                                        "token",
@@ -478,7 +378,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         File.write!(Path.join(top_dir, "a.md"), "# Content")
         File.ln_s!("a.md", Path.join(top_dir, "b.md"))
         File.ln_s!("b.md", Path.join(top_dir, "c.md"))
-        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
+        File.write!(Path.join(top_dir, "Package.swift"), @default_manifest_content)
         {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
         File.rm_rf!(tmp)
         :ok
@@ -499,29 +399,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
-        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       "Package.swift",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:ok, manifest_content}
-      end)
-
-      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
-        :ok
-      end)
+      expect_manifest_fetch(@default_manifest_content)
+      expect_metadata_update_success()
 
       assert :ok =
                ReleaseWorker.perform(%Oban.Job{
@@ -535,23 +414,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end
 
     test "handles broken symlinks gracefully" do
-      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-
-      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       ".gitmodules",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:error, :not_found}
-      end)
+      expect_release_sync_prerequisites()
 
       expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
                                                        "token",
@@ -561,7 +424,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         tmp = Path.join(Path.dirname(archive_path), "zipball_content")
         top_dir = Path.join(tmp, "repo-v1.0.0")
         File.mkdir_p!(top_dir)
-        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
+        File.write!(Path.join(top_dir, "Package.swift"), @default_manifest_content)
         File.ln_s!("nonexistent.md", Path.join(top_dir, "broken_link.md"))
         {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
         File.rm_rf!(tmp)
@@ -582,29 +445,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:ok, %{status_code: 200, body: ""}}
       end)
 
-      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
-        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
-      end)
-
-      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
-                                                       "token",
-                                                       "Package.swift",
-                                                       "v1.0.0",
-                                                       _ ->
-        {:ok, manifest_content}
-      end)
-
-      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
-        {:ok, :acquired}
-      end)
-
-      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-        {:error, :not_found}
-      end)
-
-      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
-        :ok
-      end)
+      expect_manifest_fetch(@default_manifest_content)
+      expect_metadata_update_success()
 
       assert :ok =
                ReleaseWorker.perform(%Oban.Job{
@@ -708,5 +550,61 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         assert Enum.sort(entries) == ["repo-v1.0.0", "repo-v1.0.1"]
       end)
     end
+  end
+
+  defp write_basic_zipball(archive_path) do
+    tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+    top_dir = Path.join(tmp, "repo-v1.0.0")
+
+    File.mkdir_p!(top_dir)
+    File.write!(Path.join(top_dir, "Package.swift"), "// swift-tools-version:5.9")
+    {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
+    File.rm_rf!(tmp)
+  end
+
+  defp expect_release_sync_prerequisites do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     ".gitmodules",
+                                                     "v1.0.0",
+                                                     _ ->
+      {:error, :not_found}
+    end)
+  end
+
+  defp expect_manifest_fetch(manifest_content) do
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     "Package.swift",
+                                                     "v1.0.0",
+                                                     _ ->
+      {:ok, manifest_content}
+    end)
+  end
+
+  defp expect_metadata_update_success do
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
+      :ok
+    end)
   end
 end
