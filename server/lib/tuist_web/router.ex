@@ -22,7 +22,7 @@ defmodule TuistWeb.Router do
     plug :put_content_security_policy,
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com http://localhost:9095 https://t3.storage.dev",
       media_src:
         "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
       style_src:

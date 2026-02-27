@@ -815,6 +815,34 @@
           }
         }
       }
+
+      & > [data-part="attachments-section"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        border-top: 1px solid var(--noora-surface-border-secondary);
+        padding-top: var(--noora-spacing-5);
+
+        & > [data-part="attachments-title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="attachment-item"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-3);
+
+          & > [data-part="attachment-image"] {
+            max-width: 400px;
+            max-height: 500px;
+            width: auto;
+            height: auto;
+            border-radius: var(--noora-radius-medium);
+            border: 1px solid var(--noora-surface-border-secondary);
+          }
+        }
+      }
     }
   }
 }

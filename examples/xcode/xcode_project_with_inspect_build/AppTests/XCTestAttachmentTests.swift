@@ -20,19 +20,23 @@ final class XCTestAttachmentTests: XCTestCase {
         XCTAssertTrue(true)
     }
 
-    func testImageAttachment() {
-        // Create a simple 10x10 red image using CoreGraphics
-        let size = CGSize(width: 10, height: 10)
-        UIGraphicsBeginImageContext(size)
-        UIColor.red.setFill()
-        UIRectFill(CGRect(origin: .zero, size: size))
-        let image = UIGraphicsGetImageFromCurrentImageContext()!
-        UIGraphicsEndImageContext()
-
-        let attachment = XCTAttachment(image: image)
-        attachment.name = "xctest-image-attachment"
+    func testImageAttachment() throws {
+        let url = Bundle(for: type(of: self)).url(forResource: "screenshot2", withExtension: "png")!
+        let data = try Data(contentsOf: url)
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+        attachment.name = "xctest-image-attachment.png"
         attachment.lifetime = .keepAlways
         add(attachment)
         XCTAssertTrue(true)
+    }
+
+    func testFailingWithImageAttachment() throws {
+        let url = Bundle(for: type(of: self)).url(forResource: "screenshot2", withExtension: "png")!
+        let data = try Data(contentsOf: url)
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.png")
+        attachment.name = "failure-screenshot.png"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTFail("This test intentionally fails with an image attachment")
     }
 }

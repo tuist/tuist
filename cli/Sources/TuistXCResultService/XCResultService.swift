@@ -527,6 +527,8 @@ public struct XCResultService: XCResultServicing {
             var crashReportsByTestIdentifier: [String: CrashReport] = [:]
             var attachmentsByTestIdentifier: [String: [TestAttachment]] = [:]
 
+            await convertCgBIPNGs(in: temporaryDirectory, manifestEntries: manifestEntries)
+
             for entry in manifestEntries {
                 guard let testIdentifier = entry.testIdentifier else { continue }
                 let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
@@ -561,6 +563,26 @@ public struct XCResultService: XCResultServicing {
         } catch {
             Logger.current.warning("Failed to extract attachments: \(error)")
             return ([:], [:])
+        }
+    }
+
+    /// Converts CgBI PNGs (Apple's non-standard iOS PNG format) to standard PNGs
+    /// using `sips`. CgBI PNGs cannot be displayed by web browsers.
+    private func convertCgBIPNGs(in directory: AbsolutePath, manifestEntries: [AttachmentManifest]) async {
+        let pngFileNames = manifestEntries
+            .flatMap(\.attachments)
+            .map(\.exportedFileName)
+            .filter { $0.lowercased().hasSuffix(".png") }
+
+        for fileName in pngFileNames {
+            let filePath = directory.appending(component: fileName)
+            do {
+                _ = try await commandRunner.run(
+                    arguments: ["/usr/bin/sips", "-s", "format", "png", filePath.pathString, "--out", filePath.pathString]
+                ).concatenatedString()
+            } catch {
+                Logger.current.warning("Failed to convert CgBI PNG \(fileName): \(error)")
+            }
         }
     }
 

@@ -497,24 +497,29 @@
                 </div>
                 <div
                   :if={Enum.any?(non_crash_attachments(test_case_run))}
-                  data-part="attachments-section"
+                  style="display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--noora-surface-border-secondary); padding-top: 16px; margin-top: 8px;"
                 >
-                  <span data-part="attachments-title">
-                    {dgettext("dashboard_tests", "Attachments")}
-                  </span>
                   <div
                     :for={attachment <- non_crash_attachments(test_case_run)}
-                    data-part="attachment-item"
+                    style="display: flex; flex-direction: row; align-items: flex-start; gap: 12px;"
                   >
-                    <img
+                    <a
                       :if={attachment_type(attachment.file_name) == :image}
-                      src={
+                      href={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
                       }
-                      data-part="attachment-image"
-                      loading="lazy"
-                    />
+                      target="_blank"
+                    >
+                      <img
+                        src={
+                          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                        }
+                        loading="lazy"
+                        style="max-width: 400px; max-height: 500px; width: auto; height: auto; border-radius: 8px; border: 1px solid var(--noora-surface-border-secondary);"
+                      />
+                    </a>
                     <.neutral_button
+                      :if={attachment_type(attachment.file_name) != :image}
                       href={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
                       }
@@ -1660,24 +1665,29 @@
               </div>
               <div
                 :if={Enum.any?(non_crash_attachments(test_case_run))}
-                data-part="attachments-section"
+                style="display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--noora-surface-border-secondary); padding-top: 16px; margin-top: 8px;"
               >
-                <span data-part="attachments-title">
-                  {dgettext("dashboard_tests", "Attachments")}
-                </span>
                 <div
                   :for={attachment <- non_crash_attachments(test_case_run)}
-                  data-part="attachment-item"
+                  style="display: flex; flex-direction: row; align-items: flex-start; gap: 12px;"
                 >
-                  <img
+                  <a
                     :if={attachment_type(attachment.file_name) == :image}
-                    src={
+                    href={
                       ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
                     }
-                    data-part="attachment-image"
-                    loading="lazy"
-                  />
+                    target="_blank"
+                  >
+                    <img
+                      src={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                      }
+                      loading="lazy"
+                      style="max-width: 400px; max-height: 500px; width: auto; height: auto; border-radius: 8px; border: 1px solid var(--noora-surface-border-secondary);"
+                    />
+                  </a>
                   <.neutral_button
+                    :if={attachment_type(attachment.file_name) != :image}
                     href={
                       ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
                     }

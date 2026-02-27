@@ -89,6 +89,10 @@ defmodule TuistWeb.TestCaseRunLive do
     end
   end
 
+  defp attachment_type_label(:image), do: dgettext("dashboard_tests", "Image")
+  defp attachment_type_label(:text), do: dgettext("dashboard_tests", "Text File")
+  defp attachment_type_label(:file), do: dgettext("dashboard_tests", "File")
+
   defp non_crash_attachments(test_case_run) do
     crash_attachment_id =
       case test_case_run.crash_report do
