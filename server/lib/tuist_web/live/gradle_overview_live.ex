@@ -46,11 +46,12 @@ defmodule TuistWeb.GradleOverviewLive do
       builds_environment: builds_environment,
       builds_environment_label: builds_environment_label(builds_environment)
     )
-    |> assign_async([:cache_hit_rate_analytics, :cache_hit_rate], fn ->
-      cache_hit_rate_analytics = GradleAnalytics.cache_hit_rate_analytics(project.id, analytics_opts)
-      cache_hit_rate = cache_hit_rate_analytics.avg_hit_rate |> Decimal.from_float() |> Decimal.round(1)
-
-      {:ok, %{cache_hit_rate_analytics: cache_hit_rate_analytics, cache_hit_rate: cache_hit_rate}}
+    |> assign_async(:cache_hit_rate_analytics, fn ->
+      {:ok, %{cache_hit_rate_analytics: GradleAnalytics.cache_hit_rate_analytics(project.id, analytics_opts)}}
+    end)
+    |> assign_async(:cache_hit_rate, fn ->
+      analytics = GradleAnalytics.cache_hit_rate_analytics(project.id, analytics_opts)
+      {:ok, %{cache_hit_rate: analytics.avg_hit_rate |> Decimal.from_float() |> Decimal.round(1)}}
     end)
     |> assign_async(:build_duration_analytics, fn ->
       {:ok, %{build_duration_analytics: GradleAnalytics.build_duration_analytics(project.id, analytics_opts)}}
