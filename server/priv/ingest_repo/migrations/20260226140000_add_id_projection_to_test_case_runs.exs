@@ -1,6 +1,6 @@
 defmodule Tuist.IngestRepo.Migrations.AddIdProjectionToTestCaseRuns do
   @moduledoc """
-  Adds a `proj_by_id` projection to speed up single-row lookups by `id`.
+  Adds and materializes a `proj_by_id` projection to speed up single-row lookups by `id`.
 
   The table is ordered by `(test_run_id, test_module_run_id, id)`, so a query
   like `WHERE id = ? LIMIT 1` cannot binary-search directly to the row —
@@ -10,6 +10,10 @@ defmodule Tuist.IngestRepo.Migrations.AddIdProjectionToTestCaseRuns do
   A projection ordered by `id` lets ClickHouse binary-search to the exact
   granule, reducing reads from millions of rows to ~1 granule (~8192 rows).
   This optimizes `getTestCaseRun` (the test case run detail page).
+
+  ADD and MATERIALIZE are combined in a single migration to avoid the
+  NO_SUCH_PROJECTION_IN_TABLE error that occurs when MATERIALIZE runs in a
+  separate migration before the ADD metadata change has propagated.
   """
   use Ecto.Migration
 
@@ -25,6 +29,9 @@ defmodule Tuist.IngestRepo.Migrations.AddIdProjectionToTestCaseRuns do
       ORDER BY id
     )
     """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "ALTER TABLE test_case_runs MATERIALIZE PROJECTION proj_by_id"
   end
 
   def down do
