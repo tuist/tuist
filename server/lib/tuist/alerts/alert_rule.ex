@@ -31,6 +31,7 @@ defmodule Tuist.Alerts.AlertRule do
     field :slack_channel_name, :string
     field :scheme, :string, default: ""
     field :bundle_name, :string, default: ""
+    field :environment, :string, default: "any"
 
     belongs_to :project, Project, type: :integer
     has_many :alerts, Alert
@@ -51,7 +52,8 @@ defmodule Tuist.Alerts.AlertRule do
       :slack_channel_id,
       :slack_channel_name,
       :scheme,
-      :bundle_name
+      :bundle_name,
+      :environment
     ])
     |> validate_required([
       :project_id,

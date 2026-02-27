@@ -1699,6 +1699,7 @@ defmodule Tuist.Builds.Analytics do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
     scheme = Keyword.get(opts, :scheme)
+    is_ci = Keyword.get(opts, :is_ci)
 
     query =
       from(b in Build,
@@ -1714,6 +1715,13 @@ defmodule Tuist.Builds.Analytics do
         where(query, [b], b.scheme == ^scheme)
       else
         query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [b], b.is_ci == true)
+        false -> where(query, [b], b.is_ci == false)
       end
 
     durations = ClickHouseRepo.all(query)
@@ -1737,6 +1745,14 @@ defmodule Tuist.Builds.Analytics do
   def build_cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    is_ci = Keyword.get(opts, :is_ci)
+
+    ci_filter =
+      case is_ci do
+        nil -> ""
+        true -> "AND is_ci = 1"
+        false -> "AND is_ci = 0"
+      end
 
     query = """
     SELECT (ifNull(cacheable_task_local_hits_count, 0) + ifNull(cacheable_task_remote_hits_count, 0)) / cacheable_tasks_count as hit_rate
@@ -1744,6 +1760,7 @@ defmodule Tuist.Builds.Analytics do
     WHERE project_id = {project_id:Int64}
       AND cacheable_tasks_count IS NOT NULL
       AND cacheable_tasks_count > 0
+      #{ci_filter}
     ORDER BY inserted_at DESC
     LIMIT {limit:UInt32}
     OFFSET {offset:UInt32}
