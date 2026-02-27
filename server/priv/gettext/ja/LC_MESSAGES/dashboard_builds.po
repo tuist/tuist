@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-26 14:41+0000\n"
+"PO-Revision-Date: 2026-02-27 15:28+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ja/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -627,7 +627,7 @@ msgstr "並べ替え:"
 
 #, fuzzy
 msgid "Source"
-msgstr "ソース"
+msgstr "原文"
 
 #, fuzzy
 msgid "Sources"
