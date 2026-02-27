@@ -11,9 +11,11 @@ defmodule Tuist.IngestRepo.Migrations.AddIdProjectionToTestCaseRuns do
   granule, reducing reads from millions of rows to ~1 granule (~8192 rows).
   This optimizes `getTestCaseRun` (the test case run detail page).
 
-  ADD and MATERIALIZE are combined in a single migration to avoid the
-  NO_SUCH_PROJECTION_IN_TABLE error that occurs when MATERIALIZE runs in a
-  separate migration before the ADD metadata change has propagated.
+  The migration first drops the projection if it exists (to recover from a
+  previous partial failure), then combines ADD and MATERIALIZE in a single
+  ALTER TABLE statement to avoid the NO_SUCH_PROJECTION_IN_TABLE error that
+  occurs when they run as separate statements before the ADD metadata change
+  has propagated across replicas.
   """
   use Ecto.Migration
 
@@ -22,16 +24,17 @@ defmodule Tuist.IngestRepo.Migrations.AddIdProjectionToTestCaseRuns do
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    ALTER TABLE test_case_runs
-    ADD PROJECTION proj_by_id (
-      SELECT *
-      ORDER BY id
-    )
-    """
+    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_id"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs MATERIALIZE PROJECTION proj_by_id"
+    execute """
+    ALTER TABLE test_case_runs
+      ADD PROJECTION proj_by_id (
+        SELECT *
+        ORDER BY id
+      ),
+      MATERIALIZE PROJECTION proj_by_id
+    """
   end
 
   def down do
