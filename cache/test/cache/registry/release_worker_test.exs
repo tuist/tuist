@@ -90,14 +90,19 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                                                      "v1.0.0",
                                                      archive_path,
                                                      _ ->
-      File.write!(archive_path, "fake-zip-content")
+      tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+      top_dir = Path.join(tmp, "repo-v1.0.0")
+      File.mkdir_p!(top_dir)
+      File.write!(Path.join(top_dir, "Package.swift"), "// swift-tools-version:5.9")
+      {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
+      File.rm_rf!(tmp)
       :ok
     end)
 
     # Upload source archive via streaming upload
     expect(Upload, :stream_file, fn path ->
       assert File.exists?(path)
-      ["fake-zip-content"]
+      [File.read!(path)]
     end)
 
     expect(ExAws.S3, :upload, fn _stream, _bucket, key, _opts ->
@@ -176,11 +181,19 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                                                      "v1.0.0",
                                                      archive_path,
                                                      _ ->
-      File.write!(archive_path, "fake-zip-content")
+      tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+      top_dir = Path.join(tmp, "repo-v1.0.0")
+      File.mkdir_p!(top_dir)
+      File.write!(Path.join(top_dir, "Package.swift"), "// swift-tools-version:5.9")
+      {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
+      File.rm_rf!(tmp)
       :ok
     end)
 
-    expect(Upload, :stream_file, fn _path -> ["fake-zip-content"] end)
+    expect(Upload, :stream_file, fn path ->
+      assert File.exists?(path)
+      [File.read!(path)]
+    end)
 
     expect(ExAws.S3, :upload, fn _stream, _bucket, _key, _opts ->
       %S3{http_method: :put, bucket: "test", path: "key"}
@@ -240,5 +253,351 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                  "tag" => "v1.0.0"
                }
              })
+  end
+
+  describe "symlink resolution" do
+    test "resolves symlinks in downloaded zipball" do
+      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
+      test_pid = self()
+
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       ".gitmodules",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+        top_dir = Path.join(tmp, "repo-v1.0.0")
+        File.mkdir_p!(top_dir)
+        File.write!(Path.join(top_dir, "AGENTS.md"), "# Agents")
+        File.ln_s!("AGENTS.md", Path.join(top_dir, "CLAUDE.md"))
+        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
+        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
+        File.rm_rf!(tmp)
+        :ok
+      end)
+
+      expect(Upload, :stream_file, fn path ->
+        send(test_pid, {:archive_path, path})
+        assert File.exists?(path)
+        [File.read!(path)]
+      end)
+
+      expect(ExAws.S3, :upload, fn _stream, _bucket, key, _opts ->
+        assert key == "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+        %S3{http_method: :put, bucket: "test", path: key}
+      end)
+
+      expect(ExAws, :request, 2, fn _op ->
+        {:ok, %{status_code: 200, body: ""}}
+      end)
+
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "Package.swift",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:ok, manifest_content}
+      end)
+
+      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
+        :ok
+      end)
+
+      assert :ok =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+
+      assert_receive {:archive_path, captured_path}
+      {output, 0} = System.cmd("unzip", ["-Z", captured_path])
+      refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
+    end
+
+    test "handles archive with no symlinks without modification" do
+      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
+
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       ".gitmodules",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+        top_dir = Path.join(tmp, "repo-v1.0.0")
+        File.mkdir_p!(top_dir)
+        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
+        {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
+        File.rm_rf!(tmp)
+        :ok
+      end)
+
+      expect(Upload, :stream_file, fn path ->
+        assert File.exists?(path)
+        [File.read!(path)]
+      end)
+
+      expect(ExAws.S3, :upload, fn _stream, _bucket, _key, _opts ->
+        %S3{http_method: :put, bucket: "test", path: "key"}
+      end)
+
+      expect(ExAws, :request, 2, fn _op ->
+        {:ok, %{status_code: 200, body: ""}}
+      end)
+
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "Package.swift",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:ok, manifest_content}
+      end)
+
+      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
+        :ok
+      end)
+
+      assert :ok =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end
+
+    test "resolves nested symlinks (symlink chain)" do
+      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
+      test_pid = self()
+
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       ".gitmodules",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+        top_dir = Path.join(tmp, "repo-v1.0.0")
+        File.mkdir_p!(top_dir)
+        File.write!(Path.join(top_dir, "a.md"), "# Content")
+        File.ln_s!("a.md", Path.join(top_dir, "b.md"))
+        File.ln_s!("b.md", Path.join(top_dir, "c.md"))
+        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
+        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
+        File.rm_rf!(tmp)
+        :ok
+      end)
+
+      expect(Upload, :stream_file, fn path ->
+        send(test_pid, {:archive_path, path})
+        assert File.exists?(path)
+        [File.read!(path)]
+      end)
+
+      expect(ExAws.S3, :upload, fn _stream, _bucket, key, _opts ->
+        assert key == "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+        %S3{http_method: :put, bucket: "test", path: key}
+      end)
+
+      expect(ExAws, :request, 2, fn _op ->
+        {:ok, %{status_code: 200, body: ""}}
+      end)
+
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "Package.swift",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:ok, manifest_content}
+      end)
+
+      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
+        :ok
+      end)
+
+      assert :ok =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+
+      assert_receive {:archive_path, captured_path}
+      {output, 0} = System.cmd("unzip", ["-Z", captured_path])
+      refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
+    end
+
+    test "handles broken symlinks gracefully" do
+      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
+
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       ".gitmodules",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+        top_dir = Path.join(tmp, "repo-v1.0.0")
+        File.mkdir_p!(top_dir)
+        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
+        File.ln_s!("nonexistent.md", Path.join(top_dir, "broken_link.md"))
+        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
+        File.rm_rf!(tmp)
+        :ok
+      end)
+
+      expect(Upload, :stream_file, fn path ->
+        assert File.exists?(path)
+        [File.read!(path)]
+      end)
+
+      expect(ExAws.S3, :upload, fn _stream, _bucket, _key, _opts ->
+        %S3{http_method: :put, bucket: "test", path: "key"}
+      end)
+
+      expect(ExAws, :request, 2, fn _op ->
+        {:ok, %{status_code: 200, body: ""}}
+      end)
+
+      expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+        {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "Package.swift",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:ok, manifest_content}
+      end)
+
+      expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata ->
+        :ok
+      end)
+
+      assert :ok =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end
   end
 end
