@@ -20,7 +20,7 @@ Postgres и ClickHouse.
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
 TimescaleDB устарела и будет удалена. На данный момент, если она вам нужна для
-локальной настройки или миграции, воспользуйтесь [документацией по установке
+локальной настройки или миграции, воспользуйтесь [Документацией по установке
 TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/installation-macos/).
 <!-- -->
 :::
