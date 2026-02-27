@@ -2,9 +2,12 @@ import ArgumentParser
 import FileSystem
 import Foundation
 import Path
+import TuistEnvKey
 
-struct InspectBundleCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct InspectBundleCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "bundle",
             abstract: "Inspects an app bundle. The app bundle has to be either `.app`, `.xcarchive`, `.ipa`, `.aab`, or `.apk`."
@@ -32,7 +35,7 @@ struct InspectBundleCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    func run() async throws {
+    public func run() async throws {
         try await InspectBundleCommandService()
             .run(
                 path: path,

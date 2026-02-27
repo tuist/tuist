@@ -51,6 +51,7 @@ var tuistDependencies: [Target.Dependency] = [
     "TuistInitCommand",
     "TuistShareCommand",
     "TuistRunCommand",
+    "TuistInspectCommand",
     argumentParserDependency,
     "TuistServer",
     pathDependency,
@@ -344,6 +345,25 @@ var tuistRunCommandDependencies: [Target.Dependency] = [
     "TuistSupport",
     .product(name: "Noora", package: "tuist.Noora"),
 ]
+var tuistInspectCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    mockableDependency,
+    loggingDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistGit",
+    "TuistAlert",
+    "TuistEncodable",
+    .product(name: "Noora", package: "tuist.Noora"),
+    .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS, .linux])),
+]
 #if os(macOS)
 tuistDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistSupport", "TuistExtension", "TuistHAR",
@@ -395,6 +415,14 @@ tuistRunCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
     "TuistSimulator",
     xcodeGraphDependency,
+])
+tuistInspectCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
+    "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
+    "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
+    "TuistRootDirectoryLocator",
+    xcodeGraphDependency,
+    commandDependency,
 ])
 #endif
 
@@ -787,6 +815,14 @@ var targets: [Target] = [
         name: "TuistRunCommand",
         dependencies: tuistRunCommandDependencies,
         path: "cli/Sources/TuistRunCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistInspectCommand",
+        dependencies: tuistInspectCommandDependencies,
+        path: "cli/Sources/TuistInspectCommand",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]

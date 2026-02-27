@@ -1,12 +1,14 @@
+#if os(macOS)
 import ArgumentParser
 import TuistAlert
+import TuistEnvKey
 import TuistSupport
 
-struct InspectRedundantImportsCommand: AsyncParsableCommand {
+struct InspectImplicitImportsCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "redundant-imports",
-            abstract: "Find redundant imports in Tuist projects failing when cases are found.",
+            commandName: "implicit-imports",
+            abstract: "Find implicit imports in Tuist projects failing when cases are found.",
             shouldDisplay: false
         )
     }
@@ -15,7 +17,7 @@ struct InspectRedundantImportsCommand: AsyncParsableCommand {
         name: .shortAndLong,
         help: "The path to the directory that contains the project.",
         completion: .directory,
-        envKey: .lintRedundantDependenciesPath
+        envKey: .lintImplicitDependenciesPath
     )
     var path: String?
 
@@ -23,11 +25,12 @@ struct InspectRedundantImportsCommand: AsyncParsableCommand {
         AlertController.current
             .warning(
                 .alert(
-                    "The 'tuist inspect redundant-imports' command is deprecated. Use 'tuist inspect dependencies --only redundant' instead."
+                    "The 'tuist inspect implicit-imports' command is deprecated. Use 'tuist inspect dependencies --only implicit' instead."
                 )
             )
 
         try await InspectDependenciesCommandService()
-            .run(path: path, inspectionTypes: [.redundant])
+            .run(path: path, inspectionTypes: [.implicit])
     }
 }
+#endif

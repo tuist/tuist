@@ -1,4 +1,6 @@
+#if os(macOS)
 import ArgumentParser
+import TuistEnvKey
 import TuistSupport
 
 struct InspectDependenciesCommand: AsyncParsableCommand {
@@ -35,3 +37,4 @@ struct InspectDependenciesCommand: AsyncParsableCommand {
             .run(path: path, inspectionTypes: inspectionTypes)
     }
 }
+#endif

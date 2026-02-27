@@ -1,5 +1,7 @@
+#if os(macOS)
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 import TuistNooraExtension
 
 struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
@@ -36,3 +38,4 @@ struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
             )
     }
 }
+#endif

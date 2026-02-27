@@ -19,6 +19,7 @@ import TuistOrganizationCommand
 import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
+import TuistInspectCommand
 import TuistShareCommand
 import TuistTestCommand
 import TuistVersionCommand
@@ -105,6 +106,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     GenerateCommand.self,
                     RunCommand.self,
                     TestCommand.self,
+                    InspectCommand.self,
                 ]
             ))
             groups.append(CommandGroup(

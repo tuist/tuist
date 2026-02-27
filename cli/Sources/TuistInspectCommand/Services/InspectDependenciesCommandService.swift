@@ -1,7 +1,9 @@
+#if os(macOS)
 import Foundation
 import Path
 import TuistConfigLoader
 import TuistCore
+import TuistKit
 import TuistLoader
 import TuistLogging
 import TuistSupport
@@ -89,3 +91,4 @@ struct InspectDependenciesCommandService {
         }
     }
 }
+#endif

@@ -8,15 +8,14 @@ import TuistConfigLoader
 import TuistEncodable
 import TuistEnvironment
 import TuistGit
-import TuistLoader
 import TuistLogging
 import TuistServer
 import TuistSupport
 
-enum InspectBundleCommandServiceError: LocalizedError {
+public enum InspectBundleCommandServiceError: LocalizedError {
     case missingFullHandle
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             "To analyze the app bundle, run 'tuist init' to connect to the Tuist server."
@@ -24,7 +23,7 @@ enum InspectBundleCommandServiceError: LocalizedError {
     }
 }
 
-struct InspectBundleCommandService {
+public struct InspectBundleCommandService {
     private let fileSystem: FileSysteming
     private let rosalind: Rosalindable
     private let createBundleService: CreateBundleServicing
@@ -32,7 +31,7 @@ struct InspectBundleCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
 
-    init(
+    public init(
         fileSystem: FileSysteming = FileSystem(),
         rosalind: Rosalindable = Rosalind(),
         createBundleService: CreateBundleServicing = CreateBundleService(),
@@ -48,7 +47,7 @@ struct InspectBundleCommandService {
         self.gitController = gitController
     }
 
-    func run(
+    public func run(
         path: String?,
         bundle: String,
         json: Bool

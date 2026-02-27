@@ -1,3 +1,4 @@
+#if os(macOS)
 import FileSystem
 import Foundation
 import Path
@@ -6,6 +7,7 @@ import TuistAutomation
 import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
+import TuistKit
 import TuistLoader
 import TuistLogging
 import TuistProcess
@@ -154,3 +156,4 @@ struct InspectTestCommandService {
         return (xcResultPath, projectDerivedDataDirectory)
     }
 }
+#endif
