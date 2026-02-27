@@ -1502,6 +1502,56 @@ defmodule Tuist.Tests do
     {flaky_groups, meta}
   end
 
+  def get_flaky_run_group_for_test_case_run(test_case_run) do
+    flaky_runs_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_run.test_case_id,
+        where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
+        where: tcr.scheme == ^test_case_run.scheme,
+        where: tcr.is_flaky == true,
+        order_by: [desc: tcr.ran_at]
+      )
+
+    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+
+    if Enum.empty?(flaky_runs) do
+      nil
+    else
+      run_ids = Enum.map(flaky_runs, & &1.id)
+
+      failures = get_failures_for_runs(run_ids)
+      failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+
+      repetitions = get_repetitions_for_runs(run_ids)
+      repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+
+      runs_with_details =
+        Enum.map(flaky_runs, fn run ->
+          run_failures = Map.get(failures_by_run_id, run.id, [])
+
+          run_repetitions =
+            repetitions_by_run_id
+            |> Map.get(run.id, [])
+            |> Enum.sort_by(& &1.repetition_number)
+
+          run
+          |> Map.put(:failures, run_failures)
+          |> Map.put(:repetitions, run_repetitions)
+        end)
+
+      {passed_count, failed_count} = count_passed_failed(runs_with_details)
+
+      %{
+        scheme: test_case_run.scheme,
+        git_commit_sha: test_case_run.git_commit_sha,
+        latest_ran_at: flaky_runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
+        passed_count: passed_count,
+        failed_count: failed_count,
+        runs: runs_with_details
+      }
+    end
+  end
+
   defp count_passed_failed(runs_with_details) do
     Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
       if Enum.any?(run.repetitions) do
