@@ -100,6 +100,30 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
 
+    func test_hash_isDeterministicRegardlessOfInputOrder() async throws {
+        // Given
+        let modelA = CoreDataModel(
+            path: try AbsolutePath(validating: "/AlphaModel+path"),
+            versions: [try AbsolutePath(validating: "/v1")],
+            currentVersion: "v1"
+        )
+        let modelB = CoreDataModel(
+            path: try AbsolutePath(validating: "/BetaModel+path"),
+            versions: [try AbsolutePath(validating: "/v1")],
+            currentVersion: "v1"
+        )
+        given(contentHasher)
+            .hash(path: .any)
+            .willProduce { $0.basename }
+
+        // When
+        let hashAB = try await subject.hash(coreDataModels: [modelA, modelB])
+        let hashBA = try await subject.hash(coreDataModels: [modelB, modelA])
+
+        // Then
+        XCTAssertEqual(hashAB, hashBA)
+    }
+
     // MARK: - Private
 
     private func buildFakePath(from name: String) -> AbsolutePath {

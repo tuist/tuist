@@ -416,7 +416,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
     outputs:
