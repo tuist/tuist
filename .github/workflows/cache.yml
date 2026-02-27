@@ -46,6 +46,7 @@ jobs:
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Install dependencies
@@ -69,6 +70,7 @@ jobs:
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Install dependencies
@@ -92,6 +94,7 @@ jobs:
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Install dependencies
@@ -115,6 +118,7 @@ jobs:
           key: cache-mix-${{ hashFiles('cache/mix.lock') }}
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir ruby"
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Install dependencies

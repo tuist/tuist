@@ -125,6 +125,94 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
     end
   end
 
+  describe "environment filter" do
+    test "creates an alert rule with the selected environment", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When: user selects CI environment, sets a channel, then creates the alert rule
+      render_hook(lv, "update_create_alert_form_environment", %{"environment" => "ci"})
+
+      render_hook(lv, "create_alert_form_channel_selected", %{
+        "channel_id" => "C123456",
+        "channel_name" => "test-channel"
+      })
+
+      render_hook(lv, "create_alert_rule", %{})
+
+      # Then: the alert rule is persisted with :ci environment
+      [alert_rule] = Alerts.get_project_alert_rules(project)
+      assert alert_rule.environment == :ci
+    end
+
+    test "updates the environment of an existing alert rule", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: an alert rule with :any environment
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, environment: "any")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When: user changes environment to local and saves
+      render_hook(lv, "update_edit_alert_form_environment", %{
+        "id" => alert_rule.id,
+        "environment" => "local"
+      })
+
+      render_hook(lv, "update_alert_rule", %{"id" => alert_rule.id})
+
+      # Then: the alert rule is updated with :local environment
+      {:ok, updated_rule} = Alerts.get_alert_rule(alert_rule.id)
+      assert updated_rule.environment == :local
+    end
+
+    test "renders environment label in create form description when environment is ci", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When: user selects CI environment
+      html = render_hook(lv, "update_create_alert_form_environment", %{"environment" => "ci"})
+
+      # Then: description shows "CI" (uppercase)
+      assert html =~ "CI"
+    end
+
+    test "renders environment label in edit form description when environment is local", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: an existing alert rule
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When: user changes environment to local
+      html =
+        render_hook(lv, "update_edit_alert_form_environment", %{
+          "id" => alert_rule.id,
+          "environment" => "local"
+        })
+
+      # Then: description shows "local" (lowercase)
+      assert html =~ "local"
+    end
+  end
+
   describe "create_alert_rule" do
     test "does not allow creating an alert rule when user lacks project_update permission", %{
       conn: conn,

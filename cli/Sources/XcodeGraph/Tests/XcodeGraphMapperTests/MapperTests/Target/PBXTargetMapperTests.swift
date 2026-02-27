@@ -7,6 +7,7 @@ import XcodeProj
 @testable import XcodeGraphMapper
 
 @Suite
+// swiftlint:disable:next type_body_length
 struct PBXTargetMapperTests: Sendable {
     private let fileSystem = FileSystem()
 
@@ -109,6 +110,7 @@ struct PBXTargetMapperTests: Sendable {
         #expect(mapped.sources[0].path.basename == "ViewController.swift")
     }
 
+    // swiftlint:disable:next function_body_length
     @Test("Maps a target with a buildable group")
     func mapTargetWithBuildableGroup() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "PBXTargetMapperTests") { appPath in

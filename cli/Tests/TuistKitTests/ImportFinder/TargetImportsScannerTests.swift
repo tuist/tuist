@@ -4,6 +4,7 @@ import Testing
 import TuistSupport
 import TuistTesting
 import XcodeGraph
+@testable import TuistInspectCommand
 @testable import TuistKit
 
 struct TargetImportsScannerTests {

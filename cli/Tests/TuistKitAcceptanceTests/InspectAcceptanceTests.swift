@@ -10,6 +10,7 @@ import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 
+@testable import TuistInspectCommand
 @testable import TuistKit
 
 struct InspectAcceptanceTests {

@@ -6,6 +6,7 @@ import XcodeProj
 
 @Suite
 struct PBXFrameworksBuildPhaseMapperTests {
+    // swiftlint:disable:next function_body_length
     @Test("Maps frameworks from frameworks phase")
     func mapFrameworks() async throws {
         // Given

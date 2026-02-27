@@ -8,6 +8,7 @@ import XcodeProj
 @testable import XcodeGraphMapper
 
 @Suite
+// swiftlint:disable:next type_body_length
 struct XcodeGraphMapperTests {
     private let fileSystem = FileSystem()
 
@@ -394,6 +395,7 @@ struct XcodeGraphMapperTests {
         #expect(expectedDependency == [targetDep])
     }
 
+    // swiftlint:disable:next function_body_length
     @Test("Maps a project graph with local packages")
     func graphWithLocalPackages() async throws {
         // Given

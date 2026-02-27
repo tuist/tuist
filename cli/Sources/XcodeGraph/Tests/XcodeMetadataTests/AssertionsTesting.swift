@@ -7,6 +7,7 @@ enum AssertionsTesting {
 
     /// Resolves a fixture path relative to the project's root.
     static func fixturePath(path: RelativePath) -> AbsolutePath {
+        // swiftlint:disable:next force_try
         try! AbsolutePath(
             validating: #filePath
         )

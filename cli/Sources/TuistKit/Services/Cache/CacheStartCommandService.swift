@@ -37,6 +37,8 @@ struct CacheStartCommandService {
 
         // Run the cache server with the cache-specific logger
         try await Logger.$current.withValue(cacheLogger) {
+            AnalyticsStateController().scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
+
             let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
             if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
                 try await fileSystem.makeDirectory(at: socketPath.parentDirectory)

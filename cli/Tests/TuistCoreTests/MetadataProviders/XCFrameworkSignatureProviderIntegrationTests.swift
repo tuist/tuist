@@ -245,4 +245,9 @@ private class SelfSignedXCFrameworkMockFileSystem: FileSysteming {
     }
 
     func fileMetadata(at _: AbsolutePath) async throws -> FileMetadata? { throw unexpectedCallError() }
+    func setFileTimes(
+        of _: Path.AbsolutePath,
+        lastAccessDate _: Date?,
+        lastModificationDate _: Date?
+    ) async throws { throw unexpectedCallError() }
 }

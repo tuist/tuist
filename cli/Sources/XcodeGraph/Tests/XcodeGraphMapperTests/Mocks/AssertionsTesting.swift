@@ -4,6 +4,7 @@ import Testing
 
 enum AssertionsTesting {
     static func fixturePath() -> AbsolutePath {
+        // swiftlint:disable:next force_try
         try! AbsolutePath(
             validating: #filePath
         )

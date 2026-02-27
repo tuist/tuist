@@ -6,6 +6,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -3972,6 +3973,430 @@ defmodule Tuist.TestsTest do
       result_second = Tests.get_flaky_runs_for_test_run(second_run.id)
       assert length(result_second) == 1
       assert length(hd(result_second).runs) == 1
+    end
+  end
+
+  describe "get_flaky_run_group_for_test_case_run/1" do
+    test "returns nil when no flaky runs exist for the test case run" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
+
+      assert result == nil
+    end
+
+    test "returns flaky run group with runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
+
+      assert result
+      assert result.scheme == "MyScheme"
+      assert result.git_commit_sha == "abc123"
+      assert length(result.runs) == 1
+    end
+
+    test "includes failures for each run" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
+
+      assert result
+      run = hd(result.runs)
+      assert length(run.failures) == 1
+      failure = hd(run.failures)
+      assert failure.message == "Assertion failed"
+      assert failure.path == "/path/to/test.swift"
+      assert failure.line_number == 42
+    end
+
+    test "includes repetitions sorted by repetition_number" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 3, name: "Retry 2", status: "success", duration: 300},
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 500}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
+
+      assert result
+      run = hd(result.runs)
+      assert length(run.repetitions) == 3
+      assert Enum.at(run.repetitions, 0).repetition_number == 1
+      assert Enum.at(run.repetitions, 1).repetition_number == 2
+      assert Enum.at(run.repetitions, 2).repetition_number == 3
+    end
+
+    test "calculates passed_count and failed_count from repetitions" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 500},
+                    %{repetition_number: 3, name: "Retry 2", status: "success", duration: 300}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
+
+      result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
+
+      assert result
+      assert result.passed_count == 1
+      assert result.failed_count == 2
+    end
+
+    test "only includes runs matching same test_case_id, commit, and scheme" do
+      project = ProjectsFixtures.project_fixture()
+      unique_commit = "commit_filter_test_#{UUIDv7.generate()}"
+
+      {:ok, matching_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: unique_commit,
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      # Different commit - should not be included
+      {:ok, _different_commit_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "different_commit_#{UUIDv7.generate()}",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      matching_tcr =
+        Tuist.ClickHouseRepo.one!(
+          from(tcr in TestCaseRun,
+            where: tcr.test_run_id == ^matching_run.id and tcr.is_flaky == true,
+            limit: 1
+          )
+        )
+
+      result = Tests.get_flaky_run_group_for_test_case_run(matching_tcr)
+
+      assert result
+      assert result.git_commit_sha == unique_commit
+      assert length(result.runs) == 1
+    end
+
+    test "groups multiple flaky runs from different test runs on same commit" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _first_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      {:ok, _second_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          scheme: "MyScheme",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      test_case_run =
+        Tuist.ClickHouseRepo.one!(
+          from(tcr in TestCaseRun,
+            where: tcr.git_commit_sha == "abc123" and tcr.is_flaky == true,
+            order_by: [desc: tcr.ran_at],
+            limit: 1
+          )
+        )
+
+      result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
+
+      assert result
+      assert length(result.runs) == 2
+      assert result.passed_count == 2
+      assert result.failed_count == 2
     end
   end
 

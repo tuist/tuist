@@ -83,7 +83,11 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
-            )
+            ) or
+              String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
+              )
           }
         />
         <.sidebar_item
@@ -94,7 +98,11 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"
-            )
+            ) and
+              not String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
+              )
           }
         />
         <.sidebar_item
@@ -239,7 +247,11 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"
-            )
+            ) or
+              String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
+              )
           }
         />
         <.sidebar_item
@@ -250,7 +262,11 @@ defmodule TuistWeb.AppLayoutComponents do
             String.starts_with?(
               @current_path,
               ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases"
-            )
+            ) and
+              not String.starts_with?(
+                @current_path,
+                "/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases/runs"
+              )
           }
         />
         <.sidebar_item

@@ -53,6 +53,8 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
+#: lib/tuist_web/live/project_notifications_live.ex:689
+#: lib/tuist_web/live/project_notifications_live.ex:692
 #: lib/tuist_web/live/xcode_overview_live.ex:215
 #: lib/tuist_web/live/xcode_overview_live.html.heex:23
 #: lib/tuist_web/live/xcode_overview_live.html.heex:661
@@ -128,6 +130,7 @@ msgstr ""
 msgid "Bundles"
 msgstr ""
 
+#: lib/tuist_web/live/project_notifications_live.ex:691
 #: lib/tuist_web/live/xcode_overview_live.ex:217
 #: lib/tuist_web/live/xcode_overview_live.html.heex:39
 #: lib/tuist_web/live/xcode_overview_live.html.heex:677
@@ -148,8 +151,8 @@ msgid "Cache effectiveness represents the combined hit rate of both Module cache
 msgstr ""
 
 #: lib/tuist_web/live/project_notifications_live.html.heex:169
-#: lib/tuist_web/live/project_notifications_live.html.heex:500
-#: lib/tuist_web/live/project_notifications_live.html.heex:840
+#: lib/tuist_web/live/project_notifications_live.html.heex:526
+#: lib/tuist_web/live/project_notifications_live.html.heex:894
 #: lib/tuist_web/live/project_settings_live.html.heex:141
 #: lib/tuist_web/live/project_settings_live.html.heex:213
 #: lib/tuist_web/live/xcode_overview_live.html.heex:79
@@ -251,7 +254,7 @@ msgstr ""
 msgid "General access"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:677
+#: lib/tuist_web/live/project_notifications_live.ex:716
 #: lib/tuist_web/live/xcode_overview_live.html.heex:580
 #, elixir-autogen, elixir-format
 msgid "Install size"
@@ -279,6 +282,7 @@ msgstr ""
 msgid "Latest app previews"
 msgstr ""
 
+#: lib/tuist_web/live/project_notifications_live.ex:690
 #: lib/tuist_web/live/xcode_overview_live.ex:216
 #: lib/tuist_web/live/xcode_overview_live.html.heex:31
 #: lib/tuist_web/live/xcode_overview_live.html.heex:669
@@ -287,11 +291,11 @@ msgid "Local"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:74
-#: lib/tuist_web/live/project_notifications_live.html.heex:312
-#: lib/tuist_web/live/project_notifications_live.html.heex:456
-#: lib/tuist_web/live/project_notifications_live.html.heex:525
-#: lib/tuist_web/live/project_notifications_live.html.heex:615
-#: lib/tuist_web/live/project_notifications_live.html.heex:787
+#: lib/tuist_web/live/project_notifications_live.html.heex:313
+#: lib/tuist_web/live/project_notifications_live.html.heex:457
+#: lib/tuist_web/live/project_notifications_live.html.heex:551
+#: lib/tuist_web/live/project_notifications_live.html.heex:642
+#: lib/tuist_web/live/project_notifications_live.html.heex:814
 #: lib/tuist_web/live/projects_live.ex:360
 #, elixir-autogen, elixir-format
 msgid "Name"
@@ -555,7 +559,7 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:548
+#: lib/tuist_web/live/project_notifications_live.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "Channel"
 msgstr ""
@@ -565,7 +569,7 @@ msgstr ""
 msgid "Configure"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:557
+#: lib/tuist_web/live/project_notifications_live.ex:570
 #: lib/tuist_web/live/project_notifications_live.html.heex:93
 #: lib/tuist_web/live/project_notifications_live.html.heex:110
 #, elixir-autogen, elixir-format
@@ -598,34 +602,34 @@ msgstr ""
 msgid "Time"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:543
+#: lib/tuist_web/live/project_notifications_live.ex:556
 #, elixir-autogen, elixir-format
 msgid "All days"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:541
+#: lib/tuist_web/live/project_notifications_live.ex:554
 #, elixir-autogen, elixir-format
 msgid "Select days"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:585
+#: lib/tuist_web/live/project_notifications_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "Average"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:577
+#: lib/tuist_web/live/project_notifications_live.ex:590
 #, elixir-autogen, elixir-format
 msgid "Build duration"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:579
+#: lib/tuist_web/live/project_notifications_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:326
-#: lib/tuist_web/live/project_notifications_live.html.heex:528
-#: lib/tuist_web/live/project_notifications_live.html.heex:630
+#: lib/tuist_web/live/project_notifications_live.html.heex:327
+#: lib/tuist_web/live/project_notifications_live.html.heex:554
+#: lib/tuist_web/live/project_notifications_live.html.heex:657
 #, elixir-autogen, elixir-format
 msgid "Category"
 msgstr ""
@@ -635,21 +639,21 @@ msgstr ""
 msgid "Get notified when metrics regress"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:355
-#: lib/tuist_web/live/project_notifications_live.html.heex:531
-#: lib/tuist_web/live/project_notifications_live.html.heex:663
+#: lib/tuist_web/live/project_notifications_live.html.heex:356
+#: lib/tuist_web/live/project_notifications_live.html.heex:557
+#: lib/tuist_web/live/project_notifications_live.html.heex:690
 #, elixir-autogen, elixir-format
 msgid "Metric"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:578
+#: lib/tuist_web/live/project_notifications_live.ex:591
 #, elixir-autogen, elixir-format
 msgid "Test duration"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:426
-#: lib/tuist_web/live/project_notifications_live.html.heex:541
-#: lib/tuist_web/live/project_notifications_live.html.heex:747
+#: lib/tuist_web/live/project_notifications_live.html.heex:427
+#: lib/tuist_web/live/project_notifications_live.html.heex:567
+#: lib/tuist_web/live/project_notifications_live.html.heex:774
 #, elixir-autogen, elixir-format
 msgid "Rolling window"
 msgstr ""
@@ -659,8 +663,8 @@ msgstr ""
 msgid "Add alert rule"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:319
-#: lib/tuist_web/live/project_notifications_live.html.heex:622
+#: lib/tuist_web/live/project_notifications_live.html.heex:320
+#: lib/tuist_web/live/project_notifications_live.html.heex:649
 #, elixir-autogen, elixir-format
 msgid "Alert name"
 msgstr ""
@@ -682,14 +686,14 @@ msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:109
 #: lib/tuist_web/live/project_notifications_live.html.heex:207
-#: lib/tuist_web/live/project_notifications_live.html.heex:302
-#: lib/tuist_web/live/project_notifications_live.html.heex:605
+#: lib/tuist_web/live/project_notifications_live.html.heex:303
+#: lib/tuist_web/live/project_notifications_live.html.heex:632
 #, elixir-autogen, elixir-format
 msgid "Connect Slack"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:413
-#: lib/tuist_web/live/project_notifications_live.html.heex:730
+#: lib/tuist_web/live/project_notifications_live.html.heex:414
+#: lib/tuist_web/live/project_notifications_live.html.heex:757
 #, elixir-autogen, elixir-format
 msgid "Deviation (%)"
 msgstr ""
@@ -727,59 +731,59 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:128
 #: lib/tuist_web/live/project_notifications_live.html.heex:216
 #: lib/tuist_web/live/project_notifications_live.html.heex:226
-#: lib/tuist_web/live/project_notifications_live.html.heex:481
-#: lib/tuist_web/live/project_notifications_live.html.heex:814
-#: lib/tuist_web/live/project_notifications_live.html.heex:826
+#: lib/tuist_web/live/project_notifications_live.html.heex:507
+#: lib/tuist_web/live/project_notifications_live.html.heex:868
+#: lib/tuist_web/live/project_notifications_live.html.heex:880
 #, elixir-autogen, elixir-format
 msgid "Select channel"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:127
 #: lib/tuist_web/live/project_notifications_live.html.heex:225
-#: lib/tuist_web/live/project_notifications_live.html.heex:480
-#: lib/tuist_web/live/project_notifications_live.html.heex:813
+#: lib/tuist_web/live/project_notifications_live.html.heex:506
+#: lib/tuist_web/live/project_notifications_live.html.heex:867
 #, elixir-autogen, elixir-format
 msgid "Update channel"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:470
-#: lib/tuist_web/live/project_notifications_live.html.heex:802
+#: lib/tuist_web/live/project_notifications_live.html.heex:496
+#: lib/tuist_web/live/project_notifications_live.html.heex:856
 #, elixir-autogen, elixir-format
 msgid "Slack channel"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:674
+#: lib/tuist_web/live/project_notifications_live.ex:713
 #, elixir-autogen, elixir-format
 msgid "average"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:659
+#: lib/tuist_web/live/project_notifications_live.ex:698
 #, elixir-autogen, elixir-format
 msgid "build time"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:667
-#: lib/tuist_web/live/project_notifications_live.ex:669
+#: lib/tuist_web/live/project_notifications_live.ex:706
+#: lib/tuist_web/live/project_notifications_live.ex:708
 #, elixir-autogen, elixir-format
 msgid "builds"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:665
+#: lib/tuist_web/live/project_notifications_live.ex:704
 #, elixir-autogen, elixir-format
 msgid "cache hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:662
+#: lib/tuist_web/live/project_notifications_live.ex:701
 #, elixir-autogen, elixir-format
 msgid "test time"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:668
+#: lib/tuist_web/live/project_notifications_live.ex:707
 #, elixir-autogen, elixir-format
 msgid "tests"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:508
+#: lib/tuist_web/live/project_notifications_live.html.heex:534
 #: lib/tuist_web/live/projects_live.ex:391
 #, elixir-autogen, elixir-format
 msgid "Create"
@@ -790,28 +794,28 @@ msgstr ""
 msgid "Create alert rule"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:291
-#: lib/tuist_web/live/project_notifications_live.html.heex:595
+#: lib/tuist_web/live/project_notifications_live.html.heex:292
+#: lib/tuist_web/live/project_notifications_live.html.heex:622
 #, elixir-autogen, elixir-format
 msgid "Connect your Slack account before selecting channels."
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:538
+#: lib/tuist_web/live/project_notifications_live.html.heex:564
 #, elixir-autogen, elixir-format
 msgid "Deviation"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:551
+#: lib/tuist_web/live/project_notifications_live.html.heex:577
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:849
+#: lib/tuist_web/live/project_notifications_live.html.heex:903
 #, elixir-autogen, elixir-format
 msgid "Update"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:566
+#: lib/tuist_web/live/project_notifications_live.html.heex:592
 #, elixir-autogen, elixir-format
 msgid "Update alert rule"
 msgstr ""
@@ -821,12 +825,12 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:877
+#: lib/tuist_web/live/project_notifications_live.html.heex:931
 #, elixir-autogen, elixir-format
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:875
+#: lib/tuist_web/live/project_notifications_live.html.heex:929
 #, elixir-autogen, elixir-format
 msgid "No alert rules"
 msgstr ""
@@ -897,69 +901,90 @@ msgstr ""
 msgid "Select build system"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:597
+#: lib/tuist_web/live/project_notifications_live.ex:610
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:399
-#: lib/tuist_web/live/project_notifications_live.html.heex:715
+#: lib/tuist_web/live/project_notifications_live.html.heex:400
+#: lib/tuist_web/live/project_notifications_live.html.heex:742
 #, elixir-autogen, elixir-format
 msgid "Branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:580
+#: lib/tuist_web/live/project_notifications_live.ex:593
 #, elixir-autogen, elixir-format
 msgid "Bundle size"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:678
+#: lib/tuist_web/live/project_notifications_live.ex:717
 #, elixir-autogen, elixir-format
 msgid "Download size"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:377
-#: lib/tuist_web/live/project_notifications_live.html.heex:689
+#: lib/tuist_web/live/project_notifications_live.html.heex:378
+#: lib/tuist_web/live/project_notifications_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Size metric"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:406
-#: lib/tuist_web/live/project_notifications_live.html.heex:722
+#: lib/tuist_web/live/project_notifications_live.html.heex:407
+#: lib/tuist_web/live/project_notifications_live.html.heex:749
 #, elixir-autogen, elixir-format
 msgid "e.g. main"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:626
+#: lib/tuist_web/live/project_notifications_live.ex:676
 #, elixir-autogen, elixir-format
 msgid "%{scheme} %{unit}"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:632
+#: lib/tuist_web/live/project_notifications_live.ex:640
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:643
+#: lib/tuist_web/live/project_notifications_live.ex:651
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.ex:605
+#: lib/tuist_web/live/project_notifications_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:442
-#: lib/tuist_web/live/project_notifications_live.html.heex:769
+#: lib/tuist_web/live/project_notifications_live.html.heex:443
+#: lib/tuist_web/live/project_notifications_live.html.heex:796
 #, elixir-autogen, elixir-format
 msgid "Scheme"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:449
-#: lib/tuist_web/live/project_notifications_live.html.heex:463
-#: lib/tuist_web/live/project_notifications_live.html.heex:776
-#: lib/tuist_web/live/project_notifications_live.html.heex:794
+#: lib/tuist_web/live/project_notifications_live.html.heex:450
+#: lib/tuist_web/live/project_notifications_live.html.heex:464
+#: lib/tuist_web/live/project_notifications_live.html.heex:803
+#: lib/tuist_web/live/project_notifications_live.html.heex:821
 #, elixir-autogen, elixir-format
 msgid "e.g. MyApp (optional)"
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.ex:679
+#, elixir-autogen, elixir-format
+msgid "%{environment} %{unit}"
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.ex:669
+#, elixir-autogen, elixir-format
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:474
+#: lib/tuist_web/live/project_notifications_live.html.heex:832
+#, elixir-autogen, elixir-format
+msgid "Environment"
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.ex:694
+#, elixir-autogen, elixir-format
+msgid "local"
 msgstr ""

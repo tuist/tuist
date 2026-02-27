@@ -138,11 +138,13 @@ extension XcodeGraph.Target {
         }
 
         let metadata = XcodeGraph.TargetMetadata(tags: Set(manifest.metadata.tags))
-        let buildableFolders = try await manifest.buildableFolders.concurrentMap { try await XcodeGraph.BuildableFolder.from(
-            manifest: $0,
-            generatorPaths: generatorPaths,
-            targetName: name
-        ) }
+        let buildableFolders = try await manifest.buildableFolders.concurrentMap(maxConcurrentTasks: 100) {
+            try await XcodeGraph.BuildableFolder.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                targetName: name
+            )
+        }
 
         let foreignBuild = try await foreignBuildInfo(
             from: manifest.foreignBuild,
