@@ -1,0 +1,13 @@
+Can you address https://github.com/tuist/tuist/pull/9618#discussion_r2862883786
+
+---
+
+Did you commit and push?
+
+---
+
+CI is failing
+
+---
+
+Is it possible because the Mise install task is not using the GITHUB_TOKEN set by GitHub?
