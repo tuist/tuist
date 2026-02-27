@@ -47,3 +47,27 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
       - run: ./gradlew testDebugUnitTest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - run: ./gradlew assembleDebug
+      - name: Inspect bundle
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist inspect bundle app/build/outputs/apk/debug/app-debug.apk
+      - name: Share
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist share app/build/outputs/apk/debug/app-debug.apk
