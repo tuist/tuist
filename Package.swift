@@ -1169,7 +1169,7 @@ targets.append(contentsOf: [
         name: "ProjectDescription",
         dependencies: [],
         path: "cli/Sources/ProjectDescription",
-        exclude: ["AGENTS.md"]
+        exclude: ["AGENTS.md", "ProjectDescription.docc"]
     ),
     .target(
         name: "ProjectAutomation",
