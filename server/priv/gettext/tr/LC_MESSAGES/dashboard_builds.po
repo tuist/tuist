@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-04 13:21+0000\n"
+"PO-Revision-Date: 2026-02-27 15:28+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/tr/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -224,7 +224,7 @@ msgstr "Temizle"
 
 #, fuzzy
 msgid "Command"
-msgstr "Komutlar"
+msgstr "Komut"
 
 #, fuzzy
 msgid "Commit SHA"
@@ -628,7 +628,7 @@ msgstr "Sıralama:"
 
 #, fuzzy
 msgid "Source"
-msgstr "Kaynaklar"
+msgstr "Kaynak"
 
 #, fuzzy
 msgid "Sources"
