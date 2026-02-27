@@ -654,6 +654,15 @@ msgstr "테스트 Suite"
 msgid "Scheme:"
 msgstr "Scheme:"
 
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
+
 #~ msgid "Test suite"
 #~ msgstr "테스트 suite"
 

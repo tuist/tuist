@@ -860,6 +860,15 @@ msgstr "Zestaw testów"
 msgid "Scheme:"
 msgstr "Schemat:"
 
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Zestaw testów"

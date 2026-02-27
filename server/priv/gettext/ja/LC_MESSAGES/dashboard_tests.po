@@ -851,6 +851,15 @@ msgstr "テストスイート"
 msgid "Scheme:"
 msgstr "仕様:"
 
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "テストスイート"

@@ -637,3 +637,12 @@ msgstr ""
 
 msgid "Scheme:"
 msgstr ""
+
+msgid "Run Details"
+msgstr ""
+
+msgid "Test case run not found."
+msgstr ""
+
+msgid "Test Case: %{name}"
+msgstr ""
