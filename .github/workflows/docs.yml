@@ -178,8 +178,8 @@ jobs:
         run: |
           op run -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
 
-  build-deploy-project-description:
-    name: Build and deploy ProjectDescription docs
+  build-project-description:
+    name: Build ProjectDescription docs
     runs-on: ubuntu-latest
     container:
       image: swift:6.2
@@ -210,15 +210,28 @@ jobs:
         with:
           path: .build
           key: ${{ steps.spm-cache.outputs.cache-primary-key }}
-      - name: Install 1Password CLI
-        run: |
-          curl -sS https://downloads.1password.com/linux/keys/1password.asc | gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" > /etc/apt/sources.list.d/1password.list
-          apt-get update && apt-get install -y 1password-cli
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-description-docs
+          path: .build/documentation
+
+  deploy-project-description:
+    name: Deploy ProjectDescription docs
+    runs-on: ubuntu-latest
+    needs: [build-project-description]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Download documentation
+        uses: actions/download-artifact@v4
+        with:
+          name: project-description-docs
+          path: documentation
+      - uses: 1password/install-cli-action@v2
       - name: Deploy to Cloudflare Pages
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
-          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription .build/documentation
+          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription documentation
