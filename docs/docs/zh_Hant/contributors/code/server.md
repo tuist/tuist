@@ -12,11 +12,11 @@
 ## 用途說明{#what-it-is-for}
 
 此伺服器驅動 Tuist 的伺服器端功能，包含驗證、帳戶與專案管理、快取儲存、分析洞察、預覽功能、註冊表及整合服務（GitHub、Slack 與
-SSO）。其架構為 Phoenix/Elixir 應用程式，搭配 Postgres 與 ClickHouse 資料庫。
+SSO）。該應用程式採用 Phoenix/Elixir 框架，搭配 Postgres 與 ClickHouse 資料庫建置。
 
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB 已被廢棄並將被移除。若您目前仍需使用它進行本地設定或資料遷移，請參閱 [TimescaleDB
+TimescaleDB 已被廢棄並將被移除。若您目前仍需使用它進行本地設定或遷移作業，請參閱 [TimescaleDB
 安裝文件](https://docs.timescale.com/self-hosted/latest/install/installation-macos/)。
 <!-- -->
 :::
