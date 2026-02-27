@@ -66,6 +66,7 @@ public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () asyn
 
 public enum TuistTestRunOption {
     case useSimulatorLock
+    case useXcodeBuildLock
 }
 
 public enum TuistTest {
@@ -116,14 +117,58 @@ public enum TuistTest {
             mockEnvironment.processId = UUID().uuidString
         }
 
-        let acquireLock = arguments.first(where: { ["-destination", "--device"].contains($0) }) != nil || options
-            .contains(.useSimulatorLock)
+        let commandTypeName = String(reflecting: command)
+        let shouldAcquireSimulatorLock = requiresSimulatorLock(arguments: arguments, options: options)
+        let shouldAcquireXcodeBuildLock = options.contains(.useXcodeBuildLock)
+            || commandLikelyUsesXcodebuild(commandTypeName)
 
-        if acquireLock {
-            try await TestingSimulators.acquiringPoolLock(run)
-        } else {
-            try await run()
+        let runWithSimulatorLock = {
+            if shouldAcquireSimulatorLock {
+                try await TestingSimulators.acquiringSimulatorPoolLock(run)
+            } else {
+                try await run()
+            }
         }
+
+        let runWithXcodeBuildLock = {
+            if shouldAcquireXcodeBuildLock {
+                try await TestingCommandLocks.acquiringXcodeBuildPoolLock(runWithSimulatorLock)
+            } else {
+                try await runWithSimulatorLock()
+            }
+        }
+
+        try await runWithXcodeBuildLock()
+    }
+
+    private static func requiresSimulatorLock(
+        arguments: [String],
+        options: Set<TuistTestRunOption>
+    ) -> Bool {
+        if options.contains(.useSimulatorLock) {
+            return true
+        }
+        if arguments.contains("--device") {
+            return true
+        }
+
+        for (index, argument) in arguments.enumerated() where argument == "-destination" {
+            guard index + 1 < arguments.count else { return true }
+            let destination = arguments[index + 1].lowercased()
+            if destination.contains("generic/platform=") {
+                continue
+            }
+            return true
+        }
+
+        return false
+    }
+
+    private static func commandLikelyUsesXcodebuild(_ commandTypeName: String) -> Bool {
+        commandTypeName.contains("TuistBuildCommand.BuildCommand")
+            || commandTypeName.contains("TuistTestCommand.TestCommand")
+            || commandTypeName.contains("TuistRunCommand.RunCommand")
+            || commandTypeName.contains("XcodeBuild")
     }
 
     #if os(macOS)

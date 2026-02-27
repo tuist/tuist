@@ -26,7 +26,7 @@ struct DependenciesAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_app_with_spm_dependencies"),
-        .withTestingSimulator("iPhone 16 Pro")
+        .withTestingSimulator()
     )
     func app_with_spm_dependencies() async throws {
         // Given
@@ -195,23 +195,25 @@ struct DependenciesAcceptanceTests {
 
         // When: Build
         let commandRunner = CommandRunner()
-        try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "build",
-                "-project",
-                fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-                "-scheme",
-                "App",
-                "-sdk",
-                "iphonesimulator",
-                "-derivedDataPath",
-                temporaryDirectory.pathString,
-                "-onlyUsePackageVersionsFromResolvedFile",
-            ]
-        ).pipedStream().awaitCompletion()
+        try await TuistAcceptanceTest.withXcodeBuildLock {
+            try await commandRunner.run(
+                arguments: [
+                    "/usr/bin/xcrun",
+                    "xcodebuild",
+                    "clean",
+                    "build",
+                    "-project",
+                    fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                    "-scheme",
+                    "App",
+                    "-sdk",
+                    "iphonesimulator",
+                    "-derivedDataPath",
+                    temporaryDirectory.pathString,
+                    "-onlyUsePackageVersionsFromResolvedFile",
+                ]
+            ).pipedStream().awaitCompletion()
+        }
     }
 }
 
@@ -247,10 +249,16 @@ struct DependenciesAcceptanceTestAppAlamofire {
 }
 
 struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
-    @Test(.withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory)
+    @Test(
+        .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+        .inTemporaryDirectory,
+        .withTestingSimulator()
+    )
     func app_with_objc_static_framework_with_resources() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
+        let simulatorId = simulator.name
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         try await TuistTest.run(
@@ -259,21 +267,11 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
         )
 
         let commandRunner = CommandRunner()
-        let simulatorId = UUID().uuidString
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
+        _ = try? await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "terminate", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
-
-        defer {
-            Task {
-                try? await commandRunner.run(
-                    arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
-                ).pipedStream().awaitCompletion()
-            }
-        }
-
-        try await commandRunner.run(
-            arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
+        _ = try? await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "uninstall", simulatorId, "dev.tuist.App"]
         ).pipedStream().awaitCompletion()
 
         let appPath = derivedDataPath
@@ -311,11 +309,17 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
     }
 
     #if canImport(TuistCacheEE)
-        @Test(.withFixture("generated_ios_app_with_static_frameworks_with_resources"), .inTemporaryDirectory)
+        @Test(
+            .withFixture("generated_ios_app_with_static_frameworks_with_resources"),
+            .inTemporaryDirectory,
+            .withTestingSimulator()
+        )
         func app_with_objc_static_framework_with_resources_from_cache() async throws {
             let fileSystem = FileSystem()
             let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
             let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+            let simulator = try #require(Simulator.testing)
+            let simulatorId = simulator.name
             try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
             try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
             try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
@@ -333,21 +337,11 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
             )
 
             let commandRunner = CommandRunner()
-            let simulatorId = UUID().uuidString
-            try await commandRunner.run(
-                arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
+            _ = try? await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "terminate", simulatorId, "dev.tuist.App"]
             ).pipedStream().awaitCompletion()
-
-            defer {
-                Task {
-                    try? await commandRunner.run(
-                        arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
-                    ).pipedStream().awaitCompletion()
-                }
-            }
-
-            try await commandRunner.run(
-                arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
+            _ = try? await commandRunner.run(
+                arguments: ["/usr/bin/xcrun", "simctl", "uninstall", simulatorId, "dev.tuist.App"]
             ).pipedStream().awaitCompletion()
 
             let appPath = derivedDataPath

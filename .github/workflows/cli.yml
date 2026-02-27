@@ -217,7 +217,19 @@ jobs:
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistAutomationAcceptanceTests
-        run: tuist test TuistAutomationAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          MAX_PARALLEL_WORKERS=$(( $(sysctl -n hw.ncpu) / 2 ))
+          if [ "$MAX_PARALLEL_WORKERS" -lt 1 ]; then
+            MAX_PARALLEL_WORKERS=1
+          fi
+          tuist test TuistAutomationAcceptanceTests -- \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers "$MAX_PARALLEL_WORKERS" \
+            -retry-tests-on-failure \
+            -test-iterations 2
+        env:
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -266,7 +278,19 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run TuistDependenciesAcceptanceTests
-        run: tuist test TuistDependenciesAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          MAX_PARALLEL_WORKERS=$(( $(sysctl -n hw.ncpu) / 2 ))
+          if [ "$MAX_PARALLEL_WORKERS" -lt 1 ]; then
+            MAX_PARALLEL_WORKERS=1
+          fi
+          tuist test TuistDependenciesAcceptanceTests -- \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers "$MAX_PARALLEL_WORKERS" \
+            -retry-tests-on-failure \
+            -test-iterations 2
+        env:
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -308,7 +332,19 @@ jobs:
       - name: Download Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Run TuistGeneratorAcceptanceTests
-        run: tuist test TuistGeneratorAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          MAX_PARALLEL_WORKERS=$(( $(sysctl -n hw.ncpu) / 2 ))
+          if [ "$MAX_PARALLEL_WORKERS" -lt 1 ]; then
+            MAX_PARALLEL_WORKERS=1
+          fi
+          tuist test TuistGeneratorAcceptanceTests -- \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers "$MAX_PARALLEL_WORKERS" \
+            -retry-tests-on-failure \
+            -test-iterations 2
+        env:
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -348,7 +384,19 @@ jobs:
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
       - name: Run TuistKitAcceptanceTests
-        run: tuist test TuistKitAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          MAX_PARALLEL_WORKERS=$(( $(sysctl -n hw.ncpu) / 2 ))
+          if [ "$MAX_PARALLEL_WORKERS" -lt 1 ]; then
+            MAX_PARALLEL_WORKERS=1
+          fi
+          tuist test TuistKitAcceptanceTests -- \
+            -parallel-testing-enabled YES \
+            -maximum-parallel-testing-workers "$MAX_PARALLEL_WORKERS" \
+            -retry-tests-on-failure \
+            -test-iterations 2
+        env:
+          TUIST_ACCEPTANCE_SIMULATOR_POOL_SIZE: 2
+          TUIST_ACCEPTANCE_SIMULATOR_MODEL: iPhone 17
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

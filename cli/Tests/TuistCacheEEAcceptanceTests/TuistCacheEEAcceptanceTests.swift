@@ -146,7 +146,7 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("xcode_project_with_ios_app_and_cas"),
-        .withTestingSimulator("iPhone 17")
+        .withTestingSimulator()
     ) func xcode_project_with_ios_app_and_cas() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

@@ -395,7 +395,6 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
     func framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
-        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
         try await TuistTest.run(
             BuildCommand.self,

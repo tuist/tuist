@@ -4,20 +4,16 @@
 //        try await setUpFixture("ios_workspace_with_microfeature_architecture")
 //        try await run(GraphCommand.self, "--output-path", fixturePath.pathString)
 //        let graphFile = fixturePath.appending(component: "graph.png")
-//        try System.shared.runAndPrint(
-//            [
-//                "file",
-//                graphFile.pathString,
-//            ]
-//        )
+//        try await CommandRunner().run(arguments: [
+//            "file",
+//            graphFile.pathString,
+//        ]).pipedStream().awaitCompletion()
 //        try FileHandler.shared.delete(graphFile)
 //
 //        try await run(GraphCommand.self, "--output-path", fixturePath.pathString, "Data")
-//        try System.shared.runAndPrint(
-//            [
-//                "file",
-//                graphFile.pathString,
-//            ]
-//        )
+//        try await CommandRunner().run(arguments: [
+//            "file",
+//            graphFile.pathString,
+//        ]).pipedStream().awaitCompletion()
 //    }
 // }

@@ -63,18 +63,20 @@ struct InspectAcceptanceTests {
 
         // When: I build the app
         let commandRunner = CommandRunner()
-        try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun",
-                "xcodebuild",
-                "clean",
-                "test",
-                "-scheme", "App",
-                "-destination", "platform=iOS Simulator,name=iPhone 17",
-                "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
-                "-derivedDataPath", temporaryDirectory.pathString,
-            ]
-        ).pipedStream().awaitCompletion()
+        try await TuistAcceptanceTest.withXcodeBuildLock {
+            try await commandRunner.run(
+                arguments: [
+                    "/usr/bin/xcrun",
+                    "xcodebuild",
+                    "clean",
+                    "test",
+                    "-scheme", "App",
+                    "-destination", "platform=iOS Simulator,name=iPhone 17",
+                    "-project", fixtureDirectory.appending(component: "App.xcodeproj").pathString,
+                    "-derivedDataPath", temporaryDirectory.pathString,
+                ]
+            ).pipedStream().awaitCompletion()
+        }
 
         // When: I inspect the test
         try await TuistTest.run(
