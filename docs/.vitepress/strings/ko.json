@@ -440,7 +440,7 @@
                             "text": "Model Context Protocol (MCP)"
                         },
                         "skills": {
-                            "text": "기술"
+                            "text": "Skills"
                         }
                     }
                 },
@@ -500,7 +500,7 @@
                     "text": "서버"
                 },
                 "install-tuist": {
-                    "text": "Install Tuist"
+                    "text": "Tuist를 설치하세요"
                 }
             }
         },
