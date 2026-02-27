@@ -207,26 +207,10 @@
       <.card_section data-part="cache-effectiveness-card-chart-section">
         <div data-part="effectiveness-chart">
           <div data-part="legends">
-            <div class="tuist-legend">
-              <div data-part="header">
-                <div data-part="indicator"></div>
-                <span data-part="title" class="tuist-loading-skeleton">
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-              </div>
-              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-            </div>
-            <div class="tuist-legend">
-              <div data-part="header">
-                <div data-part="indicator"></div>
-                <span data-part="title" class="tuist-loading-skeleton">
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-              </div>
-              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-            </div>
+            <.skeleton_legend />
+            <.skeleton_legend />
           </div>
-          <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+          <.skeleton_chart />
         </div>
       </.card_section>
     </div>
@@ -353,17 +337,9 @@
       </.card_section>
       <.card_section :if={!@build_time_analytics.ok?} data-part="time-saved-card-chart-section">
         <div data-part="legends">
-          <div class="tuist-legend">
-            <div data-part="header">
-              <div data-part="indicator"></div>
-              <span data-part="title" class="tuist-loading-skeleton">
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              </span>
-            </div>
-            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-          </div>
+          <.skeleton_legend />
         </div>
-        <div class="noora-chart tuist-loading-skeleton" style="height: 100px">&nbsp;</div>
+        <.skeleton_chart height="100px" />
       </.card_section>
       <.card_section
         :if={
@@ -491,26 +467,10 @@
     <.card_section :if={!@recent_test_runs.ok?}>
       <div data-part="test-runs-chart">
         <div data-part="legends">
-          <div class="tuist-legend">
-            <div data-part="header">
-              <div data-part="indicator"></div>
-              <span data-part="title" class="tuist-loading-skeleton">
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              </span>
-            </div>
-            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-          </div>
-          <div class="tuist-legend">
-            <div data-part="header">
-              <div data-part="indicator"></div>
-              <span data-part="title" class="tuist-loading-skeleton">
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              </span>
-            </div>
-            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-          </div>
+          <.skeleton_legend />
+          <.skeleton_legend />
         </div>
-        <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+        <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}>
@@ -647,18 +607,15 @@
         label={@bundle_size_selected_app}
         secondary_text={dgettext("dashboard_projects", "App:")}
       >
-        <%= if @bundle_size_apps.ok? do %>
-          <%= for app <- @bundle_size_apps.result do %>
-            <.dropdown_item
-              value={app}
-              label={app}
-              patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
-              data-selected={@bundle_size_selected_app == app}
-            >
-              <:right_icon><.check /></:right_icon>
-            </.dropdown_item>
-          <% end %>
-        <% end %>
+        <.dropdown_item
+          :for={app <- if(@bundle_size_apps.ok?, do: @bundle_size_apps.result, else: [])}
+          value={app}
+          label={app}
+          patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
+          data-selected={@bundle_size_selected_app == app}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
       </.dropdown>
       <.date_picker
         id="bundle-size-date-range-picker"
@@ -879,42 +836,18 @@
       <.card_section>
         <div data-part="build-runs-chart">
           <div data-part="legends">
-            <div class="tuist-legend">
-              <div data-part="header">
-                <div data-part="indicator"></div>
-                <span data-part="title" class="tuist-loading-skeleton">
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-              </div>
-              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-            </div>
-            <div class="tuist-legend">
-              <div data-part="header">
-                <div data-part="indicator"></div>
-                <span data-part="title" class="tuist-loading-skeleton">
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-              </div>
-              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-            </div>
+            <.skeleton_legend />
+            <.skeleton_legend />
           </div>
-          <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+          <.skeleton_chart />
         </div>
       </.card_section>
       <.card_section>
         <div data-part="average-build-time-chart">
           <div data-part="legends">
-            <div class="tuist-legend">
-              <div data-part="header">
-                <div data-part="indicator"></div>
-                <span data-part="title" class="tuist-loading-skeleton">
-                  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                </span>
-              </div>
-              <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-            </div>
+            <.skeleton_legend />
           </div>
-          <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+          <.skeleton_chart />
         </div>
       </.card_section>
     </div>
@@ -1000,123 +933,119 @@
     >
       <div data-part="average-build-time-chart">
         <div data-part="legends">
-          <div class="tuist-legend">
-            <div data-part="header">
-              <div data-part="indicator"></div>
-              <span data-part="title" class="tuist-loading-skeleton">
-                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              </span>
-            </div>
-            <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
-          </div>
+          <.skeleton_legend />
         </div>
-        <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+        <.skeleton_chart />
       </div>
     </.card_section>
-    <%= if @builds_duration_analytics.ok? do %>
-      <.card_section
-        :if={@builds_duration_analytics.result.total_average_duration != 0}
-        data-part="average-build-time-card-section"
-      >
-        <div data-part="average-build-time-chart">
-          <.button
-            data-part="view-more"
-            label={dgettext("dashboard_projects", "View more")}
-            size="small"
-            variant="secondary"
-            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
-          />
-          <div data-part="legends">
-            <.legend
-              title={dgettext("dashboard_projects", "Average build time")}
-              value={
-                dgettext("dashboard_projects", "%{average_build_time}s",
-                  average_build_time:
-                    (@builds_duration_analytics.result.total_average_duration / 1000)
-                    |> Decimal.from_float()
-                    |> Decimal.round(1)
-                )
-              }
-              style="secondary"
-            />
-          </div>
-          <.chart
-            id="average-build-time-chart"
-            type="line"
-            extra_options={
-              %{
-                grid: %{
-                  width: "95%",
-                  left: "0.4%",
-                  height: "88%",
-                  top: "5%"
-                },
-                xAxis: %{
-                  boundaryGap: false,
-                  type: "category",
-                  axisLabel: %{
-                    color: "var:noora-surface-label-secondary",
-                    formatter: "fn:toLocaleDate",
-                    customValues: [
-                      @builds_duration_analytics.result.dates |> List.first(),
-                      @builds_duration_analytics.result.dates |> List.last()
-                    ],
-                    padding: [10, 0, 0, 0]
-                  }
-                },
-                yAxis: %{
-                  splitNumber: 4,
-                  splitLine: %{
-                    lineStyle: %{
-                      color: "var:noora-chart-lines"
-                    }
-                  },
-                  axisLabel: %{
-                    color: "var:noora-surface-label-secondary",
-                    formatter: "fn:formatSeconds"
-                  }
-                },
-                tooltip:
-                  if @builds_preset == "last-24-hours" do
-                    %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
-                  else
-                    %{valueFormat: "fn:formatSeconds"}
-                  end,
-                legend: %{
-                  show: false
-                }
-              }
+    <.card_section
+      :if={
+        @builds_duration_analytics.ok? &&
+          @builds_duration_analytics.result.total_average_duration != 0
+      }
+      data-part="average-build-time-card-section"
+    >
+      <div data-part="average-build-time-chart">
+        <.button
+          data-part="view-more"
+          label={dgettext("dashboard_projects", "View more")}
+          size="small"
+          variant="secondary"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+        />
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_projects", "Average build time")}
+            value={
+              dgettext("dashboard_projects", "%{average_build_time}s",
+                average_build_time:
+                  (@builds_duration_analytics.result.total_average_duration / 1000)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
             }
-            series={[
-              %{
-                color: "var:noora-chart-secondary",
-                data:
-                  Enum.zip(
-                    @builds_duration_analytics.result.dates,
-                    @builds_duration_analytics.result.values
-                    |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
-                  )
-                  |> Enum.map(&Tuple.to_list/1),
-                name: dgettext("dashboard_projects", "Average build time"),
-                type: "line",
-                smooth: 0.1,
-                symbol: "none"
-              }
-            ]}
-            y_axis_min={0}
+            style="secondary"
           />
         </div>
-      </.card_section>
-      <.empty_card_section
-        :if={@builds_duration_analytics.result.total_average_duration == 0}
-        title={dgettext("dashboard_projects", "No builds yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
-      >
-        <:image>
-          <img src="/images/empty_line_chart_light.png" data-theme="light" />
-          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-        </:image>
-      </.empty_card_section>
-    <% end %>
+        <.chart
+          id="average-build-time-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "95%",
+                left: "0.4%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @builds_duration_analytics.result.dates |> List.first(),
+                    @builds_duration_analytics.result.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatSeconds"
+                }
+              },
+              tooltip:
+                if @builds_preset == "last-24-hours" do
+                  %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
+                else
+                  %{valueFormat: "fn:formatSeconds"}
+                end,
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-secondary",
+              data:
+                Enum.zip(
+                  @builds_duration_analytics.result.dates,
+                  @builds_duration_analytics.result.values
+                  |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_projects", "Average build time"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={
+        @builds_duration_analytics.ok? &&
+          @builds_duration_analytics.result.total_average_duration == 0
+      }
+      title={dgettext("dashboard_projects", "No builds yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/insights#builds"
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
   </.card>
 </div>

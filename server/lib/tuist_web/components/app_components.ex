@@ -43,6 +43,33 @@ defmodule TuistWeb.AppComponents do
     """
   end
 
+  def skeleton_legend(assigns) do
+    ~H"""
+    <div class="tuist-legend">
+      <div data-part="header">
+        <div data-part="indicator"></div>
+        <span data-part="title" class="tuist-loading-skeleton">
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        </span>
+      </div>
+      <span data-part="value" class="tuist-loading-skeleton">&nbsp;&nbsp;&nbsp;</span>
+    </div>
+    """
+  end
+
+  attr(:height, :string, default: nil, doc: "Optional fixed height for the chart placeholder.")
+
+  def skeleton_chart(assigns) do
+    ~H"""
+    <div
+      class="noora-chart tuist-loading-skeleton"
+      style={@height && "height: #{@height}"}
+    >
+      &nbsp;
+    </div>
+    """
+  end
+
   def pagination(assigns) do
     ~H"""
     <div class="tuist-pagination">
