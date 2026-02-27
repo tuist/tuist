@@ -94,9 +94,16 @@
           )
         }
         value={
-          if @cache_hit_rate_analytics.ok?,
-            do: dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate.result),
-            else: ""
+          if @cache_hit_rate_analytics.ok? do
+            dgettext("dashboard_gradle", "%{hit_rate}%",
+              hit_rate:
+                @cache_hit_rate_analytics.result.avg_hit_rate
+                |> Decimal.from_float()
+                |> Decimal.round(1)
+            )
+          else
+            ""
+          end
         }
         id="widget-cache-hit-rate"
         trend_value={
@@ -181,7 +188,14 @@
         <div data-part="legends">
           <.legend
             title={dgettext("dashboard_gradle", "Cache hit rate")}
-            value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate.result)}
+            value={
+              dgettext("dashboard_gradle", "%{hit_rate}%",
+                hit_rate:
+                  @cache_hit_rate_analytics.result.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            }
             style="primary"
           />
         </div>
