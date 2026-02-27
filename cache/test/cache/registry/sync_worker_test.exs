@@ -1,5 +1,6 @@
 defmodule Cache.Registry.SyncWorkerTest do
-  use CacheWeb.ConnCase, async: false
+  use ExUnit.Case, async: true
+  use Oban.Testing, repo: Cache.Repo
   use Mimic
 
   alias Cache.Config
@@ -9,11 +10,18 @@ defmodule Cache.Registry.SyncWorkerTest do
   alias Cache.Registry.SwiftPackageIndex
   alias Cache.Registry.SyncCursor
   alias Cache.Registry.SyncWorker
+  alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
+    Sandbox.checkout(Cache.Repo)
+    :ok
+  end
+
+  setup do
     stub(Config, :registry_github_token, fn -> "token" end)
+
     stub(Config, :registry_bucket, fn -> "test-bucket" end)
     stub(Config, :registry_enabled?, fn -> true end)
     stub(Lock, :try_acquire, fn _, _ -> {:ok, :acquired} end)

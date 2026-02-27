@@ -2,145 +2,105 @@
 {
   "title": "Model Context Protocol (MCP)",
   "titleTemplate": ":title · Agentic coding · Features · Guides · Tuist",
-  "description": "Learn how to use Tuist's MCP server to have a language-based interface for your app development environment."
+  "description": "Learn how to use Tuist's MCP endpoint to give AI agents access to your project's test insights and more."
 }
 ---
 # Model Context Protocol (MCP)
 
-[Model Context Protocol (MCP)](https://www.claudemcp.com) is a standard proposed by [Claude](https://claude.ai) for LLMs to interact with development environments.
-You can think of it as the USB-C of LLMs.
-Like shipping containers, which made cargo and transportation more interoperable,
-or protocols like TCP, which decoupled the application layer from the transport layer,
-MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with other domains.
+[Model Context Protocol (MCP)](https://www.claudemcp.com) is a standard for LLMs to interact with development environments.
+MCP makes LLM-powered applications such as [Claude](https://claude.ai/), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and editors like [Zed](https://zed.dev), [Cursor](https://www.cursor.com), or [VS Code](https://code.visualstudio.com) interoperable with external services and data sources.
 
-Tuist provides a local server through its CLI so that you can interact with your **app development environment**.
-By connecting your client apps to it, you can use language to interact with your projects.
+Tuist hosts a server-side MCP endpoint at `https://tuist.dev/mcp`. By connecting your MCP client to it, AI agents can access your Tuist project data, including test insights, flaky test analysis, and more.
 
-In this page you'll learn about how to set it up and its capabilities.
+## MCP vs Skills
 
-::: info
-<!-- -->
-Tuist MCP server uses Xcode's most-recent projects as the source of truth for projects you want to interact with.
-<!-- -->
+MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</LocalizedLink> can overlap in what they do. Given the current overlap between the two, choose one approach per workflow and use it consistently (either MCP or skills) instead of mixing both in the same flow.
+
+## Configuration
+
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically.
+
+::: details Claude Code
+Run:
+
+```bash
+claude mcp add --transport http tuist https://tuist.dev/mcp
+```
 :::
 
-## Set it up
+::: details Claude Desktop
+Open **Settings → Connectors → Add custom connector**, then set:
 
-Tuist provides automated setup commands for popular MCP-compatible clients. Simply run the appropriate command for your client:
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
 
-### [Claude](https://claude.ai)
+Complete OAuth in the browser when prompted.
+:::
 
-For [Claude desktop](https://claude.ai/download), run:
-```bash
-tuist mcp setup claude
-```
+::: details Cursor
+Open **Cursor Settings → Tools & Integrations → MCP Tools** and add:
 
-This will configure the file at `~/Library/Application Support/Claude/claude_desktop_config.json`.
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
+:::
 
-### [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+::: details VS Code
+Use **Command Palette → MCP: Add Server**, then configure an HTTP server with:
 
-For Claude Code, run:
-```bash
-tuist mcp setup claude-code
-```
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
+:::
 
-This will configure the same file as Claude desktop.
+::: details Zed
+Open **Agent panel → Settings → Add Custom Server**, then set:
 
-### [Cursor](https://www.cursor.com)
-
-For Cursor IDE, you can configure it globally or locally:
-```bash
-# Global configuration
-tuist mcp setup cursor --global
-
-# Local configuration (in current project)
-tuist mcp setup cursor
-
-# Custom path configuration
-tuist mcp setup cursor --path /path/to/project
-```
-
-### [Zed](https://zed.dev)
-
-For Zed editor, you can also configure it globally or locally:
-```bash
-# Global configuration
-tuist mcp setup zed --global
-
-# Local configuration (in current project)
-tuist mcp setup zed
-
-# Custom path configuration
-tuist mcp setup zed --path /path/to/project
-```
-
-### [VS Code](https://code.visualstudio.com)
-
-For VS Code with MCP extension, configure it globally or locally:
-```bash
-# Global configuration
-tuist mcp setup vscode --global
-
-# Local configuration (in current project)
-tuist mcp setup vscode
-
-# Custom path configuration
-tuist mcp setup vscode --path /path/to/project
-```
-
-### Manual Configuration
-
-If you prefer to configure manually or are using a different MCP client, add the Tuist MCP server to your client's configuration:
-
-::: code-group
-
-```json [Global Tuist installation (e.g. Homebrew)]
-{
-  "mcpServers": {
-    "tuist": {
-      "command": "tuist",
-      "args": ["mcp", "start"]
-    }
-  }
-}
-```
-
-```json [Mise installation]
-{
-  "mcpServers": {
-    "tuist": {
-      "command": "mise",
-      "args": ["x", "tuist@latest", "--", "tuist", "mcp", "start"] // Or tuist@x.y.z to fix the version
-    }
-  }
-}
-```
-<!-- -->
+- **Name:** `tuist`
+- **URL:** `https://tuist.dev/mcp`
 :::
 
 ## Capabilities
 
-In the following sections you'll learn about the capabilities of the Tuist MCP server.
+### Tools
 
-### Resources
+The following tools are available through the Tuist MCP server:
 
-#### Recent projects and workspaces
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `list_projects` | List all projects accessible to the authenticated user. | None |
+| `list_test_cases` | List test cases for a project (supports filters like `flaky`). | `account_handle`, `project_handle` |
+| `get_test_case` | Get detailed metrics for a test case including reliability rate, flakiness rate, and run counts. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
+| `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
+| `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 
-Tuist keeps a record of the Xcode projects and workspaces you’ve recently worked with, giving your application access to their dependency graphs for powerful insights. You can query this data to uncover details about your project structure and relationships, such as:
+#### `list_projects`
 
-- What are the direct and transitive dependencies of a specific target?
-- Which target has the most source files, and how many does it include?
-- What are all the static products (e.g., static libraries or frameworks) in the graph?
-- Can you list all targets, sorted alphabetically, along with their names and product types (e.g., app, framework, unit test)?
-- Which targets depend on a particular framework or external dependency?
-- What’s the total number of source files across all targets in the project?
-- Are there any circular dependencies between targets, and if so, where?
-- Which targets use a specific resource (e.g., an image or plist file)?
-- What’s the deepest dependency chain in the graph, and which targets are involved?
-- Can you show me all the test targets and their associated app or framework targets?
-- Which targets have the longest build times based on recent interactions?
-- What are the differences in dependencies between two specific targets?
-- Are there any unused source files or resources in the project?
-- Which targets share common dependencies, and what are they?
+Returns all projects the authenticated user has access to, including each project's `id`, `name`, `account_handle`, and `full_handle`.
 
-With Tuist, you can dig into your Xcode projects like never before, making it easier to understand, optimize, and manage even the most complex setups!
+#### `list_test_cases`
+
+Returns test cases for a given project. Supports pagination through `page` and `page_size`, and optional filters such as `flaky=true`, `quarantined=true`, `module_name`, `suite_name`, and `name`.
+
+#### `get_test_case`
+
+Returns detailed metrics for a specific test case: reliability rate (success percentage), flakiness rate (over the last 30 days), total and failed run counts, last status, and average duration. Accepts either a `test_case_id` (UUID) or an `identifier` in `Module/Suite/TestCase` or `Module/TestCase` format together with `account_handle` and `project_handle`.
+
+#### `get_test_run`
+
+Returns detailed test run context: status, duration, CI metadata, and aggregate counts (total/failed/flaky). Use `get_test_case_run` to drill into individual failures or crashes.
+
+#### `get_test_case_run`
+
+Returns the full details of a specific test case run, including failure messages with file paths and line numbers, repetition results, git branch, commit SHA, and whether the run was on CI.
+
+### Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `fix_flaky_test` | Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. |
+
+The `fix_flaky_test` prompt accepts optional arguments:
+
+- `account_handle` and `project_handle`: scope the investigation to a specific project.
+- `test_case_id`: jump directly to investigating a specific flaky test case by UUID (`list_test_cases[].id`) or identifier (`Module/Suite/TestCase` or `Module/TestCase`).
+
+When invoked without arguments, the prompt guides the agent through discovering flaky tests across all accessible projects.

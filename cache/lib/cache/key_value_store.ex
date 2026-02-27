@@ -35,12 +35,13 @@ defmodule Cache.KeyValueStore do
   Overwrites any existing values.
   """
 
-  def put_key_value(cas_id, account_handle, project_handle, values) when is_list(values) do
+  def put_key_value(cas_id, account_handle, project_handle, values, opts \\ []) when is_list(values) do
     key = build_key(account_handle, project_handle, cas_id)
     json = encode_entries(values)
+    cache = Keyword.get(opts, :cache_name, @cache_name)
 
     with :ok <- persist_entry(key, json),
-         {:ok, _} <- Cachex.put(@cache_name, key, json) do
+         {:ok, _} <- Cachex.put(cache, key, json) do
       :ok
     end
   end
@@ -49,10 +50,11 @@ defmodule Cache.KeyValueStore do
   Retrieves the pre-encoded JSON payload for a given CAS ID, account, and project.
   Returns `{:error, :not_found}` if no entry is stored.
   """
-  def get_key_value(cas_id, account_handle, project_handle) do
+  def get_key_value(cas_id, account_handle, project_handle, opts \\ []) do
     key = build_key(account_handle, project_handle, cas_id)
+    cache = Keyword.get(opts, :cache_name, @cache_name)
 
-    case fetch_entry(key) do
+    case fetch_entry(key, cache) do
       {:ok, json} -> {:ok, json}
       {:error, :not_found} -> {:error, :not_found}
     end
@@ -66,10 +68,10 @@ defmodule Cache.KeyValueStore do
     ]
   end
 
-  defp fetch_entry(key) do
-    case Cachex.get(@cache_name, key) do
+  defp fetch_entry(key, cache) do
+    case Cachex.get(cache, key) do
       {:ok, nil} ->
-        load_from_persistence(key)
+        load_from_persistence(key, cache)
 
       {:ok, json} when is_binary(json) ->
         {:ok, json}
@@ -78,7 +80,7 @@ defmodule Cache.KeyValueStore do
         {:error, :not_found}
 
       {:error, _} ->
-        load_from_persistence(key)
+        load_from_persistence(key, cache)
     end
   end
 
@@ -86,13 +88,13 @@ defmodule Cache.KeyValueStore do
     :ok = KeyValueBuffer.enqueue(key, json)
   end
 
-  defp load_from_persistence(key) do
+  defp load_from_persistence(key, cache) do
     case Repo.get_by(KeyValueEntry, key: key) do
       nil ->
         {:error, :not_found}
 
       record ->
-        Cachex.put(@cache_name, key, record.json_payload)
+        Cachex.put(cache, key, record.json_payload)
         KeyValueBuffer.enqueue_access(key)
         {:ok, record.json_payload}
     end

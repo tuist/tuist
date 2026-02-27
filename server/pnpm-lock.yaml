@@ -5,8 +5,8 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  mdast-util-to-hast: 13.2.1
   ajv: 8.18.0
+  mdast-util-to-hast: 13.2.1
 
 importers:
 

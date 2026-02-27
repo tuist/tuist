@@ -1,7 +1,8 @@
 defmodule Cache.S3TransferWorkerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
+  import Ecto.Query
   import ExUnit.CaptureLog
 
   alias Cache.Repo
@@ -11,24 +12,24 @@ defmodule Cache.S3TransferWorkerTest do
   alias Cache.S3TransferWorker
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  setup :set_mimic_from_context
+
+  setup context do
     :ok = Sandbox.checkout(Repo)
-    Sandbox.mode(Repo, {:shared, self()})
 
-    if pid = Process.whereis(S3TransfersBuffer) do
-      Sandbox.allow(Repo, self(), pid)
-      S3TransfersBuffer.reset()
-    end
+    context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
 
-    Repo.delete_all(S3Transfer)
-
-    :ok
+    {:ok, context}
   end
 
   describe "perform/1" do
     test "processes pending uploads and deletes them" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
+      suffix = :erlang.unique_integer([:positive])
+      key_one = "account/project/cas/ar/ti/artifact1-#{suffix}"
+      key_two = "account/project/cas/ar/ti/artifact2-#{suffix}"
+
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", key_one)
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", key_two)
       :ok = S3TransfersBuffer.flush()
 
       expect(Cache.S3, :upload, 2, fn _key ->
@@ -41,13 +42,17 @@ defmodule Cache.S3TransferWorkerTest do
 
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[key_one, key_two]), :count, :id)
       assert count == 0
     end
 
     test "processes pending downloads and deletes them" do
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
+      suffix = :erlang.unique_integer([:positive])
+      key_one = "account/project/cas/ar/ti/artifact1-#{suffix}"
+      key_two = "account/project/cas/ar/ti/artifact2-#{suffix}"
+
+      :ok = S3Transfers.enqueue_cas_download("account", "project", key_one)
+      :ok = S3Transfers.enqueue_cas_download("account", "project", key_two)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -66,13 +71,17 @@ defmodule Cache.S3TransferWorkerTest do
 
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[key_one, key_two]), :count, :id)
       assert count == 0
     end
 
     test "processes both uploads and downloads" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
+      suffix = :erlang.unique_integer([:positive])
+      upload_key = "account/project/cas/ar/ti/artifact1-#{suffix}"
+      download_key = "account/project/cas/ar/ti/artifact2-#{suffix}"
+
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", upload_key)
+      :ok = S3Transfers.enqueue_cas_download("account", "project", download_key)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -95,12 +104,15 @@ defmodule Cache.S3TransferWorkerTest do
 
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[upload_key, download_key]), :count, :id)
       assert count == 0
     end
 
     test "deletes transfers on non-retryable failure" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
+      suffix = :erlang.unique_integer([:positive])
+      key = "account/project/cas/ar/ti/artifact1-#{suffix}"
+
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
       expect(Cache.S3, :upload, fn _key ->
@@ -113,13 +125,17 @@ defmodule Cache.S3TransferWorkerTest do
 
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
       assert count == 0
     end
 
     test "keeps transfers in queue on rate limiting" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
+      suffix = :erlang.unique_integer([:positive])
+      upload_key = "account/project/cas/ar/ti/artifact1-#{suffix}"
+      download_key = "account/project/cas/ar/ti/artifact2-#{suffix}"
+
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", upload_key)
+      :ok = S3Transfers.enqueue_cas_download("account", "project", download_key)
       :ok = S3TransfersBuffer.flush()
 
       expect(Cache.S3, :upload, fn _key ->
@@ -136,14 +152,17 @@ defmodule Cache.S3TransferWorkerTest do
 
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[upload_key, download_key]), :count, :id)
       assert count == 2
     end
 
     test "does nothing when no pending transfers" do
+      suffix = :erlang.unique_integer([:positive])
+      key = "account/project/cas/ar/ti/artifact-noop-#{suffix}"
+
       assert :ok = S3TransferWorker.perform(%Oban.Job{})
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
       assert count == 0
     end
   end

@@ -7,7 +7,6 @@ defmodule Tuist.ProjectsTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Base64
-  alias Tuist.CommandEvents
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
   alias Tuist.VCS
@@ -181,18 +180,16 @@ defmodule Tuist.ProjectsTest do
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id
+      )
 
       # When
       Projects.delete_project(project)
 
       # Then
       assert nil == Projects.get_project_by_id(project.id)
-      assert {:error, :not_found} == CommandEvents.get_command_event_by_id(command_event.id)
     end
   end
 

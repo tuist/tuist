@@ -1,8 +1,10 @@
 defmodule Cache.RegistryDownloadEventsPipelineTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Cache.RegistryDownloadEventsPipeline
+
+  setup :set_mimic_from_context
 
   setup do
     stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)

@@ -418,7 +418,11 @@
           <div :if={Enum.any?(@module_breakdown_active_filters)} data-part="active-filters">
             <.active_filter :for={filter <- @module_breakdown_active_filters} filter={filter} />
           </div>
-          <.table id="module-breakdown-table" rows={@module_breakdown_modules}>
+          <.table
+            id="module-breakdown-table"
+            rows={@module_breakdown_modules}
+            row_key={fn module -> module.name end}
+          >
             <:col
               :let={module}
               label={dgettext("dashboard_builds", "Module")}
@@ -563,7 +567,11 @@
           <div :if={Enum.any?(@file_breakdown_active_filters)} data-part="active-filters">
             <.active_filter :for={filter <- @file_breakdown_active_filters} filter={filter} />
           </div>
-          <.table id="file-breakdown-table" rows={@file_breakdown_files}>
+          <.table
+            id="file-breakdown-table"
+            rows={@file_breakdown_files}
+            row_key={fn file -> file.path end}
+          >
             <:col
               :let={file}
               label={dgettext("dashboard_builds", "File")}

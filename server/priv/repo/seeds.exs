@@ -89,7 +89,7 @@ seed_scale = System.get_env("SEED_SCALE", "small")
 
     _ ->
       # Default small values (small dataset for fast local development)
-      {2_000, 1_500, 8_000, 40, 20, 15, 0, 0, 0, 3, 4, 10, 100, 3, 5}
+      {2_000, 1_500, 8_000, 40, 20, 15, 50, 30, 0, 3, 4, 10, 100, 3, 5}
   end
 
 # Allow individual overrides
@@ -661,6 +661,188 @@ cacheable_tasks =
   end)
 
 SeedHelpers.insert_bulk_ch(cacheable_tasks, Tuist.Builds.CacheableTask, IngestRepo, "cacheable tasks")
+
+# Generate build targets
+if seed_config.targets_per_build > 0 do
+  IO.puts("Generating build targets (#{seed_config.targets_per_build} per build) in parallel...")
+
+  target_names = [
+    "App",
+    "AppKit",
+    "AppUI",
+    "AppCore",
+    "AppTests",
+    "AppUITests",
+    "Networking",
+    "NetworkingTests",
+    "Database",
+    "DatabaseTests",
+    "Analytics",
+    "AnalyticsTests",
+    "Auth",
+    "AuthTests",
+    "FeatureHome",
+    "FeatureHomeTests",
+    "FeatureProfile",
+    "FeatureProfileTests",
+    "FeatureSettings",
+    "FeatureSettingsTests",
+    "FeatureOnboarding",
+    "FeatureOnboardingTests",
+    "FeatureSearch",
+    "FeatureSearchTests",
+    "FeatureChat",
+    "FeatureChatTests",
+    "DesignSystem",
+    "DesignSystemTests",
+    "Common",
+    "CommonTests",
+    "Logger",
+    "LoggerTests",
+    "ImageLoader",
+    "ImageLoaderTests",
+    "Storage",
+    "StorageTests",
+    "Keychain",
+    "KeychainTests",
+    "Notifications",
+    "NotificationsTests",
+    "Payments",
+    "PaymentsTests",
+    "FeatureDashboard",
+    "FeatureDashboardTests",
+    "FeatureTransactions",
+    "FeatureTransactionsTests",
+    "FeatureCards",
+    "FeatureCardsTests",
+    "FeatureInvoices",
+    "FeatureInvoicesTests"
+  ]
+
+  project_names = ["App", "Modules", "Features", "Core", "Platform"]
+
+  build_targets =
+    SeedHelpers.parallel_flat_map(builds, fn build ->
+      target_count = max(5, Enum.random(div(seed_config.targets_per_build, 2)..seed_config.targets_per_build))
+      inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
+      selected_targets = Enum.take_random(target_names, min(target_count, length(target_names)))
+
+      Enum.map(selected_targets, fn target_name ->
+        %{
+          build_run_id: build.id,
+          name: target_name,
+          project: Enum.random(project_names),
+          build_duration: Enum.random(500..60_000),
+          compilation_duration: Enum.random(200..45_000),
+          status: if(build.status == "success", do: 0, else: Enum.random([0, 0, 0, 1])),
+          inserted_at: inserted_at
+        }
+      end)
+    end)
+
+  SeedHelpers.insert_bulk_ch(build_targets, Tuist.Builds.BuildTarget, IngestRepo, "build targets")
+end
+
+# Generate build files
+if seed_config.files_per_build > 0 do
+  IO.puts("Generating build files (#{seed_config.files_per_build} per build) in parallel...")
+
+  swift_file_names = [
+    "ContentView",
+    "AppDelegate",
+    "SceneDelegate",
+    "ViewModel",
+    "MainView",
+    "NetworkManager",
+    "DataModel",
+    "HomeViewController",
+    "SettingsView",
+    "ProfileViewModel",
+    "AuthenticationService",
+    "CacheManager",
+    "Router",
+    "APIClient",
+    "UserDefaults+Extensions",
+    "UIView+Extensions",
+    "String+Extensions",
+    "DateFormatter+Extensions",
+    "ImageLoader",
+    "KeychainWrapper",
+    "Logger",
+    "AnalyticsTracker",
+    "PushNotificationHandler",
+    "DeepLinkHandler",
+    "PaymentProcessor",
+    "CartManager",
+    "ProductCell",
+    "OrderSummaryView",
+    "CheckoutViewModel",
+    "TransactionHistoryView"
+  ]
+
+  objc_file_names = [
+    "main",
+    "AppBridge",
+    "LegacyNetworkManager",
+    "ObjCHelper",
+    "CryptoUtils",
+    "ImageProcessor",
+    "CacheBridge",
+    "AnalyticsBridge"
+  ]
+
+  target_names_for_files = [
+    "App",
+    "AppKit",
+    "AppUI",
+    "AppCore",
+    "Networking",
+    "Database",
+    "Analytics",
+    "Auth",
+    "FeatureHome",
+    "FeatureProfile",
+    "FeatureSettings",
+    "DesignSystem",
+    "Common",
+    "Logger"
+  ]
+
+  project_names_for_files = ["App", "Modules", "Features", "Core", "Platform"]
+
+  build_files =
+    SeedHelpers.parallel_flat_map(builds, fn build ->
+      file_count = max(10, Enum.random(div(seed_config.files_per_build, 2)..seed_config.files_per_build))
+      inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
+
+      Enum.map(1..file_count, fn i ->
+        is_swift = Enum.random(1..10) > 2
+        target = Enum.random(target_names_for_files)
+        project = Enum.random(project_names_for_files)
+
+        {type, path} =
+          if is_swift do
+            file_name = Enum.random(swift_file_names)
+            {0, "#{project}/Sources/#{target}/#{file_name}_#{i}.swift"}
+          else
+            file_name = Enum.random(objc_file_names)
+            {1, "#{project}/Sources/#{target}/#{file_name}_#{i}.m"}
+          end
+
+        %{
+          build_run_id: build.id,
+          type: type,
+          target: target,
+          project: project,
+          path: path,
+          compilation_duration: Enum.random(50..15_000),
+          inserted_at: inserted_at
+        }
+      end)
+    end)
+
+  SeedHelpers.insert_bulk_ch(build_files, Tuist.Builds.BuildFile, IngestRepo, "build files")
+end
 
 branches = [
   "main",

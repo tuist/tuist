@@ -124,6 +124,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :mcp do
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
+    plug TuistWeb.Plugs.MCPRateLimitPlug
+  end
+
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
@@ -295,9 +301,18 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api]
 
     get "/openid-configuration", WellKnownController, :openid_configuration
+    get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
+    get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
+    get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
+  end
+
+  scope "/" do
+    pipe_through [:mcp]
+
+    forward "/mcp", Hermes.Server.Transport.StreamableHTTP.Plug, server: Tuist.MCP.Server
   end
 
   scope path: "/api",
@@ -538,6 +553,7 @@ defmodule TuistWeb.Router do
     pipe_through :non_authenticated_api
 
     post "/token", TokenController, :token
+    post "/register", RegistrationController, :register
   end
 
   scope "/oauth/callback", TuistWeb.Oauth do

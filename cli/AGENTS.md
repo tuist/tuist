@@ -10,6 +10,7 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Cache client: `cli/Sources/TuistCache`
 - Dependencies tooling: `cli/Sources/TuistDependencies`
 - Manifest loading: `cli/Sources/TuistLoader`
+- Embedded graph packages: `cli/Sources/XcodeGraph`
 
 ## Legacy Modules (avoid adding new code)
 - `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
@@ -71,5 +72,6 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - Xcode project/workspace path resolution: `cli/Sources/TuistXcodeProjectOrWorkspacePathLocator/AGENTS.md`
 - Benchmark tooling: `cli/Sources/tuistbenchmark/AGENTS.md`
 - Fixture generation tooling: `cli/Sources/tuistfixturegenerator/AGENTS.md`
+- Embedded graph package: `cli/Sources/XcodeGraph/AGENTS.md`
 
 Note: `cli/TuistCacheEE` is a git submodule; keep any intent nodes for that package within the submodule itself.

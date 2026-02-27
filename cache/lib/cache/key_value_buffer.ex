@@ -20,15 +20,15 @@ defmodule Cache.KeyValueBuffer do
     SQLiteBuffer.child_spec(Keyword.merge(opts, name: __MODULE__, buffer_module: __MODULE__))
   end
 
-  def enqueue(key, json_payload) do
+  def enqueue(key, json_payload, name \\ __MODULE__) do
     entry = %{key: key, json_payload: json_payload}
-    true = :ets.insert(__MODULE__, {key, {:write, entry}})
+    true = :ets.insert(name, {key, {:write, entry}})
     :ok
   end
 
-  def enqueue_access(key) do
+  def enqueue_access(key, name \\ __MODULE__) do
     entry = %{key: key}
-    _inserted? = :ets.insert_new(__MODULE__, {key, {:access, entry}})
+    _inserted? = :ets.insert_new(name, {key, {:access, entry}})
     :ok
   end
 

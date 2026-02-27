@@ -28,15 +28,16 @@ defmodule Cache.Authentication do
 
   Returns `{:ok, auth_header}` if authorized, or `{:error, status, message}` otherwise.
   """
-  def ensure_project_accessible(conn, account_handle, project_handle) do
+  def ensure_project_accessible(conn, account_handle, project_handle, opts \\ []) do
     auth_header = conn |> Plug.Conn.get_req_header("authorization") |> List.first()
+    cache = Keyword.get(opts, :cache_name, cache_name())
 
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
     else
       requested_handle = full_handle(account_handle, project_handle)
 
-      case authorize(auth_header, requested_handle, conn) do
+      case authorize(auth_header, requested_handle, conn, cache) do
         :ok ->
           {:ok, auth_header}
 
@@ -46,13 +47,13 @@ defmodule Cache.Authentication do
     end
   end
 
-  defp authorize(auth_header, requested_handle, conn) do
+  defp authorize(auth_header, requested_handle, conn, cache) do
     cache_key = {generate_cache_key(auth_header), requested_handle}
 
-    case Cachex.get(cache_name(), cache_key) do
+    case Cachex.get(cache, cache_key) do
       {:ok, nil} ->
         :telemetry.execute([:cache, :auth, :cache, :miss], %{}, %{})
-        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache)
 
       {:ok, result} ->
         :telemetry.execute([:cache, :auth, :cache, :hit], %{}, %{})
@@ -61,26 +62,26 @@ defmodule Cache.Authentication do
 
       _ ->
         :telemetry.execute([:cache, :auth, :cache, :miss], %{}, %{})
-        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache)
     end
   end
 
-  defp authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn) do
+  defp authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache) do
     token = extract_token(auth_header)
 
     case verify_jwt(token, requested_handle) do
       {:ok, ttl} ->
         :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :jwt})
-        cache_result(cache_key, :ok, ttl)
+        cache_result(cache, cache_key, :ok, ttl)
 
       {:error, :not_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
 
       {:error, :project_not_in_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
 
       {:error, _reason} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
     end
   end
 
@@ -131,11 +132,11 @@ defmodule Cache.Authentication do
 
   defp calculate_ttl(_), do: success_ttl()
 
-  defp fetch_and_cache_projects(auth_header, cache_key, conn) do
+  defp fetch_and_cache_projects(auth_header, cache_key, conn, cache) do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
-    cache_name()
+    cache
     |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, options) end)
     |> unwrap_fetch_result()
   end
@@ -241,8 +242,8 @@ defmodule Cache.Authentication do
     end
   end
 
-  defp cache_result(cache_key, result, ttl) do
-    Cachex.put(cache_name(), cache_key, result, ttl: ttl)
+  defp cache_result(cache, cache_key, result, ttl) do
+    Cachex.put(cache, cache_key, result, ttl: ttl)
     result
   end
 
