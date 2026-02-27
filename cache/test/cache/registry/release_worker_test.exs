@@ -289,7 +289,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
     test "resolves symlinks in downloaded zipball" do
       manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-      test_pid = self()
 
       expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
         {:ok, :acquired}
@@ -307,25 +306,22 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:error, :not_found}
       end)
 
+      fixture_path = Path.join([__DIR__, "../../fixtures/with_symlinks.zip"])
+      original_bytes = File.read!(fixture_path)
+
       expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
                                                        "token",
                                                        "v1.0.0",
                                                        archive_path,
                                                        _ ->
-        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
-        top_dir = Path.join(tmp, "repo-v1.0.0")
-        File.mkdir_p!(top_dir)
-        File.write!(Path.join(top_dir, "AGENTS.md"), "# Agents")
-        File.ln_s!("AGENTS.md", Path.join(top_dir, "CLAUDE.md"))
-        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
-        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0"], cd: tmp)
-        File.rm_rf!(tmp)
+        File.cp!(fixture_path, archive_path)
         :ok
       end)
 
       expect(Upload, :stream_file, fn path ->
-        send(test_pid, {:archive_path, path})
-        assert File.exists?(path)
+        {output, 0} = System.cmd("unzip", ["-Z", path])
+        refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
+        assert File.read!(path) != original_bytes
         [File.read!(path)]
       end)
 
@@ -371,13 +367,9 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                    "tag" => "v1.0.0"
                  }
                })
-
-      assert_receive {:archive_path, captured_path}
-      {output, 0} = System.cmd("unzip", ["-Z", captured_path])
-      refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
     end
 
-    test "handles archive with no symlinks without modification" do
+    test "skips repack when archive has no symlinks" do
       manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
 
       expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
@@ -396,22 +388,20 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         {:error, :not_found}
       end)
 
+      fixture_path = Path.join([__DIR__, "../../fixtures/no_symlinks.zip"])
+      original_bytes = File.read!(fixture_path)
+
       expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
                                                        "token",
                                                        "v1.0.0",
                                                        archive_path,
                                                        _ ->
-        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
-        top_dir = Path.join(tmp, "repo-v1.0.0")
-        File.mkdir_p!(top_dir)
-        File.write!(Path.join(top_dir, "Package.swift"), manifest_content)
-        {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0"], cd: tmp)
-        File.rm_rf!(tmp)
+        File.cp!(fixture_path, archive_path)
         :ok
       end)
 
       expect(Upload, :stream_file, fn path ->
-        assert File.exists?(path)
+        assert File.read!(path) == original_bytes
         [File.read!(path)]
       end)
 
@@ -460,7 +450,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
     test "resolves nested symlinks (symlink chain)" do
       manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
-      test_pid = self()
 
       expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
         {:ok, :acquired}
@@ -496,8 +485,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       end)
 
       expect(Upload, :stream_file, fn path ->
-        send(test_pid, {:archive_path, path})
-        assert File.exists?(path)
+        {output, 0} = System.cmd("unzip", ["-Z", path])
+        refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
         [File.read!(path)]
       end)
 
@@ -543,10 +532,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                    "tag" => "v1.0.0"
                  }
                })
-
-      assert_receive {:archive_path, captured_path}
-      {output, 0} = System.cmd("unzip", ["-Z", captured_path])
-      refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
     end
 
     test "handles broken symlinks gracefully" do
@@ -584,7 +569,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       end)
 
       expect(Upload, :stream_file, fn path ->
-        assert File.exists?(path)
+        {output, 0} = System.cmd("unzip", ["-Z", path])
+        refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
         [File.read!(path)]
       end)
 
@@ -658,7 +644,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       end)
 
       capture_log(fn ->
-        assert {:error, {:unzip_resolve_symlinks_failed, _status, _output}} =
+        assert {:error, {:invalid_archive, _status, _output}} =
                  ReleaseWorker.perform(%Oban.Job{
                    args: %{
                      "scope" => "apple",
@@ -700,8 +686,10 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         File.mkdir_p!(first_dir)
         File.mkdir_p!(second_dir)
         File.write!(Path.join(first_dir, "Package.swift"), manifest_content)
+        File.write!(Path.join(first_dir, "target.md"), "content")
+        File.ln_s!("target.md", Path.join(first_dir, "link.md"))
         File.write!(Path.join(second_dir, "Package.swift"), manifest_content)
-        {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0", "repo-v1.0.1"], cd: tmp)
+        {_, 0} = System.cmd("zip", ["--symlinks", "-r", archive_path, "repo-v1.0.0", "repo-v1.0.1"], cd: tmp)
         File.rm_rf!(tmp)
         :ok
       end)

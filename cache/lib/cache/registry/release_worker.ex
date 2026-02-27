@@ -85,8 +85,13 @@ defmodule Cache.Registry.ReleaseWorker do
         zip_directory(source_directory, archive_path)
       end
     else
-      with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
-        resolve_symlinks_in_archive(tmp_dir, archive_path)
+      with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts),
+           {:ok, has_symlinks} <- archive_has_symlinks?(archive_path) do
+        if has_symlinks do
+          resolve_symlinks_in_archive(tmp_dir, archive_path)
+        else
+          :ok
+        end
       end
     end
   end
@@ -332,6 +337,21 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp path_within_root?(path, root_directory) do
     path == root_directory or String.starts_with?(path, root_directory <> "/")
+  end
+
+  defp archive_has_symlinks?(archive_path) do
+    case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
+      {output, 0} ->
+        has_symlinks =
+          output
+          |> String.split("\n")
+          |> Enum.any?(&String.starts_with?(&1, "l"))
+
+        {:ok, has_symlinks}
+
+      {output, status} ->
+        {:error, {:invalid_archive, status, output}}
+    end
   end
 
   defp upload_source_archive(scope, name, version, archive_path) do
