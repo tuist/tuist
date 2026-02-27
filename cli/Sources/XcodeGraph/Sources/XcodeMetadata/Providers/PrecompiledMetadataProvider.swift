@@ -170,6 +170,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         return (arch, linking, foundUUID)
     }
 
+    // swiftlint:disable:next large_tuple
     private func readMachHeader(
         binary: FileHandle,
         magic: UInt32

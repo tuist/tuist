@@ -7,6 +7,7 @@ import XcodeGraph
 struct PackageMapperTests: Sendable {
     private let fileSystem = FileSystem()
 
+    // swiftlint:disable:next function_body_length
     @Test
     func map_package() async throws {
         try await fileSystem.runInTemporaryDirectory(prefix: "PackageMapperTests") { path in
