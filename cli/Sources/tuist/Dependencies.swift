@@ -8,8 +8,6 @@ import TuistNooraExtension
 import TuistServer
 
 #if os(macOS)
-    import FileSystem
-    import TuistCore
     import TuistExtension
     import TuistHAR
     import TuistKit
@@ -80,16 +78,6 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
         )
         LoggingSystem.bootstrap(loggerHandler)
         sessionController.scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
-        AnalyticsStateController().scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
-
-        #if canImport(TuistCacheEE)
-            Task.detached(priority: .background) {
-                try? await CacheLocalStorage.clean(
-                    fileSystem: FileSystem(),
-                    cacheDirectoriesProvider: CacheDirectoriesProvider()
-                )
-            }
-        #endif
 
         let logger = Logger(label: "dev.tuist.cli", factory: loggerHandler)
         let harRecorder = HARRecorder(filePath: sessionPaths.networkFilePath)

@@ -13,6 +13,11 @@ import TuistPlugin
 import TuistServer
 import TuistSupport
 
+#if canImport(TuistCacheEE)
+    import FileSystem
+    import TuistCacheEE
+#endif
+
 public struct GenerateService {
     private let opener: Opening
     private let clock: Clock
@@ -50,6 +55,16 @@ public struct GenerateService {
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
+
+        #if canImport(TuistCacheEE)
+            Task.detached(priority: .background) {
+                try? await CacheLocalStorage.clean(
+                    fileSystem: FileSystem(),
+                    cacheDirectoriesProvider: CacheDirectoriesProvider()
+                )
+            }
+        #endif
+
         let config = try await configLoader.loadConfig(path: path)
             .assertingIsGeneratedProjectOrSwiftPackage(
                 errorMessageOverride:
