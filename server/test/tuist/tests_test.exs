@@ -4221,8 +4221,9 @@ defmodule Tuist.TestsTest do
 
     test "only includes runs matching same test_case_id, commit, and scheme" do
       project = ProjectsFixtures.project_fixture()
+      unique_commit = "commit_filter_test_#{UUIDv7.generate()}"
 
-      {:ok, _matching_run} =
+      {:ok, matching_run} =
         Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -4232,7 +4233,7 @@ defmodule Tuist.TestsTest do
           macos_version: "14.0",
           xcode_version: "15.0",
           git_branch: "main",
-          git_commit_sha: "abc123",
+          git_commit_sha: unique_commit,
           scheme: "MyScheme",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
@@ -4267,7 +4268,7 @@ defmodule Tuist.TestsTest do
           macos_version: "14.0",
           xcode_version: "15.0",
           git_branch: "main",
-          git_commit_sha: "def456",
+          git_commit_sha: "different_commit_#{UUIDv7.generate()}",
           scheme: "MyScheme",
           ran_at: NaiveDateTime.utc_now(),
           is_ci: true,
@@ -4296,7 +4297,7 @@ defmodule Tuist.TestsTest do
       matching_tcr =
         Tuist.ClickHouseRepo.one!(
           from(tcr in TestCaseRun,
-            where: tcr.git_commit_sha == "abc123" and tcr.is_flaky == true,
+            where: tcr.test_run_id == ^matching_run.id and tcr.is_flaky == true,
             limit: 1
           )
         )
@@ -4304,7 +4305,7 @@ defmodule Tuist.TestsTest do
       result = Tests.get_flaky_run_group_for_test_case_run(matching_tcr)
 
       assert result
-      assert result.git_commit_sha == "abc123"
+      assert result.git_commit_sha == unique_commit
       assert length(result.runs) == 1
     end
 

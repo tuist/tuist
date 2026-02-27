@@ -84,7 +84,6 @@
         gap: var(--noora-spacing-3);
       }
     }
-
   }
 
   & > [data-part="overview"] {
@@ -234,7 +233,7 @@
               0px 60px 16.667px 0px oklch(0% 0 0 / 0),
               0px 38.333px 15.833px 0px oklch(0% 0 0 / 0.01),
               0px 21.667px 13.333px 0px oklch(0% 0 0 / 0.05),
-              0px 10px 10.0px 0px oklch(0% 0 0 / 0.09),
+              0px 10px 10px 0px oklch(0% 0 0 / 0.09),
               0px 2.5px 5px 0px oklch(0% 0 0 / 0.1),
               0px 0px 0px 0.833px oklch(31.6% 0.01 260.7 / 0.9) inset;
           }
@@ -252,8 +251,8 @@
       & [data-part="crash-report-header"] {
         display: flex;
         flex-direction: row;
-        align-items: center;
         justify-content: flex-end;
+        align-items: center;
       }
 
       & [data-part="crash-report-metadata"] {
@@ -295,14 +294,14 @@
           white-space: nowrap;
 
           & [data-part="frame-index"] {
-            color: var(--noora-surface-label-secondary);
             min-width: 24px;
+            color: var(--noora-surface-label-secondary);
             text-align: right;
           }
 
           & [data-part="frame-image"] {
-            color: var(--noora-surface-label-secondary);
             min-width: 200px;
+            color: var(--noora-surface-label-secondary);
           }
 
           & [data-part="frame-symbol"] {
