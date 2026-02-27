@@ -502,7 +502,7 @@
         row_navigate={
           fn test_case_run ->
             url(
-              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case_run.test_run_id}"
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}"
             )
           end
         }

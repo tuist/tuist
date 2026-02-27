@@ -43,6 +43,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
                     path: project.path,
                     name: target.name
                 )
+                .sorted()
                 .compactMap { dependency -> GraphDependency.XCFramework? in
                     switch dependency {
                     case let .xcframework(xcframework):
@@ -209,7 +210,7 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             guard let dependencies = graph.dependencies[.target(name: target.target.name, path: target.path)] else { continue }
             let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
             settings[targetDependency] = try await targetSettings(target)
-            for dependency in dependencies {
+            for dependency in dependencies.sorted() {
                 var dependencySettings = settings[dependency] ?? [:]
 
                 if case let GraphDependency.target(_, dependencyPath, _) = dependency,

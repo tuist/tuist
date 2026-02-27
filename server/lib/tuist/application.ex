@@ -92,7 +92,14 @@ defmodule Tuist.Application do
           env: {:static, to_string(Environment.env())},
           level: :level
         },
-        structured_metadata: [:trace_id, :span_id, :request_id]
+        structured_metadata: [
+          :trace_id,
+          :span_id,
+          :request_id,
+          :auth_account_handle,
+          :selected_account_handle,
+          :selected_project_handle
+        ]
       )
     end
   end

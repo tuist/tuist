@@ -37,6 +37,7 @@
 @import "./pages/test_run.css";
 @import "./pages/test_cases.css";
 @import "./pages/test_case.css";
+@import "./pages/test_case_run.css";
 @import "./pages/flaky_tests.css";
 @import "./pages/quarantined_tests.css";
 @import "./pages/sso_settings.css";

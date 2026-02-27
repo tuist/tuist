@@ -1,0 +1,16 @@
+[[tools.node]]
+version = "20.12.0"
+backend = "core:node"
+"platforms.linux-arm64" = { checksum = "sha256:8e180526df8ad4086a4df7bfaaa14d21eb2a6cf58b1c5493c639022c165c2884", url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-linux-arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:b6b998947595c9550d6b89c815a68d608f5920275f1b48812f89792de3fdd893", url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-linux-x64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:422a74b7ede14b697a8c2ca887ea161fe79898a35f163fdfb98435c5ab25027b", url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-darwin-arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:5c7d71a1c1cf613037432e0b6c3d913d96604d9293b3397ec70b344730c81daf", url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-darwin-x64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:85db3df652459e380edbbc57973c00c1e15626d354a9ae6ddfc45d27cc573584", url = "https://nodejs.org/dist/v20.12.0/node-v20.12.0-win-x64.zip"}
+
+[[tools."npm:wrangler"]]
+version = "4.30.0"
+backend = "npm:wrangler"
+
+[[tools.pnpm]]
+version = "10.17.1"
+backend = "aqua:pnpm/pnpm"
