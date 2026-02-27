@@ -111,7 +111,7 @@ We plan to consolidate the models of `ProjectAutomation` and `XcodeGraph` into a
 
 ## Using plugins {#using-plugins}
 
-To use a plugin, you'll have to add it to your project's <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> manifest file:
+To use a plugin, you'll have to add it to your project's [`Tuist.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) manifest file:
 
 ```swift
 import ProjectDescription

@@ -1,5 +1,5 @@
 {
-  "originHash" : "5d75c916805f1901624d929c035fcf87235194ee02d6bb47987d1f6cf41644ce",
+  "originHash" : "43e3ce5c6c169d0d76cda58af43ce52a0cc6fc987e6ec2cc268c2aacd940876f",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -166,7 +166,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.35.1"
+        "version" : "1.32.0"
       }
     },
     {
@@ -415,7 +415,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.2.46"
+        "version" : "0.2.45"
       }
     },
     {
@@ -539,6 +539,22 @@
       }
     },
     {
+      "identity" : "swiftlang.swift-docc-plugin",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.4.6"
+      }
+    },
+    {
+      "identity" : "swiftlang.swift-docc-symbolkit",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.0.0"
+      }
+    },
+    {
       "identity" : "swiftlang.swift-syntax",
       "kind" : "registry",
       "location" : "",
@@ -583,7 +599,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.14.0"
+        "version" : "0.13.0"
       }
     },
     {
@@ -591,7 +607,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.15.3"
+        "version" : "0.14.38"
       }
     },
     {
@@ -623,7 +639,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.7.22"
+        "version" : "0.7.0"
       }
     },
     {
