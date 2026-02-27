@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-23 16:46+0000\n"
+"PO-Revision-Date: 2026-02-27 15:28+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -860,14 +860,17 @@ msgstr "Zestaw testów"
 msgid "Scheme:"
 msgstr "Schemat:"
 
+#, fuzzy
 msgid "Run Details"
-msgstr ""
+msgstr "Szczegóły zadania"
 
+#, fuzzy
 msgid "Test case run not found."
-msgstr ""
+msgstr "Nie znaleziono przypadku testowego."
 
+#, fuzzy
 msgid "Test Case: %{name}"
-msgstr ""
+msgstr "Przykład testowy: %{name}"
 
 #, fuzzy
 #~ msgid "Test suite"
