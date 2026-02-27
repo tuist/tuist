@@ -76,14 +76,11 @@ defmodule TuistWeb.GradleOverviewLive do
       end_datetime: end_datetime
     ]
 
-    opts =
-      case environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
-    opts
+    case environment do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
+    end
   end
 
   defp fetch_test_runs_data(project_id) do
