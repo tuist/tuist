@@ -236,6 +236,66 @@ defmodule Tuist.AlertsTest do
       assert data.previous == 1000.0
     end
 
+    test "filters to local builds only when environment is local" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" local builds with high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1500,
+            is_ci: false,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" local builds with normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create CI builds with very short duration (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 100,
+            is_ci: true,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :average,
+          deviation_percentage: 20.0,
+          rolling_window_size: 5,
+          environment: "local"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only local builds are considered, CI builds with duration 100 are ignored
+      assert {:triggered, data} = result
+      assert data.current == 1500.0
+      assert data.previous == 1000.0
+    end
+
     test "includes all builds when environment is any" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -421,6 +481,66 @@ defmodule Tuist.AlertsTest do
       assert data.current == 2300.0
       assert data.previous == 2000.0
     end
+
+    test "filters to local tests only when environment is local" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" local tests with high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 2300,
+            is_ci: false,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # Create 5 "previous" local tests with normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 2000,
+            is_ci: false,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # Create CI tests with very short duration (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 100,
+            is_ci: true,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          environment: "local"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only local tests are considered, CI tests with duration 100 are ignored
+      assert {:triggered, data} = result
+      assert data.current == 2300.0
+      assert data.previous == 2000.0
+    end
   end
 
   describe "evaluate/1 for cache_hit_rate" do
@@ -590,6 +710,75 @@ defmodule Tuist.AlertsTest do
       result = Alerts.evaluate(alert_rule)
 
       # Then - only CI builds are considered; local builds with 100% hit rate are ignored
+      assert {:triggered, data} = result
+      assert data.current == 0.7
+      assert data.previous == 0.8
+    end
+
+    test "filters to local builds only when environment is local" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" local builds with 70% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 50,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" local builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create CI builds with 100% cache hit rate (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: true,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 100,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          environment: "local"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only local builds are considered; CI builds with 100% hit rate are ignored
       assert {:triggered, data} = result
       assert data.current == 0.7
       assert data.previous == 0.8
