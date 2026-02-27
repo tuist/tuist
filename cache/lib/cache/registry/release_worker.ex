@@ -86,11 +86,7 @@ defmodule Cache.Registry.ReleaseWorker do
       end
     else
       with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
-        if archive_has_symlinks?(archive_path) do
-          resolve_symlinks_in_archive(tmp_dir, archive_path)
-        else
-          :ok
-        end
+        resolve_symlinks_in_archive(tmp_dir, archive_path)
       end
     end
   end
@@ -206,46 +202,136 @@ defmodule Cache.Registry.ReleaseWorker do
     if File.exists?(gitmodules_path), do: File.rm(gitmodules_path)
   end
 
-  defp zip_directory(directory, archive_path) do
+  @doc false
+  def zip_directory(directory, archive_path) do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
-      {_, 0} -> :ok
-      {output, status} -> {:error, {:zip_failed, status, output}}
+    with :ok <- ensure_symlinks_within_root(directory) do
+      case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
+        {_, 0} -> :ok
+        {output, status} -> {:error, {:zip_failed, status, output}}
+      end
     end
   end
 
   defp resolve_symlinks_in_archive(tmp_dir, archive_path) do
     extract_dir = Path.join(tmp_dir, "extract")
-    File.mkdir_p!(extract_dir)
     Logger.info("Resolving symlinks in source archive at #{archive_path}")
 
-    case System.cmd("unzip", [archive_path, "-d", extract_dir], stderr_to_stdout: true) do
-      {_, 0} ->
-        [top_level] = File.ls!(extract_dir)
-        File.rm!(archive_path)
-
-        case System.cmd("zip", ["-r", archive_path, top_level], cd: extract_dir, stderr_to_stdout: true) do
-          {_, 0} -> :ok
-          {output, status} -> {:error, {:zip_resolve_symlinks_failed, status, output}}
-        end
-
-      {output, status} ->
-        {:error, {:unzip_resolve_symlinks_failed, status, output}}
+    with :ok <- ensure_extract_directory(extract_dir),
+         :ok <- unzip_archive(archive_path, extract_dir),
+         {:ok, top_level_directory} <- extract_single_top_level_directory(extract_dir),
+         :ok <- remove_archive(archive_path) do
+      zip_directory(top_level_directory, archive_path)
     end
   end
 
-  defp archive_has_symlinks?(archive_path) do
-    case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
-      {output, 0} ->
-        output
-        |> String.split("\n")
-        |> Enum.any?(&String.starts_with?(&1, "l"))
-
-      _ ->
-        false
+  defp ensure_extract_directory(extract_dir) do
+    case File.mkdir_p(extract_dir) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:create_extract_directory_failed, reason}}
     end
+  end
+
+  defp unzip_archive(archive_path, extract_dir) do
+    case System.cmd("unzip", [archive_path, "-d", extract_dir], stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      {output, status} -> {:error, {:unzip_resolve_symlinks_failed, status, output}}
+    end
+  end
+
+  defp extract_single_top_level_directory(extract_dir) do
+    case File.ls(extract_dir) do
+      {:ok, [top_level]} ->
+        top_level_directory = Path.join(extract_dir, top_level)
+
+        case File.lstat(top_level_directory) do
+          {:ok, %File.Stat{type: :directory}} -> {:ok, top_level_directory}
+          {:ok, _} -> {:error, {:invalid_archive_layout, :top_level_not_directory, top_level}}
+          {:error, reason} -> {:error, {:lstat_top_level_directory_failed, reason}}
+        end
+
+      {:ok, entries} ->
+        {:error, {:invalid_archive_layout, :expected_single_top_level, entries}}
+
+      {:error, reason} ->
+        {:error, {:list_extract_directory_failed, reason}}
+    end
+  end
+
+  defp remove_archive(archive_path) do
+    case File.rm(archive_path) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:remove_original_archive_failed, reason}}
+    end
+  end
+
+  defp ensure_symlinks_within_root(root_directory) do
+    expanded_root_directory = Path.expand(root_directory)
+    validate_symlinks_within_root([expanded_root_directory], expanded_root_directory)
+  end
+
+  defp validate_symlinks_within_root([], _root_directory), do: :ok
+
+  defp validate_symlinks_within_root([path | rest], root_directory) do
+    case File.lstat(path) do
+      {:ok, stat} ->
+        validate_symlink_path(stat, path, rest, root_directory)
+
+      {:error, reason} ->
+        {:error, {:path_lstat_failed, path, reason}}
+    end
+  end
+
+  defp validate_symlink_path(%File.Stat{type: :symlink}, path, rest, root_directory) do
+    with {:ok, target} <- File.read_link(path),
+         :ok <- ensure_symlink_target_within_root(path, target, root_directory) do
+      validate_symlinks_within_root(rest, root_directory)
+    else
+      {:error, reason} -> {:error, {:symlink_read_failed, path, reason}}
+      {:symlink_outside_root, target} -> {:error, {:symlink_points_outside_root, path, target}}
+    end
+  end
+
+  defp validate_symlink_path(%File.Stat{type: :directory}, path, rest, root_directory) do
+    case File.ls(path) do
+      {:ok, entries} ->
+        next_paths = Enum.map(entries, &Path.join(path, &1))
+        validate_symlinks_within_root(next_paths ++ rest, root_directory)
+
+      {:error, reason} ->
+        {:error, {:directory_list_failed, path, reason}}
+    end
+  end
+
+  defp validate_symlink_path(_stat, _path, rest, root_directory) do
+    validate_symlinks_within_root(rest, root_directory)
+  end
+
+  defp ensure_symlink_target_within_root(path, target, root_directory) do
+    resolved_target = resolve_symlink_target(path, target)
+
+    if path_within_root?(resolved_target, root_directory) do
+      :ok
+    else
+      {:symlink_outside_root, target}
+    end
+  end
+
+  defp resolve_symlink_target(link_path, target) do
+    if Path.type(target) == :absolute do
+      Path.expand(target)
+    else
+      link_path
+      |> Path.dirname()
+      |> Path.join(target)
+      |> Path.expand()
+    end
+  end
+
+  defp path_within_root?(path, root_directory) do
+    path == root_directory or String.starts_with?(path, root_directory <> "/")
   end
 
   defp upload_source_archive(scope, name, version, archive_path) do

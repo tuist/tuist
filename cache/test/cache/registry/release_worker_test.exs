@@ -256,6 +256,35 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   end
 
   describe "symlink resolution" do
+    test "zip_directory resolves symlinks for clone+zip path" do
+      root = Briefly.create!(directory: true)
+      source_dir = Path.join(root, "repo")
+      archive_path = Path.join(root, "source_archive.zip")
+
+      File.mkdir_p!(source_dir)
+      File.write!(Path.join(source_dir, "target.md"), "content")
+      File.ln_s!("target.md", Path.join(source_dir, "link.md"))
+
+      assert :ok = ReleaseWorker.zip_directory(source_dir, archive_path)
+
+      {output, 0} = System.cmd("unzip", ["-Z", archive_path])
+      refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
+    end
+
+    test "zip_directory rejects symlinks that point outside root" do
+      root = Briefly.create!(directory: true)
+      source_dir = Path.join(root, "repo")
+      outside_path = Path.join(root, "outside.txt")
+      archive_path = Path.join(root, "source_archive.zip")
+
+      File.mkdir_p!(source_dir)
+      File.write!(outside_path, "secret")
+      File.ln_s!("../outside.txt", Path.join(source_dir, "escaped.md"))
+
+      assert {:error, {:symlink_points_outside_root, _path, "../outside.txt"}} =
+               ReleaseWorker.zip_directory(source_dir, archive_path)
+    end
+
     test "resolves symlinks in downloaded zipball" do
       manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
       test_pid = self()
@@ -598,6 +627,92 @@ defmodule Cache.Registry.ReleaseWorkerTest do
                    "tag" => "v1.0.0"
                  }
                })
+    end
+
+    test "fails closed when downloaded archive is not a valid zip" do
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       ".gitmodules",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        File.write!(archive_path, "not-a-zip")
+        :ok
+      end)
+
+      assert {:error, {:unzip_resolve_symlinks_failed, _status, _output}} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+    end
+
+    test "returns tagged error for archive with multiple top-level entries" do
+      manifest_content = "// swift-tools-version:5.9\nimport PackageDescription"
+
+      expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+      end)
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       ".gitmodules",
+                                                       "v1.0.0",
+                                                       _ ->
+        {:error, :not_found}
+      end)
+
+      expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                       "token",
+                                                       "v1.0.0",
+                                                       archive_path,
+                                                       _ ->
+        tmp = Path.join(Path.dirname(archive_path), "zipball_content")
+        first_dir = Path.join(tmp, "repo-v1.0.0")
+        second_dir = Path.join(tmp, "repo-v1.0.1")
+        File.mkdir_p!(first_dir)
+        File.mkdir_p!(second_dir)
+        File.write!(Path.join(first_dir, "Package.swift"), manifest_content)
+        File.write!(Path.join(second_dir, "Package.swift"), manifest_content)
+        {_, 0} = System.cmd("zip", ["-r", archive_path, "repo-v1.0.0", "repo-v1.0.1"], cd: tmp)
+        File.rm_rf!(tmp)
+        :ok
+      end)
+
+      assert {:error, {:invalid_archive_layout, :expected_single_top_level, entries}} =
+               ReleaseWorker.perform(%Oban.Job{
+                 args: %{
+                   "scope" => "apple",
+                   "name" => "swift-argument-parser",
+                   "repository_full_handle" => "apple/swift-argument-parser",
+                   "tag" => "v1.0.0"
+                 }
+               })
+
+      assert Enum.sort(entries) == ["repo-v1.0.0", "repo-v1.0.1"]
     end
   end
 end
