@@ -221,4 +221,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
-          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-project-description .build/documentation
+          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription .build/documentation
