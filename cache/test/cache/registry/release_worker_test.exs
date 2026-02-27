@@ -3,6 +3,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   use Oban.Testing, repo: Cache.Repo
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Cache.Config
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
@@ -655,15 +657,17 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         :ok
       end)
 
-      assert {:error, {:unzip_resolve_symlinks_failed, _status, _output}} =
-               ReleaseWorker.perform(%Oban.Job{
-                 args: %{
-                   "scope" => "apple",
-                   "name" => "swift-argument-parser",
-                   "repository_full_handle" => "apple/swift-argument-parser",
-                   "tag" => "v1.0.0"
-                 }
-               })
+      capture_log(fn ->
+        assert {:error, {:unzip_resolve_symlinks_failed, _status, _output}} =
+                 ReleaseWorker.perform(%Oban.Job{
+                   args: %{
+                     "scope" => "apple",
+                     "name" => "swift-argument-parser",
+                     "repository_full_handle" => "apple/swift-argument-parser",
+                     "tag" => "v1.0.0"
+                   }
+                 })
+      end)
     end
 
     test "returns tagged error for archive with multiple top-level entries" do
@@ -702,17 +706,19 @@ defmodule Cache.Registry.ReleaseWorkerTest do
         :ok
       end)
 
-      assert {:error, {:invalid_archive_layout, :expected_single_top_level, entries}} =
-               ReleaseWorker.perform(%Oban.Job{
-                 args: %{
-                   "scope" => "apple",
-                   "name" => "swift-argument-parser",
-                   "repository_full_handle" => "apple/swift-argument-parser",
-                   "tag" => "v1.0.0"
-                 }
-               })
+      capture_log(fn ->
+        assert {:error, {:invalid_archive_layout, :expected_single_top_level, entries}} =
+                 ReleaseWorker.perform(%Oban.Job{
+                   args: %{
+                     "scope" => "apple",
+                     "name" => "swift-argument-parser",
+                     "repository_full_handle" => "apple/swift-argument-parser",
+                     "tag" => "v1.0.0"
+                   }
+                 })
 
-      assert Enum.sort(entries) == ["repo-v1.0.0", "repo-v1.0.1"]
+        assert Enum.sort(entries) == ["repo-v1.0.0", "repo-v1.0.1"]
+      end)
     end
   end
 end
