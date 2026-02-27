@@ -1365,7 +1365,7 @@ defmodule Tuist.Tests do
       |> Enum.map(fn run ->
         run
         |> Map.from_struct()
-        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions, :crash_report])
+        |> Map.drop([:__meta__, :ran_by_account, :failures, :repetitions, :crash_report, :attachments])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 

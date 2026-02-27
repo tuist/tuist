@@ -608,7 +608,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [:desc]
     }
 
-    Tests.list_test_case_runs(attrs, preload: [:failures, crash_report: :test_case_run_attachment])
+    Tests.list_test_case_runs(attrs, preload: [:failures, :attachments, crash_report: :test_case_run_attachment])
   end
 
   defp assign_failures_data(socket, failed_test_case_runs, meta, params) do
@@ -979,5 +979,25 @@ defmodule TuistWeb.TestRunLive do
       end
     end)
     |> Filter.Operations.convert_filters_to_flop()
+  end
+
+  defp attachment_type(file_name) do
+    ext = file_name |> String.downcase() |> Path.extname()
+
+    cond do
+      ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"] -> :image
+      ext in [".txt", ".log", ".json", ".xml", ".csv"] -> :text
+      true -> :file
+    end
+  end
+
+  defp non_crash_attachments(test_case_run) do
+    crash_attachment_id =
+      case test_case_run.crash_report do
+        %{test_case_run_attachment: %{id: id}} -> id
+        _ -> nil
+      end
+
+    Enum.reject(test_case_run.attachments, &(&1.id == crash_attachment_id))
   end
 end

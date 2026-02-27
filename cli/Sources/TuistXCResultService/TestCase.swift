@@ -9,6 +9,7 @@ public struct TestCase {
     public let failures: [TestCaseFailure]
     public let repetitions: [TestCaseRepetition]
     public var crashReport: CrashReport?
+    public var attachments: [TestAttachment]
 
     public init(
         name: String,
@@ -18,7 +19,8 @@ public struct TestCase {
         status: TestStatus,
         failures: [TestCaseFailure],
         repetitions: [TestCaseRepetition] = [],
-        crashReport: CrashReport? = nil
+        crashReport: CrashReport? = nil,
+        attachments: [TestAttachment] = []
     ) {
         self.name = name
         self.testSuite = testSuite
@@ -28,5 +30,6 @@ public struct TestCase {
         self.failures = failures
         self.repetitions = repetitions
         self.crashReport = crashReport
+        self.attachments = attachments
     }
 }

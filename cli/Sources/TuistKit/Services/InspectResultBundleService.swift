@@ -138,9 +138,8 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         let testCaseRunIdsByIdentity = testCaseRunIdsByIdentity(testCaseRuns: test.test_case_runs)
 
         await testSummary.testCases.forEach(context: .concurrent) { testCase in
-            await uploadCrashReport(
+            await uploadAttachments(
                 for: testCase,
-                testRunId: test.id,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 testCaseRunIdsByIdentity: testCaseRunIdsByIdentity
@@ -152,14 +151,13 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         return test
     }
 
-    private func uploadCrashReport(
+    private func uploadAttachments(
         for testCase: TestCase,
-        testRunId _: String,
         fullHandle: String,
         serverURL: URL,
         testCaseRunIdsByIdentity: [String: String]
     ) async {
-        guard let crashReport = testCase.crashReport else { return }
+        guard !testCase.attachments.isEmpty else { return }
 
         let identityKey = testCaseRunIdentityKey(
             moduleName: testCase.module ?? "",
@@ -168,27 +166,31 @@ struct InspectResultBundleService: InspectResultBundleServicing {
         )
         guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
 
-        let fileName = crashReport.filePath.basename
-
-        do {
-            let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                testCaseRunId: testCaseRunId,
-                fileName: fileName,
-                filePath: crashReport.filePath
-            )
-            try await createCrashReportService.createCrashReport(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                crashReport: crashReport,
-                testCaseRunId: testCaseRunId,
-                testCaseRunAttachmentId: testCaseRunAttachmentId
-            )
-            try await fileSystem.remove(crashReport.filePath)
-        } catch {
-            Logger.current
-                .warning("Failed to upload crash report for \(fileName): \(error.localizedDescription)")
+        for attachment in testCase.attachments {
+            do {
+                let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testCaseRunId: testCaseRunId,
+                    fileName: attachment.fileName,
+                    filePath: attachment.filePath
+                )
+                if let crashReport = testCase.crashReport,
+                   crashReport.filePath == attachment.filePath
+                {
+                    try await createCrashReportService.createCrashReport(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        crashReport: crashReport,
+                        testCaseRunId: testCaseRunId,
+                        testCaseRunAttachmentId: testCaseRunAttachmentId
+                    )
+                }
+                try await fileSystem.remove(attachment.filePath)
+            } catch {
+                Logger.current
+                    .warning("Failed to upload attachment \(attachment.fileName): \(error.localizedDescription)")
+            }
         }
     }
 

@@ -458,6 +458,37 @@
                     </div>
                   </div>
                 </div>
+                <div
+                  :if={Enum.any?(non_crash_attachments(test_case_run))}
+                  data-part="attachments-section"
+                >
+                  <span data-part="attachments-title">
+                    {dgettext("dashboard_tests", "Attachments")}
+                  </span>
+                  <div
+                    :for={attachment <- non_crash_attachments(test_case_run)}
+                    data-part="attachment-item"
+                  >
+                    <img
+                      :if={attachment_type(attachment.file_name) == :image}
+                      src={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                      }
+                      data-part="attachment-image"
+                      loading="lazy"
+                    />
+                    <.neutral_button
+                      href={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                      }
+                      target="_blank"
+                      size="small"
+                    >
+                      <.download />
+                      <span>{attachment.file_name}</span>
+                    </.neutral_button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1553,6 +1584,37 @@
                     <span :if={image_name} data-part="frame-image">{image_name}</span>
                     <span data-part="frame-symbol">{symbol}</span>
                   </div>
+                </div>
+              </div>
+              <div
+                :if={Enum.any?(non_crash_attachments(test_case_run))}
+                data-part="attachments-section"
+              >
+                <span data-part="attachments-title">
+                  {dgettext("dashboard_tests", "Attachments")}
+                </span>
+                <div
+                  :for={attachment <- non_crash_attachments(test_case_run)}
+                  data-part="attachment-item"
+                >
+                  <img
+                    :if={attachment_type(attachment.file_name) == :image}
+                    src={
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                    }
+                    data-part="attachment-image"
+                    loading="lazy"
+                  />
+                  <.neutral_button
+                    href={
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                    }
+                    target="_blank"
+                    size="small"
+                  >
+                    <.download />
+                    <span>{attachment.file_name}</span>
+                  </.neutral_button>
                 </div>
               </div>
             </div>
