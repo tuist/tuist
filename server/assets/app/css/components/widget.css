@@ -182,15 +182,15 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
   }
-
+}
 
 .tuist-loading-skeleton {
-  background-color: var(--noora-surface-background-secondary);
-  border-radius: var(--noora-radius-small);
-  color: transparent !important;
-  min-width: 80px;
   display: inline-block;
   animation: tuist-widget-loading-pulse 1.5s ease-in-out infinite;
+  border-radius: var(--noora-radius-small);
+  background-color: var(--noora-surface-background-secondary);
+  min-width: 80px;
+  color: transparent !important;
 }
 
 .tuist-loading-skeleton--small {
