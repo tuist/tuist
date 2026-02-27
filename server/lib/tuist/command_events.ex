@@ -957,5 +957,7 @@ defmodule Tuist.CommandEvents do
   defp sort_optimized_table(%{order_by: [field | _]}) when field in [:hit_rate, "hit_rate"],
     do: "command_events_by_hit_rate"
 
+  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:ran_at, "ran_at"], do: "command_events_by_ran_at"
+
   defp sort_optimized_table(_), do: nil
 end

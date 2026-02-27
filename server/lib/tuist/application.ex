@@ -120,6 +120,8 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
+        Hermes.Server.Registry,
+        {Tuist.MCP.Server, transport: {:streamable_http, start: true}},
         TuistWeb.Telemetry,
         TuistWeb.Endpoint
       ]

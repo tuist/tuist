@@ -102,6 +102,35 @@ defmodule TuistWeb.PreviewLiveTest do
     assert has_element?(lv, "#preview-run-button span", "Run")
   end
 
+  test "it shows run button for android preview on macOS", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:android])
+
+    app_build =
+      AppBuildsFixtures.app_build_fixture(
+        preview: preview,
+        type: :apk,
+        supported_platforms: [:android]
+      )
+
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    stub(UAParser, :parse, fn _ ->
+      %UAParser.UA{os: %UAParser.OperatingSystem{family: "macOS"}}
+    end)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "#preview-run-button span", "Run")
+  end
+
   test "it requires authenticated user when the preview is :app_bundle", %{
     conn: conn,
     organization: organization,

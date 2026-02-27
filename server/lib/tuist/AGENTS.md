@@ -33,6 +33,7 @@ This directory contains the core business logic and domain modules for the serve
 - Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
 - Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
 - Marketing: `server/lib/tuist/marketing/AGENTS.md`
+- MCP: `server/lib/tuist/mcp/AGENTS.md`
 - Namespace: `server/lib/tuist/namespace/AGENTS.md`
 - Oauth: `server/lib/tuist/oauth/AGENTS.md`
 - Ops: `server/lib/tuist/ops/AGENTS.md`
