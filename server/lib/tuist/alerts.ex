@@ -125,15 +125,15 @@ defmodule Tuist.Alerts do
   end
 
   def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
-    current_opts =
-      [limit: alert_rule.rolling_window_size, offset: 0]
-      |> maybe_add_environment(alert_rule.environment)
+    current_opts = maybe_add_environment([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.environment)
 
     current = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, current_opts)
 
     previous_opts =
-      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
-      |> maybe_add_environment(alert_rule.environment)
+      maybe_add_environment(
+        [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size],
+        alert_rule.environment
+      )
 
     previous = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
