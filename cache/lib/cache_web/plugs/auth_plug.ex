@@ -40,8 +40,6 @@ defmodule CacheWeb.Plugs.AuthPlug do
     {account, project}
   end
 
-  defp extract_handles(%{"account_handle" => account}), do: {account, nil}
-  defp extract_handles(%{"project_handle" => project}), do: {nil, project}
   defp extract_handles(_), do: {nil, nil}
 
   defp set_auth_observability_context(account_handle) do

@@ -32,24 +32,6 @@ defmodule CacheWeb.Plugs.ObservabilityContextPlugTest do
       assert_receive {:trace_attribute, "selected_project_handle", "app"}
     end
 
-    test "sets only selected account context when only account handle is present" do
-      expect(OpenTelemetry.Tracer, :set_attribute, fn "selected_account_handle", value ->
-        assert value == "tuist"
-        :ok
-      end)
-
-      conn =
-        :get
-        |> conn("/api/cache/cas/some-hash?account_handle=tuist")
-        |> fetch_query_params()
-
-      result = ObservabilityContextPlug.call(conn, ObservabilityContextPlug.init([]))
-
-      assert result
-      assert Logger.metadata()[:selected_account_handle] == "tuist"
-      refute Keyword.has_key?(Logger.metadata(), :selected_project_handle)
-    end
-
     test "does not set selected context when handles are missing" do
       reject(&OpenTelemetry.Tracer.set_attribute/2)
 

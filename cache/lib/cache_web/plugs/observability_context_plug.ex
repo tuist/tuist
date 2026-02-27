@@ -17,25 +17,17 @@ defmodule CacheWeb.Plugs.ObservabilityContextPlug do
     {account, project}
   end
 
-  defp extract_handles(%{"account_handle" => account}), do: {account, nil}
-  defp extract_handles(%{"project_handle" => project}), do: {nil, project}
   defp extract_handles(_), do: {nil, nil}
 
   defp set_context(account_handle, project_handle)
        when is_binary(account_handle) and is_binary(project_handle) and account_handle != "" and project_handle != "" do
-    context = %{
+    Logger.metadata(
       selected_account_handle: account_handle,
       selected_project_handle: project_handle
-    }
+    )
 
-    Logger.metadata(context)
     OpenTelemetry.Tracer.set_attribute("selected_account_handle", account_handle)
     OpenTelemetry.Tracer.set_attribute("selected_project_handle", project_handle)
-  end
-
-  defp set_context(account_handle, _project_handle) when is_binary(account_handle) and account_handle != "" do
-    Logger.metadata(selected_account_handle: account_handle)
-    OpenTelemetry.Tracer.set_attribute("selected_account_handle", account_handle)
   end
 
   defp set_context(_, _), do: :ok
