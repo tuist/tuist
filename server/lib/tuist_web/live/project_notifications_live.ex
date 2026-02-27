@@ -632,28 +632,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
         unit = alert_unit_label(category)
         scheme = Keyword.get(opts, :scheme, "")
         environment = Keyword.get(opts, :environment, "any")
-
-        current_unit =
-          cond do
-            scheme != "" && environment not in ["any", nil] ->
-              dgettext("dashboard_projects", "%{scheme} %{environment} %{unit}",
-                scheme: scheme,
-                environment: environment_inline_label(environment),
-                unit: unit
-              )
-
-            scheme != "" ->
-              dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
-
-            environment not in ["any", nil] ->
-              dgettext("dashboard_projects", "%{environment} %{unit}",
-                environment: environment_inline_label(environment),
-                unit: unit
-              )
-
-            true ->
-              unit
-          end
+        current_unit = qualified_unit_label(scheme, environment, unit)
 
         text =
           case category do
@@ -681,6 +660,29 @@ defmodule TuistWeb.ProjectNotificationsLive do
           end
 
         raw(text)
+    end
+  end
+
+  defp qualified_unit_label(scheme, environment, unit) do
+    cond do
+      scheme != "" && environment not in ["any", nil] ->
+        dgettext("dashboard_projects", "%{scheme} %{environment} %{unit}",
+          scheme: scheme,
+          environment: environment_inline_label(environment),
+          unit: unit
+        )
+
+      scheme != "" ->
+        dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
+
+      environment not in ["any", nil] ->
+        dgettext("dashboard_projects", "%{environment} %{unit}",
+          environment: environment_inline_label(environment),
+          unit: unit
+        )
+
+      true ->
+        unit
     end
   end
 
