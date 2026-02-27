@@ -564,13 +564,12 @@
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
       </span>
       <div data-part="apps">
-        <div
+        <.skeleton_box
           :for={_ <- 1..3}
-          class="tuist-loading-skeleton"
-          style="width: 64px; height: 64px; border-radius: var(--noora-radius-large)"
-        >
-          &nbsp;
-        </div>
+          width="64px"
+          height="64px"
+          border_radius="var(--noora-radius-large)"
+        />
       </div>
     </.card_section>
     <.card_section
@@ -668,7 +667,7 @@
       <span data-part="legend" class="tuist-loading-skeleton">
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
       </span>
-      <div class="noora-chart tuist-loading-skeleton">&nbsp;</div>
+      <.skeleton_chart />
     </.card_section>
     <.card_section
       :if={
