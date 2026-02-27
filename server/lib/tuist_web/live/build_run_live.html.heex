@@ -675,7 +675,7 @@
           />
           <div :if={Enum.empty?(@warnings_grouped_by_path)} data-part="empty-state">
             <div data-part="empty-state-background">
-              <TuistWeb.Components.EmptyTabStateBackground.empty_tab_state_background />
+              <.empty_tab_state_background />
             </div>
             <div data-part="image">
               <img src="/images/empty_warnings_light.png" data-theme="light" />
@@ -718,7 +718,7 @@
           </div>
           <div :if={Enum.empty?(@errors_grouped_by_path)} data-part="empty-state">
             <div data-part="empty-state-background">
-              <TuistWeb.Components.EmptyTabStateBackground.empty_tab_state_background />
+              <.empty_tab_state_background />
             </div>
             <div data-part="image">
               <img src="/images/empty_errors_light.png" data-theme="light" />
