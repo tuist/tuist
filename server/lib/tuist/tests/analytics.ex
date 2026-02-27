@@ -967,6 +967,7 @@ defmodule Tuist.Tests.Analytics do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
     scheme = Keyword.get(opts, :scheme)
+    is_ci = Keyword.get(opts, :is_ci)
 
     query =
       from(t in Test,
@@ -982,6 +983,13 @@ defmodule Tuist.Tests.Analytics do
         where(query, [t], t.scheme == ^scheme)
       else
         query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
       end
 
     durations = ClickHouseRepo.all(query)
