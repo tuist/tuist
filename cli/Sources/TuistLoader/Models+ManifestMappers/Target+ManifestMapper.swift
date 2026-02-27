@@ -142,8 +142,7 @@ extension XcodeGraph.Target {
             try await XcodeGraph.BuildableFolder.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
-                targetName: name,
-                fileSystem: fileSystem
+                targetName: name
             )
         }
 
