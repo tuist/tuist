@@ -85,7 +85,13 @@ defmodule Cache.Registry.ReleaseWorker do
         zip_directory(source_directory, archive_path)
       end
     else
-      TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts)
+      with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
+        if archive_has_symlinks?(archive_path) do
+          resolve_symlinks_in_archive(tmp_dir, archive_path)
+        else
+          :ok
+        end
+      end
     end
   end
 
@@ -204,9 +210,41 @@ defmodule Cache.Registry.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    case System.cmd("zip", ["--symlinks", "-r", archive_path, base_name], cd: parent_dir) do
+    case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
       {_, 0} -> :ok
       {output, status} -> {:error, {:zip_failed, status, output}}
+    end
+  end
+
+  defp resolve_symlinks_in_archive(tmp_dir, archive_path) do
+    extract_dir = Path.join(tmp_dir, "extract")
+    File.mkdir_p!(extract_dir)
+    Logger.info("Resolving symlinks in source archive at #{archive_path}")
+
+    case System.cmd("unzip", [archive_path, "-d", extract_dir], stderr_to_stdout: true) do
+      {_, 0} ->
+        [top_level] = File.ls!(extract_dir)
+        File.rm!(archive_path)
+
+        case System.cmd("zip", ["-r", archive_path, top_level], cd: extract_dir, stderr_to_stdout: true) do
+          {_, 0} -> :ok
+          {output, status} -> {:error, {:zip_resolve_symlinks_failed, status, output}}
+        end
+
+      {output, status} ->
+        {:error, {:unzip_resolve_symlinks_failed, status, output}}
+    end
+  end
+
+  defp archive_has_symlinks?(archive_path) do
+    case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
+      {output, 0} ->
+        output
+        |> String.split("\n")
+        |> Enum.any?(&String.starts_with?(&1, "l"))
+
+      _ ->
+        false
     end
   end
 
