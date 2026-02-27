@@ -715,8 +715,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
-"{current_unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
+"%{current_unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
 "strong> と比較して<strong>%{deviation}%</strong> 減少した場合にアラートを通知"
 "する。"
 
@@ -727,8 +727,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
-"{current_unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
+"%{current_unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</"
 "strong> と比較して<strong>%{deviation}%</strong> 増加した場合にアラートを通知"
 "する。"
 
@@ -740,8 +740,8 @@ msgid ""
 "previous bundle."
 msgstr ""
 "<strong>%{size_label}</strong> の最新<strong>%{bundle_name}</strong> バンドル"
-"が、ブランチ<strong>%{git_branch}</strong> 上で、前回のバンドルと比較し"
-"て<strong>%{deviation}%</strong> 増加したことを警告します。"
+"が、ブランチ<strong>%{git_branch}</strong> 上で、前回のバンドルと比較して"
+"<strong>%{deviation}%</strong> 増加したことを警告します。"
 
 #, fuzzy
 msgid "Scheme"
@@ -750,6 +750,18 @@ msgstr "Scheme"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "例: MyApp (オプション)"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""

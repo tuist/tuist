@@ -707,9 +707,9 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} %"
-"{current_unit}</strong> 期間，相較於先前<strong>%{rolling_window_size} %"
-"{unit}</strong> 的數值下降達<strong>%{deviation}%</strong> 時發出警示。"
+"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} "
+"%{current_unit}</strong> 期間，相較於先前<strong>%{rolling_window_size} "
+"%{unit}</strong> 的數值下降達<strong>%{deviation}%</strong> 時發出警示。"
 
 #, fuzzy
 msgid ""
@@ -718,9 +718,9 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} %"
-"{current_unit}</strong> 期間，相較於前次<strong>%{rolling_window_size} %"
-"{unit}</strong> 的數值增加<strong>%{deviation}%</strong> 時發出警示。"
+"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} "
+"%{current_unit}</strong> 期間，相較於前次<strong>%{rolling_window_size} "
+"%{unit}</strong> 的數值增加<strong>%{deviation}%</strong> 時發出警示。"
 
 #, fuzzy
 msgid ""
@@ -730,8 +730,8 @@ msgid ""
 "previous bundle."
 msgstr ""
 "當最新<strong>%{bundle_name}</strong> 套件在分支<strong>%{git_branch}</"
-"strong> 的<strong>%{size_label}</strong> 相較於前次套件增加<strong>%"
-"{deviation}%</strong> 時發出警示。"
+"strong> 的<strong>%{size_label}</strong> 相較於前次套件增加"
+"<strong>%{deviation}%</strong> 時發出警示。"
 
 #, fuzzy
 msgid "Scheme"
@@ -740,6 +740,18 @@ msgstr "方案"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "例如：MyApp（可選）"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""

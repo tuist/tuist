@@ -718,9 +718,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"تنبيه عندما ينخفض مؤشر <strong>%{metric_category}</strong> لآخر <strong>%"
-"{rolling_window_size} %{current_unit}</strong> بنسبة <strong>%{deviation}%</"
-"strong> مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
+"تنبيه عندما ينخفض مؤشر <strong>%{metric_category}</strong> لآخر "
+"<strong>%{rolling_window_size} %{current_unit}</strong> بنسبة "
+"<strong>%{deviation}%</strong> مقارنةً بـ <strong>%{rolling_window_size} "
+"%{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -729,9 +730,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"تنبيه عندما يزداد مؤشر <strong>%{metric_category}</strong> لآخر <strong>%"
-"{rolling_window_size} %{current_unit}</strong> بنسبة <strong>%{deviation}%</"
-"strong> مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
+"تنبيه عندما يزداد مؤشر <strong>%{metric_category}</strong> لآخر "
+"<strong>%{rolling_window_size} %{current_unit}</strong> بنسبة "
+"<strong>%{deviation}%</strong> مقارنةً بـ <strong>%{rolling_window_size} "
+"%{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -741,8 +743,8 @@ msgid ""
 "previous bundle."
 msgstr ""
 "تنبيه عند زيادة <strong>%{size_label}</strong> لأحدث <strong>%{bundle_name}</"
-"strong> حزمة على الفرع <strong>%{git_branch}</strong> بنسبة <strong>%"
-"{deviation}%</strong> مقارنة بالحزمة السابقة."
+"strong> حزمة على الفرع <strong>%{git_branch}</strong> بنسبة "
+"<strong>%{deviation}%</strong> مقارنة بالحزمة السابقة."
 
 #, fuzzy
 msgid "Scheme"
@@ -751,6 +753,18 @@ msgstr "المخطط"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "على سبيل المثال: MyApp (اختياري)"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""

@@ -707,10 +707,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"当<strong> 的%{metric_category}</strong> 在最近<strong> 的%"
-"{rolling_window_size}内%{current_unit}</strong> 下降<strong>%{deviation}%</"
-"strong> 时，相较于前<strong> 的%{rolling_window_size}%{unit}</strong> 发出警"
-"报。"
+"当<strong> 的%{metric_category}</strong> 在最近<strong> "
+"的%{rolling_window_size}内%{current_unit}</strong> 下降"
+"<strong>%{deviation}%</strong> 时，相较于前<strong> "
+"的%{rolling_window_size}%{unit}</strong> 发出警报。"
 
 #, fuzzy
 msgid ""
@@ -719,9 +719,9 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>当<strong>%{metric_category}</strong> 在过去<strong>%"
-"{rolling_window_size}%{current_unit}</strong> 期间较前值 %{unit}</strong> 增"
-"加<strong>%{deviation}%</strong> 时触发警报。"
+"<strong>当<strong>%{metric_category}</strong> 在过去"
+"<strong>%{rolling_window_size}%{current_unit}</strong> 期间较前值 %{unit}</"
+"strong> 增加<strong>%{deviation}%</strong> 时触发警报。"
 
 #, fuzzy
 msgid ""
@@ -730,9 +730,9 @@ msgid ""
 "strong> has increased by <strong>%{deviation}%</strong> compared to the "
 "previous bundle."
 msgstr ""
-"当分支<strong> 上的最新<strong>%{bundle_name}</strong> 捆绑包在分支 %"
-"{git_branch}</strong> 的<strong>%{size_label}</strong> 值较前次捆绑包增"
-"加<strong>%{deviation}%</strong> 时发出警报。"
+"当分支<strong> 上的最新<strong>%{bundle_name}</strong> 捆绑包在分支 "
+"%{git_branch}</strong> 的<strong>%{size_label}</strong> 值较前次捆绑包增加"
+"<strong>%{deviation}%</strong> 时发出警报。"
 
 #, fuzzy
 msgid "Scheme"
@@ -741,6 +741,18 @@ msgstr "Scheme"
 #, fuzzy
 msgid "e.g. MyApp (optional)"
 msgstr "例如：MyApp（可选）"
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
 
 #, fuzzy
 #~ msgid ""

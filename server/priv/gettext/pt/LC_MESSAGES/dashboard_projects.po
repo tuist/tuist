@@ -566,3 +566,15 @@ msgstr ""
 
 msgid "e.g. MyApp (optional)"
 msgstr ""
+
+msgid "%{environment} %{unit}"
+msgstr ""
+
+msgid "%{scheme} %{environment} %{unit}"
+msgstr ""
+
+msgid "Environment"
+msgstr ""
+
+msgid "local"
+msgstr ""
