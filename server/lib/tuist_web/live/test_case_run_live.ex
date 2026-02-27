@@ -15,6 +15,7 @@ defmodule TuistWeb.TestCaseRunLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     test_case_run =
       case Tests.get_test_case_run_by_id(params["test_case_run_id"],

@@ -9,6 +9,7 @@ defmodule TuistWeb.TestCaseRunLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
@@ -77,7 +78,7 @@ defmodule TuistWeb.TestCaseRunLiveTest do
       account: account,
       project: project
     } do
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         live(
           conn,
           ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{UUIDv7.generate()}"
@@ -99,7 +100,7 @@ defmodule TuistWeb.TestCaseRunLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         live(
           conn,
           ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
@@ -176,9 +177,7 @@ defmodule TuistWeb.TestCaseRunLiveTest do
       RunsFixtures.optimize_test_case_runs()
 
       test_case_run =
-        Tuist.ClickHouseRepo.one!(
-          from(tcr in Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id)
-        )
+        Tuist.ClickHouseRepo.one!(from(tcr in Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id))
 
       {:ok, _lv, html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}")

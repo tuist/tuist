@@ -6,6 +6,7 @@ defmodule Tuist.TestsTest do
   alias Tuist.Tests
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -3997,9 +3998,7 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       test_case_run =
-        Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id)
-        )
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
 
       result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
 
@@ -4046,13 +4045,11 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       test_case_run =
-        Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id)
-        )
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
 
       result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
 
-      assert result != nil
+      assert result
       assert result.scheme == "MyScheme"
       assert result.git_commit_sha == "abc123"
       assert length(result.runs) == 1
@@ -4106,13 +4103,11 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       test_case_run =
-        Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id)
-        )
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
 
       result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
 
-      assert result != nil
+      assert result
       run = hd(result.runs)
       assert length(run.failures) == 1
       failure = hd(run.failures)
@@ -4162,13 +4157,11 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       test_case_run =
-        Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id)
-        )
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
 
       result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
 
-      assert result != nil
+      assert result
       run = hd(result.runs)
       assert length(run.repetitions) == 3
       assert Enum.at(run.repetitions, 0).repetition_number == 1
@@ -4217,13 +4210,11 @@ defmodule Tuist.TestsTest do
       RunsFixtures.optimize_test_case_runs()
 
       test_case_run =
-        Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun, where: tcr.test_run_id == ^test_run.id)
-        )
+        Tuist.ClickHouseRepo.one!(from(tcr in TestCaseRun, where: tcr.test_run_id == ^test_run.id))
 
       result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
 
-      assert result != nil
+      assert result
       assert result.passed_count == 1
       assert result.failed_count == 2
     end
@@ -4304,7 +4295,7 @@ defmodule Tuist.TestsTest do
 
       matching_tcr =
         Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun,
+          from(tcr in TestCaseRun,
             where: tcr.git_commit_sha == "abc123" and tcr.is_flaky == true,
             limit: 1
           )
@@ -4312,7 +4303,7 @@ defmodule Tuist.TestsTest do
 
       result = Tests.get_flaky_run_group_for_test_case_run(matching_tcr)
 
-      assert result != nil
+      assert result
       assert result.git_commit_sha == "abc123"
       assert length(result.runs) == 1
     end
@@ -4392,7 +4383,7 @@ defmodule Tuist.TestsTest do
 
       test_case_run =
         Tuist.ClickHouseRepo.one!(
-          from(tcr in Tuist.Tests.TestCaseRun,
+          from(tcr in TestCaseRun,
             where: tcr.git_commit_sha == "abc123" and tcr.is_flaky == true,
             order_by: [desc: tcr.ran_at],
             limit: 1
@@ -4401,7 +4392,7 @@ defmodule Tuist.TestsTest do
 
       result = Tests.get_flaky_run_group_for_test_case_run(test_case_run)
 
-      assert result != nil
+      assert result
       assert length(result.runs) == 2
       assert result.passed_count == 2
       assert result.failed_count == 2
