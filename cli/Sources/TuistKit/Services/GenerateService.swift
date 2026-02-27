@@ -58,10 +58,8 @@ public struct GenerateService {
 
         #if canImport(TuistCacheEE)
             Task.detached(priority: .background) {
-                try? await CacheLocalStorage.clean(
-                    fileSystem: FileSystem(),
-                    cacheDirectoriesProvider: CacheDirectoriesProvider()
-                )
+                let cacheLocalStorage = CacheLocalStorage(cacheDirectoriesProvider: CacheDirectoriesProvider())
+                try? await cacheLocalStorage.clean()
             }
         #endif
 
