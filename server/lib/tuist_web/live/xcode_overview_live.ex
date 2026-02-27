@@ -6,6 +6,7 @@ defmodule TuistWeb.XcodeOverviewLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Previews.AppPreview
 
+  alias Tuist.AppBuilds
   alias Tuist.Builds
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
@@ -42,20 +43,22 @@ defmodule TuistWeb.XcodeOverviewLive do
     builds_opts = build_opts(project.id, builds_period, builds_environment)
 
     socket
-    |> assign(:uri, uri)
-    |> assign(:uri_path, uri_path)
-    |> assign(:analytics_preset, analytics_preset)
-    |> assign(:analytics_period, analytics_period)
-    |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:builds_preset, builds_preset)
-    |> assign(:builds_period, builds_period)
-    |> assign(:builds_environment, builds_environment)
-    |> assign(:builds_environment_label, environment_label(builds_environment))
-    |> assign(:bundle_size_preset, bundle_size_preset)
-    |> assign(:bundle_size_period, bundle_size_period)
-    |> assign(:bundle_size_selected_app, bundle_size_selected_app)
+    |> assign(
+      uri: uri,
+      uri_path: uri_path,
+      analytics_preset: analytics_preset,
+      analytics_period: analytics_period,
+      analytics_trend_label: analytics_trend_label(analytics_preset),
+      analytics_environment: analytics_environment,
+      analytics_environment_label: environment_label(analytics_environment),
+      builds_preset: builds_preset,
+      builds_period: builds_period,
+      builds_environment: builds_environment,
+      builds_environment_label: environment_label(builds_environment),
+      bundle_size_preset: bundle_size_preset,
+      bundle_size_period: bundle_size_period,
+      bundle_size_selected_app: bundle_size_selected_app
+    )
     |> assign_async(:binary_cache_hit_rate_analytics, fn ->
       {:ok, %{binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts)}}
     end)
@@ -75,7 +78,7 @@ defmodule TuistWeb.XcodeOverviewLive do
       fetch_test_runs_data(project.id)
     end)
     |> assign_async(:latest_app_previews, fn ->
-      {:ok, %{latest_app_previews: Tuist.AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
+      {:ok, %{latest_app_previews: AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
     end)
     |> assign_async([:recent_build_runs, :passed_build_runs_count, :failed_build_runs_count], fn ->
       fetch_build_runs_data(project.id)
@@ -85,7 +88,7 @@ defmodule TuistWeb.XcodeOverviewLive do
     end)
     |> assign_async(
       [:bundle_size_apps, :bundle_size_analytics],
-      fn -> fetch_bundles_data(project, bundle_size_period, bundle_size_selected_app) end
+      fn -> fetch_bundles_data(project, bundle_size_period) end
     )
   end
 
@@ -161,7 +164,7 @@ defmodule TuistWeb.XcodeOverviewLive do
     end
   end
 
-  defp fetch_bundles_data(project, {start_datetime, end_datetime}, _bundle_size_selected_app) do
+  defp fetch_bundles_data(project, {start_datetime, end_datetime}) do
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)

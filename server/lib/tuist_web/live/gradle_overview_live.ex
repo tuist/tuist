@@ -33,17 +33,19 @@ defmodule TuistWeb.GradleOverviewLive do
     builds_opts = build_opts(project.id, builds_period, builds_environment)
 
     socket
-    |> assign(:uri, uri)
-    |> assign(:uri_path, uri_path)
-    |> assign(:analytics_preset, analytics_preset)
-    |> assign(:analytics_period, analytics_period)
-    |> assign(:analytics_trend_label, analytics_trend_label(analytics_preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:builds_preset, builds_preset)
-    |> assign(:builds_period, builds_period)
-    |> assign(:builds_environment, builds_environment)
-    |> assign(:builds_environment_label, builds_environment_label(builds_environment))
+    |> assign(
+      uri: uri,
+      uri_path: uri_path,
+      analytics_preset: analytics_preset,
+      analytics_period: analytics_period,
+      analytics_trend_label: analytics_trend_label(analytics_preset),
+      analytics_environment: analytics_environment,
+      analytics_environment_label: environment_label(analytics_environment),
+      builds_preset: builds_preset,
+      builds_period: builds_period,
+      builds_environment: builds_environment,
+      builds_environment_label: builds_environment_label(builds_environment)
+    )
     |> assign_async([:cache_hit_rate_analytics, :cache_hit_rate], fn ->
       cache_hit_rate_analytics = GradleAnalytics.cache_hit_rate_analytics(project.id, analytics_opts)
       cache_hit_rate = cache_hit_rate_analytics.avg_hit_rate |> Decimal.from_float() |> Decimal.round(1)
