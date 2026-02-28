@@ -30,7 +30,7 @@ mise run dev
 Belgelere bazı oluşturulmuş veriler ekliyoruz:
 
 - CLI referans verileri: `mise run generate-cli-docs`
-- Proje manifestosu referans verileri: `mise run generate-manifests-docs`
+- Proje manifest referans verileri: `mise run generate-manifests-docs`
 
 Bunlar isteğe bağlıdır. Belgeler bunlar olmadan da görüntülenir, bu nedenle
 yalnızca oluşturulan içeriği yenilemeniz gerektiğinde bunları çalıştırın.
