@@ -26,7 +26,7 @@ mise run dev
 
 ### オプションで生成されるデータ{#optional-generated-data}
 
-ドキュメントには生成データが埋め込まれています：
+ドキュメントには生成されたデータを埋め込んでいます：
 
 - CLIリファレンスデータ:`mise run generate-cli-docs`
 - プロジェクトマニフェスト参照データ:`mise run generate-manifests-docs`
