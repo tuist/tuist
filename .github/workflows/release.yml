@@ -1135,6 +1135,7 @@ jobs:
         release-skills,
       ]
     if: |
+      always() &&
       needs.check-releases.outputs.should-release-any == 'true' &&
       (needs.release-cli.result == 'success' || needs.release-cli.result == 'skipped') &&
       (needs.release-cli-linux.result == 'success' || needs.release-cli-linux.result == 'skipped') &&
