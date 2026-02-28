@@ -22,6 +22,9 @@ type_name:
   min_length:
     error: 1
     warning: 1
+function_body_length:
+  warning: 50
+  error: 200
 excluded:
   - cli/Sources/TuistServer/OpenAPI
   - cli/Sources/TuistCache/OpenAPI
