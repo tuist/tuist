@@ -13,13 +13,13 @@ import TuistConfigLoader
 import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
+import TuistInspectCommand
 import TuistLogging
 import TuistNooraExtension
 import TuistOrganizationCommand
 import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
-import TuistInspectCommand
 import TuistShareCommand
 import TuistTestCommand
 import TuistVersionCommand

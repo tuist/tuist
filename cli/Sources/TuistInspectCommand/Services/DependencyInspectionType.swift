@@ -1,12 +1,12 @@
 #if os(macOS)
-import ArgumentParser
+    import ArgumentParser
 
-public enum DependencyInspectionType: String, CaseIterable, ExpressibleByArgument {
-    case implicit
-    case redundant
+    public enum DependencyInspectionType: String, CaseIterable, ExpressibleByArgument {
+        case implicit
+        case redundant
 
-    public var defaultValueDescription: String {
-        "implicit, redundant"
+        public var defaultValueDescription: String {
+            "implicit, redundant"
+        }
     }
-}
 #endif

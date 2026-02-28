@@ -8,13 +8,13 @@ public struct InspectCommand: AsyncParsableCommand {
             InspectBundleCommand.self,
         ]
         #if os(macOS)
-        subcommands.append(contentsOf: [
-            InspectDependenciesCommand.self,
-            InspectImplicitImportsCommand.self,
-            InspectRedundantImportsCommand.self,
-            InspectBuildCommand.self,
-            InspectTestCommand.self,
-        ])
+            subcommands.append(contentsOf: [
+                InspectDependenciesCommand.self,
+                InspectImplicitImportsCommand.self,
+                InspectRedundantImportsCommand.self,
+                InspectBuildCommand.self,
+                InspectTestCommand.self,
+            ])
         #endif
         return CommandConfiguration(
             commandName: "inspect",
