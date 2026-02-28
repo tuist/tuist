@@ -145,13 +145,26 @@ COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
 COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
 COPY server/priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
 
-# Remove hosted-only secrets for on-premise builds
+# For non-hosted builds (previews/self-hosted): remove secrets and install ClickHouse
 RUN if [ "$TUIST_HOSTED" = "0" ]; then \
-  echo "TUIST_HOSTED is set to 0, executing specific commands"; \
+  echo "TUIST_HOSTED is set to 0, configuring for preview/self-hosted mode"; \
   rm -rf /app/priv/secrets/can.yml.enc; \
   rm -rf /app/priv/secrets/stag.yml.enc; \
   rm -rf /app/priv/secrets/prod.yml.enc; \
+  echo "Installing ClickHouse..."; \
+  curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg && \
+  echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg] https://packages.clickhouse.com/deb stable main" > /etc/apt/sources.list.d/clickhouse.list && \
+  apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y clickhouse-server clickhouse-client && \
+  apt-get clean && rm -rf /var/lib/apt/lists/* && \
+  mkdir -p /var/lib/clickhouse/coordination/log /var/lib/clickhouse/coordination/snapshots && \
+  chown -R nobody:nogroup /var/lib/clickhouse /var/log/clickhouse-server /etc/clickhouse-server; \
   fi
+
+COPY server/clickhouse-preview-config.xml /tmp/clickhouse-preview-config.xml
+RUN if [ "$TUIST_HOSTED" = "0" ]; then \
+  cp /tmp/clickhouse-preview-config.xml /etc/clickhouse-server/config.d/preview.xml; \
+  fi && rm -f /tmp/clickhouse-preview-config.xml
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
