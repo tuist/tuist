@@ -5,10 +5,10 @@
   "description": "Contribute to the Tuist documentation site."
 }
 ---
-# Документы {#docs}
+# Документация {#docs}
 
 Источник:
-[github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
+[github.com/tuist/tuist/tree/main/documents](https://github.com/tuist/tuist/tree/main/docs)
 
 ## Для чего это нужно {#what-it-is-for}
 
@@ -27,11 +27,11 @@ mise run dev
 
 ### Дополнительные сгенерированные данные {#optional-generated-data}
 
-Мы вставляем некоторые сгенерированные данные в документы:
+Мы вставляем некоторые сгенерированные данные в документацию:
 
 - Справочные данные CLI: `mise run generate-cli-docs`
-- Справочные данные манифеста проекта: `mise run generate-manifests-docs`
+- Справочные данные манифеста проекта: `mise run generate-manifests-documents`
 
-Эти действия не являются обязательными. Документы отображаются и без них,
+Эти действия не являются обязательными. Документация отображается и без них,
 поэтому выполняйте их только в том случае, если вам нужно обновить
 сгенерированный контент.
