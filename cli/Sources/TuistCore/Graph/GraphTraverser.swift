@@ -1547,6 +1547,7 @@ public class GraphTraverser: GraphTraversing {
         var validProducts: [Product] = [
             .app,
             .watch2App,
+            .watch2AppContainer,
             .appClip,
             .unitTests,
             .uiTests,
@@ -1566,6 +1567,7 @@ public class GraphTraverser: GraphTraversing {
             .appExtension,
             .extensionKitExtension,
             .watch2App,
+            .watch2AppContainer,
             .appClip,
             .unitTests,
             .uiTests,
