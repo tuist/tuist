@@ -514,6 +514,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .target(name: Module.xcodeMetadata.targetName),
                     .external(name: "Command"),
+                    .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                 ]
             case .constants:

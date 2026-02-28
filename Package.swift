@@ -469,6 +469,7 @@ var targets: [Target] = [
             "XcodeGraph",
             "XcodeMetadata",
             commandDependency,
+            fileSystemDependency,
             pathDependency,
             xcodeProjDependency,
         ],
