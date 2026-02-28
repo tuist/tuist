@@ -365,10 +365,13 @@ struct CacheLocalStorageTests {
         try await fileSystem.makeDirectory(at: recentEntry)
 
         // When
-        try await CacheLocalStorage.clean(
-            fileSystem: fileSystem,
-            cacheDirectoriesProvider: cacheDirectoriesProvider
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: MockArtifactSigning(),
+            fileHandler: FileHandler.shared,
+            fileSystem: fileSystem
         )
+        try await subject.clean()
 
         // Then
         let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
@@ -399,11 +402,13 @@ struct CacheLocalStorageTests {
         }
 
         // When: clean with maxEntries = 10
-        try await CacheLocalStorage.clean(
-            fileSystem: fileSystem,
+        let subject = CacheLocalStorage(
             cacheDirectoriesProvider: cacheDirectoriesProvider,
-            maxEntries: 10
+            artifactSigner: MockArtifactSigning(),
+            fileHandler: FileHandler.shared,
+            fileSystem: fileSystem
         )
+        try await subject.clean(maxEntries: 10)
 
         // Then
         let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
@@ -433,10 +438,13 @@ struct CacheLocalStorageTests {
         }
 
         // When
-        try await CacheLocalStorage.clean(
-            fileSystem: fileSystem,
-            cacheDirectoriesProvider: cacheDirectoriesProvider
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: MockArtifactSigning(),
+            fileHandler: FileHandler.shared,
+            fileSystem: fileSystem
         )
+        try await subject.clean()
 
         // Then: all 3 should remain
         let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
