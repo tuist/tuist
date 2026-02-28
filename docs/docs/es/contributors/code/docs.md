@@ -25,7 +25,7 @@ mise install
 mise run dev
 ```
 
-### Datos generados opcionales {#optional-generated-data}
+### Datos generados opcionales. {#optional-generated-data}
 
 Incorporamos algunos datos generados en los documentos:
 
