@@ -1416,7 +1416,7 @@ jobs:
           attempt=1
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt of $max_attempts"
-            if git pull --rebase origin ${{ github.ref_name }}; then
+            if git pull --rebase --autostash origin ${{ github.ref_name }}; then
               if git push origin ${{ github.ref_name }} --tags; then
                 echo "Successfully pushed changes and tags"
                 break
