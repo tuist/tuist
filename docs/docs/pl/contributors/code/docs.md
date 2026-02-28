@@ -12,8 +12,8 @@
 
 ## Do czego służy {#what-it-is-for}
 
-Witryna dokumentacji zawiera dokumentację produktów i współpracowników Tuist.
-Została ona stworzona przy użyciu VitePress.
+Witryna dokumentacji zawiera dokumentację produktów i współpracowników firmy
+Tuist. Została ona stworzona przy użyciu VitePress.
 
 ## Jak wnieść swój wkład {#how-to-contribute}
 
