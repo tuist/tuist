@@ -23,7 +23,7 @@ rozszerzenie funkcjonalności Tuist. Dlatego też istnieją pewne ograniczenia,
 które należy wziąć pod uwagę**:
 
 - Wtyczka nie może być zależna od innej wtyczki.
-- Wtyczka nie może być zależna od pakietów Swift innych producentów.
+- Wtyczka nie może polegać na pakietach Swift innych firm.
 - Wtyczka nie może korzystać z pomocników opisu projektu z projektu, który
   korzysta z tej wtyczki.
 
@@ -38,7 +38,7 @@ Tuist,
 
 Wtyczka pomocnicza opisu projektu jest reprezentowana przez katalog zawierający
 plik manifestu `Plugin.swift`, który deklaruje nazwę wtyczki, oraz katalog
-`ProjectDescriptionHelpers` zawierający pomocnicze pliki Swift.
+`ProjectDescriptionHelpers` zawierający pliki pomocnicze Swift.
 
 ::: code-group
 ```bash [Plugin.swift]
@@ -194,8 +194,8 @@ Zalecamy stosowanie tagów Git lub SHA, aby zapewnić powtarzalność.
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-W przypadku korzystania z wtyczki pomocy opisu projektu nazwa modułu
-zawierającego pomoc jest nazwą wtyczki.
+W przypadku korzystania z wtyczki pomocników opisu projektu nazwa modułu
+zawierającego pomocników jest nazwą wtyczki.
 ```swift
 import ProjectDescription
 import MyTuistPlugin
