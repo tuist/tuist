@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-03-01 17:09+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -46,9 +46,7 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr ""
-"<p>Nasze zaangażowanie w open source i nasze podstawowe wartości kształtują nasze unikalne podejście do ustalania cen. W przeciwieństwie do wielu modeli, które próbują wyciągnąć od Ciebie każdą złotówkę za pomocą telefonów „kontaktowych”, ograniczonych wersji demonstracyjnych i innych taktyk sprzedażowych, wierzymy w uczciwość i przejrzystość. Traktujemy wszystkich jednakowo i ustalamy ceny, które są sprawiedliwe dla wszystkich. Wybierając nasze usługi, nie tylko otrzymujesz świetny produkt, ale także wspierasz rozwój kolejnych projektów open source. Budowanie dobrze prosperującej firmy postrzegamy jako długoterminową podróż, a nie krótkoterminowy sprint pełen nieuczciwych praktyk. Możesz %{read_more}  o naszej filozofii.</p>\n"
-"<p>Wspierając Tuist, wspierasz również rozwój kolejnych programów open source dla ekosystemu Swift.</p>\n"
+msgstr "<p>Nasze zaangażowanie w open source i nasze podstawowe wartości kształtują nasze unikalne podejście do ustalania cen. W przeciwieństwie do wielu modeli, które próbują wyciągnąć od Ciebie jak najwięcej pieniędzy za pomocą telefonów „kontaktowych”, ograniczonych wersji demonstracyjnych i innych taktyk sprzedażowych, wierzymy w uczciwość i przejrzystość. Traktujemy wszystkich jednakowo i ustalamy ceny, które są sprawiedliwe dla wszystkich. Wybierając nasze usługi, nie tylko otrzymujesz świetny produkt, ale także wspierasz rozwój kolejnych projektów open source. Budowanie prosperującego biznesu postrzegamy jako długoterminową podróż, a nie krótkoterminowy sprint pełen nieuczciwych praktyk. Możesz %{read_more}  o naszej filozofii.</p>\n<p>Wspierając Tuist, wspierasz również rozwój kolejnych programów open source dla ekosystemu Swift.</p>\n"
 
 #, fuzzy
 msgid "A confirmation email has been sent to your account with further details."
@@ -320,7 +318,7 @@ msgstr "Pomoc techniczna przez e-mail"
 
 #, fuzzy
 msgid "Enhance your development environment with actionable insights."
-msgstr "Ulepsz swoje środowisko programistyczne dzięki praktycznym informacjom."
+msgstr "Ulepsz swoje środowisko programistyczne dzięki praktycznym spostrzeżeniom."
 
 #, fuzzy
 msgid "Enterprise"
@@ -364,7 +362,7 @@ msgstr "Wygenerowane projekty"
 
 #, fuzzy
 msgid "Get Support"
-msgstr "Uzyskaj pomoc techniczną"
+msgstr "Uzyskaj wsparcie"
 
 #, fuzzy
 msgid "Get early access"
@@ -404,7 +402,7 @@ msgstr "Szczęście"
 
 #, fuzzy
 msgid "Hear from our community about their experience with Tuist"
-msgstr "Posłuchaj opinii naszej społeczności na temat doświadczeń z Tuist"
+msgstr "Posłuchaj opinii naszej społeczności na temat ich doświadczeń z Tuist"
 
 #, fuzzy
 msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
@@ -608,7 +606,7 @@ msgstr "Wersje podglądowe"
 
 #, fuzzy
 msgid "Price per unit above free tier"
-msgstr "Cena za jednostkę powyżej poziomu bezpłatnego"
+msgstr "Cena za jednostkę powyżej bezpłatnego limitu"
 
 #, fuzzy
 msgid "Pricing"
@@ -636,7 +634,7 @@ msgstr "Produkt"
 
 #, fuzzy
 msgid "Pull requests merged"
-msgstr "Scalone pull requesty"
+msgstr "Scalone żądania pull"
 
 #, fuzzy
 msgid "QA"
@@ -716,7 +714,7 @@ msgstr "Zarejestruj się, aby uzyskać wczesny dostęp do Tuist QA."
 
 #, fuzzy
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
-msgstr "Od momentu wdrożenia Tuist w naszym projekcie iOS zauważyliśmy znaczną poprawę skalowalności i wydajności. Ogólnie rzecz biorąc, przyspieszyło to i usprawniło proces tworzenia oprogramowania, pozwalając zespołowi skupić się na tworzeniu funkcji bez spowalniania przez ograniczenia narzędzi."
+msgstr "Od momentu wdrożenia Tuist w naszym projekcie iOS zauważyliśmy znaczną poprawę skalowalności i wydajności. Ogólnie rzecz biorąc, przyspieszyło to i usprawniło proces rozwoju, pozwalając zespołowi skupić się na tworzeniu funkcji bez spowalniania przez ograniczenia narzędzi."
 
 #, fuzzy
 msgid "Skipped repetitive tests"
@@ -772,7 +770,7 @@ msgstr "Standardy"
 
 #, fuzzy
 msgid "Stars on GitHub"
-msgstr "Gwiazdki na GitHubie"
+msgstr "Gwiazdki na GitHub"
 
 #, fuzzy
 msgid "Start free,"
@@ -908,7 +906,7 @@ msgstr "Ikona Tuist"
 
 #, fuzzy
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
-msgstr "Tuist Pro zapewnia wsparcie poprzez nasze forum społecznościowe i zgłoszenia na GitHubie. Plany Enterprise obejmują dedykowane wsparcie poprzez kanały Slack z priorytetowym czasem odpowiedzi."
+msgstr "Tuist Pro zapewnia wsparcie poprzez nasze forum społecznościowe i zgłoszenia na GitHubie. Plany Enterprise obejmują dedykowane wsparcie poprzez kanały Slacka z priorytetowym czasem odpowiedzi."
 
 #, fuzzy
 msgid "Tuist QA"
@@ -916,15 +914,15 @@ msgstr "Tuist QA"
 
 #, fuzzy
 msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
-msgstr "Tuist QA przeprowadza testy oparte na sztucznej inteligencji na podstawie Twoich PR, dostarczając podsumowania z problemami, krokami i zrzutami ekranu — dzięki czemu błędy są wykrywane, zanim dotrą do wersji głównej."
+msgstr "Tuist QA przeprowadza testy oparte na sztucznej inteligencji na podstawie Twoich PR, dostarczając podsumowania zawierające problemy, kroki i zrzuty ekranu — dzięki czemu błędy są wykrywane, zanim trafią do wersji głównej."
 
 #, fuzzy
 msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
-msgstr "Tuist wypełnia luki w narzędziach Apple, które uniemożliwiają zespołom szybkie działanie. Rozwiązujemy problemy związane ze złożonością kompilacji, utrudnieniami w przepływie pracy i współpracą, dzięki czemu możesz szybko dostarczać wyjątkowe aplikacje."
+msgstr "Tuist wypełnia luki w narzędziach Apple, które uniemożliwiają zespołom szybkie działanie. Rozwiązujemy problemy związane ze złożonością kompilacji, tarciami w przepływie pracy i współpracą, dzięki czemu możesz szybko dostarczać wyjątkowe aplikacje."
 
 #, fuzzy
 msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
-msgstr "Tuist umożliwił nam migrację naszej istniejącej monolitycznej bazy kodu do modułowej. Wyodrębniliśmy nasze różne domeny do konkretnych modułów. Pozwoliło nam to usunąć dodatkowe zależności, ułatwić testowanie i przyspieszyć nasze cykle rozwoju. Pozwoliło nam to nawet uruchomić „aplikacje testowe” w celu przyspieszenia rozwoju każdego modułu."
+msgstr "Tuist umożliwił nam migrację naszej istniejącej monolitycznej bazy kodu do bazy modułowej. Wyodrębniliśmy różne domeny do konkretnych modułów. Pozwoliło nam to usunąć dodatkowe zależności, ułatwić testowanie i przyspieszyć cykle rozwoju. Umożliwiło nam to nawet uruchomienie „aplikacji testowych” w celu przyspieszenia rozwoju każdego modułu."
 
 #, fuzzy
 msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
@@ -972,7 +970,7 @@ msgstr "Ceny oparte na wykorzystaniu/liczbie miejsc"
 
 #, fuzzy
 msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
-msgstr "Wykorzystanie Tuist w naszym obecnym projekcie całkowicie zmieniło sytuację. Znacznie zmniejszyło stres związany z czasem tworzenia i ograniczyło konflikty w zespole, pozwalając nam skupić się bardziej na rozwoju, a mniej na kwestiach konfiguracyjnych. Jesteśmy przekonani, że w przyszłych projektach nadal będzie ono zwiększać naszą produktywność i poprawiać współpracę."
+msgstr "Wykorzystanie Tuist w naszym obecnym projekcie zmieniło zasady gry. Znacznie zmniejszyło stres związany z czasem tworzenia i ograniczyło konflikty w zespole, pozwalając nam skupić się bardziej na rozwoju, a mniej na kwestiach konfiguracyjnych. Jesteśmy przekonani, że w przyszłych projektach nadal będzie ono zwiększać naszą produktywność i poprawiać współpracę."
 
 #, fuzzy
 msgid "Verification failed. Please try signing up again."
@@ -1004,7 +1002,7 @@ msgstr "Akceptujemy płatności kartą kredytową i przelewy bankowe."
 
 #, fuzzy
 msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
-msgstr "Wierzymy, że otwartość pozwala tworzyć lepsze narzędzia, a zamknięte pozostają tylko te elementy, które są niezbędne do zrównoważonego rozwoju."
+msgstr "Wierzymy, że otwartość pozwala tworzyć lepsze narzędzia, zachowując zamknięte tylko to, co jest niezbędne do zrównoważonego rozwoju."
 
 #, fuzzy
 msgid "We embrace standards for long-term success while respecting freedom of choice."
@@ -1028,7 +1026,7 @@ msgstr "Jesteśmy grupą programistów, którzy uważają, że skalowanie aplika
 
 #, fuzzy
 msgid "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
-msgstr "Jesteśmy tutaj, aby pomóc Ci osiągnąć sukces z Tuist. Niezależnie od tego, czy potrzebujesz pomocy technicznej, masz pytania dotyczące funkcji lub pomysły dotyczące ulepszenia projektu, oferujemy wiele sposobów kontaktu z nami."
+msgstr "Jesteśmy tutaj, aby pomóc Ci osiągnąć sukces z Tuist. Niezależnie od tego, czy potrzebujesz pomocy technicznej, masz pytania dotyczące funkcji lub pomysły dotyczące ulepszenia projektu, oferujemy wiele sposobów skontaktowania się z nami."
 
 #, fuzzy
 msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
@@ -1060,7 +1058,7 @@ msgstr "Dlaczego Twój model cenowy jest bardziej przystępny w porównaniu z tr
 
 #, fuzzy
 msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
-msgstr "Z makrami, zewnętrznymi SDK i wieloma modułami SPM (w pełni zmodularyzowana aplikacja) Xcode ciągle działało wolno lub zawieszało się na moim urządzeniu M1. SPM ciągle się rozwiązywało, autouzupełnianie kodu nie działało, a swift-syntax kompilowało się w nieskończoność. To nie jest tylko dla dużych zespołów z dużymi aplikacjami. Tuist przywrócił mi produktywność jako niezależnemu programiście pracującemu nad moimi pobocznymi projektami."
+msgstr "Z makrami, zewnętrznymi SDK i wieloma modułami SPM (w pełni zmodularyzowana aplikacja) Xcode ciągle działał wolno lub zawieszał się na moim urządzeniu M1. SPM ciągle się rozwiązywał, autouzupełnianie kodu nie działało, a swift-syntax kompilował się w nieskończoność. To nie jest tylko dla dużych zespołów z dużymi aplikacjami. Tuist przywrócił mi produktywność jako niezależnemu programiście pracującemu nad moimi pobocznymi projektami."
 
 #, fuzzy
 msgid "Xcode Cache"
@@ -1096,7 +1094,7 @@ msgstr "Możesz skonfigurować plan Air i korzystać z funkcji przez kilka dni, 
 
 #, fuzzy
 msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
-msgstr "Możesz skonfigurować plan Air i korzystać z funkcji przez kilka dni, aby uzyskać szacunkowe dane dotyczące zużycia. Jeśli potrzebujesz wyższego limitu, daj nam znać, a pomożemy Ci skonfigurować plan niestandardowy."
+msgstr "Możesz skonfigurować plan Air i korzystać z funkcji przez kilka dni, aby uzyskać szacunkowe dane dotyczące zużycia. Jeśli potrzebujesz wyższego limitu, poinformuj nas o tym, a pomożemy Ci skonfigurować plan niestandardowy."
 
 #, fuzzy
 msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
@@ -1104,7 +1102,7 @@ msgstr "Zostaniesz ostrzeżony przed osiągnięciem limitów planu. Po ich osią
 
 #, fuzzy
 msgid "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
-msgstr "Co 6 tygodni będziesz otrzymywać biuletyn zawierający informacje o najważniejszych działaniach Tuist oraz naszej wizji przyszłości tworzenia aplikacji na dużą skalę."
+msgstr "Co 6 tygodni będziesz otrzymywać biuletyn z najważniejszymi informacjami o pracy w Tuist oraz naszą wizją przyszłości tworzenia aplikacji na dużą skalę."
 
 #, fuzzy
 msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
