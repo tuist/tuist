@@ -47,8 +47,8 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### 资源访问器模板插件{#resource-accessor-templates-plugin}
 
-若需共享<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成资源访问器</LocalizedLink>，可使用此类插件。该插件由以下目录构成：`Plugin.swift`
-（声明插件名称的清单文件）`ResourceSynthesizers` （包含资源访问器模板文件的目录）
+若需共享<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">资源访问器合成器</LocalizedLink>，可使用此类插件。该插件由以下目录构成：`Plugin.swift`
+包含插件名称声明的清单文件`ResourceSynthesizers` 包含资源访问器模板文件的目录
 
 
 代码组
@@ -83,7 +83,7 @@ let plugin = Plugin(name: "MyPlugin")
 | JSON  | `JSON.stencil`             |
 | YAML  | `YAML.stencil`             |
 
-在项目中定义资源合成器时，可通过指定插件名称来使用插件提供的模板：
+在项目中定义资源合成器时，可通过指定插件名称来使用该插件的模板：
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -98,28 +98,27 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 :::
 
 任务是`$PATH`-exposed可执行文件，若遵循命名规范`tuist-<task-name>` ，则可通过`tuist`
-命令调用。早期版本中，Tuist在`tuist plugin`
-提供了一些弱规范工具，用于构建Swift包中的可执行文件任务：`build`,`run`,`test` 及`archive`
-。但因该功能增加工具维护负担与复杂度，现已弃用。</task-name>
+命令调用。早期版本中，Tuist在`tuist plugin` 提供了一些弱规范工具，用于构建Swift包中的可执行文件任务（如`build` 、`run`
+、`test` 、`archive` ），但因其增加了工具维护负担和复杂度，该功能现已弃用。</task-name>
 
 若您使用Tuist分配任务，建议构建您的
-- 您仍可使用随Tuist版本发布的`ProjectAutomation.xcframework` ，通过`let graph = try
-  Tuist.graph()` 在逻辑中访问项目图。该命令使用系统进程运行`tuist` 命令，并返回项目图的内存表示。
+- 您仍可使用随Tuist版本发布的`ProjectAutomation.xcframework` ，通过以下逻辑访问项目图：`let graph = try
+  Tuist.graph()` 。该命令调用系统进程运行`tuist` 命令，并返回项目图的内存表示。
 - 为分发任务，建议在GitHub发布中包含支持`arm64` 和`x86_64`
-  的胖二进制文件，并使用[Mise](https://mise.jdx.dev)作为安装工具。需创建插件仓库来指导Mise安装您的工具，可参考[Tuist's](https://github.com/asdf-community/asdf-tuist)实现方案。
+  的胖二进制文件，并使用[Mise](https://mise.jdx.dev)作为安装工具。需创建插件仓库来指导Mise安装工具，可参考[Tuist's](https://github.com/asdf-community/asdf-tuist)实现方案。
 - 若将工具命名为`tuist-{xxx}` ，用户可通过运行`mise install` 安装。安装后既可直接调用，也可通过`tuist xxx` 间接调用。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 我们计划将`的ProjectAutomation（` ）与`的XcodeGraph（`
-）整合为单一向后兼容框架，向用户完整呈现项目图谱。此外，我们将把生成逻辑提取至新层级`XcodeGraph（`
-），您亦可将其用于自定义命令行界面。可将其视为构建专属的Tuist。
+）整合为单一向后兼容框架，向用户完整呈现项目图谱。此外，我们将生成逻辑提取至新层级`XcodeGraph（`
+），您亦可将其用于自定义命令行界面。可将其视为构建专属Tuist的解决方案。
 <!-- -->
 :::
 
 ## 使用插件{#using-plugins}
 
-要使用插件，需将其添加到项目<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>清单文件中：
+要使用插件，需将其添加到项目清单文件中：`Tuist.swift`
 
 ```swift
 import ProjectDescription
@@ -150,7 +149,7 @@ let tuist = Tuist(
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-如您所见，我们不提供插件的版本解析功能。建议使用Git标签或SHA值确保可重现性。
+如您所知，我们不提供插件版本解析功能。建议使用Git标签或SHA值确保可复现性。
 <!-- -->
 :::
 
