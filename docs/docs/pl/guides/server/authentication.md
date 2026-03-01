@@ -7,25 +7,25 @@
 ---
 # Uwierzytelnianie {#authentication}
 
-Aby nawiązać połączenie z serwerem, CLI musi uwierzytelnić żądania za pomocą
-[uwierzytelniania
-nosiciela](https://swagger.io/docs/specification/authentication/bearer-authentication/).
-CLI obsługuje uwierzytelnianie jako użytkownik, jako konto lub za pomocą tokenu
-OIDC.
+Aby nawiązać połączenie z serwerem, interfejs CLI musi uwierzytelnić żądania za
+pomocą [uwierzytelniania
+posiadacza](https://swagger.io/docs/specification/authentication/bearer-authentication/).
+Interfejs CLI obsługuje uwierzytelnianie jako użytkownik, jako konto lub za
+pomocą tokenu OIDC.
 
 ## Jako użytkownik {#as-a-user}
 
-W przypadku korzystania z CLI lokalnie na komputerze zalecamy uwierzytelnianie
-jako użytkownik. Aby uwierzytelnić się jako użytkownik, należy uruchomić
-następujące polecenie:
+W przypadku korzystania z CLI lokalnie na swoim komputerze zalecamy
+uwierzytelnianie jako użytkownik. Aby uwierzytelnić się jako użytkownik, należy
+uruchomić następujące polecenie:
 
 ```bash
 tuist auth login
 ```
 
 Polecenie przeprowadzi Cię przez proces uwierzytelniania internetowego. Po
-uwierzytelnieniu CLI zapisze długotrwały token odświeżania i krótkotrwały token
-dostępu w katalogu `~/.config/tuist/credentials`. Każdy plik w katalogu
+uwierzytelnieniu CLI zapisze długoterminowy token odświeżania i krótkoterminowy
+token dostępu w katalogu `~/.config/tuist/credentials`. Każdy plik w katalogu
 reprezentuje domenę, w której przeprowadzono uwierzytelnianie, która domyślnie
 powinna być `tuist.dev.json`. Informacje przechowywane w tym katalogu są poufne,
 więc **należy je przechowywać w bezpiecznym miejscu**.
@@ -57,8 +57,8 @@ CI na token dostępu Tuist.
 
 2. **Uruchom `tuist auth login`**: W swoim przepływie pracy CI uruchom `tuist
    auth login` przed wykonaniem jakichkolwiek poleceń wymagających
-   uwierzytelnienia. CLI automatycznie wykryje środowisko CI i przeprowadzi
-   uwierzytelnienie przy użyciu OIDC.
+   uwierzytelnienia. CLI automatycznie wykryje środowisko CI i uwierzytelni się
+   przy użyciu OIDC.
 
 Przykłady konfiguracji specyficznej dla dostawcy można znaleźć w
 <LocalizedLink href="/guides/integrations/continuous-integration">przewodniku
@@ -72,7 +72,7 @@ projektów połączonych z repozytorium. Szczegółowe informacje na temat zakre
 
 ::: tip SECURITY BENEFITS
 <!-- -->
-Uwierzytelnianie OIDC jest bezpieczniejsze niż tokeny długotrwałe, ponieważ:
+Uwierzytelnianie OIDC jest bezpieczniejsze niż tokeny długoterminowe, ponieważ:
 - Nie ma żadnych sekretów dotyczących obracania lub zarządzania
 - Tokeny są krótkotrwałe i mają zakres ograniczony do poszczególnych przebiegów
   przepływu pracy.
@@ -83,7 +83,7 @@ Uwierzytelnianie OIDC jest bezpieczniejsze niż tokeny długotrwałe, ponieważ:
 ## Tokeny konta {#account-tokens}
 
 W środowiskach CI, które nie obsługują OIDC, lub gdy potrzebna jest precyzyjna
-kontrola uprawnień, można użyć tokenów konta. Tokeny konta pozwalają dokładnie
+kontrola uprawnień, można użyć tokenów kont. Tokeny kont pozwalają dokładnie
 określić, do jakich zakresów i projektów token ma dostęp.
 
 ### Tworzenie tokenu konta {#creating-an-account-token}
@@ -99,8 +99,8 @@ Polecenie akceptuje następujące opcje:
 
 | Opcja        | Opis                                                                                                                                                                          |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--scopes`   | Wymagane. Lista zakresów, którym należy przyznać token, oddzielonych przecinkami.                                                                                             |
-| `--name`     | Wymagane. Unikalny identyfikator tokenu (1–32 znaki, tylko litery, cyfry, myślniki i znaki podkreślenia).                                                                     |
+| `--scopes`   | Wymagane. Rozdzielona przecinkami lista zakresów, do których ma zostać przyznany token.                                                                                       |
+| `--name`     | Wymagane. Unikalny identyfikator tokenu (1–32 znaki, tylko alfanumeryczne, łączniki i podkreślenia).                                                                          |
 | `--expires`  | Opcjonalnie. Kiedy token powinien wygasnąć. Użyj formatu takiego jak `30d` (dni), `6m` (miesiące) lub `1y` (lata). Jeśli nie zostanie to określone, token nigdy nie wygaśnie. |
 | `--projekty` | Ogranicz token do określonych uchwytów projektu. Jeśli nie zostanie to określone, token ma dostęp do wszystkich projektów.                                                    |
 
@@ -112,7 +112,7 @@ Polecenie akceptuje następujące opcje:
 | `account:members:write`  | Zarządzaj członkami konta                      |
 | `account:registry:read`  | Przeczytaj z rejestru pakietów Swift.          |
 | `account:registry:write` | Opublikuj w rejestrze pakietów Swift.          |
-| `project:previews:read`  | Pobierz podglądy                               |
+| `project:previews:read`  | Pobierz podgląd                                |
 | `project:previews:write` | Prześlij podgląd                               |
 | `project:admin:read`     | Przeczytaj ustawienia projektu                 |
 | `project:admin:write`    | Zarządzaj ustawieniami projektu                |
@@ -129,8 +129,8 @@ Polecenie akceptuje następujące opcje:
 
 ### Grupy zakresu {#scope-groups}
 
-Grupy zakresów zapewniają wygodny sposób przyznawania wielu powiązanych zakresów
-za pomocą jednego identyfikatora. Kiedy używasz grupy zakresów, automatycznie
+Grupy zakresów zapewniają wygodny sposób nadawania wielu powiązanych zakresów za
+pomocą jednego identyfikatora. Kiedy używasz grupy zakresów, automatycznie
 rozszerza się ona, aby objąć wszystkie zawarte w niej indywidualne zakresy.
 
 | Grupa zakresu | Zakresy objęte                                                                                                                                |
@@ -140,7 +140,7 @@ rozszerza się ona, aby objąć wszystkie zawarte w niej indywidualne zakresy.
 ### Ciągła integracja {#continuous-integration}
 
 W środowiskach CI, które nie obsługują OIDC, można utworzyć token konta z grupą
-zakresów `ci` w celu uwierzytelnienia przepływów pracy CI:
+zakresu `ci` w celu uwierzytelnienia przepływów pracy CI:
 
 ```bash
 tuist account tokens create my-account --scopes ci --name ci
