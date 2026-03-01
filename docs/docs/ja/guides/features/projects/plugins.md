@@ -97,23 +97,19 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 <!-- -->
 :::
 
-`` `` `` `` タスクは`$PATH`-exposed 実行可能ファイルであり、命名規則`tuist-<task-name>`
-に従う場合、`tuist` コマンドで呼び出せます。以前のバージョンでは、Tuist は`tuist plugin` tuist plugin tuist
-plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist
-plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist
-plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist
-plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist
-plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist plugin tuist
-plugin tuist plugin tuist</task-name>
+タスクは`$PATH`-exposed 実行可能ファイルであり、命名規則`tuist-<task-name>` に従う場合、`tuist`
+コマンドで呼び出せます。以前のバージョンでは、Tuist は`tuist plugin` 以下の弱規定とツールを提供し、Swift Packages
+内の実行可能ファイルで表される`build` 、`run` 、`test` 、`archive`
+タスクを構築していましたが、ツールの保守負担と複雑性を増すため、この機能は非推奨となりました。</task-name>
 
 タスク配布にTuistを利用していた場合、構築をお勧めします
-- Tuistの全リリースに同梱されている`ProjectAutomation.xcframework`
+- Tuistの各リリースに同梱されている`ProjectAutomation.xcframework`
   を使用し続けることで、ロジックからプロジェクトグラフにアクセスできます。`let graph = try Tuist.graph()`
-  。このコマンドはシステムプロセスを利用して`tuist` コマンドを実行し、プロジェクトグラフのメモリ内表現を返します。
-- タスクを分散させるには、GitHubリリースに`arm64` および`x86_64`
+  。このコマンドはシステムプロセスを使用して`tuist` コマンドを実行し、プロジェクトグラフのメモリ内表現を返します。
+- タスクを配布するには、GitHubリリースに`arm64` および`x86_64`
   に対応したファットバイナリを含め、インストールツールとして[Mise](https://mise.jdx.dev)を使用することを推奨します。Miseにツールのインストール方法を指示するには、プラグインリポジトリが必要です。[Tuist's](https://github.com/asdf-community/asdf-tuist)を参考として使用できます。
 - ツール名を`tuist-{xxx}` と命名し、ユーザーが`mise install`
-  を実行してインストールできる場合、ユーザーは直接呼び出すか、または`tuist xxx` を通じて実行できます。
+  を実行してインストールできる場合、ユーザーは直接呼び出すか、`tuist xxx` を通じて実行できます。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
@@ -139,8 +135,7 @@ let tuist = Tuist(
 )
 ```
 
-`異なるリポジトリにあるプロジェクト間でプラグインを再利用したい場合、プラグインをGitリポジトリにプッシュし、`Tuist.swift`（``
-`）ファイル内で参照できます：
+異なるリポジトリにあるプロジェクト間でプラグインを再利用したい場合、プラグインをGitリポジトリにプッシュし、```内の`Tuist.swift`ファイルで参照できます。`
 
 ```swift
 import ProjectDescription
@@ -154,7 +149,7 @@ let tuist = Tuist(
 )
 ```
 
-プラグイン追加後、``` または `tuist install` ` を実行すると、プラグインがグローバルキャッシュディレクトリに取得されます。
+プラグイン追加後、``tuist install` ` を実行すると、プラグインがグローバルキャッシュディレクトリに取得されます。
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
