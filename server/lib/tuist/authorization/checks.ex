@@ -87,7 +87,7 @@ defmodule Tuist.Authorization.Checks do
   Checks if the authenticated account's scopes include the required scope.
 
   Scopes are expected to be strings in the format "entity:object:action"
-  (e.g., "project:cache:read", "account:registry:read").
+  (e.g., "project:cache:read", "account:members:read").
 
   Scope groups (e.g., "ci") are automatically expanded to their component scopes.
 

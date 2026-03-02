@@ -40,7 +40,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
 
       authenticated_account = %AuthenticatedAccount{
         account: account_token.account,
-        scopes: ["account:registry:read"]
+        scopes: ["account:members:read"]
       }
 
       # It's only invoked once
