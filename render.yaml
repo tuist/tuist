@@ -182,13 +182,13 @@ services:
       - key: TUIST_S3_REGION
         value: auto
       - key: TUIST_SECRET_KEY_BASE
-        generateValue: true
+        value: d218910a52ac04e9a5b39d9ce87b9d43026685f07cd4b5da26196d1ebf62b6e5
       - key: TUIST_SECRET_KEY_PASSWORD
-        generateValue: true
+        value: d3e5e36901fca9151452e8b5930d6db6529aebd1b93f12ec87cb2b0028dbae7b
       - key: TUIST_SECRET_KEY_TOKENS
-        generateValue: true
+        value: 0e9d5475e8d5aadf74de66a94aa7c186ca4f6542536dc8adfea72a747fab1858
       - key: TUIST_SECRET_KEY_ENCRYPTION
-        generateValue: true
+        value: efa8f7082a470355478714064a95269423c9b08b6ef0e1a7f6923217bd67990a
       - key: TUIST_LICENSE
         sync: false
       - key: RELEASE_COOKIE

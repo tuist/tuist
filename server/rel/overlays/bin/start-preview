@@ -7,20 +7,6 @@ if [ -z "$TUIST_APP_URL" ] && [ -n "$RENDER_EXTERNAL_URL" ]; then
   echo "Set TUIST_APP_URL=${TUIST_APP_URL} from RENDER_EXTERNAL_URL"
 fi
 
-# Render's generateValue produces short random strings. Phoenix requires
-# secret_key_base to be at least 64 bytes. Repeat the value until long enough.
-for key_var in TUIST_SECRET_KEY_BASE TUIST_SECRET_KEY_PASSWORD TUIST_SECRET_KEY_TOKENS TUIST_SECRET_KEY_ENCRYPTION; do
-  eval "key_val=\$$key_var"
-  if [ -n "$key_val" ] && [ ${#key_val} -lt 64 ]; then
-    padded="$key_val"
-    while [ ${#padded} -lt 64 ]; do
-      padded="${padded}${key_val}"
-    done
-    export "$key_var=$padded"
-    echo "Extended $key_var from ${#key_val} to ${#padded} bytes"
-  fi
-done
-
 # Start ClickHouse in the background (installed in the Docker image for preview builds).
 # Runs on localhost with no auth (only accessible within this container).
 CLICKHOUSE_DB="tuist_preview"
