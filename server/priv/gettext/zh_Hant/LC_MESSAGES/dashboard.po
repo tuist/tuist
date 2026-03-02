@@ -369,9 +369,9 @@ msgstr "準備好加速您的建置流程並為應用程式解鎖洞察力了嗎
 msgid "Talk to us"
 msgstr "與我們聯繫"
 
-#, fuzzy
-msgid "This is a public dashboard for the tuist/tuist project."
-msgstr "此為 tuist/tuist 專案的公開儀表板。"
+msgid ""
+"This is a public dashboard for the %{account_name}/%{project_name} project."
+msgstr ""
 
 #, fuzzy
 msgid "Quarantined Tests"
@@ -400,6 +400,10 @@ msgstr "預覽版 APK 不存在或已過期。"
 #, fuzzy
 msgid "SSO"
 msgstr "SSO"
+
+#, fuzzy
+#~ msgid "This is a public dashboard for the tuist/tuist project."
+#~ msgstr "此為 tuist/tuist 專案的公開儀表板。"
 
 #, fuzzy
 #~ msgid "Generate Runs"

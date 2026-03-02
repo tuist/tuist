@@ -373,9 +373,9 @@ msgstr "هل أنت مستعد لتسريع عمليات البناء وإطلا
 msgid "Talk to us"
 msgstr "تواصل معنا"
 
-#, fuzzy
-msgid "This is a public dashboard for the tuist/tuist project."
-msgstr "هذه لوحة معلومات عامة لمشروع tuist/tuist."
+msgid ""
+"This is a public dashboard for the %{account_name}/%{project_name} project."
+msgstr ""
 
 #, fuzzy
 msgid "Quarantined Tests"
@@ -404,6 +404,10 @@ msgstr "ملف APK للمعاينة غير موجود أو انتهت صلاحي
 #, fuzzy
 msgid "SSO"
 msgstr "SSO"
+
+#, fuzzy
+#~ msgid "This is a public dashboard for the tuist/tuist project."
+#~ msgstr "هذه لوحة معلومات عامة لمشروع tuist/tuist."
 
 #, fuzzy
 #~ msgid "Generate Runs"

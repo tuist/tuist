@@ -286,7 +286,8 @@ msgstr ""
 msgid "Talk to us"
 msgstr ""
 
-msgid "This is a public dashboard for the tuist/tuist project."
+msgid ""
+"This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr ""
 
 msgid "Quarantined Tests"
