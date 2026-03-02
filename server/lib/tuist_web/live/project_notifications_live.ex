@@ -81,6 +81,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_git_branch: "")
     |> assign(create_alert_form_scheme: "")
     |> assign(create_alert_form_bundle_name: "")
+    |> assign(create_alert_form_environment: "any")
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
     # Metric alert edit forms - one per alert rule
@@ -97,6 +98,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       git_branch: rule.git_branch || "",
       scheme: rule.scheme || "",
       bundle_name: rule.bundle_name || "",
+      environment: to_string(rule.environment || :any),
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -245,6 +247,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_git_branch: "")
       |> assign(create_alert_form_scheme: "")
       |> assign(create_alert_form_bundle_name: "")
+      |> assign(create_alert_form_environment: "any")
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
 
@@ -301,6 +304,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, assign(socket, create_alert_form_bundle_name: bundle_name)}
   end
 
+  def handle_event("update_create_alert_form_environment", %{"environment" => environment}, socket) do
+    {:noreply, assign(socket, create_alert_form_environment: environment)}
+  end
+
   # Edit form handlers
   def handle_event("update_edit_alert_form_name", %{"id" => id, "value" => name}, socket) do
     {:noreply, update_edit_alert_form(socket, id, :name, name)}
@@ -353,6 +360,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, update_edit_alert_form(socket, id, :bundle_name, bundle_name)}
   end
 
+  def handle_event("update_edit_alert_form_environment", %{"id" => id, "environment" => environment}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :environment, environment)}
+  end
+
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -364,6 +375,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       git_branch: assigns.create_alert_form_git_branch,
       scheme: assigns.create_alert_form_scheme,
       bundle_name: assigns.create_alert_form_bundle_name,
+      environment: assigns.create_alert_form_environment,
       slack_channel_id: assigns.create_alert_form_channel_id,
       slack_channel_name: assigns.create_alert_form_channel_name
     }
@@ -394,6 +406,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
         git_branch: form.git_branch,
         scheme: form.scheme,
         bundle_name: form.bundle_name,
+        environment: Map.get(form, :environment, "any"),
         slack_channel_id: form.channel_id,
         slack_channel_name: form.channel_name
       }
@@ -618,13 +631,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
         metric_category = alert_metric_category_label(category, metric)
         unit = alert_unit_label(category)
         scheme = Keyword.get(opts, :scheme, "")
-
-        current_unit =
-          if scheme == "" do
-            unit
-          else
-            dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
-          end
+        environment = Keyword.get(opts, :environment, "any")
+        current_unit = qualified_unit_label(scheme, environment, unit)
 
         text =
           case category do
@@ -654,6 +662,37 @@ defmodule TuistWeb.ProjectNotificationsLive do
         raw(text)
     end
   end
+
+  defp qualified_unit_label(scheme, environment, unit) do
+    cond do
+      scheme != "" && environment not in ["any", nil] ->
+        dgettext("dashboard_projects", "%{scheme} %{environment} %{unit}",
+          scheme: scheme,
+          environment: environment_inline_label(environment),
+          unit: unit
+        )
+
+      scheme != "" ->
+        dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
+
+      environment not in ["any", nil] ->
+        dgettext("dashboard_projects", "%{environment} %{unit}",
+          environment: environment_inline_label(environment),
+          unit: unit
+        )
+
+      true ->
+        unit
+    end
+  end
+
+  defp environment_label("any"), do: dgettext("dashboard_projects", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
+  defp environment_label(_), do: dgettext("dashboard_projects", "Any")
+
+  defp environment_inline_label("local"), do: dgettext("dashboard_projects", "local")
+  defp environment_inline_label(env), do: environment_label(env)
 
   defp alert_metric_category_label(:build_run_duration, metric),
     do: "#{metric_label_lowercase(metric)} #{dgettext("dashboard_projects", "build time")}"

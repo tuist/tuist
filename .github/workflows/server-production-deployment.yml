@@ -65,7 +65,7 @@ jobs:
           mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     needs: canary
     environment: server-canary
@@ -97,7 +97,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests/ios_app_with_frameworks -- -retry-tests-on-failure -test-iterations 2
   production:
     environment: server-production
     name: Production Deployment

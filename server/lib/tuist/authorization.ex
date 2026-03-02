@@ -155,48 +155,6 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :registry do
-    action :create do
-      desc("Allows users of an account to create entries in its registry.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of an account to create entries in its registry.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc(
-        "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
-      )
-
-      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:read"])
-
-      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
-
-      allow([:authenticated_as_project, :accounts_match])
-    end
-
-    action :read do
-      desc("Allows users of an account to read its registry.")
-      allow([:authenticated_as_user, user_role: :user])
-
-      desc("Allows the admin of an account to read its registry.")
-      allow([:authenticated_as_user, user_role: :admin])
-
-      desc(
-        "Allows the authenticated account to read the account registry if it matches the account whose registry is being read."
-      )
-
-      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:read"])
-      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:registry:write"])
-
-      desc("Allows the authenticated project to read the cache if it matches the project whose cache is being read.")
-
-      allow([:authenticated_as_project, :accounts_match])
-
-      desc("Allows users with ops access to read any registry.")
-      allow([:authenticated_as_user, :ops_access])
-    end
-  end
-
   object :account do
     action :update do
       desc("Allows the admin of an account to update its settings.")

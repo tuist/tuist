@@ -1699,6 +1699,7 @@ defmodule Tuist.Builds.Analytics do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
     scheme = Keyword.get(opts, :scheme)
+    is_ci = Keyword.get(opts, :is_ci)
 
     query =
       from(b in Build,
@@ -1714,6 +1715,13 @@ defmodule Tuist.Builds.Analytics do
         where(query, [b], b.scheme == ^scheme)
       else
         query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [b], b.is_ci == true)
+        false -> where(query, [b], b.is_ci == false)
       end
 
     durations = ClickHouseRepo.all(query)
@@ -1737,26 +1745,33 @@ defmodule Tuist.Builds.Analytics do
   def build_cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    is_ci = Keyword.get(opts, :is_ci)
 
-    query = """
-    SELECT (ifNull(cacheable_task_local_hits_count, 0) + ifNull(cacheable_task_remote_hits_count, 0)) / cacheable_tasks_count as hit_rate
-    FROM build_runs
-    WHERE project_id = {project_id:Int64}
-      AND cacheable_tasks_count IS NOT NULL
-      AND cacheable_tasks_count > 0
-    ORDER BY inserted_at DESC
-    LIMIT {limit:UInt32}
-    OFFSET {offset:UInt32}
-    """
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        where: not is_nil(b.cacheable_tasks_count),
+        where: b.cacheable_tasks_count > 0,
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        select:
+          fragment(
+            "(ifNull(?, 0) + ifNull(?, 0)) / ?",
+            b.cacheable_task_local_hits_count,
+            b.cacheable_task_remote_hits_count,
+            b.cacheable_tasks_count
+          )
+      )
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        limit: limit,
-        offset: offset
-      })
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [b], b.is_ci == true)
+        false -> where(query, [b], b.is_ci == false)
+      end
 
-    hit_rates = Enum.map(rows, fn [hit_rate] -> hit_rate end)
+    hit_rates = ClickHouseRepo.all(query)
 
     calculate_hit_rate_metric_from_values(hit_rates, metric)
   end

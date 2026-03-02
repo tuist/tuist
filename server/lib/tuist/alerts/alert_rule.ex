@@ -14,6 +14,7 @@ defmodule Tuist.Alerts.AlertRule do
 
   @categories [build_run_duration: 0, test_run_duration: 1, cache_hit_rate: 2, bundle_size: 3]
   @metrics [p50: 0, p90: 1, p99: 2, average: 3, install_size: 4, download_size: 5]
+  @environments [any: 0, ci: 1, local: 2]
   @bundle_size_metrics [:install_size, :download_size]
   @duration_metrics [:p50, :p90, :p99, :average]
 
@@ -31,6 +32,7 @@ defmodule Tuist.Alerts.AlertRule do
     field :slack_channel_name, :string
     field :scheme, :string, default: ""
     field :bundle_name, :string, default: ""
+    field :environment, Ecto.Enum, values: @environments, default: :any
 
     belongs_to :project, Project, type: :integer
     has_many :alerts, Alert
@@ -51,7 +53,8 @@ defmodule Tuist.Alerts.AlertRule do
       :slack_channel_id,
       :slack_channel_name,
       :scheme,
-      :bundle_name
+      :bundle_name,
+      :environment
     ])
     |> validate_required([
       :project_id,

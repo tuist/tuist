@@ -124,7 +124,7 @@ msgid "Flags"
 msgstr ""
 
 #: lib/tuist_web/components/empty_card_section.ex:29
-#: lib/tuist_web/components/public_project_cta_banner.ex:38
+#: lib/tuist_web/components/public_project_cta_banner.ex:40
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr ""
@@ -447,19 +447,19 @@ msgstr ""
 msgid "Flaky Tests"
 msgstr ""
 
-#: lib/tuist_web/components/public_project_cta_banner.ex:31
+#: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
 msgstr ""
 
-#: lib/tuist_web/components/public_project_cta_banner.ex:45
+#: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
 msgid "Talk to us"
 msgstr ""
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:26
 #, elixir-autogen, elixir-format
-msgid "This is a public dashboard for the tuist/tuist project."
+msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:120

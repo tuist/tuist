@@ -18,7 +18,7 @@ import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
 
-@testable import TuistKit
+@testable import TuistInspectCommand
 
 struct InspectBuildCommandServiceTests {
     private let subject: InspectBuildCommandService

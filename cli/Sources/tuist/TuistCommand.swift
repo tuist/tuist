@@ -13,6 +13,7 @@ import TuistConfigLoader
 import TuistEnvironment
 import TuistGenerateCommand
 import TuistInitCommand
+import TuistInspectCommand
 import TuistLogging
 import TuistNooraExtension
 import TuistOrganizationCommand
@@ -105,6 +106,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     GenerateCommand.self,
                     RunCommand.self,
                     TestCommand.self,
+                    InspectCommand.self,
                 ]
             ))
             groups.append(CommandGroup(

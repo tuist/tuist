@@ -71,12 +71,17 @@ defmodule Tuist.Alerts do
   - `:ok` if no alert needed
   """
   def evaluate(%AlertRule{category: :build_run_duration} = alert_rule) do
-    opts = maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.scheme)
+    opts =
+      [limit: alert_rule.rolling_window_size, offset: 0]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
 
     current = BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, opts)
 
     previous_opts =
-      maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size], alert_rule.scheme)
+      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
 
     previous = BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
@@ -84,12 +89,17 @@ defmodule Tuist.Alerts do
   end
 
   def evaluate(%AlertRule{category: :test_run_duration} = alert_rule) do
-    opts = maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.scheme)
+    opts =
+      [limit: alert_rule.rolling_window_size, offset: 0]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
 
     current = TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, opts)
 
     previous_opts =
-      maybe_add_scheme([limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size], alert_rule.scheme)
+      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
 
     previous = TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
@@ -115,17 +125,17 @@ defmodule Tuist.Alerts do
   end
 
   def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
-    current =
-      CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: 0
+    current_opts = maybe_add_environment([limit: alert_rule.rolling_window_size, offset: 0], alert_rule.environment)
+
+    current = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, current_opts)
+
+    previous_opts =
+      maybe_add_environment(
+        [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size],
+        alert_rule.environment
       )
 
-    previous =
-      CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: alert_rule.rolling_window_size
-      )
+    previous = CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
     check_decrease_regression(alert_rule, current, previous)
   end
@@ -163,6 +173,10 @@ defmodule Tuist.Alerts do
 
   defp maybe_add_scheme(opts, ""), do: opts
   defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
+
+  defp maybe_add_environment(opts, :ci), do: Keyword.put(opts, :is_ci, true)
+  defp maybe_add_environment(opts, :local), do: Keyword.put(opts, :is_ci, false)
+  defp maybe_add_environment(opts, _), do: opts
 
   defp maybe_add_bundle_name(opts, ""), do: opts
   defp maybe_add_bundle_name(opts, bundle_name), do: Keyword.put(opts, :name, bundle_name)

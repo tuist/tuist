@@ -278,7 +278,8 @@
                 @create_alert_form_rolling_window_size,
                 git_branch: @create_alert_form_git_branch,
                 scheme: @create_alert_form_scheme,
-                bundle_name: @create_alert_form_bundle_name
+                bundle_name: @create_alert_form_bundle_name,
+                environment: @create_alert_form_environment
               )}
             </p>
             <.alert
@@ -465,6 +466,31 @@
                   phx-debounce="300"
                 />
               </div>
+              <div
+                :if={@create_alert_form_category != :bundle_size}
+                data-part="schedule-row"
+              >
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Environment")}
+                </label>
+                <.dropdown
+                  id="create-alert-environment-dropdown"
+                  label={environment_label(@create_alert_form_environment)}
+                >
+                  <.dropdown_item
+                    :for={env <- ["any", "ci", "local"]}
+                    value={env}
+                    label={environment_label(env)}
+                    phx-click="update_create_alert_form_environment"
+                    phx-value-environment={env}
+                    data-selected={@create_alert_form_environment == env}
+                  >
+                    <:right_icon :if={@create_alert_form_environment == env}>
+                      <.icon name="check" />
+                    </:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Slack channel")}
@@ -582,7 +608,8 @@
                       form[:rolling_window_size] || rule.rolling_window_size,
                       git_branch: form[:git_branch] || rule.git_branch || "",
                       scheme: form[:scheme] || rule.scheme || "",
-                      bundle_name: form[:bundle_name] || rule.bundle_name || ""
+                      bundle_name: form[:bundle_name] || rule.bundle_name || "",
+                      environment: form[:environment] || rule.environment || "any"
                     )}
                   </p>
                   <.alert
@@ -796,6 +823,33 @@
                         phx-value-id={rule.id}
                         phx-debounce="300"
                       />
+                    </div>
+                    <div
+                      :if={(form[:category] || rule.category) != :bundle_size}
+                      data-part="schedule-row"
+                    >
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Environment")}
+                      </label>
+                      <% edit_environment = Map.get(form, :environment, rule.environment || "any") %>
+                      <.dropdown
+                        id={"edit-alert-environment-dropdown-#{rule.id}"}
+                        label={environment_label(edit_environment)}
+                      >
+                        <.dropdown_item
+                          :for={env <- ["any", "ci", "local"]}
+                          value={env}
+                          label={environment_label(env)}
+                          phx-click="update_edit_alert_form_environment"
+                          phx-value-id={rule.id}
+                          phx-value-environment={env}
+                          data-selected={edit_environment == env}
+                        >
+                          <:right_icon :if={edit_environment == env}>
+                            <.icon name="check" />
+                          </:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
                     </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
