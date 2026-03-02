@@ -3,8 +3,8 @@
     <http_port>8123</http_port>
 
     <!-- Server-level memory limits for running alongside the BEAM -->
-    <max_server_memory_usage_to_ram_ratio>0.25</max_server_memory_usage_to_ram_ratio>
-    <max_server_memory_usage>536870912</max_server_memory_usage> <!-- 512MB total -->
+    <max_server_memory_usage_to_ram_ratio>0.5</max_server_memory_usage_to_ram_ratio>
+    <max_server_memory_usage>1073741824</max_server_memory_usage> <!-- 1GB total -->
     <mark_cache_size>67108864</mark_cache_size> <!-- 64MB, default is 5GB -->
     <uncompressed_cache_size>0</uncompressed_cache_size>
 
@@ -17,7 +17,7 @@
     <!-- User-level query memory limit -->
     <profiles>
         <default>
-            <max_memory_usage>536870912</max_memory_usage> <!-- 512MB per query -->
+            <max_memory_usage>1073741824</max_memory_usage> <!-- 1GB per query -->
         </default>
     </profiles>
 </clickhouse>

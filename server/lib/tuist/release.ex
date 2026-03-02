@@ -37,12 +37,16 @@ defmodule Tuist.Release do
   end
 
   def seed do
+    Application.load(@app)
+
     # Disable web server and PromEx to avoid port conflicts when the seed
     # runs in a separate eval process alongside the running server.
-    System.put_env("TUIST_WEB", "0")
-    System.put_env("TUIST_PROMETHEUS_ENABLED", "0")
+    endpoint_config = Application.get_env(@app, TuistWeb.Endpoint, [])
+    Application.put_env(@app, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
 
-    Application.load(@app)
+    promex_config = Application.get_env(@app, Tuist.PromEx, [])
+    Application.put_env(@app, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
     {:ok, _} = Application.ensure_all_started(@app)
 
     seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
