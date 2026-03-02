@@ -58,39 +58,43 @@ if [ $? -ne 0 ]; then
 fi
 echo "PostgreSQL migration completed successfully."
 
-# Wait for ClickHouse, run its migrations, and seed the database in the background.
-# ClickHouse takes 60-120s to start on Render, so we can't block server startup.
-# The Ch.Connection pool retries automatically, and the seed runs once ClickHouse is ready.
-(
-  echo "Background: waiting for ClickHouse to accept connections..."
-  CH_READY=false
-  for i in $(seq 1 300); do
-    if curl -sf4 "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
-      CH_READY=true
-      echo "Background: ClickHouse is ready (after ${i}s). Resetting database..."
-      curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
-      curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
-      echo "Background: ClickHouse database '${CLICKHOUSE_DB}' ready."
-
-      echo "Background: Running ClickHouse migrations..."
-      ./tuist eval Tuist.Release.migrate_ingest
-      echo "Background: ClickHouse migrations completed."
-
-      echo "Background: Seeding the database..."
-      ./tuist eval Tuist.Release.seed
-      echo "Background: Seeding completed."
-      break
-    fi
-    if [ "$((i % 30))" = "0" ]; then
-      echo "Background: still waiting for ClickHouse... (${i}s)"
-    fi
-    sleep 1
-  done
-  if [ "$CH_READY" = "false" ]; then
-    echo "Background: ClickHouse failed to start within 300s. Skipping migrations and seed."
+# Wait for ClickHouse to accept connections.
+echo "Waiting for ClickHouse to accept connections..."
+CH_READY=false
+for i in $(seq 1 60); do
+  if curl -sf4 "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
+    CH_READY=true
+    echo "ClickHouse is ready (after ${i}s). Resetting database..."
+    curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
+    curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
+    echo "ClickHouse database '${CLICKHOUSE_DB}' ready."
+    break
   fi
-) &
+  if [ "$((i % 10))" = "0" ]; then
+    echo "Still waiting for ClickHouse... (${i}s)"
+  fi
+  sleep 1
+done
+if [ "$CH_READY" = "false" ]; then
+  echo "ClickHouse failed to start within 60s. Aborting."
+  exit 1
+fi
 
-# Start the server immediately so Render detects the port.
+echo "Running ClickHouse migrations..."
+./tuist eval Tuist.Release.migrate_ingest
+if [ $? -ne 0 ]; then
+  echo "ClickHouse migration failed!"
+  exit 1
+fi
+echo "ClickHouse migrations completed successfully."
+
+echo "Seeding the database..."
+./tuist eval Tuist.Release.seed
+if [ $? -ne 0 ]; then
+  echo "Seeding failed!"
+  exit 1
+fi
+echo "Seeding completed successfully."
+
 echo "Starting the server..."
 TUIST_WEB=true exec ./tuist start
