@@ -2,6 +2,8 @@
 @import "noora/noora.css";
 @import "./css/layouts/root.css";
 @import "./css/components/nav.css";
+@import "./css/components/page_layout.css";
+@import "./css/components/toc.css";
 
 :root {
   color-scheme: light;
@@ -10,7 +12,6 @@
 body {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-11);
   box-sizing: border-box;
   margin-top: 0;
   margin-right: 0;
