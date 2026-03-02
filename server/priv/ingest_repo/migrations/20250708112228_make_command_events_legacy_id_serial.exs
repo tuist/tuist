@@ -2,8 +2,8 @@ defmodule Tuist.ClickHouseRepo.Migrations.MakeCommandEventsLegacyIDSerial do
   use Ecto.Migration
 
   def up do
-    # This migration requires Zookeeper, which we are not using in dev/test environments. Therefore, only run it in deployment environments.
-    if Tuist.Environment.dev?() || Tuist.Environment.test?() do
+    # This migration requires Zookeeper, which is only available in hosted deployment environments.
+    if Tuist.Environment.dev?() || Tuist.Environment.test?() || !Tuist.Environment.tuist_hosted?() do
       :ok
     else
       # excellent_migrations:safety-assured-for-next-line raw_sql_executed
