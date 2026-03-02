@@ -20,15 +20,11 @@ defmodule Tuist.Release do
     end
   end
 
-  # Used by the start-preview script to seed preview environments with
-  # development data. Starts the full application (needed for Ecto, Oban, etc.)
-  # but disables the web server and PromEx to avoid port conflicts.
   def seed do
     Application.load(@app)
 
-    # Disable web server and PromEx to avoid port conflicts and external
-    # API calls when the seed runs in a separate eval process alongside
-    # the running server.
+    # Disable the web server and PromEx so seeding doesn't bind ports.
+    # This allows running the seed while a dev server is already running.
     endpoint_config = Application.get_env(@app, TuistWeb.Endpoint, [])
     Application.put_env(@app, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
 
