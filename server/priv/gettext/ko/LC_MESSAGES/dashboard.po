@@ -3,16 +3,16 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-26 14:55+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
-"dashboard-1/ko/>\n"
+"PO-Revision-Date: 2026-03-02 13:28+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
+"1/ko/>\n"
 "Language: ko\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -289,9 +289,10 @@ msgstr "빌드 속도를 높이고 앱에 대한 통찰력을 얻으실 준비�
 msgid "Talk to us"
 msgstr "연락하세요"
 
+#, fuzzy
 msgid ""
 "This is a public dashboard for the %{account_name}/%{project_name} project."
-msgstr ""
+msgstr "이것은 %{account_name}/%{project_name} 프로젝트의 공개 대시보드입니다."
 
 msgid "Quarantined Tests"
 msgstr "격리된 테스트"
