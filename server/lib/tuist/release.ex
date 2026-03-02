@@ -20,6 +20,12 @@ defmodule Tuist.Release do
     end
   end
 
+  # In preview environments, ClickHouse is embedded in the same container and
+  # boots alongside the app. PostgreSQL (managed by Render) is available
+  # immediately, but ClickHouse takes a few seconds to start accepting
+  # connections. The start-preview script uses these separate functions to run
+  # PostgreSQL migrations first while ClickHouse is still starting, then runs
+  # ClickHouse migrations once it's ready. See rel/overlays/bin/start-preview.
   def migrate_main do
     Logger.info("Migrating main repo (PostgreSQL only)")
     load_app()
@@ -36,6 +42,9 @@ defmodule Tuist.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, &Ecto.Migrator.run(&1, :up, all: true))
   end
 
+  # Used by the start-preview script to seed preview environments with
+  # development data. Starts the full application (needed for Ecto, Oban, etc.)
+  # but disables the web server and PromEx to avoid port conflicts.
   def seed do
     Application.load(@app)
 
