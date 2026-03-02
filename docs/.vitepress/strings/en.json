@@ -465,6 +465,9 @@
             "authentication": {
               "text": "Authentication"
             },
+            "network": {
+              "text": "Network"
+            },
             "self-hosting": {
               "text": "Self-hosting",
               "items": {

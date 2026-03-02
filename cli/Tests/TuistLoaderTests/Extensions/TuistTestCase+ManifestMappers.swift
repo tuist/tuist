@@ -200,13 +200,15 @@ extension TuistTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
-        XCTAssertEqual(runAction.executable?.name, manifest.executable?.targetName, file: file, line: line)
-        XCTAssertEqual(
-            runAction.executable?.projectPath,
-            try generatorPaths.resolveSchemeActionProjectPath(manifest.executable?.projectPath),
-            file: file,
-            line: line
-        )
+        if case let .some(.executable(manifestRef)) = manifest.executable {
+            XCTAssertEqual(runAction.executable?.name, manifestRef?.targetName, file: file, line: line)
+            XCTAssertEqual(
+                runAction.executable?.projectPath,
+                try generatorPaths.resolveSchemeActionProjectPath(manifestRef?.projectPath),
+                file: file,
+                line: line
+            )
+        }
         XCTAssertTrue(runAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
         try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)

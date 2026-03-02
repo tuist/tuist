@@ -21,6 +21,7 @@ import {
   slackIcon,
   testInsightsIcon,
   flakyTestsIcon,
+  networkIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -690,6 +691,13 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
+                "sidebars.guides.items.agentic-coding.items.mcp.text",
+              ),
+              link: `/${locale}/guides/features/agentic-coding/mcp`,
+            },
+            {
+              text: localizedString(
+                locale,
                 "sidebars.guides.items.agentic-coding.items.skills.text",
               ),
               link: `/${locale}/guides/features/agentic-coding/skills`,
@@ -756,6 +764,13 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.server.items.authentication.text",
           )}</span>`,
           link: `/${locale}/guides/server/authentication`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${networkIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.network.text",
+          )}</span>`,
+          link: `/${locale}/guides/server/network`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} ${localizedString(

@@ -208,5 +208,30 @@ defmodule TuistWeb.AuthenticationPlugTest do
                "message" => "You need to be authenticated to access this resource."
              }
     end
+
+    test "returns mcp bearer challenge with request origin metadata when not authenticated" do
+      opts = AuthenticationPlug.init({:require_authentication, response_type: :mcp})
+
+      conn =
+        :post
+        |> build_conn("/mcp")
+        |> Map.put(:scheme, :https)
+        |> Map.put(:host, "mcp.tuist.dev")
+        |> Map.put(:port, 8443)
+
+      conn = AuthenticationPlug.call(conn, opts)
+
+      assert conn.halted == true
+      assert conn.status == 401
+
+      assert get_resp_header(conn, "www-authenticate") == [
+               ~s(Bearer realm="tuist-mcp", resource_metadata="https://mcp.tuist.dev:8443/.well-known/oauth-protected-resource/mcp")
+             ]
+
+      assert json_response(conn, :unauthorized) == %{
+               "error" => "invalid_token",
+               "error_description" => "Missing or invalid access token."
+             }
+    end
   end
 end

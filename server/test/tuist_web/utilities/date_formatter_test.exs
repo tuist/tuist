@@ -31,7 +31,7 @@ defmodule Tuist.Utilities.DateFormatterTest do
     end
 
     test "formats a single month ago correctly" do
-      date = Timex.shift(DateTime.utc_now(), months: -1)
+      date = Timex.shift(DateTime.utc_now(), days: -31)
       assert DateFormatter.from_now(date) == "1mo ago"
     end
 

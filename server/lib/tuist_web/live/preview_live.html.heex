@@ -1,6 +1,6 @@
 <div id="preview">
   <.alert
-    :if={@user_agent.os.family != "iOS" and not (@preview.supported_platforms == [:android])}
+    :if={@user_agent.os.family != "iOS"}
     id="download-tuist-app-alert"
     phx-hook="DeeplinkValidation"
     data-deeplink-element-id="preview-run-button"

@@ -1,5 +1,8 @@
 defmodule Cache.S3TransfersTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
+  use Mimic
+
+  import Ecto.Query
 
   alias Cache.Repo
   alias Cache.S3Transfer
@@ -7,18 +10,14 @@ defmodule Cache.S3TransfersTest do
   alias Cache.S3TransfersBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  setup :set_mimic_from_context
+
+  setup context do
     :ok = Sandbox.checkout(Repo)
-    Sandbox.mode(Repo, {:shared, self()})
 
-    if pid = Process.whereis(S3TransfersBuffer) do
-      Sandbox.allow(Repo, self(), pid)
-      S3TransfersBuffer.reset()
-    end
+    context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
 
-    Repo.delete_all(S3Transfer)
-
-    :ok
+    {:ok, context}
   end
 
   describe "enqueue_cas_upload/3" do
@@ -37,11 +36,13 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "does not create duplicate transfers" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
+      key = "account/project/cas/AB/CD/artifact123"
+
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.type == :upload and t.key == ^key), :count, :id)
       assert count == 1
     end
 
@@ -50,10 +51,12 @@ defmodule Cache.S3TransfersTest do
       :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
       :ok = S3TransfersBuffer.flush()
 
-      transfers = Repo.all(S3Transfer)
+      key = "account/project/cas/AB/CD/artifact123"
+
+      transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))
       assert Enum.uniq_by(transfers, & &1.id) == transfers
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
       assert count == 2
     end
   end
@@ -74,11 +77,13 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "does not create duplicate transfers" do
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
+      key = "account/project/cas/AB/CD/artifact123"
+
+      :ok = S3Transfers.enqueue_cas_download("account", "project", key)
+      :ok = S3Transfers.enqueue_cas_download("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.type == :download and t.key == ^key), :count, :id)
       assert count == 1
     end
   end
@@ -151,7 +156,7 @@ defmodule Cache.S3TransfersTest do
       :ok = S3Transfers.enqueue_registry_upload(key)
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.type == :upload and t.key == ^key), :count, :id)
       assert count == 1
     end
   end
@@ -180,7 +185,7 @@ defmodule Cache.S3TransfersTest do
       :ok = S3Transfers.enqueue_registry_download(key)
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.type == :download and t.key == ^key), :count, :id)
       assert count == 1
     end
   end
@@ -229,7 +234,7 @@ defmodule Cache.S3TransfersTest do
       S3Transfers.delete(transfer.id)
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.id == ^transfer.id), :count, :id)
       assert count == 0
     end
 
@@ -243,7 +248,7 @@ defmodule Cache.S3TransfersTest do
       S3Transfers.delete(transfer.id)
       :ok = S3TransfersBuffer.flush()
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.id == ^transfer.id), :count, :id)
       assert count == 0
     end
   end
@@ -266,12 +271,14 @@ defmodule Cache.S3TransfersTest do
     end
 
     test "handles empty list" do
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
+      key = "account/project/cas/ar/ti/artifact1"
+
+      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
       S3Transfers.delete_all([])
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.type == :upload and t.key == ^key), :count, :id)
       assert count == 1
     end
   end

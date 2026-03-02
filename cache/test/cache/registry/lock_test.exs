@@ -1,5 +1,5 @@
 defmodule Cache.Registry.LockTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Cache.Registry.Lock

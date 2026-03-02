@@ -63,18 +63,18 @@ msgid "Billing"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:48
-#: lib/tuist_web/components/app_layout_components.ex:204
+#: lib/tuist_web/components/app_layout_components.ex:212
 #, elixir-autogen, elixir-format
 msgid "Build Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:31
-#: lib/tuist_web/components/app_layout_components.ex:187
+#: lib/tuist_web/components/app_layout_components.ex:195
 #, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:318
+#: lib/tuist_web/components/app_layout_components.ex:334
 #, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr ""
@@ -87,7 +87,7 @@ msgstr ""
 msgid "CI"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:149
+#: lib/tuist_web/components/app_layout_components.ex:157
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
 msgstr ""
@@ -124,7 +124,7 @@ msgid "Flags"
 msgstr ""
 
 #: lib/tuist_web/components/empty_card_section.ex:29
-#: lib/tuist_web/components/public_project_cta_banner.ex:38
+#: lib/tuist_web/components/public_project_cta_banner.ex:40
 #, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr ""
@@ -180,7 +180,7 @@ msgstr ""
 msgid "Members"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:126
+#: lib/tuist_web/components/app_layout_components.ex:134
 #, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr ""
@@ -242,7 +242,7 @@ msgstr ""
 msgid "Prev"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:292
+#: lib/tuist_web/components/app_layout_components.ex:308
 #, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr ""
@@ -252,7 +252,7 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:307
+#: lib/tuist_web/components/app_layout_components.ex:323
 #: lib/tuist_web/components/layouts/ops.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "QA"
@@ -263,8 +263,8 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:330
-#: lib/tuist_web/components/layouts/account.html.heex:56
+#: lib/tuist_web/components/app_layout_components.ex:346
+#: lib/tuist_web/components/layouts/account.html.heex:69
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -294,25 +294,25 @@ msgstr ""
 msgid "Switch to your preferred theme"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:90
-#: lib/tuist_web/components/app_layout_components.ex:246
+#: lib/tuist_web/components/app_layout_components.ex:94
+#: lib/tuist_web/components/app_layout_components.ex:258
 #, elixir-autogen, elixir-format
 msgid "Test Cases"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:79
-#: lib/tuist_web/components/app_layout_components.ex:235
+#: lib/tuist_web/components/app_layout_components.ex:243
 #, elixir-autogen, elixir-format
 msgid "Test Runs"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:62
-#: lib/tuist_web/components/app_layout_components.ex:218
+#: lib/tuist_web/components/app_layout_components.ex:226
 #, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:52
+#: lib/tuist_web/plugs/loader_plug.ex:53
 #, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
 msgstr ""
@@ -338,14 +338,14 @@ msgstr ""
 msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
 
-#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:34
-#: lib/tuist_web/plugs/loader_plug.ex:112
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
+#: lib/tuist_web/plugs/loader_plug.ex:116
 #, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
 msgstr ""
 
-#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:43
-#: lib/tuist_web/plugs/loader_plug.ex:116
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:45
+#: lib/tuist_web/plugs/loader_plug.ex:120
 #, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
@@ -355,7 +355,7 @@ msgstr ""
 msgid "The project you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/plugs/loader_plug.ex:93
+#: lib/tuist_web/plugs/loader_plug.ex:96
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
@@ -375,8 +375,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:357
-#: lib/tuist_web/components/app_layout_components.ex:384
+#: lib/tuist_web/components/app_layout_components.ex:373
+#: lib/tuist_web/components/app_layout_components.ex:400
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -398,7 +398,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:177
+#: lib/tuist_web/components/app_layout_components.ex:185
 #, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr ""
@@ -441,39 +441,39 @@ msgstr ""
 msgid "p99"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:101
-#: lib/tuist_web/components/app_layout_components.ex:257
+#: lib/tuist_web/components/app_layout_components.ex:109
+#: lib/tuist_web/components/app_layout_components.ex:273
 #, elixir-autogen, elixir-format
 msgid "Flaky Tests"
 msgstr ""
 
-#: lib/tuist_web/components/public_project_cta_banner.ex:31
+#: lib/tuist_web/components/public_project_cta_banner.ex:33
 #, elixir-autogen, elixir-format
 msgid "Ready to speed up your builds and unlock insights for your app?"
 msgstr ""
 
-#: lib/tuist_web/components/public_project_cta_banner.ex:45
+#: lib/tuist_web/components/public_project_cta_banner.ex:47
 #, elixir-autogen, elixir-format
 msgid "Talk to us"
 msgstr ""
 
 #: lib/tuist_web/components/public_project_cta_banner.ex:26
 #, elixir-autogen, elixir-format
-msgid "This is a public dashboard for the tuist/tuist project."
+msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:112
-#: lib/tuist_web/components/app_layout_components.ex:268
+#: lib/tuist_web/components/app_layout_components.ex:120
+#: lib/tuist_web/components/app_layout_components.ex:284
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:161
+#: lib/tuist_web/components/app_layout_components.ex:169
 #, elixir-autogen, elixir-format
 msgid "Generations"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:281
+#: lib/tuist_web/components/app_layout_components.ex:297
 #, elixir-autogen, elixir-format
 msgid "Gradle Cache"
 msgstr ""
@@ -491,4 +491,9 @@ msgstr ""
 #: lib/tuist_web/controllers/preview_controller.ex:154
 #, elixir-autogen, elixir-format
 msgid "The preview APK doesn't exist or has expired."
+msgstr ""
+
+#: lib/tuist_web/components/layouts/account.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "SSO"
 msgstr ""

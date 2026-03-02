@@ -173,23 +173,16 @@ defmodule Tuist.Tests.Analytics do
   end
 
   defp quarantined_count_at(project_id, datetime) do
-    latest_test_case_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        where: test_case.inserted_at <= ^datetime,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
+    inner =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        where: tc.inserted_at <= ^datetime,
+        group_by: tc.id,
+        having: fragment("argMax(?, ?) = 1", tc.is_quarantined, tc.inserted_at),
+        select: tc.id
       )
 
-    query =
-      from(test_case in TestCase,
-        join: latest in subquery(latest_test_case_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
-        where: test_case.is_quarantined == true,
-        select: count(test_case.id)
-      )
-
-    ClickHouseRepo.one(query) || 0
+    ClickHouseRepo.one(from(tc in subquery(inner), select: count())) || 0
   end
 
   def test_run_duration_analytics(project_id, opts \\ []) do
@@ -967,6 +960,7 @@ defmodule Tuist.Tests.Analytics do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
     scheme = Keyword.get(opts, :scheme)
+    is_ci = Keyword.get(opts, :is_ci)
 
     query =
       from(t in Test,
@@ -982,6 +976,13 @@ defmodule Tuist.Tests.Analytics do
         where(query, [t], t.scheme == ^scheme)
       else
         query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [t], t.is_ci == true)
+        false -> where(query, [t], t.is_ci == false)
       end
 
     durations = ClickHouseRepo.all(query)

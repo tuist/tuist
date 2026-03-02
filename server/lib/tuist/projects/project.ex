@@ -35,7 +35,7 @@ defmodule Tuist.Projects.Project do
     field :report_timezone, :string
     field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
-    field :auto_quarantine_flaky_tests, :boolean, default: true
+    field :auto_quarantine_flaky_tests, :boolean, default: false
     field :flaky_test_alerts_enabled, :boolean, default: false
     field :flaky_test_alerts_slack_channel_id, :string
     field :flaky_test_alerts_slack_channel_name, :string

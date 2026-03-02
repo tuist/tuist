@@ -426,5 +426,101 @@ defmodule Tuist.Alerts.AlertRuleTest do
       {:ok, alert_rule} = Repo.insert(changeset)
       assert alert_rule.name == "Untitled"
     end
+
+    test "defaults environment to :any" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      {:ok, alert_rule} = Repo.insert(changeset)
+      assert alert_rule.environment == :any
+    end
+
+    test "accepts all valid environment values as atoms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for env <- [:any, :ci, :local] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :build_run_duration,
+            metric: :p90,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
+            environment: env,
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid?, "Expected environment #{env} to be valid"
+        assert Ecto.Changeset.get_field(changeset, :environment) == env
+      end
+    end
+
+    test "accepts environment as a string (cast from form)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for {str, atom} <- [{"any", :any}, {"ci", :ci}, {"local", :local}] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :build_run_duration,
+            metric: :p90,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
+            environment: str,
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid?, "Expected string environment \"#{str}\" to be cast successfully"
+        assert Ecto.Changeset.get_field(changeset, :environment) == atom
+      end
+    end
+
+    test "is invalid with an unknown environment value" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          environment: "unknown",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "is invalid" in errors_on(changeset).environment
+    end
   end
 end

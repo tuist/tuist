@@ -13,8 +13,10 @@ defmodule Tuist.Tests do
     To ensure we always get the latest version of each row, we use one of these strategies:
 
     - For single-row queries: `ORDER BY inserted_at DESC LIMIT 1`
-    - For multi-row queries: a subquery with `GROUP BY id` and `max(inserted_at)` to identify
-      the latest version of each row, then join back to get the full row data
+    - For multi-row queries: `hints: ["FINAL"]` on the FROM clause, which tells ClickHouse
+      to apply ReplacingMergeTree deduplication at query time (single scan, partition-scoped)
+    - For point-in-time queries (e.g. state at a past datetime): `argMax(column, inserted_at)`
+      with `GROUP BY id` to pick the latest value within the time range
   """
 
   import Ecto.Query
@@ -301,30 +303,23 @@ defmodule Tuist.Tests do
   defp get_project_test_cases(_project_id, []), do: %{}
 
   defp get_project_test_cases(project_id, test_case_ids) do
-    test_case_id_set = MapSet.new(test_case_ids)
-
-    latest_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
+    test_case_ids
+    |> Enum.chunk_every(5_000)
+    |> Enum.flat_map(fn chunk ->
+      IngestRepo.all(
+        from(test_case in TestCase,
+          hints: ["FINAL"],
+          where: test_case.project_id == ^project_id,
+          where: test_case.id in ^chunk,
+          select: %{
+            id: test_case.id,
+            recent_durations: test_case.recent_durations,
+            is_flaky: test_case.is_flaky,
+            is_quarantined: test_case.is_quarantined
+          }
+        )
       )
-
-    query =
-      from(test_case in TestCase,
-        join: latest in subquery(latest_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
-        select: %{
-          id: test_case.id,
-          recent_durations: test_case.recent_durations,
-          is_flaky: test_case.is_flaky,
-          is_quarantined: test_case.is_quarantined
-        }
-      )
-
-    query
-    |> IngestRepo.all()
-    |> Enum.filter(&(&1.id in test_case_id_set))
+    end)
     |> Map.new(fn row -> {row.id, row} end)
   end
 
@@ -633,8 +628,8 @@ defmodule Tuist.Tests do
     if is_nil(default_branch) do
       Enum.map(test_case_data, &Map.put(&1, :is_new, false))
     else
-      test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
-      existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(test_case_ids, default_branch)
+      existing_on_default_branch =
+        get_test_case_ids_with_ci_runs_on_branch(test.project_id, default_branch)
 
       Enum.map(test_case_data, fn data ->
         is_new = data.test_case_id not in existing_on_default_branch
@@ -643,24 +638,18 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_test_case_ids_with_ci_runs_on_branch([], _branch), do: MapSet.new()
-
-  defp get_test_case_ids_with_ci_runs_on_branch(test_case_ids, branch) do
-    test_case_id_set = MapSet.new(test_case_ids)
+  defp get_test_case_ids_with_ci_runs_on_branch(project_id, branch) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
-    query =
-      from(tcr in TestCaseRun,
-        where: tcr.git_branch == ^branch,
-        where: tcr.is_ci == true,
-        where: tcr.ran_at >= ^ninety_days_ago,
-        distinct: true,
-        select: tcr.test_case_id
-      )
-
-    query
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.git_branch == ^branch,
+      where: tcr.is_ci == true,
+      where: tcr.ran_at >= ^ninety_days_ago,
+      distinct: true,
+      select: tcr.test_case_id
+    )
     |> ClickHouseRepo.all()
-    |> Enum.filter(&(&1 in test_case_id_set))
     |> MapSet.new()
   end
 
@@ -862,26 +851,19 @@ defmodule Tuist.Tests do
     filters = Map.get(attrs, :filters, [])
     has_name_filter = Enum.any?(filters, fn f -> f.field == :name end)
 
-    latest_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
-      )
-
-    latest_subquery =
-      if has_name_filter do
-        latest_subquery
-      else
-        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
-        where(latest_subquery, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
-      end
-
     base_query =
       from(test_case in TestCase,
-        join: latest in subquery(latest_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at
+        hints: ["FINAL"],
+        where: test_case.project_id == ^project_id
       )
+
+    base_query =
+      if has_name_filter do
+        base_query
+      else
+        two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+        where(base_query, [test_case], test_case.last_ran_at >= ^two_weeks_ago)
+      end
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
   end
@@ -944,19 +926,12 @@ defmodule Tuist.Tests do
         }
       )
 
-    latest_test_case_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
-      )
-
     base_query =
       from(test_case in TestCase,
-        join: latest in subquery(latest_test_case_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        hints: ["FINAL"],
         left_join: stats in subquery(stats_subquery),
         on: test_case.id == stats.test_case_id,
+        where: test_case.project_id == ^project_id,
         where: test_case.is_flaky == true,
         select: %{
           id: test_case.id,
@@ -973,17 +948,10 @@ defmodule Tuist.Tests do
   end
 
   defp build_flaky_test_cases_count_query(project_id, search_term) do
-    latest_test_case_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
-      )
-
     base_query =
       from(test_case in TestCase,
-        join: latest in subquery(latest_test_case_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        hints: ["FINAL"],
+        where: test_case.project_id == ^project_id,
         where: test_case.is_flaky == true,
         select: count(test_case.id)
       )
@@ -995,19 +963,19 @@ defmodule Tuist.Tests do
   defp apply_name_search(query, term), do: from(q in query, where: ilike(q.name, ^"%#{term}%"))
 
   defp apply_flaky_order(query, :flaky_runs_count, :asc),
-    do: from([tc, _latest, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
+    do: from([tc, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
 
   defp apply_flaky_order(query, :last_flaky_at, :desc),
-    do: from([tc, _latest, stats] in query, order_by: [desc: stats.last_flaky_at])
+    do: from([tc, stats] in query, order_by: [desc: stats.last_flaky_at])
 
   defp apply_flaky_order(query, :last_flaky_at, :asc),
-    do: from([tc, _latest, stats] in query, order_by: [asc: stats.last_flaky_at])
+    do: from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
 
-  defp apply_flaky_order(query, :name, :desc), do: from([tc, _latest, _stats] in query, order_by: [desc: tc.name])
-  defp apply_flaky_order(query, :name, :asc), do: from([tc, _latest, _stats] in query, order_by: [asc: tc.name])
+  defp apply_flaky_order(query, :name, :desc), do: from([tc, _stats] in query, order_by: [desc: tc.name])
+  defp apply_flaky_order(query, :name, :asc), do: from([tc, _stats] in query, order_by: [asc: tc.name])
 
   defp apply_flaky_order(query, _, _),
-    do: from([tc, _latest, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
+    do: from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
 
   defp row_to_flaky_test_case(row) do
     %FlakyTestCase{
@@ -1102,16 +1070,9 @@ defmodule Tuist.Tests do
          module_name_filter,
          suite_name_filter
        ) do
-    quarantined_ids_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id and tc.is_quarantined == true,
-        group_by: tc.id,
-        select: tc.id
-      )
-
     last_run_subquery =
       from(test_case_run in TestCaseRun,
-        where: test_case_run.test_case_id in subquery(quarantined_ids_subquery),
+        where: test_case_run.project_id == ^project_id,
         group_by: test_case_run.test_case_id,
         select: %{
           test_case_id: test_case_run.test_case_id,
@@ -1120,39 +1081,27 @@ defmodule Tuist.Tests do
         }
       )
 
-    latest_test_case_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
-      )
-
-    latest_quarantine_event_subquery =
+    quarantine_info_subquery =
       from(e in TestCaseEvent,
         where: e.event_type == "quarantined",
         group_by: e.test_case_id,
-        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
-      )
-
-    quarantine_info_subquery =
-      from(e in TestCaseEvent,
-        join: latest in subquery(latest_quarantine_event_subquery),
-        on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
-        where: e.event_type == "quarantined",
-        select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
+        select: %{
+          test_case_id: e.test_case_id,
+          actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
+        }
       )
 
     base_query =
       from(test_case in TestCase,
         as: :test_case,
-        join: latest in subquery(latest_test_case_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        hints: ["FINAL"],
         left_join: stats in subquery(last_run_subquery),
         as: :stats,
         on: test_case.id == stats.test_case_id,
         left_join: quarantine in subquery(quarantine_info_subquery),
         as: :quarantine,
         on: test_case.id == quarantine.test_case_id,
+        where: test_case.project_id == ^project_id,
         where: test_case.is_quarantined == true,
         select: %{
           id: test_case.id,
@@ -1178,36 +1127,24 @@ defmodule Tuist.Tests do
          module_name_filter,
          suite_name_filter
        ) do
-    latest_test_case_subquery =
-      from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
-      )
-
-    latest_quarantine_event_subquery =
+    quarantine_info_subquery =
       from(e in TestCaseEvent,
         where: e.event_type == "quarantined",
         group_by: e.test_case_id,
-        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
-      )
-
-    quarantine_info_subquery =
-      from(e in TestCaseEvent,
-        join: latest in subquery(latest_quarantine_event_subquery),
-        on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
-        where: e.event_type == "quarantined",
-        select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
+        select: %{
+          test_case_id: e.test_case_id,
+          actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
+        }
       )
 
     base_query =
       from(test_case in TestCase,
         as: :test_case,
-        join: latest in subquery(latest_test_case_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        hints: ["FINAL"],
         left_join: quarantine in subquery(quarantine_info_subquery),
         as: :quarantine,
         on: test_case.id == quarantine.test_case_id,
+        where: test_case.project_id == ^project_id,
         where: test_case.is_quarantined == true,
         select: count(test_case.id)
       )
@@ -1226,30 +1163,21 @@ defmodule Tuist.Tests do
   def get_quarantine_actors(project_id) do
     quarantined_ids_subquery =
       from(tc in TestCase,
+        hints: ["FINAL"],
         where: tc.project_id == ^project_id and tc.is_quarantined == true,
-        group_by: tc.id,
         select: tc.id
       )
 
-    latest_quarantine_subquery =
+    actor_ids =
       from(e in TestCaseEvent,
         where: e.test_case_id in subquery(quarantined_ids_subquery),
         where: e.event_type == "quarantined",
         group_by: e.test_case_id,
-        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
+        having: fragment("argMax(?, ?) IS NOT NULL", e.actor_id, e.inserted_at),
+        select: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
       )
-
-    actor_ids =
-      ClickHouseRepo.all(
-        from(e in TestCaseEvent,
-          join: latest in subquery(latest_quarantine_subquery),
-          on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
-          where: e.event_type == "quarantined",
-          where: not is_nil(e.actor_id),
-          select: e.actor_id,
-          distinct: true
-        )
-      )
+      |> ClickHouseRepo.all()
+      |> Enum.uniq()
 
     if Enum.any?(actor_ids) do
       Repo.all(from(a in Account, where: a.id in ^actor_ids))
@@ -1261,20 +1189,15 @@ defmodule Tuist.Tests do
   defp get_quarantine_info_for_test_cases([]), do: %{}
 
   defp get_quarantine_info_for_test_cases(test_case_ids) do
-    latest_quarantine_subquery =
+    query =
       from(e in TestCaseEvent,
         where: e.test_case_id in ^test_case_ids,
         where: e.event_type == "quarantined",
         group_by: e.test_case_id,
-        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
-      )
-
-    query =
-      from(e in TestCaseEvent,
-        join: latest in subquery(latest_quarantine_subquery),
-        on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
-        where: e.event_type == "quarantined",
-        select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
+        select: %{
+          test_case_id: e.test_case_id,
+          actor_id: fragment("argMax(?, ?)", e.actor_id, e.inserted_at)
+        }
       )
 
     events = ClickHouseRepo.all(query)
@@ -1502,6 +1425,56 @@ defmodule Tuist.Tests do
     {flaky_groups, meta}
   end
 
+  def get_flaky_run_group_for_test_case_run(test_case_run) do
+    flaky_runs_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_run.test_case_id,
+        where: tcr.git_commit_sha == ^test_case_run.git_commit_sha,
+        where: tcr.scheme == ^test_case_run.scheme,
+        where: tcr.is_flaky == true,
+        order_by: [desc: tcr.ran_at]
+      )
+
+    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+
+    if Enum.empty?(flaky_runs) do
+      nil
+    else
+      run_ids = Enum.map(flaky_runs, & &1.id)
+
+      failures = get_failures_for_runs(run_ids)
+      failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+
+      repetitions = get_repetitions_for_runs(run_ids)
+      repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+
+      runs_with_details =
+        Enum.map(flaky_runs, fn run ->
+          run_failures = Map.get(failures_by_run_id, run.id, [])
+
+          run_repetitions =
+            repetitions_by_run_id
+            |> Map.get(run.id, [])
+            |> Enum.sort_by(& &1.repetition_number)
+
+          run
+          |> Map.put(:failures, run_failures)
+          |> Map.put(:repetitions, run_repetitions)
+        end)
+
+      {passed_count, failed_count} = count_passed_failed(runs_with_details)
+
+      %{
+        scheme: test_case_run.scheme,
+        git_commit_sha: test_case_run.git_commit_sha,
+        latest_ran_at: flaky_runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime),
+        passed_count: passed_count,
+        failed_count: failed_count,
+        runs: runs_with_details
+      }
+    end
+  end
+
   defp count_passed_failed(runs_with_details) do
     Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
       if Enum.any?(run.repetitions) do
@@ -1662,16 +1635,9 @@ defmodule Tuist.Tests do
         select: test_case_run.test_case_id
       )
 
-    latest_test_case_subquery =
-      from(test_case in TestCase,
-        group_by: test_case.id,
-        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
-      )
-
     query =
       from(test_case in TestCase,
-        join: latest in subquery(latest_test_case_subquery),
-        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        hints: ["FINAL"],
         where: test_case.is_flaky == true,
         where: test_case.id not in subquery(recent_flaky_subquery)
       )

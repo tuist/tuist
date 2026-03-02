@@ -17,14 +17,14 @@ defmodule Cache.CacheArtifactsBuffer do
     SQLiteBuffer.child_spec(Keyword.merge(opts, name: __MODULE__, buffer_module: __MODULE__))
   end
 
-  def enqueue_access(key, size_bytes, last_accessed_at) do
+  def enqueue_access(key, size_bytes, last_accessed_at, name \\ __MODULE__) do
     entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
-    true = :ets.insert(__MODULE__, {key, {:access, entry}})
+    true = :ets.insert(name, {key, {:access, entry}})
     :ok
   end
 
-  def enqueue_delete(key) do
-    true = :ets.insert(__MODULE__, {key, :delete})
+  def enqueue_delete(key, name \\ __MODULE__) do
+    true = :ets.insert(name, {key, :delete})
     :ok
   end
 

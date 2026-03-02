@@ -1,5 +1,5 @@
 defmodule Cache.Finch.PoolsTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   alias Cache.Finch.Pools

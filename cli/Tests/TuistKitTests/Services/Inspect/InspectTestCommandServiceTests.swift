@@ -15,6 +15,7 @@ import TuistXCActivityLog
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
 
+@testable import TuistInspectCommand
 @testable import TuistKit
 
 struct InspectTestCommandServiceTests {

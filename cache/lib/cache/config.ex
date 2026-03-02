@@ -116,6 +116,9 @@ defmodule Cache.Config do
 
   def server_url, do: Application.get_env(:cache, :server_url)
 
+  @default_orphan_scan_max_dirs 50
+  def orphan_scan_max_dirs, do: Application.get_env(:cache, :orphan_scan_max_dirs, @default_orphan_scan_max_dirs)
+
   def s3_config do
     Application.fetch_env(:ex_aws, :s3)
   end

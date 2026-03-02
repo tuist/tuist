@@ -1,7 +1,7 @@
 import TuistTesting
 import XCTest
 
-@testable import TuistKit
+@testable import TuistInspectCommand
 
 final class ImportSourceCodeScannerTests: TuistUnitTestCase {
     var subject: ImportSourceCodeScanner!

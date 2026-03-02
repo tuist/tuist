@@ -12,7 +12,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 
-@testable import TuistKit
+@testable import TuistInspectCommand
 
 struct InspectBundleCommandServiceTests {
     private let fileSystem = FileSystem()

@@ -161,8 +161,14 @@ defmodule Tuist.VCS do
   end
 
   def enqueue_vcs_pull_request_comment(args) do
+    # Schedule the comment worker after a delay to allow ClickHouse ingestion
+    # buffers to flush. Without this, data inserted just before enqueuing
+    # (e.g. builds) may not yet be queryable when the worker runs.
+    flush_interval_seconds = div(Environment.clickhouse_flush_interval_ms(), 1000)
+    schedule_in = flush_interval_seconds + 1
+
     args
-    |> VCS.Workers.CommentWorker.new()
+    |> VCS.Workers.CommentWorker.new(schedule_in: schedule_in)
     |> Oban.insert()
   end
 

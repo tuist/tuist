@@ -103,6 +103,7 @@ defmodule Tuist.GitHub.Releases do
   defp map_release(release) do
     %{
       name: release["name"],
+      tag_name: release["tag_name"],
       published_at: Timex.parse!(release["published_at"], "{ISO:Extended}"),
       html_url: release["html_url"],
       assets:
@@ -144,7 +145,7 @@ defmodule Tuist.GitHub.Releases do
 
   defp find_app_release_from_releases(releases) do
     Enum.find(releases, fn release ->
-      String.contains?(release.name, "app@") and
+      String.starts_with?(release.tag_name, "app@") and
         Enum.find(release.assets, &String.ends_with?(&1.browser_download_url, "dmg"))
     end)
   end

@@ -1,0 +1,6 @@
+framework module tuist {
+  umbrella header "tuist.h"
+
+  export *
+  module * { export * }
+}

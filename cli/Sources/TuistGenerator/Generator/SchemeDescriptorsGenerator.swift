@@ -593,6 +593,21 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             launchActionConstants = .extension
             debuggerIdentifier = ""
             launcherIdentifier = launchActionConstants.launcher
+        } else if scheme.runAction?.askForAppToLaunch == true {
+            launchActionConstants = Constants.LaunchAction(
+                launcher: XCScheme.defaultLauncher,
+                askForAppToLaunch: true,
+                launchAutomaticallySubstyle: "2"
+            )
+            if let runAction = scheme.runAction {
+                debuggerIdentifier = runAction.attachDebugger ? XCScheme.defaultDebugger : ""
+                launcherIdentifier =
+                    runAction.attachDebugger
+                        ? launchActionConstants.launcher : XCScheme.posixSpawnLauncher
+            } else {
+                debuggerIdentifier = XCScheme.defaultDebugger
+                launcherIdentifier = launchActionConstants.launcher
+            }
         } else {
             launchActionConstants = .default
             if let runAction = scheme.runAction {
@@ -798,6 +813,9 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 )
             } ?? []
 
+        let askForAppToLaunch: Bool? = scheme.profileAction?.askForAppToLaunch == true ? true : nil
+        let launchAutomaticallySubstyle: String? = scheme.profileAction?.askForAppToLaunch == true ? "2" : nil
+
         return XCScheme.ProfileAction(
             buildableProductRunnable: buildableProductRunnable,
             buildConfiguration: buildConfiguration,
@@ -805,8 +823,10 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             postActions: postActions,
             macroExpansion: macroExpansion,
             shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
+            askForAppToLaunch: askForAppToLaunch,
             commandlineArguments: commandlineArguments,
-            environmentVariables: environments
+            environmentVariables: environments,
+            launchAutomaticallySubstyle: launchAutomaticallySubstyle
         )
     }
 

@@ -93,9 +93,24 @@ defmodule Cache.Registry.KeyNormalizer do
 
   defp add_trailing_semantic_version_zeros(version) do
     case String.split(version, ".") do
-      [major] -> "#{major}.0.0"
-      [major, minor] -> "#{major}.#{minor}.0"
-      _ -> version
+      [major] ->
+        "#{strip_leading_zeros(major)}.0.0"
+
+      [major, minor] ->
+        "#{strip_leading_zeros(major)}.#{strip_leading_zeros(minor)}.0"
+
+      [major, minor, patch] ->
+        "#{strip_leading_zeros(major)}.#{strip_leading_zeros(minor)}.#{strip_leading_zeros(patch)}"
+
+      _ ->
+        version
+    end
+  end
+
+  defp strip_leading_zeros(component) do
+    case Integer.parse(component) do
+      {int, ""} -> Integer.to_string(int)
+      _ -> component
     end
   end
 

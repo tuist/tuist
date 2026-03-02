@@ -50,6 +50,7 @@ config :cache, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
+       {"0 * * * *", Cache.OrphanCleanupWorker},
        {"0 */6 * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
        {"*/10 * * * *", Cache.Registry.SyncWorker},
@@ -76,7 +77,12 @@ config :ex_aws, http_client: TuistCommon.AWS.Client
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [
+    :request_id,
+    :auth_account_handle,
+    :selected_account_handle,
+    :selected_project_handle
+  ]
 
 config :mime, :types, %{
   "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],

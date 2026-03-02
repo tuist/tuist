@@ -62,6 +62,38 @@ defmodule Cache.Registry.KeyNormalizerTest do
     test "handles multiple dots in pre-release" do
       assert KeyNormalizer.normalize_version("1.0.0-alpha.1.2") == "1.0.0-alpha+1+2"
     end
+
+    test "strips leading zeros from version components" do
+      assert KeyNormalizer.normalize_version("137.7151.04") == "137.7151.4"
+    end
+
+    test "strips leading zeros from all components" do
+      assert KeyNormalizer.normalize_version("01.02.03") == "1.2.3"
+    end
+
+    test "preserves zero when not a leading zero" do
+      assert KeyNormalizer.normalize_version("0.1.0") == "0.1.0"
+    end
+
+    test "strips v prefix and leading zeros" do
+      assert KeyNormalizer.normalize_version("v01.2.3") == "1.2.3"
+    end
+
+    test "strips leading zeros from multi-digit components" do
+      assert KeyNormalizer.normalize_version("10.020.003") == "10.20.3"
+    end
+
+    test "handles all-zero version" do
+      assert KeyNormalizer.normalize_version("00.00.00") == "0.0.0"
+    end
+
+    test "strips leading zero from single component" do
+      assert KeyNormalizer.normalize_version("01") == "1.0.0"
+    end
+
+    test "strips leading zeros from two components" do
+      assert KeyNormalizer.normalize_version("01.02") == "1.2.0"
+    end
   end
 
   describe "package_object_key/2" do
@@ -138,6 +170,17 @@ defmodule Cache.Registry.KeyNormalizerTest do
         )
 
       assert result == "registry/swift/apple/swift_argument_parser/1.0.0/source_archive.zip"
+    end
+
+    test "normalizes leading zeros in version for object key" do
+      result =
+        KeyNormalizer.package_object_key(
+          %{scope: "livekit", name: "webrtc-xcframework"},
+          version: "137.7151.04",
+          path: "source_archive.zip"
+        )
+
+      assert result == "registry/swift/livekit/webrtc-xcframework/137.7151.4/source_archive.zip"
     end
   end
 

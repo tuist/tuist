@@ -12,6 +12,7 @@ defmodule CacheWeb.Router do
   end
 
   pipeline :project_auth do
+    plug CacheWeb.Plugs.ObservabilityContextPlug
     plug CacheWeb.Plugs.AuthPlug
   end
 

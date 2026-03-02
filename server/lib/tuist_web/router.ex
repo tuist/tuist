@@ -10,6 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.ObservabilityContextPlug
   alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
@@ -51,6 +52,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :content_security_policy
   end
 
@@ -63,6 +65,7 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :content_security_policy
   end
 
@@ -90,6 +93,7 @@ defmodule TuistWeb.Router do
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :content_security_policy
   end
 
@@ -106,6 +110,7 @@ defmodule TuistWeb.Router do
     plug Ueberauth
     plug :fetch_current_user
     plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -124,6 +129,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
   end
 
+  pipeline :mcp do
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
+    plug TuistWeb.Plugs.MCPRateLimitPlug
+  end
+
   pipeline :authenticated_api do
     plug :accepts, ["json", "application/octet-stream"]
 
@@ -131,11 +142,13 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
     plug SentryContextPlug
+    plug ObservabilityContextPlug
   end
 
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug SentryContextPlug
+    plug ObservabilityContextPlug
   end
 
   pipeline :on_premise_api do
@@ -288,9 +301,18 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :non_authenticated_api]
 
     get "/openid-configuration", WellKnownController, :openid_configuration
+    get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
+    get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
+    get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/jwks.json", WellKnownController, :jwks
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
+  end
+
+  scope "/" do
+    pipe_through [:mcp]
+
+    forward "/mcp", Hermes.Server.Transport.StreamableHTTP.Plug, server: Tuist.MCP.Server
   end
 
   scope path: "/api",
@@ -501,6 +523,7 @@ defmodule TuistWeb.Router do
     pipe_through :non_authenticated_api
 
     post "/token", TokenController, :token
+    post "/register", RegistrationController, :register
   end
 
   scope "/oauth/callback", TuistWeb.Oauth do
@@ -743,6 +766,7 @@ defmodule TuistWeb.Router do
       live "/members", MembersLive
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
+      live "/sso", SSOSettingsLive
       live "/settings", AccountSettingsLive
     end
   end
@@ -768,6 +792,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs/:test_run_id", TestRunLive
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive
+      live "/tests/test-cases/runs/:test_case_run_id", TestCaseRunLive
       live "/tests/flaky-tests", FlakyTestsLive
       live "/tests/quarantined-tests", QuarantinedTestsLive
       live "/module-cache", ModuleCacheLive

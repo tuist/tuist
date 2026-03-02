@@ -1,0 +1,220 @@
+<div id="sso-settings">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Single Sign-On")}
+  </h1>
+
+  <.alert
+    :if={@flash_message}
+    status={elem(@flash_message, 0)}
+    type="secondary"
+    size="small"
+    title={elem(@flash_message, 1)}
+  />
+
+  <.form for={@form} id="sso-form" phx-submit="save_sso" phx-change="validate_sso">
+    <.card_section data-part="sso-card">
+      <div data-part="section">
+        <div data-part="toggle-label">
+          <.toggle
+            id="sso-enabled-toggle"
+            checked={@sso_enabled}
+            phx-click="toggle_sso"
+          />
+          <div data-part="label-text">
+            <span data-part="title">
+              {dgettext("dashboard_account", "Enable Single Sign-On")}
+            </span>
+            <span data-part="description">
+              {dgettext(
+                "dashboard_account",
+                "Enable and configure SSO for your organization."
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "SSO provider")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Select an SSO provider to allow users to sign in to Tuist and automatically join this organization."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.select
+            id="sso-provider-select"
+            field={@form[:provider]}
+            label={dgettext("dashboard_account", "Provider")}
+            on_value_change="select_provider"
+          >
+            <:item value="google" label="Google" />
+            <:item value="okta" label="Okta" />
+          </.select>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "google"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Google Workspace domain")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Users signing in with a Google account from this domain will be automatically added to this organization."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:google_domain]}
+            type="basic"
+            placeholder="example.com"
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Setup instructions")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Create an OIDC Web Application in your Okta admin dashboard before configuring the fields below."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <div data-part="setup-steps">
+            <ol>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Go to Applications > Applications > Create App Integration"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Select \"OIDC - OpenID Connect\" and \"Web Application\""
+                )}
+              </li>
+              <li>
+                {dgettext("dashboard_account", "Set the sign-in redirect URI to:")}
+                <div data-part="read-only-value">
+                  <code>{Tuist.Environment.app_url(path: "/users/auth/okta/callback")}</code>
+                </div>
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Copy the Client ID and Client Secret from the application settings"
+                )}
+              </li>
+              <li>
+                {dgettext(
+                  "dashboard_account",
+                  "Set the initiate login URI to:"
+                )}
+                <div data-part="read-only-value">
+                  <code>
+                    {Tuist.Environment.app_url(
+                      path: "/users/auth/okta?organization_id=#{@organization.id}"
+                    )}
+                  </code>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Okta domain")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "Your Okta organization URL without the https:// prefix."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:okta_domain]}
+            type="basic"
+            placeholder="your-company.okta.com"
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Client ID")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The client ID from your Okta OIDC application."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:okta_client_id]}
+            type="basic"
+            placeholder={dgettext("dashboard_account", "Okta application client ID")}
+          />
+        </div>
+      </div>
+
+      <div :if={@sso_enabled and @selected_provider == "okta"} data-part="section">
+        <div data-part="label">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Client secret")}
+          </span>
+          <span data-part="description">
+            {dgettext(
+              "dashboard_account",
+              "The client secret from your Okta OIDC application."
+            )}
+          </span>
+        </div>
+        <div data-part="field">
+          <.text_input
+            field={@form[:okta_client_secret]}
+            type="password"
+            input_type="password"
+            placeholder={
+              if @organization.sso_provider == :okta and
+                   @organization.okta_encrypted_client_secret,
+                 do: "••••••••••••",
+                 else: nil
+            }
+          />
+        </div>
+      </div>
+
+      <div data-part="footer">
+        <.button
+          type="submit"
+          label={dgettext("dashboard_account", "Save changes")}
+          variant="primary"
+          size="medium"
+          disabled={not @has_changes or not @form_valid}
+        />
+      </div>
+    </.card_section>
+  </.form>
+</div>

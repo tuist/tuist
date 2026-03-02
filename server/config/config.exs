@@ -67,7 +67,12 @@ config :guardian, Guardian.DB,
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [
+    :request_id,
+    :auth_account_handle,
+    :selected_account_handle,
+    :selected_project_handle
+  ]
 
 # Money
 config :money,

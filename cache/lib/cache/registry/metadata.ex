@@ -111,21 +111,22 @@ defmodule Cache.Registry.Metadata do
   """
   def get_package(scope, name, opts \\ []) do
     fresh = Keyword.get(opts, :fresh, false)
+    cache_name = Keyword.get(opts, :cache_name, cache_name())
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     cache_key = cache_key(scope, name)
 
     if fresh do
-      fetch_from_s3(scope, name, cache_key)
+      fetch_from_s3(scope, name, cache_key, cache_name)
     else
-      case Cachex.get(cache_name(), cache_key) do
+      case Cachex.get(cache_name, cache_key) do
         {:ok, nil} ->
-          fetch_from_s3(scope, name, cache_key)
+          fetch_from_s3(scope, name, cache_key, cache_name)
 
         {:ok, %{metadata: metadata} = cached} ->
-          maybe_revalidate(scope, name, cache_key, cached, metadata)
+          maybe_revalidate(scope, name, cache_key, cached, metadata, cache_name)
 
         _ ->
-          fetch_from_s3(scope, name, cache_key)
+          fetch_from_s3(scope, name, cache_key, cache_name)
       end
     end
   end
@@ -135,7 +136,8 @@ defmodule Cache.Registry.Metadata do
 
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
-  def put_package(scope, name, metadata) do
+  def put_package(scope, name, metadata, opts \\ []) do
+    cache_name = Keyword.get(opts, :cache_name, cache_name())
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
@@ -151,7 +153,7 @@ defmodule Cache.Registry.Metadata do
     case result do
       {:ok, _response} ->
         :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
-        Cachex.del(cache_name(), cache_key(scope, name))
+        Cachex.del(cache_name, cache_key(scope, name))
         :ok
 
       {:error, {:http_error, 429, _}} ->
@@ -171,7 +173,8 @@ defmodule Cache.Registry.Metadata do
 
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
-  def delete_package(scope, name) do
+  def delete_package(scope, name, opts \\ []) do
+    cache_name = Keyword.get(opts, :cache_name, cache_name())
     {scope, name} = KeyNormalizer.normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
@@ -186,7 +189,7 @@ defmodule Cache.Registry.Metadata do
     case result do
       {:ok, _response} ->
         :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 1}, %{result: :ok})
-        Cachex.del(cache_name(), cache_key(scope, name))
+        Cachex.del(cache_name, cache_key(scope, name))
         :ok
 
       {:error, {:http_error, 429, _}} ->
@@ -220,7 +223,7 @@ defmodule Cache.Registry.Metadata do
     |> Enum.to_list()
   end
 
-  defp fetch_from_s3(scope, name, cache_key) do
+  defp fetch_from_s3(scope, name, cache_key, cache_name) do
     key = s3_key(scope, name)
     bucket = bucket()
 
@@ -238,7 +241,7 @@ defmodule Cache.Registry.Metadata do
         case Jason.decode(body) do
           {:ok, metadata} ->
             etag = S3.etag_from_headers(headers)
-            Cachex.put(cache_name(), cache_key, cache_value(metadata, etag), ttl: @ttl)
+            Cachex.put(cache_name, cache_key, cache_value(metadata, etag), ttl: @ttl)
             {:ok, metadata}
 
           {:error, _reason} ->
@@ -260,33 +263,33 @@ defmodule Cache.Registry.Metadata do
     end
   end
 
-  defp maybe_revalidate(scope, name, cache_key, cached, metadata) do
+  defp maybe_revalidate(scope, name, cache_key, cached, metadata, cache_name) do
     case Map.get(cached, :checked_at) do
       %DateTime{} = checked_at ->
         if DateTime.diff(DateTime.utc_now(), checked_at) >= @revalidate_interval_seconds do
-          revalidate_cached(scope, name, cache_key, cached, metadata)
+          revalidate_cached(scope, name, cache_key, cached, metadata, cache_name)
         else
           {:ok, metadata}
         end
 
       _ ->
-        revalidate_cached(scope, name, cache_key, cached, metadata)
+        revalidate_cached(scope, name, cache_key, cached, metadata, cache_name)
     end
   end
 
-  defp revalidate_cached(scope, name, cache_key, cached, metadata) do
+  defp revalidate_cached(scope, name, cache_key, cached, metadata, cache_name) do
     cached_etag = Map.get(cached, :etag)
 
     case head_etag(scope, name) do
       {:ok, ^cached_etag} when is_binary(cached_etag) ->
-        Cachex.put(cache_name(), cache_key, cache_value(metadata, cached_etag), ttl: @ttl)
+        Cachex.put(cache_name, cache_key, cache_value(metadata, cached_etag), ttl: @ttl)
         {:ok, metadata}
 
       {:ok, _etag} ->
-        fetch_from_s3(scope, name, cache_key)
+        fetch_from_s3(scope, name, cache_key, cache_name)
 
       {:error, :not_found} ->
-        Cachex.del(cache_name(), cache_key)
+        Cachex.del(cache_name, cache_key)
         {:error, :not_found}
 
       {:error, _reason} ->

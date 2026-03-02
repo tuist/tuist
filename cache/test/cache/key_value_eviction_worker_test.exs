@@ -1,5 +1,5 @@
 defmodule Cache.KeyValueEvictionWorkerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Oban.Testing, repo: Cache.Repo
 
   import ExUnit.CaptureLog

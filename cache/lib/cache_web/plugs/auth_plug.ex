@@ -27,6 +27,7 @@ defmodule CacheWeb.Plugs.AuthPlug do
     with {:ok, account} when account != "" <- {:ok, account_handle},
          {:ok, project} when project != "" <- {:ok, project_handle},
          {:ok, _auth_header} <- Authentication.ensure_project_accessible(conn, account, project) do
+      set_auth_observability_context(account)
       conn
     else
       {:ok, _} -> error_response(conn, 400, "Missing account_handle")
@@ -39,9 +40,13 @@ defmodule CacheWeb.Plugs.AuthPlug do
     {account, project}
   end
 
-  defp extract_handles(%{"account_handle" => account}), do: {account, nil}
-  defp extract_handles(%{"project_handle" => project}), do: {nil, project}
   defp extract_handles(_), do: {nil, nil}
+
+  defp set_auth_observability_context(account_handle) do
+    context = %{auth_account_handle: account_handle}
+    Logger.metadata(context)
+    OpenTelemetry.Tracer.set_attribute("auth_account_handle", account_handle)
+  end
 
   defp error_response(conn, status, message) do
     conn

@@ -393,7 +393,44 @@
                 </.neutral_button>
               </div>
               <div data-part="content" data-state="closed">
-                <span :for={failure <- test_case_run.failures} data-part="failure">
+                <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                  <div
+                    :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
+                    data-part="repetition-wrapper"
+                  >
+                    <div data-part="repetition-item">
+                      <.badge
+                        :if={repetition.status == "success"}
+                        label={dgettext("dashboard_tests", "Passed")}
+                        color="success"
+                        style="light-fill"
+                        size="small"
+                      />
+                      <.badge
+                        :if={repetition.status == "failure"}
+                        label={dgettext("dashboard_tests", "Failed")}
+                        color="destructive"
+                        style="light-fill"
+                        size="small"
+                      />
+                      <span data-part="repetition-name">{repetition.name}</span>
+                    </div>
+                    <span
+                      :if={
+                        repetition.status == "failure" and Enum.any?(test_case_run.failures) and
+                          Enum.at(test_case_run.failures, rep_index)
+                      }
+                      data-part="repetition-failure"
+                    >
+                      {format_failure_message(Enum.at(test_case_run.failures, rep_index), @run)}
+                    </span>
+                  </div>
+                </div>
+                <span
+                  :for={failure <- test_case_run.failures}
+                  :if={!Enum.any?(test_case_run.repetitions)}
+                  data-part="repetition-failure"
+                >
                   {format_failure_message(failure, @run)}
                 </span>
                 <div :if={test_case_run.crash_report} data-part="crash-report-details">
@@ -730,11 +767,9 @@
           rows={@test_cases}
           row_navigate={
             fn test_case ->
-              if test_case.test_case_id do
-                url(
-                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.test_case_id}"
-                )
-              end
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case.id}"
+              )
             end
           }
         >
@@ -1492,7 +1527,44 @@
               </.neutral_button>
             </div>
             <div data-part="content" data-state="closed">
-              <span :for={failure <- test_case_run.failures} data-part="failure">
+              <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                <div
+                  :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
+                  data-part="repetition-wrapper"
+                >
+                  <div data-part="repetition-item">
+                    <.badge
+                      :if={repetition.status == "success"}
+                      label={dgettext("dashboard_tests", "Passed")}
+                      color="success"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <.badge
+                      :if={repetition.status == "failure"}
+                      label={dgettext("dashboard_tests", "Failed")}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <span data-part="repetition-name">{repetition.name}</span>
+                  </div>
+                  <span
+                    :if={
+                      repetition.status == "failure" and Enum.any?(test_case_run.failures) and
+                        Enum.at(test_case_run.failures, rep_index)
+                    }
+                    data-part="repetition-failure"
+                  >
+                    {format_failure_message(Enum.at(test_case_run.failures, rep_index), @run)}
+                  </span>
+                </div>
+              </div>
+              <span
+                :for={failure <- test_case_run.failures}
+                :if={!Enum.any?(test_case_run.repetitions)}
+                data-part="repetition-failure"
+              >
                 {format_failure_message(failure, @run)}
               </span>
               <div :if={test_case_run.crash_report} data-part="crash-report-details">

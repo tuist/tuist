@@ -608,7 +608,9 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [:desc]
     }
 
-    Tests.list_test_case_runs(attrs, preload: [:failures, crash_report: :test_case_run_attachment])
+    Tests.list_test_case_runs(attrs,
+      preload: [:failures, :repetitions, crash_report: :test_case_run_attachment]
+    )
   end
 
   defp assign_failures_data(socket, failed_test_case_runs, meta, params) do
