@@ -23,27 +23,27 @@ defmodule TuistWeb.DocsComponents do
     assigns = assign(assigns, :tree, Sidebar.tree())
 
     ~H"""
-    <main id="docs-page" data-part="docs-page" phx-hook="DocsActivePage" data-current-slug={@current_slug}>
-      <section data-part="docs-layout">
+    <main id="docs-page" data-part="page" phx-hook="DocsActivePage" data-current-slug={@current_slug}>
+      <section data-part="layout">
         <nav
           id="docs-sidebar"
-          data-part="docs-sidebar"
+          data-part="sidebar"
           aria-label="Documentation navigation"
           phx-update="ignore"
         >
-          <div :for={group <- @tree} data-part="docs-nav-section">
+          <div :for={group <- @tree} data-part="nav-section">
             <.line_divider />
-            <div data-part="docs-content-divider">
+            <div data-part="content-divider">
               <.icon name={group_icon(group.label)} />
               <span>{group.label}</span>
             </div>
             <.docs_nav_items items={group.items} current_slug={@current_slug} />
           </div>
         </nav>
-        <div data-part="docs-content">
+        <div data-part="content">
           {render_slot(@inner_block)}
         </div>
-        <aside data-part="docs-toc" aria-label="Table of contents">
+        <aside data-part="toc" aria-label="Table of contents">
           <.docs_toc :if={@headings != []} headings={@headings} />
         </aside>
       </section>
@@ -58,7 +58,7 @@ defmodule TuistWeb.DocsComponents do
     ~H"""
     <%= for item <- @items do %>
       <%= if item.items == [] do %>
-        <.link patch={"/docs#{item.slug}"} data-part="docs-nav-link">
+        <.link patch={"/docs#{item.slug}"} data-part="nav-link">
           <.tab_menu_vertical
             label={item.label}
             data-selected={Sidebar.item_active?(item, @current_slug)}
@@ -113,9 +113,9 @@ defmodule TuistWeb.DocsComponents do
 
   defp docs_toc(assigns) do
     ~H"""
-    <span data-part="docs-toc-title">On this page</span>
-    <ul data-part="docs-toc-list">
-      <li :for={heading <- @headings} data-part="docs-toc-item" data-level={heading.level}>
+    <span data-part="toc-title">On this page</span>
+    <ul data-part="toc-list">
+      <li :for={heading <- @headings} data-part="toc-item" data-level={heading.level}>
         <a href={"##{heading.id}"}>{heading.text}</a>
       </li>
     </ul>
