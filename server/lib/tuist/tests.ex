@@ -303,18 +303,22 @@ defmodule Tuist.Tests do
   defp get_project_test_cases(_project_id, []), do: %{}
 
   defp get_project_test_cases(project_id, test_case_ids) do
-    from(test_case in TestCase,
-      hints: ["FINAL"],
-      where: test_case.project_id == ^project_id,
-      where: test_case.id in ^test_case_ids,
-      select: %{
-        id: test_case.id,
-        recent_durations: test_case.recent_durations,
-        is_flaky: test_case.is_flaky,
-        is_quarantined: test_case.is_quarantined
-      }
-    )
-    |> IngestRepo.all()
+    test_case_ids
+    |> Enum.chunk_every(5_000)
+    |> Enum.flat_map(fn chunk ->
+      from(test_case in TestCase,
+        hints: ["FINAL"],
+        where: test_case.project_id == ^project_id,
+        where: test_case.id in ^chunk,
+        select: %{
+          id: test_case.id,
+          recent_durations: test_case.recent_durations,
+          is_flaky: test_case.is_flaky,
+          is_quarantined: test_case.is_quarantined
+        }
+      )
+      |> IngestRepo.all()
+    end)
     |> Map.new(fn row -> {row.id, row} end)
   end
 
