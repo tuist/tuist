@@ -37,16 +37,16 @@ defmodule Tuist.Release do
   end
 
   def seed do
-    load_app()
+    # Disable web server and PromEx to avoid port conflicts when the seed
+    # runs in a separate eval process alongside the running server.
+    System.put_env("TUIST_WEB", "0")
+    System.put_env("TUIST_PROMETHEUS_ENABLED", "0")
 
-    {:ok, _, _} =
-      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
-        {:ok, _, _} =
-          Ecto.Migrator.with_repo(Tuist.IngestRepo, fn _ingest_repo ->
-            seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
-            Code.eval_file(seed_script)
-          end)
-      end)
+    Application.load(@app)
+    {:ok, _} = Application.ensure_all_started(@app)
+
+    seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
+    Code.eval_file(seed_script)
   end
 
   def rollback do
