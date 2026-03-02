@@ -319,7 +319,7 @@ defmodule Tuist.CommandEvents do
 
     Enum.each(tables, fn table ->
       IngestRepo.query!(
-        "ALTER TABLE #{table} DELETE WHERE project_id IN ({project_ids:Array(Int64)}) SETTINGS mutations_sync = 1",
+        "ALTER TABLE #{table} DELETE WHERE project_id IN ({project_ids:Array(Int64)}) SETTINGS mutations_sync = 0",
         %{"project_ids" => project_ids}
       )
     end)
