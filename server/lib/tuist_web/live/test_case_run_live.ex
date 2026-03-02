@@ -81,6 +81,13 @@ defmodule TuistWeb.TestCaseRunLive do
     {:noreply, socket}
   end
 
+  attr :failure, :map, required: true
+  attr :context, :map, required: true
+
+  defp failure_message_span(assigns) do
+    ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
   defp attachment_type(file_name) do
     ext = file_name |> String.downcase() |> Path.extname()
 
@@ -91,6 +98,7 @@ defmodule TuistWeb.TestCaseRunLive do
       ext in [".json"] -> :json
       ext in [".xml"] -> :xml
       ext in [".csv"] -> :csv
+      ext in [".ips"] -> :ips
       true -> :file
     end
   end
@@ -105,22 +113,11 @@ defmodule TuistWeb.TestCaseRunLive do
   defp attachment_type_label(:csv), do: "CSV"
   defp attachment_type_label(:file), do: dgettext("dashboard_tests", "File")
 
-  defp non_crash_attachments(test_case_run) do
-    crash_attachment_id =
-      case test_case_run.crash_report do
-        %{test_case_run_attachment: %{id: id}} -> id
-        _ -> nil
-      end
-
-    Enum.reject(test_case_run.attachments, &(&1.id == crash_attachment_id))
-  end
-
   defp assign_text_attachment_urls(socket, test_case_run) do
     project = socket.assigns.selected_project
 
     urls =
-      test_case_run
-      |> non_crash_attachments()
+      test_case_run.attachments
       |> Enum.filter(fn att -> text_attachment_type?(attachment_type(att.file_name)) end)
       |> Map.new(fn attachment ->
         s3_key =

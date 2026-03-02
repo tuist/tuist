@@ -54,6 +54,13 @@ defmodule TuistWeb.TestCaseLive do
     {:ok, socket}
   end
 
+  attr :failure, :map, required: true
+  attr :context, :map, required: true
+
+  defp failure_message_span(assigns) do
+    ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
   defp define_filters(project) do
     filters = [
       %Filter.Filter{

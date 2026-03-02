@@ -292,26 +292,29 @@
                       />
                       <span data-part="repetition-name">{repetition.name}</span>
                     </div>
-                    <span
+                    <.failure_message_span
                       :if={
                         repetition.status == "failure" and Enum.any?(@test_case_run.failures) and
                           Enum.at(@test_case_run.failures, rep_index)
                       }
-                      data-part="repetition-failure"
-                    >{format_failure_message(Enum.at(@test_case_run.failures, rep_index), %{
-                        project: @selected_project,
-                        git_commit_sha: @test_case_run.git_commit_sha
-                      })}</span>
+                      failure={Enum.at(@test_case_run.failures, rep_index)}
+                      context={
+                        %{
+                          project: @selected_project,
+                          git_commit_sha: @test_case_run.git_commit_sha
+                        }
+                      }
+                    />
                   </div>
                 </div>
-                <span
+                <.failure_message_span
                   :for={failure <- @test_case_run.failures}
                   :if={!Enum.any?(@test_case_run.repetitions)}
-                  data-part="repetition-failure"
-                >{format_failure_message(failure, %{
-                    project: @selected_project,
-                    git_commit_sha: @test_case_run.git_commit_sha
-                  })}</span>
+                  failure={failure}
+                  context={
+                    %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+                  }
+                />
               </div>
             </div>
           </div>
@@ -383,7 +386,9 @@
     </.card>
 
     <.card
-      :if={Enum.any?(non_crash_attachments(@test_case_run))}
+      :if={
+        Enum.any?(@test_case_run.attachments, fn att -> attachment_type(att.file_name) != :ips end)
+      }
       title={dgettext("dashboard_tests", "Attachments")}
       icon="file"
       data-part="attachments-card"
@@ -391,9 +396,7 @@
       <.card_section data-part="attachments-card-section">
         <div data-part="attachments-list">
           <div
-            :for={
-              {attachment, att_index} <- Enum.with_index(non_crash_attachments(@test_case_run))
-            }
+            :for={{attachment, att_index} <- Enum.with_index(@test_case_run.attachments)}
             :if={attachment_type(attachment.file_name) == :image}
             id={"attachment-#{att_index}"}
             phx-hook="NooraCollapsible"
@@ -462,9 +465,7 @@
             </div>
           </div>
           <div
-            :for={
-              {attachment, att_index} <- Enum.with_index(non_crash_attachments(@test_case_run))
-            }
+            :for={{attachment, att_index} <- Enum.with_index(@test_case_run.attachments)}
             :if={text_attachment_type?(attachment_type(attachment.file_name))}
             id={"text-attachment-#{att_index}"}
             phx-hook="NooraCollapsible"
@@ -526,9 +527,7 @@
             </div>
           </div>
           <div
-            :for={
-              {attachment, att_index} <- Enum.with_index(non_crash_attachments(@test_case_run))
-            }
+            :for={{attachment, att_index} <- Enum.with_index(@test_case_run.attachments)}
             :if={attachment_type(attachment.file_name) == :file}
             class="test-failure-card"
             data-part="collapsible"
@@ -709,26 +708,24 @@
                         />
                         <span data-part="repetition-name">{repetition.name}</span>
                       </div>
-                      <span
+                      <.failure_message_span
                         :if={
                           repetition.status == "failure" and Enum.any?(run.failures) and
                             Enum.at(run.failures, rep_index)
                         }
-                        data-part="repetition-failure"
-                      >{format_failure_message(Enum.at(run.failures, rep_index), %{
-                          project: @selected_project,
-                          git_commit_sha: run.git_commit_sha
-                        })}</span>
+                        failure={Enum.at(run.failures, rep_index)}
+                        context={
+                          %{project: @selected_project, git_commit_sha: run.git_commit_sha}
+                        }
+                      />
                     </div>
                   </div>
-                  <span
+                  <.failure_message_span
                     :for={failure <- run.failures}
                     :if={!Enum.any?(run.repetitions) and run.status == "failure"}
-                    data-part="repetition-failure"
-                  >{format_failure_message(failure, %{
-                      project: @selected_project,
-                      git_commit_sha: run.git_commit_sha
-                    })}</span>
+                    failure={failure}
+                    context={%{project: @selected_project, git_commit_sha: run.git_commit_sha}}
+                  />
                 </div>
                 <.line_divider :if={index < length(@flaky_run_group.runs) - 1} />
               </div>
@@ -823,26 +820,26 @@
                     />
                     <span data-part="repetition-name">{repetition.name}</span>
                   </div>
-                  <span
+                  <.failure_message_span
                     :if={
                       repetition.status == "failure" and Enum.any?(@test_case_run.failures) and
                         Enum.at(@test_case_run.failures, rep_index)
                     }
-                    data-part="repetition-failure"
-                  >{format_failure_message(Enum.at(@test_case_run.failures, rep_index), %{
-                      project: @selected_project,
-                      git_commit_sha: @test_case_run.git_commit_sha
-                    })}</span>
+                    failure={Enum.at(@test_case_run.failures, rep_index)}
+                    context={
+                      %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+                    }
+                  />
                 </div>
               </div>
-              <span
+              <.failure_message_span
                 :for={failure <- @test_case_run.failures}
                 :if={!Enum.any?(@test_case_run.repetitions)}
-                data-part="repetition-failure"
-              >{format_failure_message(failure, %{
-                  project: @selected_project,
-                  git_commit_sha: @test_case_run.git_commit_sha
-                })}</span>
+                failure={failure}
+                context={
+                  %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+                }
+              />
             </div>
           </div>
         </div>

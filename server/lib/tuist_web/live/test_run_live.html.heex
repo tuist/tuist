@@ -415,20 +415,22 @@
                       />
                       <span data-part="repetition-name">{repetition.name}</span>
                     </div>
-                    <span
+                    <.failure_message_span
                       :if={
                         repetition.status == "failure" and Enum.any?(test_case_run.failures) and
                           Enum.at(test_case_run.failures, rep_index)
                       }
-                      data-part="repetition-failure"
-                    >{format_failure_message(Enum.at(test_case_run.failures, rep_index), @run)}</span>
+                      failure={Enum.at(test_case_run.failures, rep_index)}
+                      context={@run}
+                    />
                   </div>
                 </div>
-                <span
+                <.failure_message_span
                   :for={failure <- test_case_run.failures}
                   :if={!Enum.any?(test_case_run.repetitions)}
-                  data-part="repetition-failure"
-                >{format_failure_message(failure, @run)}</span>
+                  failure={failure}
+                  context={@run}
+                />
                 <div :if={test_case_run.crash_report} data-part="crash-report-details">
                   <div data-part="crash-report-header">
                     <span data-part="crash-report-title">
@@ -492,13 +494,17 @@
                   </div>
                 </div>
                 <div
-                  :if={Enum.any?(non_crash_attachments(test_case_run))}
+                  :if={
+                    Enum.any?(test_case_run.attachments, fn att ->
+                      attachment_type(att.file_name) != :ips
+                    end)
+                  }
                   data-part="attachments-list"
                 >
                   <div
                     :for={
                       {attachment, att_index} <-
-                        Enum.with_index(non_crash_attachments(test_case_run))
+                        Enum.with_index(test_case_run.attachments)
                     }
                     :if={attachment_type(attachment.file_name) == :image}
                     id={"overview-attachment-#{test_case_run.id}-#{att_index}"}
@@ -571,7 +577,7 @@
                   <div
                     :for={
                       {attachment, att_index} <-
-                        Enum.with_index(non_crash_attachments(test_case_run))
+                        Enum.with_index(test_case_run.attachments)
                     }
                     :if={text_attachment_type?(attachment_type(attachment.file_name))}
                     id={"overview-text-attachment-card-#{test_case_run.id}-#{att_index}"}
@@ -637,7 +643,7 @@
                   <div
                     :for={
                       {attachment, att_index} <-
-                        Enum.with_index(non_crash_attachments(test_case_run))
+                        Enum.with_index(test_case_run.attachments)
                     }
                     :if={attachment_type(attachment.file_name) == :file}
                     class="test-failure-card"
@@ -836,20 +842,22 @@
                           />
                           <span data-part="repetition-name">{repetition.name}</span>
                         </div>
-                        <span
+                        <.failure_message_span
                           :if={
                             repetition.status == "failure" and Enum.any?(run.failures) and
                               Enum.at(run.failures, rep_index)
                           }
-                          data-part="repetition-failure"
-                        >{format_failure_message(Enum.at(run.failures, rep_index), @run)}</span>
+                          failure={Enum.at(run.failures, rep_index)}
+                          context={@run}
+                        />
                       </div>
                     </div>
-                    <span
+                    <.failure_message_span
                       :for={failure <- run.failures}
                       :if={!Enum.any?(run.repetitions) and run.status == "failure"}
-                      data-part="repetition-failure"
-                    >{format_failure_message(failure, @run)}</span>
+                      failure={failure}
+                      context={@run}
+                    />
                   </div>
                   <.line_divider :if={index < length(group.runs) - 1} />
                 </div>
@@ -1725,20 +1733,22 @@
                     />
                     <span data-part="repetition-name">{repetition.name}</span>
                   </div>
-                  <span
+                  <.failure_message_span
                     :if={
                       repetition.status == "failure" and Enum.any?(test_case_run.failures) and
                         Enum.at(test_case_run.failures, rep_index)
                     }
-                    data-part="repetition-failure"
-                  >{format_failure_message(Enum.at(test_case_run.failures, rep_index), @run)}</span>
+                    failure={Enum.at(test_case_run.failures, rep_index)}
+                    context={@run}
+                  />
                 </div>
               </div>
-              <span
+              <.failure_message_span
                 :for={failure <- test_case_run.failures}
                 :if={!Enum.any?(test_case_run.repetitions)}
-                data-part="repetition-failure"
-              >{format_failure_message(failure, @run)}</span>
+                failure={failure}
+                context={@run}
+              />
               <div :if={test_case_run.crash_report} data-part="crash-report-details">
                 <div data-part="crash-report-header">
                   <span data-part="crash-report-title">
@@ -1800,13 +1810,17 @@
                 </div>
               </div>
               <div
-                :if={Enum.any?(non_crash_attachments(test_case_run))}
+                :if={
+                  Enum.any?(test_case_run.attachments, fn att ->
+                    attachment_type(att.file_name) != :ips
+                  end)
+                }
                 data-part="attachments-list"
               >
                 <div
                   :for={
                     {attachment, att_index} <-
-                      Enum.with_index(non_crash_attachments(test_case_run))
+                      Enum.with_index(test_case_run.attachments)
                   }
                   :if={attachment_type(attachment.file_name) == :image}
                   id={"failure-attachment-#{test_case_run.id}-#{att_index}"}
@@ -1879,7 +1893,7 @@
                 <div
                   :for={
                     {attachment, att_index} <-
-                      Enum.with_index(non_crash_attachments(test_case_run))
+                      Enum.with_index(test_case_run.attachments)
                   }
                   :if={text_attachment_type?(attachment_type(attachment.file_name))}
                   id={"failure-text-attachment-card-#{test_case_run.id}-#{att_index}"}
@@ -1945,7 +1959,7 @@
                 <div
                   :for={
                     {attachment, att_index} <-
-                      Enum.with_index(non_crash_attachments(test_case_run))
+                      Enum.with_index(test_case_run.attachments)
                   }
                   :if={attachment_type(attachment.file_name) == :file}
                   data-part="collapsible"
@@ -2147,20 +2161,22 @@
                       />
                       <span data-part="repetition-name">{repetition.name}</span>
                     </div>
-                    <span
+                    <.failure_message_span
                       :if={
                         repetition.status == "failure" and Enum.any?(run.failures) and
                           Enum.at(run.failures, rep_index)
                       }
-                      data-part="repetition-failure"
-                    >{format_failure_message(Enum.at(run.failures, rep_index), @run)}</span>
+                      failure={Enum.at(run.failures, rep_index)}
+                      context={@run}
+                    />
                   </div>
                 </div>
-                <span
+                <.failure_message_span
                   :for={failure <- run.failures}
                   :if={!Enum.any?(run.repetitions) and run.status == "failure"}
-                  data-part="repetition-failure"
-                >{format_failure_message(failure, @run)}</span>
+                  failure={failure}
+                  context={@run}
+                />
               </div>
               <.line_divider :if={index < length(group.runs) - 1} />
             </div>
