@@ -1,6 +1,6 @@
-// LiveView hook that fetches text attachment content directly from S3 on the client side.
-// This avoids proxying S3 fetches through the Elixir server, which would add latency
-// and memory pressure when rendering multiple text attachments.
+// LiveView hook that fetches text attachment content from the server on the client side.
+// The server determines whether to serve content inline based on the file's MIME type
+// (text/* and application/json|xml are served inline, others redirect to S3).
 export default {
   mounted() {
     this.loadContent();
@@ -10,8 +10,7 @@ export default {
     const url = this.el.dataset.url;
     if (!url) return;
 
-    const inlineUrl = url + (url.includes("?") ? "&" : "?") + "inline=true";
-    fetch(inlineUrl)
+    fetch(url)
       .then((response) => {
         if (!response.ok) throw new Error("Failed to fetch");
         return response.text();

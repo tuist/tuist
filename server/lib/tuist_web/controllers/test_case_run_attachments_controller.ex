@@ -12,7 +12,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
         "project_handle" => project_handle,
         "test_case_run_id" => test_case_run_id,
         "file_name" => file_name
-      } = params) do
+      }) do
     user = Authentication.current_user(conn)
 
     with {:ok, project} <-
@@ -28,7 +28,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
           file_name: file_name
         })
 
-      if params["inline"] == "true" do
+      if inline_content_type?(file_name) do
         case Storage.get_object_as_string(s3_object_key, project.account) do
           nil ->
             conn
@@ -62,5 +62,12 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
         |> render("404.html")
         |> halt()
     end
+  end
+
+  defp inline_content_type?(file_name) do
+    content_type = MIME.from_path(file_name)
+
+    String.starts_with?(content_type, "text/") or
+      content_type in ["application/json", "application/xml"]
   end
 end
