@@ -3,10 +3,11 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
 
   def up do
     legacy_id_default =
-      if Tuist.Environment.dev?() || Tuist.Environment.test?() || !Tuist.Environment.tuist_hosted?(),
-        do: "abs(rand64())",
-        # Serial IDs require Zookeeper, which is only available in hosted deployment environments.
-        else: "generateSerialID('command_events_legacy_id')"
+      if Tuist.Environment.dev?() || Tuist.Environment.test?() ||
+           !Tuist.Environment.tuist_hosted?(),
+         do: "abs(rand64())",
+         # Serial IDs require Zookeeper, which is only available in hosted deployment environments.
+         else: "generateSerialID('command_events_legacy_id')"
 
     execute("""
     CREATE TABLE command_events_new
