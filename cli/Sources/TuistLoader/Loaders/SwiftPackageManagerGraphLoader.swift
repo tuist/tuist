@@ -169,9 +169,9 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         packageInfos = Dictionary(grouping: packageInfos, by: {
             if $0.kind == "registry" {
                 // A package is uniquely identified by a scoped identifier in the form scope.package-name.
-                return String($0.name.split(separator: ".").last ?? "")
+                return String($0.name.split(separator: ".").last ?? "").lowercased()
             } else {
-                return $0.name
+                return $0.name.lowercased()
             }
         })
         .compactMap { _, groupedPackageInfos in
