@@ -18,7 +18,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     :ok = validate_state_length!(params)
 
     Oauth.authorize(
-      conn,
+      strip_scope(conn),
       %ResourceOwner{sub: to_string(current_user.id), username: current_user.email},
       __MODULE__
     )
@@ -66,13 +66,23 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   @impl AuthorizeApplication
   def authorize_error(%Plug.Conn{} = conn, %Error{status: :unauthorized} = error) do
     Logger.error("OAuth authorize unauthorized: #{inspect(error)}")
-    redirect_to_login(conn)
+
+    if conn.assigns[:current_user] do
+      render_authorize_error(conn, error)
+    else
+      redirect_to_login(conn)
+    end
   end
 
   @impl AuthorizeApplication
   def authorize_error(%Plug.Conn{} = conn, %Error{} = error) do
     Logger.error("OAuth authorize error: #{inspect(error)}")
-    redirect_to_login(conn)
+
+    if conn.assigns[:current_user] do
+      render_authorize_error(conn, error)
+    else
+      redirect_to_login(conn)
+    end
   end
 
   @impl AuthorizeApplication
@@ -81,11 +91,58 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   @impl AuthorizeApplication
   def preauthorize_error(_conn, _response), do: :ok
 
+  defp render_authorize_error(conn, %Error{format: format} = error) when not is_nil(format) do
+    redirect(conn, external: Error.redirect_to_url(error))
+  end
+
+  defp render_authorize_error(conn, error) do
+    conn
+    |> put_status(error_status_code(error.status))
+    |> json(%{
+      error: to_string(error.error),
+      error_description: error.error_description
+    })
+  end
+
+  defp error_status_code(:bad_request), do: 400
+  defp error_status_code(:unauthorized), do: 401
+  defp error_status_code(:internal_server_error), do: 500
+  defp error_status_code(_), do: 400
+
   defp redirect_to_login(conn) do
     conn
     |> put_session(:user_return_to, current_path(conn))
     |> redirect(to: ~p"/users/log_in")
     |> halt()
+  end
+
+  @allowed_scopes ["mcp"]
+
+  defp strip_scope(conn) do
+    case conn.query_params["scope"] do
+      nil ->
+        conn
+
+      scope ->
+        allowed =
+          scope
+          |> String.split(" ")
+          |> Enum.filter(&(&1 in @allowed_scopes))
+          |> Enum.join(" ")
+
+        case allowed do
+          "" ->
+            Logger.info("OAuth authorize stripping unsupported scope: #{inspect(scope)}")
+            %{conn | query_params: Map.delete(conn.query_params, "scope")}
+
+          filtered ->
+            if filtered != scope do
+              Logger.info("OAuth authorize filtering scope from #{inspect(scope)} to #{inspect(filtered)}")
+            end
+
+            %{conn | query_params: Map.put(conn.query_params, "scope", filtered)}
+        end
+    end
   end
 
   defp validate_state_length!(%{"state" => state}) when byte_size(state) > @max_state_length do

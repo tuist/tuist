@@ -125,6 +125,7 @@ Scope groups provide a convenient way to grant multiple related scopes with a si
 | Scope Group | Included Scopes |
 | --- | --- |
 | `ci` | `project:cache:write`, `project:previews:write`, `project:bundles:write`, `project:tests:write`, `project:builds:write`, `project:runs:write` |
+| `mcp` | `project:cache:read`, `project:previews:read`, `project:bundles:read`, `project:tests:read`, `project:builds:read`, `project:runs:read` |
 
 ### Continuous Integration {#continuous-integration}
 

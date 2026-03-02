@@ -151,5 +151,52 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       # Then
       assert is_nil(result)
     end
+
+    test "generates scoped account token when scope includes mcp", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: "mcp"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      assert claims["type"] == "account"
+      assert claims["scopes"] == ["mcp"]
+      assert claims["all_projects"] == true
+      assert claims["preferred_username"] == user.account.name
+      assert claims["email"] == user.email
+    end
+
+    test "generates user token when scope does not include mcp", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: ""
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      refute Map.has_key?(claims, "type")
+      refute Map.has_key?(claims, "scopes")
+    end
+
+    test "scoped mcp token resolves to AuthenticatedAccount", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: "mcp"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, resource, _claims} = Tuist.Guardian.resource_from_token(jwt_token)
+      assert %Tuist.Accounts.AuthenticatedAccount{} = resource
+      assert resource.scopes == ["mcp"]
+      assert resource.all_projects == true
+      assert resource.account.id == user.account.id
+    end
   end
 end
