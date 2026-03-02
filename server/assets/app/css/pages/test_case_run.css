@@ -547,6 +547,8 @@
             padding: var(--noora-spacing-5);
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+            white-space: pre-wrap;
+            word-break: break-word;
           }
         }
       }
@@ -562,7 +564,7 @@
       }
 
       & .test-failure-card [data-part="icon"] {
-        background-color: var(--noora-surface-background-tertiary);
+        background-color: var(--noora-surface-background-secondary);
 
         & svg {
           color: var(--noora-surface-label-secondary);

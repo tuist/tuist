@@ -12,7 +12,7 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
         "project_handle" => project_handle,
         "test_case_run_id" => test_case_run_id,
         "file_name" => file_name
-      }) do
+      } = params) do
     user = Authentication.current_user(conn)
 
     with {:ok, project} <-
@@ -28,12 +28,31 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
           file_name: file_name
         })
 
-      url =
-        Storage.generate_download_url(s3_object_key, project.account, expires_in: 3600)
+      if params["inline"] == "true" do
+        case Storage.get_object_as_string(s3_object_key, project.account) do
+          nil ->
+            conn
+            |> put_status(:not_found)
+            |> assign(:reason, nil)
+            |> put_view(TuistWeb.ErrorHTML)
+            |> render("404.html")
+            |> halt()
 
-      conn
-      |> redirect(external: url)
-      |> halt()
+          content ->
+            content_type = MIME.from_path(file_name)
+
+            conn
+            |> put_resp_content_type(content_type)
+            |> send_resp(200, content)
+        end
+      else
+        url =
+          Storage.generate_download_url(s3_object_key, project.account, expires_in: 3600)
+
+        conn
+        |> redirect(external: url)
+        |> halt()
+      end
     else
       _ ->
         conn

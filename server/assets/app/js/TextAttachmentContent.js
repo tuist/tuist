@@ -7,7 +7,8 @@ export default {
     const url = this.el.dataset.url;
     if (!url) return;
 
-    fetch(url)
+    const inlineUrl = url + (url.includes("?") ? "&" : "?") + "inline=true";
+    fetch(inlineUrl)
       .then((response) => {
         if (!response.ok) throw new Error("Failed to fetch");
         return response.text();

@@ -413,24 +413,20 @@
                           Enum.at(run.failures, rep_index)
                       }
                       data-part="repetition-failure"
-                    >
-                      {format_failure_message(Enum.at(run.failures, rep_index), %{
+                    >{format_failure_message(Enum.at(run.failures, rep_index), %{
                         project: @selected_project,
                         git_commit_sha: run.git_commit_sha
-                      })}
-                    </span>
+                      })}</span>
                   </div>
                 </div>
                 <span
                   :for={failure <- run.failures}
                   :if={!Enum.any?(run.repetitions) and run.status == "failure"}
                   data-part="repetition-failure"
-                >
-                  {format_failure_message(failure, %{
+                >{format_failure_message(failure, %{
                     project: @selected_project,
                     git_commit_sha: run.git_commit_sha
-                  })}
-                </span>
+                  })}</span>
               </div>
               <.line_divider :if={index < length(group.runs) - 1} />
             </div>

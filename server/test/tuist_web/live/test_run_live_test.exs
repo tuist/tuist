@@ -96,6 +96,114 @@ defmodule TuistWeb.TestRunLiveTest do
     refute has_element?(lv, "a", "Download result")
   end
 
+  describe "attachments in failures" do
+    test "shows attachment file names in the failures tab", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "testFailing", status: "failure", duration: 500}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "failure_screenshot.png"
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "console.log"
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, _lv, html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+        )
+
+      # Then
+      assert html =~ "failure_screenshot.png"
+      assert html =~ "console.log"
+    end
+
+    test "does not show crash report attachment in attachments list on failures tab", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "testCrashing", status: "failure", duration: 500}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      crash_attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run.id,
+          file_name: "crash-report.ips"
+        )
+
+      RunsFixtures.crash_report_fixture(
+        test_case_run_id: test_case_run.id,
+        test_case_run_attachment_id: crash_attachment.id
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "non_crash_screenshot.png"
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, _lv, html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+        )
+
+      # Then
+      assert html =~ "non_crash_screenshot.png"
+      assert html =~ "Crash Report"
+    end
+  end
+
   describe "test case badges" do
     test "shows New badge for new test cases", %{
       conn: conn,
