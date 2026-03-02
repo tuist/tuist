@@ -628,8 +628,8 @@ defmodule Tuist.Tests do
     if is_nil(default_branch) do
       Enum.map(test_case_data, &Map.put(&1, :is_new, false))
     else
-      test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
-      existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(test_case_ids, default_branch)
+      existing_on_default_branch =
+        get_test_case_ids_with_ci_runs_on_branch(test.project_id, default_branch)
 
       Enum.map(test_case_data, fn data ->
         is_new = data.test_case_id not in existing_on_default_branch
@@ -638,24 +638,18 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp get_test_case_ids_with_ci_runs_on_branch([], _branch), do: MapSet.new()
-
-  defp get_test_case_ids_with_ci_runs_on_branch(test_case_ids, branch) do
-    test_case_id_set = MapSet.new(test_case_ids)
+  defp get_test_case_ids_with_ci_runs_on_branch(project_id, branch) do
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
-    query =
-      from(tcr in TestCaseRun,
-        where: tcr.git_branch == ^branch,
-        where: tcr.is_ci == true,
-        where: tcr.ran_at >= ^ninety_days_ago,
-        distinct: true,
-        select: tcr.test_case_id
-      )
-
-    query
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.git_branch == ^branch,
+      where: tcr.is_ci == true,
+      where: tcr.ran_at >= ^ninety_days_ago,
+      distinct: true,
+      select: tcr.test_case_id
+    )
     |> ClickHouseRepo.all()
-    |> Enum.filter(&(&1 in test_case_id_set))
     |> MapSet.new()
   end
 
