@@ -220,6 +220,11 @@ defmodule Tuist.Xcode do
     )
   end
 
+  # Returns a ±1 day date range around the event's created_at for use as an
+  # inserted_at filter. The xcode_targets table is partitioned by
+  # toYYYYMMDD(inserted_at), so adding this filter lets ClickHouse prune
+  # partitions and avoid scanning the entire table when querying by
+  # command_event_id alone. The ±1 day margin handles midnight edge cases.
   defp event_date_range(event) do
     event_date = NaiveDateTime.to_date(event.created_at)
     start_dt = NaiveDateTime.new!(Date.add(event_date, -1), ~T[00:00:00])
