@@ -465,7 +465,7 @@
             :for={
               {attachment, att_index} <- Enum.with_index(non_crash_attachments(@test_case_run))
             }
-            :if={attachment_type(attachment.file_name) == :text}
+            :if={text_attachment_type?(attachment_type(attachment.file_name))}
             id={"text-attachment-#{att_index}"}
             phx-hook="NooraCollapsible"
             data-part="collapsible"
@@ -484,7 +484,7 @@
                     </h3>
                   </div>
                   <.badge
-                    label={attachment_type_label(:text)}
+                    label={attachment_type_label(attachment_type(attachment.file_name))}
                     color="primary"
                     style="light-fill"
                     size="small"

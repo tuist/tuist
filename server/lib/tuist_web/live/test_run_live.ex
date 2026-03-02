@@ -992,13 +992,23 @@ defmodule TuistWeb.TestRunLive do
 
     cond do
       ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"] -> :image
-      ext in [".txt", ".log", ".json", ".xml", ".csv"] -> :text
+      ext in [".txt"] -> :text
+      ext in [".log"] -> :log
+      ext in [".json"] -> :json
+      ext in [".xml"] -> :xml
+      ext in [".csv"] -> :csv
       true -> :file
     end
   end
 
+  defp text_attachment_type?(type), do: type in [:text, :log, :json, :xml, :csv]
+
   defp attachment_type_label(:image), do: dgettext("dashboard_tests", "Image")
   defp attachment_type_label(:text), do: dgettext("dashboard_tests", "Text File")
+  defp attachment_type_label(:log), do: dgettext("dashboard_tests", "Log File")
+  defp attachment_type_label(:json), do: "JSON"
+  defp attachment_type_label(:xml), do: "XML"
+  defp attachment_type_label(:csv), do: "CSV"
   defp attachment_type_label(:file), do: dgettext("dashboard_tests", "File")
 
   defp non_crash_attachments(test_case_run) do
@@ -1016,7 +1026,7 @@ defmodule TuistWeb.TestRunLive do
       Enum.flat_map(test_case_runs, fn tcr ->
         tcr
         |> non_crash_attachments()
-        |> Enum.filter(fn att -> attachment_type(att.file_name) == :text end)
+        |> Enum.filter(fn att -> text_attachment_type?(attachment_type(att.file_name)) end)
         |> Enum.map(fn att -> {tcr, att} end)
       end)
 
