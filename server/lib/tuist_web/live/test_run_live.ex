@@ -13,6 +13,7 @@ defmodule TuistWeb.TestRunLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
@@ -284,6 +285,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failed_test_case_runs, [])
     |> assign(:failures_meta, %{})
     |> assign(:failures_page, 1)
+    |> assign(:text_attachment_contents, %{})
   end
 
   defp assign_initial_flaky_runs_state(socket) do
@@ -353,6 +355,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign_selective_testing_defaults()
       |> assign_binary_cache_defaults()
       |> assign_param_defaults(params)
+      |> load_text_attachment_contents(failed_test_case_runs)
 
     case selected_test_tab do
       "test-cases" ->
@@ -618,6 +621,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failed_test_case_runs, failed_test_case_runs)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
+    |> load_text_attachment_contents(failed_test_case_runs)
   end
 
   defp load_flaky_runs_data(run, params) do
@@ -1006,4 +1010,49 @@ defmodule TuistWeb.TestRunLive do
 
     Enum.reject(test_case_run.attachments, &(&1.id == crash_attachment_id))
   end
+
+  defp load_text_attachment_contents(socket, test_case_runs) do
+    text_attachments =
+      Enum.flat_map(test_case_runs, fn tcr ->
+        tcr
+        |> non_crash_attachments()
+        |> Enum.filter(fn att -> attachment_type(att.file_name) == :text end)
+        |> Enum.map(fn att -> {tcr, att} end)
+      end)
+
+    if Enum.empty?(text_attachments) do
+      assign(socket, :text_attachment_contents, %{})
+    else
+      project = socket.assigns.selected_project
+
+      assign_async(socket, :text_attachment_contents, fn ->
+        contents =
+          Map.new(text_attachments, fn {tcr, attachment} ->
+            s3_key =
+              Tests.attachment_storage_key(%{
+                account_handle: project.account.name,
+                project_handle: project.name,
+                test_case_run_id: tcr.id,
+                attachment_id: attachment.id,
+                file_name: attachment.file_name
+              })
+
+            content = Storage.get_object_as_string(s3_key, project.account) || ""
+            {attachment.id, content}
+          end)
+
+        {:ok, %{text_attachment_contents: contents}}
+      end)
+    end
+  end
+
+  defp text_attachment_content(%{ok?: true, result: contents}, attachment_id) do
+    Map.get(contents, attachment_id)
+  end
+
+  defp text_attachment_content(contents, attachment_id) when is_map(contents) and not is_struct(contents) do
+    Map.get(contents, attachment_id)
+  end
+
+  defp text_attachment_content(_, _), do: nil
 end

@@ -515,15 +515,7 @@
                 </.neutral_button>
               </div>
               <div data-part="content">
-                <div
-                  id={"text-attachment-content-#{att_index}"}
-                  phx-hook="TextAttachmentContent"
-                  data-url={
-                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{attachment.file_name}"
-                  }
-                >
-                  <pre data-part="text-attachment-content">{dgettext("dashboard_tests", "Loading...")}</pre>
-                </div>
+                <pre data-part="text-attachment-content">{text_attachment_content(@text_attachment_contents, attachment.id) || dgettext("dashboard_tests", "Loading...")}</pre>
               </div>
             </div>
           </div>

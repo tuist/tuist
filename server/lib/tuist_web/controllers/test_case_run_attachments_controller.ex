@@ -28,31 +28,12 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
           file_name: file_name
         })
 
-      if inline_content_type?(file_name) do
-        case Storage.get_object_as_string(s3_object_key, project.account) do
-          nil ->
-            conn
-            |> put_status(:not_found)
-            |> assign(:reason, nil)
-            |> put_view(TuistWeb.ErrorHTML)
-            |> render("404.html")
-            |> halt()
+      url =
+        Storage.generate_download_url(s3_object_key, project.account, expires_in: 3600)
 
-          content ->
-            content_type = MIME.from_path(file_name)
-
-            conn
-            |> put_resp_content_type(content_type)
-            |> send_resp(200, content)
-        end
-      else
-        url =
-          Storage.generate_download_url(s3_object_key, project.account, expires_in: 3600)
-
-        conn
-        |> redirect(external: url)
-        |> halt()
-      end
+      conn
+      |> redirect(external: url)
+      |> halt()
     else
       _ ->
         conn
@@ -62,12 +43,5 @@ defmodule TuistWeb.TestCaseRunAttachmentsController do
         |> render("404.html")
         |> halt()
     end
-  end
-
-  defp inline_content_type?(file_name) do
-    content_type = MIME.from_path(file_name)
-
-    String.starts_with?(content_type, "text/") or
-      content_type in ["application/json", "application/xml"]
   end
 end
