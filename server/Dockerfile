@@ -136,6 +136,7 @@ RUN chown nobody /app
 
 ARG MIX_ENV=prod
 ARG TUIST_HOSTED=1
+ARG EMBED_CLICKHOUSE=false
 ENV MIX_ENV=$MIX_ENV
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
@@ -145,13 +146,17 @@ COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
 COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
 COPY server/priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
 
-# For non-hosted builds (previews/self-hosted): remove secrets and install ClickHouse
+# For non-hosted builds (previews/self-hosted): remove encrypted secrets
 RUN if [ "$TUIST_HOSTED" = "0" ]; then \
-  echo "TUIST_HOSTED is set to 0, configuring for preview/self-hosted mode"; \
   rm -rf /app/priv/secrets/can.yml.enc; \
   rm -rf /app/priv/secrets/stag.yml.enc; \
   rm -rf /app/priv/secrets/prod.yml.enc; \
-  echo "Installing ClickHouse..."; \
+  fi
+
+# Optionally embed ClickHouse for environments without a separate ClickHouse service
+# (e.g. preview environments). Set EMBED_CLICKHOUSE=true to enable.
+RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
+  echo "Installing embedded ClickHouse..."; \
   curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg && \
   echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg] https://packages.clickhouse.com/deb stable main" > /etc/apt/sources.list.d/clickhouse.list && \
   apt-get update && \
@@ -162,7 +167,7 @@ RUN if [ "$TUIST_HOSTED" = "0" ]; then \
   fi
 
 COPY server/clickhouse-preview-config.xml /tmp/clickhouse-preview-config.xml
-RUN if [ "$TUIST_HOSTED" = "0" ]; then \
+RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
   cp /tmp/clickhouse-preview-config.xml /etc/clickhouse-server/config.d/preview.xml; \
   fi && rm -f /tmp/clickhouse-preview-config.xml
 

@@ -164,6 +164,8 @@ services:
         value: stag
       - key: TUIST_HOSTED
         value: 0
+      - key: EMBED_CLICKHOUSE
+        value: true
       - key: TUIST_USE_SSL_FOR_DATABASE
         value: 0
       - key: TUIST_DATABASE_POOL_SIZE
