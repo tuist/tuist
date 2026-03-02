@@ -96,16 +96,14 @@
           )
         }
         value={
-          if @binary_cache_hit_rate_analytics.ok? do
-            dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
-              binary_cache_effectiveness:
-                (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
-            )
-          else
-            ""
-          end
+          if @binary_cache_hit_rate_analytics.ok?,
+            do:
+              dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
+                binary_cache_effectiveness:
+                  (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
         }
         id="widget-binary-cache-effectiveness"
         trend_value={
@@ -129,16 +127,14 @@
           )
         }
         value={
-          if @selective_testing_analytics.ok? do
-            dgettext("dashboard_projects", "%{selective_tests_effectiveness}%",
-              selective_tests_effectiveness:
-                (@selective_testing_analytics.result.hit_rate * 100)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
-            )
-          else
-            ""
-          end
+          if @selective_testing_analytics.ok?,
+            do:
+              dgettext("dashboard_projects", "%{selective_tests_effectiveness}%",
+                selective_tests_effectiveness:
+                  (@selective_testing_analytics.result.hit_rate * 100)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
         }
         id="widget-selective-tests-effectiveness"
         trend_value={
@@ -161,13 +157,11 @@
           )
         }
         value={
-          if @build_analytics.ok? do
-            dgettext("dashboard_projects", "%{duration}s",
-              duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
-            )
-          else
-            ""
-          end
+          if @build_analytics.ok?,
+            do:
+              dgettext("dashboard_projects", "%{duration}s",
+                duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
+              )
         }
         id="widget-average-build-time"
         trend_value={if @build_analytics.ok?, do: @build_analytics.result.trend, else: nil}
@@ -185,13 +179,11 @@
           )
         }
         value={
-          if @test_analytics.ok? do
-            dgettext("dashboard_projects", "%{duration}s",
-              duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
-            )
-          else
-            ""
-          end
+          if @test_analytics.ok?,
+            do:
+              dgettext("dashboard_projects", "%{duration}s",
+                duration: Float.round(@test_analytics.result.total_average_duration / 1000, 1)
+              )
         }
         id="widget-average-test-time"
         trend_value={if @test_analytics.ok?, do: @test_analytics.result.trend, else: nil}
@@ -200,11 +192,11 @@
         empty={@test_analytics.ok? && @test_analytics.result.total_average_duration == 0}
       />
     </div>
-    <div
-      :if={!@binary_cache_hit_rate_analytics.ok? || !@selective_testing_analytics.ok?}
-      data-part="cache-cards-section"
-    >
-      <.card_section data-part="cache-effectiveness-card-chart-section">
+    <div data-part="cache-cards-section">
+      <.card_section
+        :if={!@binary_cache_hit_rate_analytics.ok? || !@selective_testing_analytics.ok?}
+        data-part="cache-effectiveness-card-chart-section"
+      >
         <div data-part="effectiveness-chart">
           <div data-part="legends">
             <.skeleton_legend />
@@ -213,21 +205,12 @@
           <.skeleton_chart />
         </div>
       </.card_section>
-    </div>
-    <div
-      :if={@binary_cache_hit_rate_analytics.ok? && @selective_testing_analytics.ok?}
-      data-part="cache-cards-section"
-    >
-      <% binary_cache_hit_rate =
-        (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
-        |> Decimal.from_float()
-        |> Decimal.round(1) %>
-      <% selective_testing_hit_rate =
-        (@selective_testing_analytics.result.hit_rate * 100)
-        |> Decimal.from_float()
-        |> Decimal.round(1) %>
       <.card_section
-        :if={@binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0}
+        :if={
+          @binary_cache_hit_rate_analytics.ok? &&
+            @selective_testing_analytics.ok? &&
+            @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
+        }
         data-part="cache-effectiveness-card-chart-section"
       >
         <div data-part="effectiveness-chart">
@@ -236,7 +219,10 @@
               title={dgettext("dashboard_projects", "Cache effectiveness")}
               value={
                 dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
-                  binary_cache_effectiveness: binary_cache_hit_rate
+                  binary_cache_effectiveness:
+                    (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
                 )
               }
               style="primary"
@@ -245,7 +231,10 @@
               title={dgettext("dashboard_projects", "Selective test effectiveness")}
               value={
                 dgettext("dashboard_projects", "%{selective_test_effectiveness}%",
-                  selective_test_effectiveness: selective_testing_hit_rate
+                  selective_test_effectiveness:
+                    (@selective_testing_analytics.result.hit_rate * 100)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
                 )
               }
               style="secondary"

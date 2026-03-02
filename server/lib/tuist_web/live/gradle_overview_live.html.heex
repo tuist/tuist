@@ -94,16 +94,14 @@
           )
         }
         value={
-          if @cache_hit_rate_analytics.ok? do
-            dgettext("dashboard_gradle", "%{hit_rate}%",
-              hit_rate:
-                @cache_hit_rate_analytics.result.avg_hit_rate
-                |> Decimal.from_float()
-                |> Decimal.round(1)
-            )
-          else
-            ""
-          end
+          if @cache_hit_rate_analytics.ok?,
+            do:
+              dgettext("dashboard_gradle", "%{hit_rate}%",
+                hit_rate:
+                  @cache_hit_rate_analytics.result.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
         }
         id="widget-cache-hit-rate"
         trend_value={
@@ -132,8 +130,7 @@
               dgettext("dashboard_gradle", "%{duration}s",
                 duration:
                   Float.round(@build_duration_analytics.result.total_average_duration / 1000, 1)
-              ),
-            else: ""
+              )
         }
         id="widget-average-build-time"
         trend_value={
@@ -163,8 +160,7 @@
               dgettext("dashboard_gradle", "%{duration}s",
                 duration:
                   Float.round(@test_duration_analytics.result.total_average_duration / 1000, 1)
-              ),
-            else: ""
+              )
         }
         id="widget-average-test-time"
         trend_value={
@@ -539,25 +535,15 @@
         </:image>
       </.empty_card_section>
       <.card_section
-        :if={!@builds_duration_analytics.ok?}
-        data-part="average-build-time-card-section"
-      >
-        <div data-part="average-build-time-chart">
-          <div data-part="legends">
-            <.skeleton_legend />
-          </div>
-          <.skeleton_chart />
-        </div>
-      </.card_section>
-      <.card_section
         :if={
-          @builds_duration_analytics.ok? &&
+          !@builds_duration_analytics.ok? ||
             @builds_duration_analytics.result.total_average_duration != 0
         }
         data-part="average-build-time-card-section"
       >
         <div data-part="average-build-time-chart">
           <.button
+            :if={@builds_duration_analytics.ok?}
             data-part="view-more"
             label={dgettext("dashboard_gradle", "View more")}
             size="small"
@@ -565,7 +551,9 @@
             navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
           />
           <div data-part="legends">
+            <.skeleton_legend :if={!@builds_duration_analytics.ok?} />
             <.legend
+              :if={@builds_duration_analytics.ok?}
               title={dgettext("dashboard_gradle", "Average build time")}
               value={
                 dgettext("dashboard_gradle", "%{duration}s",
@@ -579,7 +567,9 @@
               style="secondary"
             />
           </div>
+          <.skeleton_chart :if={!@builds_duration_analytics.ok?} />
           <.chart
+            :if={@builds_duration_analytics.ok?}
             id="average-build-time-chart"
             type="line"
             extra_options={

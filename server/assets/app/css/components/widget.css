@@ -182,6 +182,10 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
   }
+
+  & .tuist-loading-skeleton {
+    color: transparent;
+  }
 }
 
 .tuist-loading-skeleton {
@@ -190,7 +194,7 @@
   border-radius: var(--noora-radius-small);
   background-color: var(--noora-surface-background-secondary);
   min-width: 80px;
-  color: transparent !important;
+  color: transparent;
 }
 
 .tuist-loading-skeleton--small {

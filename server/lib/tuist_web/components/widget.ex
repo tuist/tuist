@@ -98,7 +98,7 @@ defmodule TuistWeb.Widget do
     default: nil
   )
 
-  attr(:value, :string, required: true, doc: "The value of the widget.")
+  attr(:value, :string, default: nil, doc: "The value of the widget.")
 
   attr(:trend_value, :integer,
     required: false,
