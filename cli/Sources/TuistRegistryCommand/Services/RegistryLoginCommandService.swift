@@ -158,7 +158,7 @@
         ) async throws {
             let result = try await createAccountTokenService.createAccountToken(
                 accountHandle: accountHandle,
-                scopes: [],
+                scopes: [.account_colon_registry_colon_read],
                 name: "registry-login",
                 expiresAt: nil,
                 projectHandles: nil,
