@@ -62,7 +62,7 @@ See the <LocalizedLink href="/guides/integrations/continuous-integration">Contin
 
 Gradle maintains both a local and a remote build cache. The local build cache stores task outputs on disk under `~/.gradle/caches/build-cache-1`.
 
-When Tuist is configured as the remote build cache, the [`setup-gradle`](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md) action [recommends disabling the local build cache](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md#disable-local-build-cache-when-remote-build-cache-is-available). This reduces the content saved to the GitHub Actions cache and ensures CI builds keep the remote cache entries fresh for the rest of the team.
+When Tuist is configured as the remote build cache, it is recommended to disable the local build cache on CI. This avoids storing redundant artifacts on CI runners and ensures builds always populate the remote cache with fresh entries for the rest of the team.
 
 Disable Gradle's local build cache on CI in your `settings.gradle.kts`:
 
