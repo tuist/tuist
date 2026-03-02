@@ -88,6 +88,13 @@ if [ $? -ne 0 ]; then
 fi
 echo "ClickHouse migrations completed successfully."
 
+# Use reduced seed data for the memory-constrained preview environment (2GB shared
+# between BEAM and ClickHouse). Smaller batches and fewer records prevent OOM.
+export SEED_BUILD_RUNS=200
+export SEED_TEST_RUNS=150
+export SEED_COMMAND_EVENTS=800
+export SEED_CH_BATCH_SIZE=5000
+
 echo "Seeding the database..."
 ./tuist eval Tuist.Release.seed
 if [ $? -ne 0 ]; then
