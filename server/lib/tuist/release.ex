@@ -20,6 +20,22 @@ defmodule Tuist.Release do
     end
   end
 
+  def migrate_main do
+    Logger.info("Migrating main repo (PostgreSQL only)")
+    load_app()
+
+    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, &check_and_execute_structure_sql(&1))
+    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, &Ecto.Migrator.run(&1, :up, all: true))
+  end
+
+  def migrate_ingest do
+    Logger.info("Migrating ingest repo (ClickHouse)")
+    load_app()
+
+    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, &check_and_execute_structure_sql(&1))
+    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, &Ecto.Migrator.run(&1, :up, all: true))
+  end
+
   def rollback do
     load_app()
     version = "ROLLBACK_VERSION" |> System.fetch_env!() |> String.to_integer()
