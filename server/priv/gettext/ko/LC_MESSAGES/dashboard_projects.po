@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-02-27 15:57+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-03-02 09:30+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -581,19 +580,15 @@ msgstr "빌드 Scheme"
 msgid "e.g. MyApp (optional)"
 msgstr "예: MyApp (선택 사항)"
 
-#, fuzzy
 msgid "%{environment} %{unit}"
-msgstr "%{환경} %{단위}"
+msgstr "%{environment} %{unit}"
 
-#, fuzzy
 msgid "%{scheme} %{environment} %{unit}"
 msgstr "%{scheme} %{environment} %{unit}"
 
-#, fuzzy
 msgid "Environment"
 msgstr "환경"
 
-#, fuzzy
 msgid "local"
 msgstr "local"
 
