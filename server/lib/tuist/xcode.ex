@@ -26,9 +26,12 @@ defmodule Tuist.Xcode do
   end
 
   def selective_testing_analytics(run, flop_params \\ %{}) do
+    {start_dt, end_dt} = event_date_range(run)
+
     base_query =
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.selective_testing_hash),
         select: %{
           id: xt.id,
@@ -55,9 +58,12 @@ defmodule Tuist.Xcode do
   end
 
   def binary_cache_analytics(run, flop_params \\ %{}) do
+    {start_dt, end_dt} = event_date_range(run)
+
     base_query =
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash),
         select: %{
           id: xt.id,
@@ -124,10 +130,13 @@ defmodule Tuist.Xcode do
   end
 
   def selective_testing_counts(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     result =
       ClickHouseRepo.one(
         from(xt in XcodeTarget,
           where: xt.command_event_id == ^run.id,
+          where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
           where: not is_nil(xt.selective_testing_hash),
           select: %{
             local: fragment("countIf(selective_testing_hit = 'local')"),
@@ -148,10 +157,13 @@ defmodule Tuist.Xcode do
   end
 
   def binary_cache_counts(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     result =
       ClickHouseRepo.one(
         from(xt in XcodeTarget,
           where: xt.command_event_id == ^run.id,
+          where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
           where: not is_nil(xt.binary_cache_hash),
           select: %{
             local: fragment("countIf(binary_cache_hit = 'local')"),
@@ -185,21 +197,34 @@ defmodule Tuist.Xcode do
   end
 
   def has_selective_testing_data?(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     ClickHouseRepo.exists?(
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.selective_testing_hash)
       )
     )
   end
 
   def has_binary_cache_data?(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     ClickHouseRepo.exists?(
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash)
       )
     )
+  end
+
+  defp event_date_range(event) do
+    event_date = NaiveDateTime.to_date(event.created_at)
+    start_dt = NaiveDateTime.new!(Date.add(event_date, -1), ~T[00:00:00])
+    end_dt = NaiveDateTime.new!(Date.add(event_date, 2), ~T[00:00:00])
+    {start_dt, end_dt}
   end
 
   defp prepare_xcode_graph(xcode_graph, command_event_id) do
