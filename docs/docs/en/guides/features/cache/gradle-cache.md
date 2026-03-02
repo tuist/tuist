@@ -58,6 +58,24 @@ With this setup, local builds benefit from cached artifacts without uploading, w
 For CI environments, authenticate using one of the methods in the <LocalizedLink href="/guides/server/authentication#continuous-integration">Authentication guide</LocalizedLink>.
 See the <LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink> for provider-specific CI examples.
 
+### Disabling the local build cache {#disabling-the-local-build-cache}
+
+Gradle maintains both a local and a remote build cache. The local build cache stores task outputs on disk under `~/.gradle/caches/build-cache-1`.
+
+When Tuist is configured as the remote build cache, the [`setup-gradle`](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md) action [recommends disabling the local build cache](https://github.com/gradle/actions/blob/main/docs/setup-gradle.md#disable-local-build-cache-when-remote-build-cache-is-available). This reduces the content saved to the GitHub Actions cache and ensures CI builds keep the remote cache entries fresh for the rest of the team.
+
+Disable Gradle's local build cache on CI in your `settings.gradle.kts`:
+
+```kotlin
+buildCache {
+    local {
+        isEnabled = System.getenv("CI") == null
+    }
+}
+```
+
+This keeps the local build cache available for local development while disabling it on CI, where Tuist's remote cache handles artifact sharing.
+
 ## Configuration reference {#configuration-reference}
 
 The `buildCache` block supports:
