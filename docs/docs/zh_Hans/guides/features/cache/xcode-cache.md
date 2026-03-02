@@ -90,8 +90,9 @@ let tuist = Tuist(
 
 要在 CI 环境中启用缓存，需执行与本地环境相同的命令：`tuist setup cache` 。
 
-认证时可选择使用<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC认证</LocalizedLink>（推荐用于支持的CI提供商）或通过`环境变量TUIST_TOKEN`
-获取<LocalizedLink href="/guides/server/authentication#account-tokens">账户令牌</LocalizedLink>。
+认证时可选择使用<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC认证</LocalizedLink>（推荐用于支持的CI提供商）或通过环境变量`设置<LocalizedLink
+href="/guides/server/authentication#account-tokens">账户令牌</LocalizedLink>（格式：TUIST_TOKEN`
+）。
 
 使用 OIDC 认证的 GitHub Actions 示例工作流：
 ```yaml
