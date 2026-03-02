@@ -36,6 +36,12 @@ defmodule Tuist.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, &Ecto.Migrator.run(&1, :up, all: true))
   end
 
+  def seed do
+    Application.ensure_all_started(@app)
+    seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
+    Code.eval_file(seed_script)
+  end
+
   def rollback do
     load_app()
     version = "ROLLBACK_VERSION" |> System.fetch_env!() |> String.to_integer()

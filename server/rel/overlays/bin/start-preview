@@ -1,64 +1,6 @@
 #!/bin/sh
 cd -P -- "$(dirname -- "$0")"
 
-# Start ClickHouse in the background (installed in the Docker image for preview builds).
-# Runs on localhost with no auth (only accessible within this container).
-CLICKHOUSE_DB="tuist_preview"
-CLICKHOUSE_BASE_URL="http://localhost:8123"
-export TUIST_CLICKHOUSE_URL="${CLICKHOUSE_BASE_URL}/${CLICKHOUSE_DB}"
-
-echo "Starting embedded ClickHouse..."
-clickhouse-server --config-file=/etc/clickhouse-server/config.xml 2>&1 &
-CH_PID=$!
-echo "  ClickHouse started with PID $CH_PID"
-
-# Wait for ClickHouse, reset its database, and run ClickHouse migrations in the background.
-# The Elixir Ch.Connection pool retries automatically, so the Phoenix app
-# can start before ClickHouse is ready.
-(
-  for i in $(seq 1 120); do
-    if curl -sf "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
-      echo "ClickHouse is ready (after ${i}s). Resetting database..."
-      curl -sf "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
-      curl -sf "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
-      echo "ClickHouse database '${CLICKHOUSE_DB}' ready. Running ClickHouse migrations..."
-      ./tuist eval Tuist.Release.migrate_ingest
-      echo "ClickHouse migrations completed."
-      break
-    fi
-    sleep 1
-  done
-) &
-
-# PostgreSQL migration flow (does not need ClickHouse)
-echo "Obtaining the database schema version..."
-BEFORE_MIGRATION_SCHEMA_VERSION=$(psql "$DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
-BEFORE_MIGRATION_SCHEMA_VERSION=$(echo $BEFORE_MIGRATION_SCHEMA_VERSION | xargs)
-
-if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ]; then
-  echo "Current database schema version: $BEFORE_MIGRATION_SCHEMA_VERSION"
-else
-  echo "Fresh database - no existing schema version."
-fi
-
-echo "Running PostgreSQL migrations..."
-./tuist eval Tuist.Release.migrate_main
-if [ $? -ne 0 ]; then
-  echo "PostgreSQL migration failed!"
-  AFTER_MIGRATION_SCHEMA_VERSION=$(psql "$DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
-  AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
-
-  if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ] && [ "$BEFORE_MIGRATION_SCHEMA_VERSION" != "$AFTER_MIGRATION_SCHEMA_VERSION" ]; then
-    echo "Rolling back from version $AFTER_MIGRATION_SCHEMA_VERSION to $BEFORE_MIGRATION_SCHEMA_VERSION (excluded)"
-    ROLLBACK_VERSION=$BEFORE_MIGRATION_SCHEMA_VERSION ./tuist eval Tuist.Release.rollback
-  fi
-  exit 1
-fi
-
-echo "PostgreSQL migration completed successfully."
-
-echo "Starting the server..."
-
 # Derive TUIST_APP_URL from Render's automatic RENDER_EXTERNAL_URL if not already set.
 if [ -z "$TUIST_APP_URL" ] && [ -n "$RENDER_EXTERNAL_URL" ]; then
   export TUIST_APP_URL="$RENDER_EXTERNAL_URL"
@@ -79,4 +21,67 @@ for key_var in TUIST_SECRET_KEY_BASE TUIST_SECRET_KEY_PASSWORD TUIST_SECRET_KEY_
   fi
 done
 
+# Start ClickHouse in the background (installed in the Docker image for preview builds).
+# Runs on localhost with no auth (only accessible within this container).
+CLICKHOUSE_DB="tuist_preview"
+CLICKHOUSE_BASE_URL="http://localhost:8123"
+export TUIST_CLICKHOUSE_URL="${CLICKHOUSE_BASE_URL}/${CLICKHOUSE_DB}"
+
+echo "Starting embedded ClickHouse..."
+clickhouse-server --config-file=/etc/clickhouse-server/config.xml 2>&1 &
+CH_PID=$!
+echo "  ClickHouse started with PID $CH_PID"
+
+# Wait for ClickHouse to be ready (same approach as CI).
+echo "Waiting for ClickHouse to accept connections..."
+for i in $(seq 1 120); do
+  if curl -sf "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
+    echo "ClickHouse is ready (after ${i}s)."
+    break
+  fi
+  if [ "$i" = "120" ]; then
+    echo "ClickHouse failed to start within 120s. Continuing without it."
+  fi
+  sleep 1
+done
+
+# Reset ClickHouse database.
+echo "Resetting ClickHouse database..."
+curl -sf "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
+curl -sf "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
+echo "ClickHouse database '${CLICKHOUSE_DB}' ready."
+
+# Run all migrations (PostgreSQL + ClickHouse).
+echo "Obtaining the database schema version..."
+BEFORE_MIGRATION_SCHEMA_VERSION=$(psql "$DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
+BEFORE_MIGRATION_SCHEMA_VERSION=$(echo $BEFORE_MIGRATION_SCHEMA_VERSION | xargs)
+
+if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ]; then
+  echo "Current database schema version: $BEFORE_MIGRATION_SCHEMA_VERSION"
+else
+  echo "Fresh database - no existing schema version."
+fi
+
+echo "Running migrations..."
+./tuist eval Tuist.Release.migrate
+if [ $? -ne 0 ]; then
+  echo "Migration failed!"
+  AFTER_MIGRATION_SCHEMA_VERSION=$(psql "$DATABASE_URL" -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null || echo "")
+  AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
+
+  if [ -n "$BEFORE_MIGRATION_SCHEMA_VERSION" ] && [ "$BEFORE_MIGRATION_SCHEMA_VERSION" != "$AFTER_MIGRATION_SCHEMA_VERSION" ]; then
+    echo "Rolling back from version $AFTER_MIGRATION_SCHEMA_VERSION to $BEFORE_MIGRATION_SCHEMA_VERSION (excluded)"
+    ROLLBACK_VERSION=$BEFORE_MIGRATION_SCHEMA_VERSION ./tuist eval Tuist.Release.rollback
+  fi
+  exit 1
+fi
+echo "Migration completed successfully."
+
+# Seed the database with development data.
+echo "Seeding the database..."
+./tuist eval Tuist.Release.seed
+echo "Seeding completed."
+
+# Start the server.
+echo "Starting the server..."
 TUIST_WEB=true exec ./tuist start
