@@ -327,6 +327,97 @@ struct SwiftPackageManagerGraphLoaderTests {
         )
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_dependency_via_local_and_registry_case_insensitive() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let packageSettings = PackageSettings.test()
+
+        let workspacePath = temporaryDirectory.appending(components: [
+            ".build", "workspace-state.json",
+        ])
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+
+        let localPackagePath = temporaryDirectory.appending(component: "Alamofire")
+        try await fileSystem.makeDirectory(at: localPackagePath)
+
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "alamofire.alamofire",
+                      "kind" : "registry",
+                      "location" : "alamofire.alamofire",
+                      "name" : "alamofire.alamofire"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "5.10.2"
+                    },
+                    "subpath" : "alamofire/alamofire/5.10.2"
+                  },
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "Alamofire",
+                      "kind" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)",
+                      "name" : "Alamofire"
+                    },
+                    "state" : {
+                      "name" : "fileSystem",
+                      "path" : "\(localPackagePath.pathString)"
+                    },
+                    "subpath" : "Alamofire"
+                  },
+                ],
+              }
+            }
+            """,
+            at: workspacePath
+        )
+
+        try await fileSystem.makeDirectory(
+            at: temporaryDirectory.appending(components: [".build", "Derived"])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(components: [
+                ".build", "Derived", "Package.resolved",
+            ])
+        )
+        try await fileSystem.touch(
+            temporaryDirectory.appending(component: "Package.resolved")
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any
+            )
+            .willReturn([:])
+
+        // When
+        let (got, _) = try await subject.load(
+            packagePath: temporaryDirectory.appending(component: "Package.swift"),
+            packageSettings: packageSettings,
+            disableSandbox: true
+        )
+
+        // Then
+        #expect(
+            got.externalProjects.values.map(\.hash) == [nil]
+        )
+    }
+
     @Test
     func load_warnOutdatedDependencies() async throws {
         try await withMockedDependencies {
