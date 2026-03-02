@@ -205,7 +205,7 @@ licencji, skontaktuj się z [contact@tuist.dev](mailto:contact@tuist.dev).
 | `TUIST_USE_IPV6`                      | Kiedy `1`, aplikacja zostaje skonfigurowana do korzystania z adresów IPv6.                                                                                                                                                              | Nie      | `0`                                | `1`                                                                             |                                                                                                                                    |
 | `TUIST_LOG_LEVEL`                     | Poziom logowania używany dla aplikacji                                                                                                                                                                                                  | Nie      | `info`                             | [Poziomy logowania](https://hexdocs.pm/logger/1.12.3/Logger.html#module-levels) |                                                                                                                                    |
 | `TUIST_GITHUB_APP_NAME`               | Wersja URL nazwy Twojej aplikacji GitHub                                                                                                                                                                                                | Nie      |                                    | `my-app`                                                                        |                                                                                                                                    |
-| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | Klucz prywatny zakodowany w base64 używany w aplikacji GitHub do odblokowania dodatkowych funkcji, takich jak automatyczne publikowanie komentarzy PR.                                                                                  | Nie      | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                                 |                                                                                                                                    |
+| `TUIST_GITHUB_APP_PRIVATE_KEY_BASE64` | Klucz prywatny zakodowany w base64, używany przez aplikację GitHub do odblokowania dodatkowych funkcji, takich jak automatyczne publikowanie komentarzy PR.                                                                             | Nie      | `LS0tLS1CRUdJTiBSU0EgUFJJVkFUR...` |                                                                                 |                                                                                                                                    |
 | `TUIST_GITHUB_APP_PRIVATE_KEY`        | Klucz prywatny używany przez aplikację GitHub do odblokowania dodatkowych funkcji, takich jak automatyczne publikowanie komentarzy PR. **Zalecamy używanie wersji zakodowanej w base64, aby uniknąć problemów ze znakami specjalnymi.** | Nie      | `-----BEGIN RSA...`                |                                                                                 |                                                                                                                                    |
 | `TUIST_OPS_USER_HANDLES`              | Rozdzielona przecinkami lista nazw użytkowników, którzy mają dostęp do adresów URL operacji.                                                                                                                                            | Nie      |                                    | `user1,user2`                                                                   |                                                                                                                                    |
 | `TUIST_WEB`                           | Włącz punkt końcowy serwera WWW.                                                                                                                                                                                                        | Nie      | `1`                                | `1` lub `0`                                                                     |                                                                                                                                    |
@@ -274,11 +274,12 @@ którym działa serwer Tuist:
 Możesz skonfigurować uwierzytelnianie za pomocą Google, korzystając z [OAuth
 2](https://developers.google.com/identity/protocols/oauth2). W tym celu musisz
 utworzyć nowe poświadczenie typu OAuth client ID. Podczas tworzenia poświadczeń
-wybierz „Web Application” jako typ aplikacji, nazwij ją `Tuist` i ustaw adres
-URI przekierowania na `{base_url}/users/auth/google/callback`, gdzie `base_url`
-jest adresem URL, pod którym działa Twoja usługa hostowana. Po utworzeniu
-aplikacji skopiuj identyfikator klienta i sekret, a następnie ustaw je jako
-zmienne środowiskowe odpowiednio `GOOGLE_CLIENT_ID` i `GOOGLE_CLIENT_SECRET`.
+wybierz „Web Application” jako typ aplikacji, nadaj jej nazwę `Tuist` i ustaw
+adres URI przekierowania na `{base_url}/users/auth/google/callback`, gdzie
+`base_url` jest adresem URL, pod którym działa Twoja usługa hostowana. Po
+utworzeniu aplikacji skopiuj identyfikator klienta i sekret, a następnie ustaw
+je jako zmienne środowiskowe odpowiednio `GOOGLE_CLIENT_ID` i
+`GOOGLE_CLIENT_SECRET`.
 
 ::: info CONSENT SCREEN SCOPES
 <!-- -->
@@ -404,8 +405,8 @@ Musisz [utworzyć aplikację
 GitHub](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps).
 Możesz ponownie użyć aplikacji utworzonej do uwierzytelniania, chyba że
 utworzyłeś aplikację OAuth GitHub. W sekcji `Uprawnienia i zdarzenia`'s
-`Uprawnienia repozytorium` musisz dodatkowo ustawić `Pull requests` uprawnienie
-`Odczyt i zapis`.
+`Uprawnienia repozytorium` musisz dodatkowo ustawić uprawnienie `Pull requests`
+na `Odczyt i zapis`.
 
 Oprócz `TUIST_GITHUB_APP_CLIENT_ID` i `TUIST_GITHUB_APP_CLIENT_SECRET` potrzebne
 będą następujące zmienne środowiskowe:
