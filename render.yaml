@@ -189,6 +189,8 @@ services:
         generateValue: true
       - key: TUIST_SECRET_KEY_ENCRYPTION
         generateValue: true
+      - key: TUIST_LICENSE_KEY
+        sync: false
       - key: RELEASE_COOKIE
         generateValue: true
       - fromDatabase:
