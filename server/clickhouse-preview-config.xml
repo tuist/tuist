@@ -1,12 +1,18 @@
 <clickhouse>
     <listen_host>127.0.0.1</listen_host>
+    <http_port>8123</http_port>
 
     <!-- Server-level memory limits for running alongside the BEAM -->
     <max_server_memory_usage_to_ram_ratio>0.15</max_server_memory_usage_to_ram_ratio>
     <max_server_memory_usage>268435456</max_server_memory_usage> <!-- 256MB total -->
-    <max_thread_pool_size>4</max_thread_pool_size>
     <mark_cache_size>67108864</mark_cache_size> <!-- 64MB, default is 5GB -->
     <uncompressed_cache_size>0</uncompressed_cache_size>
+
+    <!-- Disable unused protocols to save resources -->
+    <interserver_http_port remove="true"/>
+    <mysql_port remove="true"/>
+    <postgresql_port remove="true"/>
+    <grpc_port remove="true"/>
 
     <!-- User-level query memory limit -->
     <profiles>
