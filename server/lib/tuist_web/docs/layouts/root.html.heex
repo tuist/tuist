@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="csp-nonce" content={get_csp_nonce()} />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title>
+      {assigns[:head_title] || "Tuist"}
+    </.live_title>
+    <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
+    <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/docs/assets/bundle.css"} />
+    <script defer phx-track-static type="module" src={~p"/docs/assets/bundle.js"}>
+    </script>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Analytics -->
+    <TuistWeb.LayoutComponents.head_analytics_scripts page_section="docs" {assigns} />
+    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+  </head>
+  <body data-scrollable="true">
+    <nav id="docs-nav">
+      <div data-part="header">
+        <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+        <.button_group size="large">
+          <.button_group_item label={dgettext("docs", "Guides")} />
+          <.button_group_item label={dgettext("docs", "References")} />
+          <.button_group_item label={dgettext("docs", "Resources")} />
+        </.button_group>
+      </div>
+      <div data-part="cta">
+      <.brand_github />
+      <.brand_mastodon/>
+      <.brand_slack/>
+      <.brand_bluesky/>
+
+      </div>
+    </nav>
+    {@inner_content}
+  </body>
+</html>
