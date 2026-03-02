@@ -20,26 +20,6 @@ defmodule Tuist.Release do
     end
   end
 
-  # In preview environments, ClickHouse is embedded in the same container.
-  # The start-preview script migrates each database independently so that a
-  # failure in one can be rolled back without affecting the other.
-  # See rel/overlays/bin/start-preview.
-  def migrate_main do
-    Logger.info("Migrating main repo (PostgreSQL only)")
-    load_app()
-
-    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, &check_and_execute_structure_sql(&1))
-    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, &Ecto.Migrator.run(&1, :up, all: true))
-  end
-
-  def migrate_ingest do
-    Logger.info("Migrating ingest repo (ClickHouse)")
-    load_app()
-
-    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, &check_and_execute_structure_sql(&1))
-    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.IngestRepo, &Ecto.Migrator.run(&1, :up, all: true))
-  end
-
   # Used by the start-preview script to seed preview environments with
   # development data. Starts the full application (needed for Ecto, Oban, etc.)
   # but disables the web server and PromEx to avoid port conflicts.
