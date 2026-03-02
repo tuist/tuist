@@ -20,12 +20,10 @@ defmodule Tuist.Release do
     end
   end
 
-  # In preview environments, ClickHouse is embedded in the same container and
-  # boots alongside the app. PostgreSQL (managed by Render) is available
-  # immediately, but ClickHouse takes a few seconds to start accepting
-  # connections. The start-preview script uses these separate functions to run
-  # PostgreSQL migrations first while ClickHouse is still starting, then runs
-  # ClickHouse migrations once it's ready. See rel/overlays/bin/start-preview.
+  # In preview environments, ClickHouse is embedded in the same container.
+  # The start-preview script migrates each database independently so that a
+  # failure in one can be rolled back without affecting the other.
+  # See rel/overlays/bin/start-preview.
   def migrate_main do
     Logger.info("Migrating main repo (PostgreSQL only)")
     load_app()
