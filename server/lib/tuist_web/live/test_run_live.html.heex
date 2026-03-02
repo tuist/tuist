@@ -624,7 +624,13 @@
                         </.neutral_button>
                       </div>
                       <div data-part="content">
-                        <pre data-part="text-attachment-content">{text_attachment_content(@text_attachment_contents, attachment.id) || dgettext("dashboard_tests", "Loading...")}</pre>
+                        <div
+                          id={"text-attachment-#{test_case_run.id}-#{att_index}"}
+                          phx-hook="TextAttachmentContent"
+                          data-url={@text_attachment_urls[attachment.id]}
+                        >
+                          <pre data-part="text-attachment-content">{dgettext("dashboard_tests", "Loading...")}</pre>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1926,7 +1932,13 @@
                       </.neutral_button>
                     </div>
                     <div data-part="content">
-                      <pre data-part="text-attachment-content">{text_attachment_content(@text_attachment_contents, attachment.id) || dgettext("dashboard_tests", "Loading...")}</pre>
+                      <div
+                        id={"text-attachment-#{test_case_run.id}-#{att_index}"}
+                        phx-hook="TextAttachmentContent"
+                        data-url={@text_attachment_urls[attachment.id]}
+                      >
+                        <pre data-part="text-attachment-content">{dgettext("dashboard_tests", "Loading...")}</pre>
+                      </div>
                     </div>
                   </div>
                 </div>

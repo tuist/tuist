@@ -64,7 +64,7 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
-      |> load_text_attachment_contents(test_case_run)
+      |> assign_text_attachment_urls(test_case_run)
 
     {:ok, socket}
   end
@@ -115,45 +115,26 @@ defmodule TuistWeb.TestCaseRunLive do
     Enum.reject(test_case_run.attachments, &(&1.id == crash_attachment_id))
   end
 
-  defp load_text_attachment_contents(socket, test_case_run) do
-    text_attachments =
+  defp assign_text_attachment_urls(socket, test_case_run) do
+    project = socket.assigns.selected_project
+
+    urls =
       test_case_run
       |> non_crash_attachments()
       |> Enum.filter(fn att -> text_attachment_type?(attachment_type(att.file_name)) end)
+      |> Map.new(fn attachment ->
+        s3_key =
+          Tests.attachment_storage_key(%{
+            account_handle: project.account.name,
+            project_handle: project.name,
+            test_case_run_id: test_case_run.id,
+            attachment_id: attachment.id,
+            file_name: attachment.file_name
+          })
 
-    if Enum.empty?(text_attachments) do
-      assign(socket, :text_attachment_contents, %{})
-    else
-      project = socket.assigns.selected_project
-
-      assign_async(socket, :text_attachment_contents, fn ->
-        contents =
-          Map.new(text_attachments, fn attachment ->
-            s3_key =
-              Tests.attachment_storage_key(%{
-                account_handle: project.account.name,
-                project_handle: project.name,
-                test_case_run_id: test_case_run.id,
-                attachment_id: attachment.id,
-                file_name: attachment.file_name
-              })
-
-            content = Storage.get_object_as_string(s3_key, project.account) || ""
-            {attachment.id, content}
-          end)
-
-        {:ok, %{text_attachment_contents: contents}}
+        {attachment.id, Storage.generate_download_url(s3_key, project.account, expires_in: 3600)}
       end)
-    end
-  end
 
-  defp text_attachment_content(%{ok?: true, result: contents}, attachment_id) do
-    Map.get(contents, attachment_id)
+    assign(socket, :text_attachment_urls, urls)
   end
-
-  defp text_attachment_content(contents, attachment_id) when is_map(contents) and not is_struct(contents) do
-    Map.get(contents, attachment_id)
-  end
-
-  defp text_attachment_content(_, _), do: nil
 end
