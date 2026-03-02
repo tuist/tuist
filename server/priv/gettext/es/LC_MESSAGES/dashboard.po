@@ -3,16 +3,16 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-02-26 10:17+0000\n"
+"PO-Revision-Date: 2026-03-02 13:23+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
-"dashboard-1/es/>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/dashboard-"
+"1/es/>\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -378,9 +378,11 @@ msgstr ""
 msgid "Talk to us"
 msgstr "Hable con nosotros"
 
+#, fuzzy
 msgid ""
 "This is a public dashboard for the %{account_name}/%{project_name} project."
 msgstr ""
+"Este es un panel público para el proyecto %{account_name}/%{project_name}."
 
 #, fuzzy
 msgid "Quarantined Tests"
