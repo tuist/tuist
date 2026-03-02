@@ -99,6 +99,10 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
+  # SwiftPM does not correctly handle symlinks when unzipping archives, which breaks
+  # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
+  # This workaround resolves symlinks by repacking the archive before upload.
+  # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
   defp ensure_archive_without_symlinks(tmp_dir, archive_path) do
     case archive_has_symlinks?(archive_path) do
       {:ok, true} -> resolve_symlinks_in_archive(tmp_dir, archive_path)
