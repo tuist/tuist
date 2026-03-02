@@ -30,4 +30,17 @@ final class WorkspaceTests: XCTestCase {
 
         XCTAssertCodable(subject)
     }
+
+    func test_codable_withDerivedDataLocationOptions() throws {
+        let subject = Workspace(
+            name: "name",
+            projects: ["ProjectA"],
+            generationOptions: .options(
+                derivedDataLocationStyle: .workspaceRelativePath,
+                derivedDataCustomLocation: "DerivedData"
+            )
+        )
+
+        XCTAssertCodable(subject)
+    }
 }
