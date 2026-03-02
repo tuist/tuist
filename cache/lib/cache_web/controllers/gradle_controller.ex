@@ -21,6 +21,8 @@ defmodule CacheWeb.GradleController do
 
   require Logger
 
+  @max_upload_bytes 100 * 1024 * 1024
+
   plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true
 
@@ -167,7 +169,7 @@ defmodule CacheWeb.GradleController do
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, cache_key) do
-    case BodyReader.read(conn) do
+    case BodyReader.read(conn, max_bytes: @max_upload_bytes) do
       {:ok, data, conn_after} ->
         size = data_size(data)
         :telemetry.execute([:cache, :gradle, :upload, :attempt], %{size: size}, %{})
