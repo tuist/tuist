@@ -992,10 +992,6 @@ jobs:
             git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Update version in settings.gradle.kts
-        run: |
-          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
-
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
         run: |
@@ -1004,6 +1000,10 @@ jobs:
           ./gradlew publishPlugins -Pversion=${{ needs.check-releases.outputs.gradle-next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Update version in settings.gradle.kts
+        run: |
+          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
 
       - name: Tag Gradle release
         run: |
