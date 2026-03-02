@@ -464,42 +464,30 @@ defmodule Tuist.Tests do
   Returns {:ok, test_case_run} or {:error, :not_found}.
   """
   def get_test_case_run_by_id(id, opts \\ []) do
-    case uuidv7_to_yyyymm(id) do
-      {:ok, month} ->
-        query =
-          from(tcr in TestCaseRun,
-            where: tcr.id == ^id,
-            where: fragment("toYYYYMM(?)", tcr.inserted_at) == ^month,
-            limit: 1
-          )
-
-        case ClickHouseRepo.one(query) do
-          nil -> get_test_case_run_by_id_unscoped(id, opts)
-          run -> load_test_case_run(run, opts)
-        end
-
-      :error ->
-        get_test_case_run_by_id_unscoped(id, opts)
-    end
-  end
-
-  defp get_test_case_run_by_id_unscoped(id, opts) do
     query =
       from(tcr in TestCaseRun,
         where: tcr.id == ^id,
         limit: 1
       )
 
-    case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      run -> load_test_case_run(run, opts)
-    end
-  end
+    query =
+      case uuidv7_to_yyyymm(id) do
+        {:ok, month} ->
+          where(query, [tcr], fragment("toYYYYMM(?)", tcr.inserted_at) == ^month)
 
-  defp load_test_case_run(run, opts) do
-    preload = Keyword.get(opts, :preload, [])
-    run = ClickHouseRepo.preload(run, preload)
-    {:ok, run}
+        :error ->
+          query
+      end
+
+    case ClickHouseRepo.one(query) do
+      nil ->
+        {:error, :not_found}
+
+      run ->
+        preload = Keyword.get(opts, :preload, [])
+        run = ClickHouseRepo.preload(run, preload)
+        {:ok, run}
+    end
   end
 
   defp uuidv7_to_yyyymm(uuid_string) do
