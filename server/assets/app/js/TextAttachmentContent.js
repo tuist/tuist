@@ -1,3 +1,6 @@
+// LiveView hook that fetches text attachment content directly from S3 on the client side.
+// This avoids proxying S3 fetches through the Elixir server, which would add latency
+// and memory pressure when rendering multiple text attachments.
 export default {
   mounted() {
     this.loadContent();
