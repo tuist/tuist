@@ -1,0 +1,28 @@
+<main
+  id="docs-page-layout"
+  data-part="page"
+  phx-hook="DocsActivePage"
+  data-current-slug={@current_slug}
+>
+  <section data-part="layout">
+    <nav
+      id="docs-sidebar"
+      data-part="sidebar"
+      aria-label="Documentation navigation"
+      phx-update="ignore"
+    >
+      <div :for={group <- @tree} data-part="nav-section">
+        <.line_divider />
+        <div data-part="content-divider">
+          <.icon name={group_icon(group.label)} />
+          <span>{group.label}</span>
+        </div>
+        <.nav_items items={group.items} current_slug={@current_slug} />
+      </div>
+    </nav>
+    <div data-part="content">
+      {render_slot(@inner_block)}
+    </div>
+    <.toc :if={@headings != []} headings={@headings} />
+  </section>
+</main>

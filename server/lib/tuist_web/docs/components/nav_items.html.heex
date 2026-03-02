@@ -1,0 +1,50 @@
+<%= for item <- @items do %>
+  <%= if item.items == [] do %>
+    <.link patch={"/docs#{item.slug}"} data-part="nav-link">
+      <.tab_menu_vertical
+        label={item.label}
+        data-selected={Sidebar.item_active?(item, @current_slug)}
+      />
+    </.link>
+  <% else %>
+    <div
+      id={"docs-nav-#{slugify(item.label)}"}
+      phx-hook="NooraCollapsible"
+      data-open={Sidebar.item_or_children_active?(item, @current_slug)}
+    >
+      <div data-part="root">
+        <%= if item.slug do %>
+          <.link patch={"/docs#{item.slug}"} data-part="trigger">
+            <.tab_menu_vertical
+              label={item.label}
+              data-selected={Sidebar.item_active?(item, @current_slug)}
+            >
+              <:icon_right>
+                <div data-part="indicator">
+                  <div data-part="indicator-down"><.chevron_down /></div>
+                  <div data-part="indicator-up"><.chevron_up /></div>
+                </div>
+              </:icon_right>
+            </.tab_menu_vertical>
+          </.link>
+        <% else %>
+          <.tab_menu_vertical
+            label={item.label}
+            data-part="trigger"
+            data-selected={Sidebar.item_active?(item, @current_slug)}
+          >
+            <:icon_right>
+              <div data-part="indicator">
+                <div data-part="indicator-down"><.chevron_down /></div>
+                <div data-part="indicator-up"><.chevron_up /></div>
+              </div>
+            </:icon_right>
+          </.tab_menu_vertical>
+        <% end %>
+        <div data-part="content">
+          <.nav_items items={item.items} current_slug={@current_slug} />
+        </div>
+      </div>
+    </div>
+  <% end %>
+<% end %>

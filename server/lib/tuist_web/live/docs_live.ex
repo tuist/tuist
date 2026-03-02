@@ -43,11 +43,11 @@ defmodule TuistWeb.DocsLive do
 
   def render(assigns) do
     ~H"""
-    <TuistWeb.DocsComponents.docs_layout current_slug={@page.slug} headings={@page.headings}>
+    <TuistWeb.Docs.Components.layout current_slug={@page.slug} headings={@page.headings}>
       <article data-part="docs-body" data-prose>
         {raw(@page.body)}
       </article>
-    </TuistWeb.DocsComponents.docs_layout>
+    </TuistWeb.Docs.Components.layout>
     """
   end
 
