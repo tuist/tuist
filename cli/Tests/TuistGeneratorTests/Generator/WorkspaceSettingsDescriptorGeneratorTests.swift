@@ -47,4 +47,42 @@ struct WorkspaceSettingsDescriptorGeneratorTests {
         // Then
         #expect(result == WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: true))
     }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withDerivedDataLocation() {
+        // Given
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                enableAutomaticXcodeSchemes: nil,
+                derivedDataLocationStyle: .workspaceRelativePath,
+                derivedDataCustomLocation: "DerivedData"
+            )
+        )
+
+        // When
+        let result = subject.generateWorkspaceSettings(workspace: workspace)
+
+        // Then
+        #expect(
+            result == WorkspaceSettingsDescriptor(
+                enableAutomaticXcodeSchemes: nil,
+                derivedDataLocationStyle: .workspaceRelativePath,
+                derivedDataCustomLocation: "DerivedData"
+            )
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func generate_withAllNilOptions() {
+        // Given
+        let workspace = Workspace.test(
+            generationOptions: .test(
+                enableAutomaticXcodeSchemes: nil
+            )
+        )
+
+        // When
+        let result = subject.generateWorkspaceSettings(workspace: workspace)
+
+        // Then
+        #expect(result == nil)
+    }
 }
