@@ -24,7 +24,7 @@ done
 # Start ClickHouse in the background (installed in the Docker image for preview builds).
 # Runs on localhost with no auth (only accessible within this container).
 CLICKHOUSE_DB="tuist_preview"
-CLICKHOUSE_BASE_URL="http://localhost:8123"
+CLICKHOUSE_BASE_URL="http://127.0.0.1:8123"
 export TUIST_CLICKHOUSE_URL="${CLICKHOUSE_BASE_URL}/${CLICKHOUSE_DB}"
 
 echo "Starting embedded ClickHouse..."
@@ -63,11 +63,13 @@ echo "PostgreSQL migration completed successfully."
 # The Ch.Connection pool retries automatically, and the seed runs once ClickHouse is ready.
 (
   echo "Background: waiting for ClickHouse to accept connections..."
-  for i in $(seq 1 180); do
-    if curl -sf "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
+  CH_READY=false
+  for i in $(seq 1 300); do
+    if curl -sf4 "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
+      CH_READY=true
       echo "Background: ClickHouse is ready (after ${i}s). Resetting database..."
-      curl -sf "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
-      curl -sf "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
+      curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
+      curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
       echo "Background: ClickHouse database '${CLICKHOUSE_DB}' ready."
 
       echo "Background: Running ClickHouse migrations..."
@@ -79,8 +81,14 @@ echo "PostgreSQL migration completed successfully."
       echo "Background: Seeding completed."
       break
     fi
+    if [ "$((i % 30))" = "0" ]; then
+      echo "Background: still waiting for ClickHouse... (${i}s)"
+    fi
     sleep 1
   done
+  if [ "$CH_READY" = "false" ]; then
+    echo "Background: ClickHouse failed to start within 300s. Skipping migrations and seed."
+  fi
 ) &
 
 # Start the server immediately so Render detects the port.
