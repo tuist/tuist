@@ -376,9 +376,9 @@ msgstr ""
 msgid "Talk to us"
 msgstr "Bizimle konuşun"
 
-#, fuzzy
-msgid "This is a public dashboard for the tuist/tuist project."
-msgstr "Bu, tuist/tuist projesi için halka açık bir kontrol panelidir."
+msgid ""
+"This is a public dashboard for the %{account_name}/%{project_name} project."
+msgstr ""
 
 #, fuzzy
 msgid "Quarantined Tests"
@@ -407,6 +407,10 @@ msgstr "Önizleme APK'sı mevcut değil veya süresi dolmuş."
 #, fuzzy
 msgid "SSO"
 msgstr "Tek oturum açma"
+
+#, fuzzy
+#~ msgid "This is a public dashboard for the tuist/tuist project."
+#~ msgstr "Bu, tuist/tuist projesi için halka açık bir kontrol panelidir."
 
 #, fuzzy
 #~ msgid "Generate Runs"
