@@ -54,6 +54,9 @@ defmodule TuistWeb.TestCaseLive do
     {:ok, socket}
   end
 
+  # Renders a failure message span without whitespace around the content.
+  # Using ~H[] on a single line prevents the HEEx formatter from splitting
+  # the tag across lines, which would introduce visible leading whitespace.
   attr :failure, :map, required: true
   attr :context, :map, required: true
 

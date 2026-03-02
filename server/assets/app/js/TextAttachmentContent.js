@@ -1,3 +1,7 @@
+// LiveView hook that fetches text attachment content directly from S3 using
+// presigned URLs. This avoids loading potentially large text files into server
+// memory — the server only generates the presigned URL (cheap), and the browser
+// fetches the content directly from S3.
 export default {
   mounted() {
     this.loadContent();
