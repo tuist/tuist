@@ -24,9 +24,8 @@ CH_READY=false
 for i in $(seq 1 60); do
   if curl -sf4 "${CLICKHOUSE_BASE_URL}/ping" > /dev/null 2>&1; then
     CH_READY=true
-    echo "ClickHouse is ready (after ${i}s). Resetting database..."
-    curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "DROP DATABASE IF EXISTS ${CLICKHOUSE_DB}"
-    curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE ${CLICKHOUSE_DB}"
+    echo "ClickHouse is ready (after ${i}s)."
+    curl -sf4 "${CLICKHOUSE_BASE_URL}/" --data "CREATE DATABASE IF NOT EXISTS ${CLICKHOUSE_DB}"
     echo "ClickHouse database '${CLICKHOUSE_DB}' ready."
     break
   fi
