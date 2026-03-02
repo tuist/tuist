@@ -19,12 +19,17 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :content_security_policy do
-    plug :put_content_security_policy,
+    plug :put_content_security_policy, &__MODULE__.csp_opts/1
+  end
+
+  def csp_opts(_conn) do
+    s3_origin = s3_csp_origin()
+
+    [
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com http://localhost:9095 https://t3.storage.dev",
-      media_src:
-        "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_origin}",
+      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_origin}",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
@@ -37,8 +42,14 @@ defmodule TuistWeb.Router do
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src:
-        "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com http://localhost:9095 https://t3.storage.dev"
+      connect_src: "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com #{s3_origin}"
+    ]
+  end
+
+  defp s3_csp_origin do
+    uri = URI.parse(Tuist.Environment.s3_endpoint())
+    port_suffix = if uri.port && uri.port not in [80, 443], do: ":#{uri.port}", else: ""
+    "#{uri.scheme}://#{uri.host}#{port_suffix}"
   end
 
   pipeline :browser_app do
