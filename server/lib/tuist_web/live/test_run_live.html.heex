@@ -518,15 +518,6 @@
                             <h3 data-part="title">
                               {attachment.file_name}
                             </h3>
-                            <.neutral_button
-                              href={
-                                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
-                              }
-                              target="_blank"
-                              size="small"
-                            >
-                              <.download />
-                            </.neutral_button>
                           </div>
                           <.badge
                             label={attachment_type_label(attachment_type(attachment.file_name))}
@@ -535,6 +526,15 @@
                             size="small"
                           />
                         </div>
+                        <.neutral_button
+                          href={
+                            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                          }
+                          target="_blank"
+                          size="small"
+                        >
+                          <.download />
+                        </.neutral_button>
                         <.neutral_button
                           data-part="closed-collapsible-button"
                           variant="secondary"
@@ -573,8 +573,8 @@
                       {attachment, att_index} <-
                         Enum.with_index(non_crash_attachments(test_case_run))
                     }
-                    :if={attachment_type(attachment.file_name) != :image}
-                    id={"overview-non-image-attachment-#{test_case_run.id}-#{att_index}"}
+                    :if={attachment_type(attachment.file_name) == :text}
+                    id={"overview-text-attachment-card-#{test_case_run.id}-#{att_index}"}
                     phx-hook="NooraCollapsible"
                     data-part="collapsible"
                     data-state="closed"
@@ -585,30 +585,29 @@
                       <div data-part="trigger">
                         <div data-part="header">
                           <div data-part="icon">
-                            <.file_text :if={attachment_type(attachment.file_name) == :text} />
-                            <.file :if={attachment_type(attachment.file_name) == :file} />
+                            <.file_text />
                           </div>
                           <div data-part="title-and-subtitle">
                             <h3 data-part="title">
                               {attachment.file_name}
                             </h3>
-                            <.neutral_button
-                              href={
-                                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
-                              }
-                              target="_blank"
-                              size="small"
-                            >
-                              <.download />
-                            </.neutral_button>
                           </div>
                           <.badge
-                            label={attachment_type_label(attachment_type(attachment.file_name))}
+                            label={attachment_type_label(:text)}
                             color="primary"
                             style="light-fill"
                             size="small"
                           />
                         </div>
+                        <.neutral_button
+                          href={
+                            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                          }
+                          target="_blank"
+                          size="small"
+                        >
+                          <.download />
+                        </.neutral_button>
                         <.neutral_button
                           data-part="closed-collapsible-button"
                           variant="secondary"
@@ -626,7 +625,6 @@
                       </div>
                       <div data-part="content">
                         <div
-                          :if={attachment_type(attachment.file_name) == :text}
                           id={"overview-text-attachment-#{test_case_run.id}-#{att_index}"}
                           phx-hook="TextAttachmentContent"
                           data-url={
@@ -635,8 +633,38 @@
                         >
                           <pre data-part="text-attachment-content">Loading...</pre>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    :for={
+                      {attachment, att_index} <-
+                        Enum.with_index(non_crash_attachments(test_case_run))
+                    }
+                    :if={attachment_type(attachment.file_name) == :file}
+                    class="test-failure-card"
+                    data-part="collapsible"
+                    data-attachment
+                  >
+                    <div data-part="root">
+                      <div data-part="trigger">
+                        <div data-part="header">
+                          <div data-part="icon">
+                            <.file />
+                          </div>
+                          <div data-part="title-and-subtitle">
+                            <h3 data-part="title">
+                              {attachment.file_name}
+                            </h3>
+                          </div>
+                          <.badge
+                            label={attachment_type_label(:file)}
+                            color="primary"
+                            style="light-fill"
+                            size="small"
+                          />
+                        </div>
                         <.neutral_button
-                          :if={attachment_type(attachment.file_name) == :file}
                           href={
                             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
                           }
@@ -644,7 +672,6 @@
                           size="small"
                         >
                           <.download />
-                          <span>{attachment.file_name}</span>
                         </.neutral_button>
                       </div>
                     </div>
@@ -1801,15 +1828,6 @@
                           <h3 data-part="title">
                             {attachment.file_name}
                           </h3>
-                          <.neutral_button
-                            href={
-                              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
-                            }
-                            target="_blank"
-                            size="small"
-                          >
-                            <.download />
-                          </.neutral_button>
                         </div>
                         <.badge
                           label={attachment_type_label(attachment_type(attachment.file_name))}
@@ -1818,6 +1836,15 @@
                           size="small"
                         />
                       </div>
+                      <.neutral_button
+                        href={
+                          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                        }
+                        target="_blank"
+                        size="small"
+                      >
+                        <.download />
+                      </.neutral_button>
                       <.neutral_button
                         data-part="closed-collapsible-button"
                         variant="secondary"
@@ -1856,8 +1883,8 @@
                     {attachment, att_index} <-
                       Enum.with_index(non_crash_attachments(test_case_run))
                   }
-                  :if={attachment_type(attachment.file_name) != :image}
-                  id={"failure-non-image-attachment-#{test_case_run.id}-#{att_index}"}
+                  :if={attachment_type(attachment.file_name) == :text}
+                  id={"failure-text-attachment-card-#{test_case_run.id}-#{att_index}"}
                   phx-hook="NooraCollapsible"
                   data-part="collapsible"
                   data-state="closed"
@@ -1868,30 +1895,29 @@
                     <div data-part="trigger">
                       <div data-part="header">
                         <div data-part="icon">
-                          <.file_text :if={attachment_type(attachment.file_name) == :text} />
-                          <.file :if={attachment_type(attachment.file_name) == :file} />
+                          <.file_text />
                         </div>
                         <div data-part="title-and-subtitle">
                           <h3 data-part="title">
                             {attachment.file_name}
                           </h3>
-                          <.neutral_button
-                            href={
-                              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
-                            }
-                            target="_blank"
-                            size="small"
-                          >
-                            <.download />
-                          </.neutral_button>
                         </div>
                         <.badge
-                          label={attachment_type_label(attachment_type(attachment.file_name))}
+                          label={attachment_type_label(:text)}
                           color="primary"
                           style="light-fill"
                           size="small"
                         />
                       </div>
+                      <.neutral_button
+                        href={
+                          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
+                        }
+                        target="_blank"
+                        size="small"
+                      >
+                        <.download />
+                      </.neutral_button>
                       <.neutral_button
                         data-part="closed-collapsible-button"
                         variant="secondary"
@@ -1909,7 +1935,6 @@
                     </div>
                     <div data-part="content">
                       <div
-                        :if={attachment_type(attachment.file_name) == :text}
                         id={"failure-text-attachment-#{test_case_run.id}-#{att_index}"}
                         phx-hook="TextAttachmentContent"
                         data-url={
@@ -1918,8 +1943,38 @@
                       >
                         <pre data-part="text-attachment-content">Loading...</pre>
                       </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  :for={
+                    {attachment, att_index} <-
+                      Enum.with_index(non_crash_attachments(test_case_run))
+                  }
+                  :if={attachment_type(attachment.file_name) == :file}
+                  data-part="collapsible"
+                  class="test-failure-card"
+                  data-attachment
+                >
+                  <div data-part="root">
+                    <div data-part="trigger">
+                      <div data-part="header">
+                        <div data-part="icon">
+                          <.file />
+                        </div>
+                        <div data-part="title-and-subtitle">
+                          <h3 data-part="title">
+                            {attachment.file_name}
+                          </h3>
+                        </div>
+                        <.badge
+                          label={attachment_type_label(:file)}
+                          color="primary"
+                          style="light-fill"
+                          size="small"
+                        />
+                      </div>
                       <.neutral_button
-                        :if={attachment_type(attachment.file_name) == :file}
                         href={
                           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment.file_name}"
                         }
@@ -1927,7 +1982,6 @@
                         size="small"
                       >
                         <.download />
-                        <span>{attachment.file_name}</span>
                       </.neutral_button>
                     </div>
                   </div>

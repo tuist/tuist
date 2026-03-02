@@ -830,10 +830,10 @@
         padding-top: var(--noora-spacing-5);
 
         & .test-failure-card[data-attachment] [data-part="icon"] {
-          background-color: var(--noora-surface-background-secondary);
+          background-color: var(--noora-icon-neutral-background);
 
           & svg {
-            color: var(--noora-surface-label-secondary);
+            color: var(--noora-icon-neutral-label);
           }
         }
 
