@@ -539,7 +539,7 @@ public struct XCResultService: XCResultServicing {
 
                     let testAttachment = TestAttachment(
                         filePath: filePath,
-                        fileName: attachment.exportedFileName
+                        fileName: attachment.suggestedHumanReadableName ?? attachment.exportedFileName
                     )
                     attachmentsByTestIdentifier[normalizedIdentifier, default: []].append(testAttachment)
 
