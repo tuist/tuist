@@ -5,6 +5,7 @@ backend = "vfox:1password-cli"
 "platforms.linux-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
 "platforms.macos-arm64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
 "platforms.macos-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
+"platforms.windows-x64" = { url = "https://cache.agilebits.com/dist/1P/op2/pkg/v2.32.0/op_darwin_arm64_v2.32.0.zip"}
 
 [[tools.age]]
 version = "1.2.1"
@@ -13,6 +14,7 @@ backend = "aqua:FiloSottile/age"
 "platforms.linux-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz"}
 "platforms.macos-arm64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-arm64.tar.gz"}
 "platforms.macos-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-darwin-amd64.tar.gz"}
+"platforms.windows-x64" = { url = "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-windows-amd64.zip"}
 
 [[tools.bats]]
 version = "1.11.1"
@@ -37,6 +39,7 @@ backend = "aqua:orhun/git-cliff"
 "platforms.linux-x64" = { checksum = "sha512:3aee99bc38681a6fe0e38886b438a278f58e07fd4f022ef7eab0aacce9be22908cb45f57709101d06f3069098b0bd60207750b686c2d5549b1244306ecd4e661", url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-unknown-linux-musl.tar.gz"}
 "platforms.macos-arm64" = { checksum = "sha512:095ca20eaaa33470a730620b2be70e750c07b76a41634cf9b9d6b86b4a9dfe4339cc1f462d5ef3fc60ddd74d986b9e1d45ba29e70a099d1454af77a628d8fb88", url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-aarch64-apple-darwin.tar.gz"}
 "platforms.macos-x64" = { checksum = "sha512:0b6e4f4683f372bfb484d81e2e6ae4a305f571bfc9ddb63a618dae92346d3f91102a2e8eb7becca8937ed6d72b1df3f795e1f9e5b871704fa28f580e2ac6976c", url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-apple-darwin.tar.gz"}
+"platforms.windows-x64" = { url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-pc-windows-msvc.zip"}
 
 [[tools.gradle]]
 version = "8.12.1"
@@ -53,6 +56,7 @@ backend = "aqua:protocolbuffers/protobuf/protoc"
 "platforms.linux-x64" = { checksum = "sha256:e9c129c176bb7df02546c4cd6185126ca53c89e7d2f09511e209319704b5dd7e", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-linux-x86_64.zip"}
 "platforms.macos-arm64" = { checksum = "sha256:a7b51b2113862690fa52c62f8891a6037bafb9db88d4f9924c486de9d9bb89d5", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-osx-aarch_64.zip"}
 "platforms.macos-x64" = { checksum = "sha256:f9caa5b4d0b537acffb0ffd7d53225511a5574ef903fca550ea9e7600987f13b", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-osx-x86_64.zip"}
+"platforms.windows-x64" = { checksum = "sha256:69569cbc178cd5785ecb7d93569913110677eafeb4b8f82970c361fad4c7cd66", url = "https://github.com/protocolbuffers/protobuf/releases/download/v32.1/protoc-32.1-win64.zip"}
 
 [[tools.sops]]
 version = "3.9.3"
@@ -61,6 +65,7 @@ backend = "aqua:getsops/sops"
 "platforms.linux-x64" = { checksum = "sha256:835ee92ef7269e1e40d69cbe5e1042975f3cd38044e8a0fa3c1a13543b7dcfaa", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.linux.amd64"}
 "platforms.macos-arm64" = { checksum = "sha256:a087bd505b23dceb7debf60e02f4520c16fe32b02c0253c4e52821575f5d5027", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.arm64"}
 "platforms.macos-x64" = { checksum = "sha256:995a4571357b02fbbbba1f4ab1298b97eb5d976b02dc6f678edd6a3f7c7a952f", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.darwin.amd64"}
+"platforms.windows-x64" = { checksum = "sha256:df9372dd551a872918d70fcc4394e58a498d4f16bae414b1995555059ba8d4f6", url = "https://github.com/getsops/sops/releases/download/v3.9.3/sops-v3.9.3.exe"}
 
 [[tools.swiftformat]]
 version = "0.58.7"
