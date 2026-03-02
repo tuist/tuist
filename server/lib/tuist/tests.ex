@@ -464,6 +464,26 @@ defmodule Tuist.Tests do
   Returns {:ok, test_case_run} or {:error, :not_found}.
   """
   def get_test_case_run_by_id(id, opts \\ []) do
+    case uuidv7_to_yyyymm(id) do
+      {:ok, month} ->
+        query =
+          from(tcr in TestCaseRun,
+            where: tcr.id == ^id,
+            where: fragment("toYYYYMM(?)", tcr.inserted_at) == ^month,
+            limit: 1
+          )
+
+        case ClickHouseRepo.one(query) do
+          nil -> get_test_case_run_by_id_unscoped(id, opts)
+          run -> load_test_case_run(run, opts)
+        end
+
+      :error ->
+        get_test_case_run_by_id_unscoped(id, opts)
+    end
+  end
+
+  defp get_test_case_run_by_id_unscoped(id, opts) do
     query =
       from(tcr in TestCaseRun,
         where: tcr.id == ^id,
@@ -471,14 +491,27 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
-      nil ->
-        {:error, :not_found}
-
-      run ->
-        preload = Keyword.get(opts, :preload, [])
-        run = ClickHouseRepo.preload(run, preload)
-        {:ok, run}
+      nil -> {:error, :not_found}
+      run -> load_test_case_run(run, opts)
     end
+  end
+
+  defp load_test_case_run(run, opts) do
+    preload = Keyword.get(opts, :preload, [])
+    run = ClickHouseRepo.preload(run, preload)
+    {:ok, run}
+  end
+
+  defp uuidv7_to_yyyymm(uuid_string) do
+    hex = uuid_string |> String.replace("-", "") |> String.slice(0, 12)
+    timestamp_ms = String.to_integer(hex, 16)
+
+    case DateTime.from_unix(timestamp_ms, :millisecond) do
+      {:ok, datetime} -> {:ok, datetime.year * 100 + datetime.month}
+      _ -> :error
+    end
+  rescue
+    _ -> :error
   end
 
   defp create_test_modules(test, test_modules) do
