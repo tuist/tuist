@@ -38,6 +38,7 @@ defmodule Tuist do
       CacheActionItems,
       CommandEvents,
       CommandEvents.Event,
+      Registry,
       Builds,
       Builds.Build,
       Builds.CASOutput,
