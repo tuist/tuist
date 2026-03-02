@@ -41,7 +41,7 @@ defmodule Tuist.MixProject do
       {:ecto_sql, "~> 3.12"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.0"},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:phoenix_live_reload, "~> 1.6.1", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
       {:phoenix_view, "~> 2.0"},
       {:floki, ">= 0.33.0"},
@@ -153,7 +153,8 @@ defmodule Tuist.MixProject do
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"},
-      {:processor, path: "../processor", runtime: false}
+      {:processor, path: "../processor", runtime: false},
+      {:tidewave, "~> 0.5", only: :dev}
     ]
   end
 
@@ -185,10 +186,12 @@ defmodule Tuist.MixProject do
       "assets.build": [
         "esbuild app",
         "esbuild marketing",
+        "esbuild docs",
         "esbuild apidocs"
       ],
       "assets.deploy": [
         "esbuild marketing --minify",
+        "esbuild docs --minify",
         "esbuild app --minify",
         "esbuild apidocs --minify",
         "phx.digest"

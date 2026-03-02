@@ -14,6 +14,7 @@ deps_path = Path.expand("../deps", __DIR__)
 base_watchers = [
   esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
   esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
+  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap=inline --watch)]},
   esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
 ]
 
@@ -46,6 +47,7 @@ base_live_reload_patterns = [
   ~r"priv/gettext/.*(po)$",
   ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
+  ~r"lib/tuist_web/docs/.*(ex|heex)$",
   ~r"priv/marketing/blog/*/.*(md)$",
   ~r"../../noora/lib/noora/.*(ex|heex)$",
   ~r"../../noora/priv/static/.*(js|css)$"
