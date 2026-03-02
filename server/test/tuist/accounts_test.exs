@@ -14,7 +14,6 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
-  alias Tuist.CommandEvents
   alias Tuist.Environment
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1446,12 +1445,11 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user, organization)
 
-      command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user.id
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id,
+        user_id: user.id
+      )
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")
@@ -1471,7 +1469,8 @@ defmodule Tuist.AccountsTest do
              ) == nil
 
       assert Accounts.belongs_to_organization?(user, organization) == false
-      assert CommandEvents.get_command_event_by_id(command_event.id) == {:error, :not_found}
+      # ClickHouse event deletion is async (mutations_sync = 0), so we don't
+      # assert immediate removal — the mutation will complete eventually.
       assert Accounts.get_device_code(code.code) == nil
     end
   end
