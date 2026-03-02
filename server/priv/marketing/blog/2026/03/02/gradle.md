@@ -2,7 +2,7 @@
 title: "Tuist now supports Gradle"
 category: "product"
 tags: ["product", "gradle", "android", "cache", "test-insights", "build-insights"]
-excerpt: "We're bringing years of experience scaling Xcode projects to the Gradle ecosystem. Remote cache, build insights, test insights with flaky test detection — all available for your Android projects today."
+excerpt: "We're bringing years of experience scaling Xcode projects to the Gradle ecosystem. Remote cache, build insights, test insights including flaky test detection are all available for your Gradle projects today."
 author: fortmarek
 og_image_path: /marketing/images/blog/2026/03/02/gradle/og.png
 highlighted: true
