@@ -39,13 +39,16 @@ defmodule Tuist.Release do
   def seed do
     Application.load(@app)
 
-    # Disable web server and PromEx to avoid port conflicts when the seed
-    # runs in a separate eval process alongside the running server.
+    # Disable web server, PromEx, and license validation to avoid port
+    # conflicts and external API calls when the seed runs in a separate
+    # eval process alongside the running server.
     endpoint_config = Application.get_env(@app, TuistWeb.Endpoint, [])
     Application.put_env(@app, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
 
     promex_config = Application.get_env(@app, Tuist.PromEx, [])
     Application.put_env(@app, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
+    Application.put_env(@app, :skip_license_validation, true)
 
     {:ok, _} = Application.ensure_all_started(@app)
 

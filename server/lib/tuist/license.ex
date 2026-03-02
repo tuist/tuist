@@ -157,7 +157,8 @@ defmodule Tuist.License do
   def assert_valid!(opts \\ []) do
     Logger.info("Validating the license...")
 
-    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() or
+         Application.get_env(:tuist, :skip_license_validation, false) do
       :ok
     else
       case get_license(opts) do
