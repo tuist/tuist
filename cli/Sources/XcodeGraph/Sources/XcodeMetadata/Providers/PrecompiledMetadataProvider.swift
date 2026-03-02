@@ -170,11 +170,12 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         return (arch, linking, foundUUID)
     }
 
-    // swiftlint:disable:next large_tuple
+    // swiftlint:disable large_tuple
     private func readMachHeader(
         binary: FileHandle,
         magic: UInt32
     ) throws -> (cpu_type_t, cpu_subtype_t, UInt32, UInt32) {
+        // swiftlint:enable large_tuple
         if is64(magic) {
             var header64: mach_header_64 = binary.read()
             header64.swapIfNeeded(shouldSwap(magic))
