@@ -36,11 +36,27 @@
         </.button_group>
       </div>
       <div data-part="cta">
-      <.brand_github />
-      <.brand_mastodon/>
-      <.brand_slack/>
-      <.brand_bluesky/>
+        <.text_input
+          id="text-input-types-search"
+          name="search"
+          type="search"
+          placeholder="Search..."
+        />
 
+        <div data-part="socials">
+          <.neutral_button size="large" href="https://github.com/tuist/tuist" target="_blank">
+            <.brand_github />
+          </.neutral_button>
+          <.neutral_button size="large" href="https://fosstodon.org/@tuist" target="_blank">
+            <.brand_mastodon />
+          </.neutral_button>
+          <.neutral_button size="large" href="https://slack.tuist.dev" target="_blank">
+            <.brand_slack />
+          </.neutral_button>
+          <.neutral_button size="large" href="https://bsky.app/profile/tuist.dev" target="_blank">
+            <.brand_bluesky />
+          </.neutral_button>
+        </div>
       </div>
     </nav>
     {@inner_content}
