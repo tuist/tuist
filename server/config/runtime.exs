@@ -324,7 +324,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban
 config :tuist, Oban,
-  queues: [default: 10, registry: 2],
+  queues: [default: 10],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
@@ -334,7 +334,6 @@ config :tuist, Oban,
          do: [
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
            {"@hourly", Tuist.Slack.Workers.ReportWorker},
            {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},

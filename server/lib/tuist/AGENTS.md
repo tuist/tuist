@@ -5,7 +5,7 @@ This directory contains the core business logic and domain modules for the serve
 ## Responsibilities
 
 - Ecto schemas, contexts, and domain services.
-- Business rules for accounts, projects, bundles, previews, registry, and analytics.
+- Business rules for accounts, projects, bundles, previews, and analytics.
 
 ## Boundaries
 
@@ -41,7 +41,6 @@ This directory contains the core business logic and domain modules for the serve
 - Projects: `server/lib/tuist/projects/AGENTS.md`
 - Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`
 - Qa: `server/lib/tuist/qa/AGENTS.md`
-- Registry: `server/lib/tuist/registry/AGENTS.md`
 - Repo: `server/lib/tuist/repo/AGENTS.md`
 - Result Bundle: `server/lib/tuist/result_bundle/AGENTS.md`
 - Runs: `server/lib/tuist/runs/AGENTS.md`

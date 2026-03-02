@@ -248,6 +248,25 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   end
 
   describe "symlink resolution" do
+    test "zip_directory handles RevenueCat-style fixture with recursive directory symlink" do
+      root = Briefly.create!(directory: true)
+      source_dir = Path.join(root, "repo")
+      archive_path = Path.join(root, "source_archive.zip")
+
+      fixture_dir = Path.join([__DIR__, "../../fixtures/revenuecat_purchases_ios_spm_minimal"])
+      {_, 0} = System.cmd("cp", ["-R", fixture_dir, source_dir])
+
+      assert :ok = ReleaseWorker.zip_directory(source_dir, archive_path)
+
+      {output, 0} = System.cmd("unzip", ["-Z", archive_path])
+      lines = String.split(output, "\n")
+      symlink_lines = Enum.filter(lines, &String.starts_with?(&1, "l"))
+
+      assert Enum.any?(symlink_lines, &String.contains?(&1, "CustomEntitlementComputation"))
+      assert Enum.any?(symlink_lines, &String.contains?(&1, "purchases-root"))
+      refute Enum.any?(lines, &String.contains?(&1, "purchases-root/purchases-root"))
+    end
+
     test "zip_directory resolves symlinks for clone+zip path" do
       root = Briefly.create!(directory: true)
       source_dir = Path.join(root, "repo")
@@ -261,6 +280,31 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
       {output, 0} = System.cmd("unzip", ["-Z", archive_path])
       refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
+    end
+
+    test "zip_directory preserves directory symlinks without infinite traversal" do
+      root = Briefly.create!(directory: true)
+      source_dir = Path.join(root, "repo")
+      archive_path = Path.join(root, "source_archive.zip")
+
+      File.mkdir_p!(Path.join(source_dir, "Sources"))
+      File.write!(Path.join(source_dir, "Sources/main.swift"), "print(\"hello\")")
+      File.write!(Path.join(source_dir, "target.md"), "content")
+      File.ln_s!("target.md", Path.join(source_dir, "link.md"))
+      File.ln_s!("Sources", Path.join(source_dir, "CustomEntitlementComputation"))
+      File.mkdir_p!(Path.join(source_dir, "Tests/InstallationTests/CarthageInstallation"))
+      File.ln_s!("../../../", Path.join(source_dir, "Tests/InstallationTests/CarthageInstallation/purchases-root"))
+
+      assert :ok = ReleaseWorker.zip_directory(source_dir, archive_path)
+
+      {output, 0} = System.cmd("unzip", ["-Z", archive_path])
+      lines = String.split(output, "\n")
+      symlink_lines = Enum.filter(lines, &String.starts_with?(&1, "l"))
+
+      assert length(symlink_lines) == 2
+      refute Enum.any?(symlink_lines, &String.contains?(&1, "link.md"))
+      assert Enum.any?(symlink_lines, &String.contains?(&1, "CustomEntitlementComputation"))
+      assert Enum.any?(symlink_lines, &String.contains?(&1, "purchases-root"))
     end
 
     test "zip_directory rejects symlinks that point outside root" do

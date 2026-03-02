@@ -227,11 +227,43 @@ defmodule Cache.Registry.ReleaseWorker do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    with :ok <- ensure_symlinks_within_root(directory) do
-      case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
+    with :ok <- ensure_symlinks_within_root(directory),
+         :ok <- resolve_file_symlinks(directory) do
+      case System.cmd("zip", ["--symlinks", "-r", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
       end
+    end
+  end
+
+  defp resolve_file_symlinks(directory) do
+    case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
+      {output, 0} ->
+        output
+        |> String.split("\n", trim: true)
+        |> resolve_file_symlink_entries()
+
+      {output, status} ->
+        {:error, {:find_symlinks_failed, status, output}}
+    end
+  end
+
+  defp resolve_file_symlink_entries([]), do: :ok
+
+  defp resolve_file_symlink_entries([symlink_path | rest]) do
+    case File.stat(symlink_path) do
+      {:ok, %File.Stat{type: :regular}} ->
+        content = File.read!(symlink_path)
+        File.rm!(symlink_path)
+        File.write!(symlink_path, content)
+        resolve_file_symlink_entries(rest)
+
+      {:ok, %File.Stat{type: :directory}} ->
+        resolve_file_symlink_entries(rest)
+
+      _ ->
+        File.rm(symlink_path)
+        resolve_file_symlink_entries(rest)
     end
   end
 

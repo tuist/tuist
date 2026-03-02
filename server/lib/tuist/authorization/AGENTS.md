@@ -3,7 +3,7 @@
 This context owns authorization policies for server resources.
 
 ## Responsibilities
-- Define LetMe policies for resources (runs, bundles, cache, registry, account, project, etc.).
+- Define LetMe policies for resources (runs, bundles, cache, account, project, etc.).
 - Gate access based on subject type (user, project, account token) and scopes.
 
 ## Boundaries

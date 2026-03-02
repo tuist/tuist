@@ -1,9 +1,6 @@
 defmodule Tuist.GitHub.Client do
   @moduledoc """
   A module to interact with the GitHub API authenticated as the Tuist GitHub app.
-
-  For registry-related operations (tags, content, archives), this module delegates
-  to `TuistCommon.GitHub` while handling retry and Finch configuration.
   """
 
   alias Tuist.GitHub.App

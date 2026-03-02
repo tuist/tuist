@@ -371,10 +371,6 @@ defmodule Tuist.Environment do
     get([:loops, :api_key], secrets)
   end
 
-  def github_token_update_packages(secrets \\ secrets()) do
-    get([:github, :token, :update_packages], secrets)
-  end
-
   def github_token_update_package_releases(secrets \\ secrets()) do
     get([:github, :token, :update_package_releases], secrets)
   end

@@ -11,7 +11,6 @@ defmodule TuistWeb.API.AccountTokensController do
   alias TuistWeb.Authentication
 
   plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.Plugs.LegacyAccountTokenScopesPlug when action == :create)
 
   plug(
     OpenApiSpex.Plug.CastAndValidate,

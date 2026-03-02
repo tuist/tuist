@@ -1465,7 +1465,7 @@ defmodule Tuist.Accounts do
 
   ## Parameters
   - `account` - The account that owns the token
-  - `scopes` - List of scope strings (e.g., ["project:cache:read", "account:registry:read"])
+  - `scopes` - List of scope strings (e.g., ["project:cache:read", "account:members:read"])
   - `created_by_account` - Optional account that created this token (for tracking)
   - `name` - Optional friendly name for the token
   - `expires_at` - Optional expiration datetime

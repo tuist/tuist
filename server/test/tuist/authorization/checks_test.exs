@@ -288,9 +288,9 @@ defmodule Tuist.Authorization.ChecksTest do
     test "returns true when the scopes contain the required scope", %{user: user} do
       # When/Then
       assert Checks.scopes_permit(
-               %AuthenticatedAccount{account: user.account, scopes: ["account:registry:read"]},
+               %AuthenticatedAccount{account: user.account, scopes: ["project:cache:read"]},
                user.account,
-               "account:registry:read"
+               "project:cache:read"
              ) == true
     end
 
@@ -299,7 +299,7 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.scopes_permit(
                %AuthenticatedAccount{account: user.account, scopes: ["project:cache:read"]},
                user.account,
-               "account:registry:read"
+               "project:cache:write"
              ) == false
     end
 
@@ -439,7 +439,7 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.scopes_permit(
                %AuthenticatedAccount{account: user.account, scopes: ["ci"]},
                user.account,
-               "account:registry:read"
+               "account:members:read"
              ) == false
     end
 

@@ -20,6 +20,26 @@ defmodule Tuist.Release do
     end
   end
 
+  def seed do
+    Application.load(@app)
+
+    # Disable the web server and PromEx so seeding doesn't bind ports.
+    # This allows running the seed while a dev server is already running.
+    endpoint_config = Application.get_env(@app, TuistWeb.Endpoint, [])
+    Application.put_env(@app, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
+
+    promex_config = Application.get_env(@app, Tuist.PromEx, [])
+    Application.put_env(@app, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
+    {:ok, _} = Application.ensure_all_started(@app)
+
+    seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
+    Code.eval_file(seed_script)
+
+    # The full app is running (Oban, etc.) so the BEAM won't exit on its own.
+    System.halt(0)
+  end
+
   def rollback do
     load_app()
     version = "ROLLBACK_VERSION" |> System.fetch_env!() |> String.to_integer()
