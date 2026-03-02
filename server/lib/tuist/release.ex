@@ -54,6 +54,9 @@ defmodule Tuist.Release do
 
     seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
     Code.eval_file(seed_script)
+
+    # The full app is running (Oban, etc.) so the BEAM won't exit on its own.
+    System.halt(0)
   end
 
   def rollback do
