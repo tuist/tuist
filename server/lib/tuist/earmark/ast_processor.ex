@@ -53,29 +53,35 @@ defmodule Tuist.Earmark.ASTProcessor do
       ], %{}}}
   end
 
-  def process({heading, attrs, [text], _}) when heading in ["h1", "h2", "h3", "h4", "h5"] do
-    id =
-      text
-      |> String.downcase()
-      |> String.replace(~r/\s+/, "-")
+  def process({heading, attrs, children, _} = node) when heading in ["h1", "h2", "h3", "h4", "h5"] do
+    text = heading_text(children)
 
-    {:replace,
-     {heading,
-      attrs ++
-        [
-          {"id", id},
-          {"tabindex", "-1"},
-          {"class", "marketing__blog_post__body__content__heading"}
-        ],
-      [
-        text,
-        {"a",
-         [
-           {"href", "\##{id}"},
-           {"class", "marketing__blog_post__body__content__heading__anchor"},
-           {"aria-label", "Permalink to #{text}"}
-         ], [""], %{}}
-      ], %{}}}
+    if text == "" do
+      node
+    else
+      id =
+        text
+        |> String.downcase()
+        |> String.replace(~r/\s+/, "-")
+
+      {:replace,
+       {heading,
+        attrs ++
+          [
+            {"id", id},
+            {"tabindex", "-1"},
+            {"class", "marketing__blog_post__body__content__heading"}
+          ],
+        children ++
+          [
+            {"a",
+             [
+               {"href", "\##{id}"},
+               {"class", "marketing__blog_post__body__content__heading__anchor"},
+               {"aria-label", "Permalink to #{text}"}
+             ], [""], %{}}
+          ], %{}}}
+    end
   end
 
   def process({"prose_banner", attrs, [], %{}}) do
@@ -154,4 +160,15 @@ defmodule Tuist.Earmark.ASTProcessor do
   def process(node) do
     node
   end
+
+  defp heading_text(children) do
+    children
+    |> Enum.map_join("", &node_text/1)
+    |> String.trim()
+  end
+
+  defp node_text(value) when is_binary(value), do: value
+  defp node_text(values) when is_list(values), do: Enum.map_join(values, "", &node_text/1)
+  defp node_text({_, _, values, _}), do: node_text(values)
+  defp node_text(_), do: ""
 end
