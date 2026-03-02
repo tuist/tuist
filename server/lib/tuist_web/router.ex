@@ -37,7 +37,8 @@ defmodule TuistWeb.Router do
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
+      connect_src:
+        "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com http://localhost:9095 https://t3.storage.dev"
   end
 
   pipeline :browser_app do
