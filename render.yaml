@@ -189,7 +189,7 @@ services:
         generateValue: true
       - key: TUIST_SECRET_KEY_ENCRYPTION
         generateValue: true
-      - key: TUIST_LICENSE_KEY
+      - key: TUIST_LICENSE_CERTIFICATE_BASE64
         sync: false
       - key: RELEASE_COOKIE
         generateValue: true
