@@ -1,69 +1,133 @@
 version: "1"
 
-previewsEnabled: true
-
-# Only preview services are defined here. Production, canary, staging,
-# and grafana-alloy are managed directly in the Render dashboard because
-# Render creates preview instances for ALL services in a blueprint —
-# there is no way to exclude specific services from previews.
-
 services:
-  - type: web
-    name: tuist-preview
+  - &server-base
+    type: web
+    name: tuist
     region: frankfurt
     runtime: docker
     repo: https://github.com/tuist/tuist
     dockerfilePath: server/Dockerfile
-    dockerCommand: /app/bin/start-preview
+    dockerCommand: /app/bin/start
+    autoDeployTrigger: "off"
+    plan: pro plus
+    numInstances: 2
+    envVars:
+      - key: MASTER_KEY
+        sync: false
+      - key: RELEASE_COOKIE
+        sync: false
+      - key: MIX_ENV
+        value: prod
+      - key: TUIST_HOSTED
+        value: 1
+      - key: TUIST_USE_SSL_FOR_DATABASE
+        value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 40
+      - key: TUIST_S3_POOL_COUNT
+        value: 1
+      - key: TUIST_S3_POOL_SIZE
+        value: 50
+      - key: TUIST_APP_URL
+        value: https://tuist.dev
+      - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://tuist-fmpt:4317
+      - key: TUIST_LOKI_URL
+        value: http://tuist-fmpt:3100
+    domains:
+      - tuist.dev
+
+  - &redis-base
+    type: keyvalue
+    name: redis
+    plan: starter
+    region: frankfurt
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  - <<: *server-base
+    name: tuist-canary
     plan: standard
     numInstances: 1
-    previews:
-      generation: automatic
-    buildFilter:
-      paths:
-        - server/**
-        - tuist_common/**
     envVars:
+      - key: MASTER_KEY
+        sync: false
+      - key: RELEASE_COOKIE
+        sync: false
+      - key: MIX_ENV
+        value: can
+      - key: TUIST_HOSTED
+        value: 1
+      - key: TUIST_USE_SSL_FOR_DATABASE
+        value: 1
+      - key: TUIST_DATABASE_POOL_SIZE
+        value: 6
+      - key: TUIST_APP_URL
+        value: https://canary.tuist.dev
+      - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://tuist-fmpt:4317
+      - key: TUIST_LOKI_URL
+        value: http://tuist-fmpt:3100
+    domains:
+      - canary.tuist.dev
+
+  - <<: *redis-base
+    name: redis-canary
+
+  - <<: *server-base
+    name: tuist-staging
+    plan: standard
+    numInstances: 1
+    envVars:
+      - key: MASTER_KEY
+        sync: false
+      - key: RELEASE_COOKIE
+        sync: false
       - key: MIX_ENV
         value: stag
       - key: TUIST_HOSTED
-        value: 0
-      - key: EMBED_CLICKHOUSE
-        value: true
+        value: 1
       - key: TUIST_USE_SSL_FOR_DATABASE
-        value: 0
+        value: 1
       - key: TUIST_DATABASE_POOL_SIZE
-        value: 5
-      - key: TUIST_S3_ENDPOINT
-        value: http://localhost:9095
-      - key: TUIST_S3_ACCESS_KEY_ID
-        value: placeholder
-      - key: TUIST_S3_SECRET_ACCESS_KEY
-        value: placeholder
-      - key: TUIST_S3_BUCKET_NAME
-        value: tuist-preview
-      - key: TUIST_S3_REGION
-        value: auto
-      - key: TUIST_SECRET_KEY_BASE
-        value: d218910a52ac04e9a5b39d9ce87b9d43026685f07cd4b5da26196d1ebf62b6e5
-      - key: TUIST_SECRET_KEY_PASSWORD
-        value: d3e5e36901fca9151452e8b5930d6db6529aebd1b93f12ec87cb2b0028dbae7b
-      - key: TUIST_SECRET_KEY_TOKENS
-        value: 0e9d5475e8d5aadf74de66a94aa7c186ca4f6542536dc8adfea72a747fab1858
-      - key: TUIST_SECRET_KEY_ENCRYPTION
-        value: efa8f7082a470355478714064a95269423c9b08b6ef0e1a7f6923217bd67990a
-      - key: TUIST_LICENSE
-        sync: false
-      - key: RELEASE_COOKIE
-        generateValue: true
-      - fromDatabase:
-          name: tuist-preview-db
-          property: connectionString
-        key: DATABASE_URL
+        value: 15
+      - key: TUIST_APP_URL
+        value: https://staging.tuist.dev
+      - key: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://tuist-fmpt:4317
+      - key: TUIST_LOKI_URL
+        value: http://tuist-fmpt:3100
+    domains:
+      - staging.tuist.dev
 
-databases:
-  - name: tuist-preview-db
+  - <<: *redis-base
+    name: redis-staging
+
+  - type: pserv
+    name: grafana-alloy
+    runtime: docker
     region: frankfurt
-    plan: basic-256mb
-    postgresMajorVersion: "16"
-    previewPlan: basic-256mb
+    repo: https://github.com/tuist/tuist
+    rootDir: infra/grafana-alloy/
+    plan: standard
+    autoDeployTrigger: commit
+    envVars:
+      - key: PROMETHEUS_URL
+        sync: false
+      - key: PROMETHEUS_TOKEN
+        sync: false
+      - key: PROMETHEUS_USERNAME
+        sync: false
+      - key: TEMPO_URL
+        sync: false
+      - key: TEMPO_USERNAME
+        sync: false
+      - key: TEMPO_TOKEN
+        sync: false
+      - key: LOKI_URL
+        sync: false
+      - key: LOKI_USERNAME
+        sync: false
+      - key: LOKI_TOKEN
+        sync: false
