@@ -56,7 +56,7 @@ import TuistTesting
             .willReturn(
                 AsyncThrowingStream { continuation in
                     continuation.yield(CommandEvent.standardOutput(Array(stderr.utf8)))
-                    continuation.finish(throwing: CommandError.terminated(1, stderr: stderr))
+                    continuation.finish(throwing: CommandError.terminated(1, stderr: stderr, command: []))
                 }
             )
 
@@ -76,7 +76,7 @@ import TuistTesting
             .willReturn(
                 AsyncThrowingStream { continuation in
                     continuation.yield(CommandEvent.standardOutput(Array(stderr.utf8)))
-                    continuation.finish(throwing: CommandError.terminated(expectedCode, stderr: stderr))
+                    continuation.finish(throwing: CommandError.terminated(expectedCode, stderr: stderr, command: []))
                 }
             )
 
@@ -84,7 +84,7 @@ import TuistTesting
             try await subject.signature(of: unsignedPath)
         } throws: { error in
             if let terminated = error as? CommandError,
-               case let .terminated(actualCode, actualStderr) = terminated
+               case let .terminated(actualCode, actualStderr, _) = terminated
             {
                 return actualCode == 1 && actualStderr == stderr
             }
@@ -117,7 +117,7 @@ import TuistTesting
     @Test func extractSignature_extractionFails() async throws {
         let outputDir = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let stderr = "some error"
-        let error = CommandError.terminated(1, stderr: stderr)
+        let error = CommandError.terminated(1, stderr: stderr, command: [])
 
         given(commandRunner)
             .run(
@@ -140,7 +140,7 @@ import TuistTesting
             try await subject.extractSignature(of: unsignedPath, into: outputDir)
         } throws: { error in
             if let terminated = error as? CommandError,
-               case let .terminated(actualCode, actualStderr) = terminated
+               case let .terminated(actualCode, actualStderr, _) = terminated
             {
                 return actualCode == 1 && actualStderr == stderr
             }

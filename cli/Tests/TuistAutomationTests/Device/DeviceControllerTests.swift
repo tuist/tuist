@@ -154,7 +154,7 @@ final class DeviceControllerTests: TuistUnitTestCase {
             .willReturn(
                 .init(
                     unfolding: {
-                        throw CommandError.terminated(1, stderr: "ApplicationVerificationFailed")
+                        throw CommandError.terminated(1, stderr: "ApplicationVerificationFailed", command: [])
                     }
                 )
             )
