@@ -37,9 +37,16 @@ defmodule Tuist.Release do
   end
 
   def seed do
-    Application.ensure_all_started(@app)
-    seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
-    Code.eval_file(seed_script)
+    load_app()
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+        {:ok, _, _} =
+          Ecto.Migrator.with_repo(Tuist.IngestRepo, fn _ingest_repo ->
+            seed_script = Application.app_dir(@app, "priv/repo/seeds.exs")
+            Code.eval_file(seed_script)
+          end)
+      end)
   end
 
   def rollback do
