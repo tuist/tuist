@@ -11,10 +11,6 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsByRanAtSortKey do
   Removing `name` from the sort key lets ClickHouse read backwards from the
   latest ran_at and apply the name filter as a lightweight predicate, stopping
   at LIMIT. This reduces reads from ~432K to ~8K rows (one granule).
-
-  The view is created WITHOUT POPULATE so the DDL is instant and new writes
-  flow immediately. Historical data is backfilled in a separate migration to
-  follow the same split pattern used for projections on ClickHouse Cloud.
   """
 
   use Ecto.Migration
@@ -31,6 +27,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsByRanAtSortKey do
     CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, ran_at)
+    POPULATE
     AS SELECT * FROM command_events
     """
   end
