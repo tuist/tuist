@@ -343,6 +343,35 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert upload.parts[1].size == 1000
     end
 
+    test "stores buffered part temp file under storage dir", %{conn: conn, test_storage_dir: test_storage_dir} do
+      {:ok, upload_id} =
+        MultipartUploads.start_upload("test-account", "test-project", "builds", "abc123", "test.zip")
+
+      body = String.duplicate("x", 1000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, "test-account", "test-project" ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> post(
+          "/api/cache/module/part?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}&part_number=2",
+          body
+        )
+
+      assert conn.status == 204
+
+      {:ok, upload} = MultipartUploads.get_upload(upload_id)
+      assert Map.has_key?(upload.parts, 2)
+      part_path = upload.parts[2].path
+
+      assert String.starts_with?(part_path, test_storage_dir),
+             "Expected part temp file #{part_path} to be under storage dir #{test_storage_dir}"
+    end
+
     test "returns 404 for unknown upload_id", %{conn: conn} do
       body = String.duplicate("x", 1000)
 

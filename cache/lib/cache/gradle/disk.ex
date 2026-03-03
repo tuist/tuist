@@ -79,6 +79,20 @@ defmodule Cache.Gradle.Disk do
   end
 
   @doc """
+  Ensures the parent directory for a Gradle artifact exists and returns its path.
+
+  Returns `{:ok, dir_path}` on success, or `{:error, reason}` if directory creation fails.
+  """
+  def ensure_artifact_directory(account_handle, project_handle, cache_key) do
+    path = account_handle |> key(project_handle, cache_key) |> Disk.artifact_path()
+    dir = Path.dirname(path)
+
+    with :ok <- Disk.ensure_directory(path) do
+      {:ok, dir}
+    end
+  end
+
+  @doc """
   Returns file stat information for a Gradle build cache artifact.
 
   ## Examples

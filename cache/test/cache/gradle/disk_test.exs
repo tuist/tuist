@@ -131,6 +131,26 @@ defmodule Cache.Gradle.DiskTest do
     end
   end
 
+  describe "ensure_artifact_directory/3" do
+    test "creates parent directory and returns its path", %{test_storage_dir: test_storage_dir} do
+      assert {:ok, dir} = GradleDisk.ensure_artifact_directory(@test_account, @test_project, @test_cache_key)
+      assert File.dir?(dir)
+      assert String.starts_with?(dir, test_storage_dir)
+    end
+
+    test "returns directory containing the artifact path" do
+      assert {:ok, dir} = GradleDisk.ensure_artifact_directory(@test_account, @test_project, @test_cache_key)
+      expected_artifact_path = Disk.artifact_path(@test_key)
+      assert dir == Path.dirname(expected_artifact_path)
+    end
+
+    test "is idempotent" do
+      assert {:ok, dir1} = GradleDisk.ensure_artifact_directory(@test_account, @test_project, @test_cache_key)
+      assert {:ok, dir2} = GradleDisk.ensure_artifact_directory(@test_account, @test_project, @test_cache_key)
+      assert dir1 == dir2
+    end
+  end
+
   describe "integration test" do
     test "put and exists? roundtrip" do
       original_data = "This is test artifact content for roundtrip testing"
