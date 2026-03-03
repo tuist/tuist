@@ -615,26 +615,25 @@ defmodule Tuist.VCS do
     metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
     metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
 
-    """
-    | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-    |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-    #{Enum.map(test_runs, fn test_run ->
-      test_run_metrics = Map.get(metrics_map, test_run.id)
+    rows =
+      Enum.map_join(test_runs, "", fn test_run ->
+        test_run_metrics = Map.get(metrics_map, test_run.id)
 
-      git_commit_sha = test_run.git_commit_sha
-      test_url = test_run_url.(%{project: project, test_run: test_run})
-      scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        git_commit_sha = test_run.git_commit_sha
+        test_url = test_run_url.(%{project: project, test_run: test_run})
+        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
 
-      cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
-      total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-      skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
-      ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
+        cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
+        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+        skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
+        ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
 
-      """
-      | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
-      """
-    end)}
-    """
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+      end)
+
+    "| Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
+      rows
   end
 
   defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
@@ -648,22 +647,21 @@ defmodule Tuist.VCS do
     metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
     metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
 
-    """
-    | Scheme | Status | Tests | Commit |
-    |:-:|:-:|:-:|:-:|
-    #{Enum.map(test_runs, fn test_run ->
-      test_run_metrics = Map.get(metrics_map, test_run.id)
+    rows =
+      Enum.map_join(test_runs, "", fn test_run ->
+        test_run_metrics = Map.get(metrics_map, test_run.id)
 
-      git_commit_sha = test_run.git_commit_sha
-      test_url = test_run_url.(%{project: project, test_run: test_run})
-      scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-      total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+        git_commit_sha = test_run.git_commit_sha
+        test_url = test_run_url.(%{project: project, test_run: test_run})
+        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
 
-      """
-      | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
-      """
-    end)}
-    """
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+      end)
+
+    "| Scheme | Status | Tests | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
   end
 
   defp get_test_run_status_text(test_run) do
