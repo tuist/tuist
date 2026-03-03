@@ -7,51 +7,64 @@ defmodule TuistWeb.Webhooks.CacheController do
   require Logger
 
   def handle(conn, %{"events" => events}) when is_list(events) do
-    full_handles =
-      events
-      |> Enum.map(fn event ->
-        "#{event["account_handle"]}/#{event["project_handle"]}"
-      end)
-      |> Enum.uniq()
+    cache_endpoint =
+      conn
+      |> Plug.Conn.get_req_header("x-cache-endpoint")
+      |> List.first()
 
-    projects_map = Projects.projects_by_full_handles(full_handles)
+    if is_nil(cache_endpoint) or cache_endpoint == "" do
+      conn
+      |> put_status(:bad_request)
+      |> json(%{error: "Missing x-cache-endpoint header"})
+      |> halt()
+    else
+      full_handles =
+        events
+        |> Enum.map(fn event ->
+          "#{event["account_handle"]}/#{event["project_handle"]}"
+        end)
+        |> Enum.uniq()
 
-    analytics_events =
-      events
-      |> Enum.map(fn event ->
-        %{
-          "account_handle" => account_handle,
-          "project_handle" => project_handle,
-          "action" => action,
-          "size" => size,
-          "cas_id" => cas_id
-        } = event
+      projects_map = Projects.projects_by_full_handles(full_handles)
 
-        full_handle = "#{account_handle}/#{project_handle}"
+      analytics_events =
+        events
+        |> Enum.map(fn event ->
+          %{
+            "account_handle" => account_handle,
+            "project_handle" => project_handle,
+            "action" => action,
+            "size" => size,
+            "cas_id" => cas_id
+          } = event
 
-        case Map.get(projects_map, full_handle) do
-          %{id: project_id} ->
-            %{
-              action: action,
-              size: size,
-              cas_id: cas_id,
-              project_id: project_id
-            }
+          full_handle = "#{account_handle}/#{project_handle}"
 
-          nil ->
-            Logger.warning("Project not found for cache event: #{full_handle}")
+          case Map.get(projects_map, full_handle) do
+            %{id: project_id} ->
+              %{
+                action: action,
+                size: size,
+                cas_id: cas_id,
+                project_id: project_id,
+                cache_endpoint: cache_endpoint
+              }
 
-            nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
+            nil ->
+              Logger.warning("Project not found for cache event: #{full_handle}")
 
-    Cache.create_cas_events(analytics_events)
+              nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
 
-    conn
-    |> put_status(:accepted)
-    |> json(%{})
-    |> halt()
+      Cache.create_cas_events(analytics_events)
+
+      conn
+      |> put_status(:accepted)
+      |> json(%{})
+      |> halt()
+    end
   end
 
   def handle(conn, _params) do
