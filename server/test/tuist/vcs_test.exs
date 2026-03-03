@@ -1207,9 +1207,14 @@ defmodule Tuist.VCSTest do
 
         #### Tests 🧪
 
+        ##### Xcode
+
         | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
         | [AppTests](https://tuist.dev/test_runs/#{xcode_test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+
+        ##### Gradle
+
         | Project | Status | Tests | Commit |
         |:-:|:-:|:-:|:-:|
         | [my-android-app](https://tuist.dev/test_runs/#{gradle_test_run.id}) | ✅ | 2 | #{commit_link} |
