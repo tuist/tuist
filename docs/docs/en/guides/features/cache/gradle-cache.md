@@ -7,12 +7,6 @@
 ---
 # Gradle cache {#gradle-cache}
 
-::: warning NOT GENERALLY AVAILABLE
-<!-- -->
-This feature is not generally available yet. If you are interested in trying it out, please reach out to us at [contact@tuist.dev](mailto:contact@tuist.dev).
-<!-- -->
-:::
-
 Tuist provides a Gradle plugin that integrates with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache, saving build time across your team and CI environments.
 
 ::: warning REQUIREMENTS
