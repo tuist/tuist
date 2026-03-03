@@ -415,7 +415,7 @@ jobs:
     name: Release CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -561,7 +561,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 50
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
@@ -655,7 +655,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -992,10 +992,6 @@ jobs:
             git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Update version in settings.gradle.kts
-        run: |
-          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
-
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
         run: |
@@ -1004,6 +1000,10 @@ jobs:
           ./gradlew publishPlugins -Pversion=${{ needs.check-releases.outputs.gradle-next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Update version in settings.gradle.kts
+        run: |
+          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
 
       - name: Tag Gradle release
         run: |

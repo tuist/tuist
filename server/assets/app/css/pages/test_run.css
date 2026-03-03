@@ -559,6 +559,8 @@
               padding: var(--noora-spacing-5);
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+              white-space: pre-wrap;
+              word-break: break-word;
             }
           }
         }
@@ -726,6 +728,8 @@
           padding: var(--noora-spacing-5);
           color: var(--noora-surface-label-primary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          white-space: pre-wrap;
+          word-break: break-word;
         }
       }
 
@@ -736,6 +740,8 @@
         padding: var(--noora-spacing-5);
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        white-space: pre-wrap;
+        word-break: break-word;
 
         & + [data-part="repetition-failure"] {
           margin-top: var(--noora-spacing-5);
@@ -813,6 +819,52 @@
               color: var(--noora-surface-label-primary);
             }
           }
+        }
+      }
+
+      & > [data-part="attachments-list"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+        border-top: 1px solid var(--noora-surface-border-secondary);
+        padding-top: var(--noora-spacing-5);
+
+        & .test-failure-card[data-attachment] [data-part="icon"] {
+          background-color: var(--noora-icon-neutral-background);
+
+          & svg {
+            color: var(--noora-icon-neutral-label);
+          }
+        }
+
+        & .test-failure-card[data-attachment] [data-part="title-and-subtitle"] {
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+        }
+
+        & .test-failure-card[data-attachment] [data-part="attachment-image"] {
+          border: 1px solid var(--noora-surface-border-secondary);
+          border-radius: var(--noora-radius-medium);
+          width: auto;
+          max-width: 400px;
+          height: auto;
+          max-height: 500px;
+        }
+
+        & .test-failure-card[data-attachment] [data-part="text-attachment-content"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+          margin: 0;
+          box-shadow: var(--noora-border-section);
+          border-radius: var(--noora-radius-medium);
+          background: var(--noora-surface-background-tertiary);
+          padding: var(--noora-spacing-5);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          white-space: pre-wrap;
+          word-break: break-word;
         }
       }
     }

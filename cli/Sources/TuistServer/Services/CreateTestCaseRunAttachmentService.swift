@@ -90,7 +90,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 }
                 var request = URLRequest(url: url)
                 request.httpMethod = "PUT"
-                request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+                request.setValue(Self.contentType(for: fileName), forHTTPHeaderField: "Content-Type")
                 request.httpBody = try await fileSystem.readFile(at: filePath)
 
                 let (_, uploadResponse) = try await urlSession.data(for: request)
@@ -123,6 +123,22 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
             case let .json(error):
                 throw CreateTestCaseRunAttachmentServiceError.badRequest(error.message)
             }
+        }
+    }
+
+    private static func contentType(for fileName: String) -> String {
+        switch (try? RelativePath(validating: fileName))?.extension?.lowercased() ?? "" {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "heic": return "image/heic"
+        case "txt", "log": return "text/plain"
+        case "json": return "application/json"
+        case "xml": return "application/xml"
+        case "csv": return "text/csv"
+        case "ips": return "application/json"
+        default: return "application/octet-stream"
         }
     }
 }

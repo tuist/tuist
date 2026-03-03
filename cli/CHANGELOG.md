@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* upload and display all test attachments from xcresult bundles by [@fortmarek](https://github.com/fortmarek) in [#9630](https://github.com/tuist/tuist/pull/9630)
+* make tuist inspect bundle available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9644](https://github.com/tuist/tuist/pull/9644)
+* prune old binary cache entries on startup by [@pepicrft](https://github.com/pepicrft)
+* vendor XcodeGraph into tuist and reconcile dependency graphs by [@pepicrft](https://github.com/pepicrft) in [#9616](https://github.com/tuist/tuist/pull/9616)
+* add "Ask on Launch" executable option for scheme actions by [@FelixLisczyk](https://github.com/FelixLisczyk) in [#9373](https://github.com/tuist/tuist/pull/9373)
 * add warningsAsErrors generation option by [@fortmarek](https://github.com/fortmarek) in [#9574](https://github.com/tuist/tuist/pull/9574)
+### 🐛 Bug Fixes
+
+* include transitive search paths through dynamic framework dependencies by [@pepicrft](https://github.com/pepicrft) in [#9681](https://github.com/tuist/tuist/pull/9681)
+* exclude directories from buildable folder resolved files by [@fortmarek](https://github.com/fortmarek) in [#9678](https://github.com/tuist/tuist/pull/9678)
+* cap concurrency to avoid file descriptor exhaustion by [@fortmarek](https://github.com/fortmarek) in [#9677](https://github.com/tuist/tuist/pull/9677)
+* Fix case-insensitive prioritize local packages over registry by [@fdiaz](https://github.com/fdiaz) in [#9673](https://github.com/tuist/tuist/pull/9673)
+* add xcassets and xcstrings to sources build phase for static targets by [@pepicrft](https://github.com/pepicrft) in [#9666](https://github.com/tuist/tuist/pull/9666)
+* update Command package to 0.14.0 by [@fortmarek](https://github.com/fortmarek) in [#9657](https://github.com/tuist/tuist/pull/9657)
+* make CacheLocalStorage.clean public by [@fortmarek](https://github.com/fortmarek) in [#9647](https://github.com/tuist/tuist/pull/9647)
+* bump FileSystem to 0.15.0 for setFileTimes support by [@fortmarek](https://github.com/fortmarek) in [#9646](https://github.com/tuist/tuist/pull/9646)
+* sort Set iterations in graph mappers for deterministic cache hashing by [@fortmarek](https://github.com/fortmarek) in [#9629](https://github.com/tuist/tuist/pull/9629)
+* limit concurrency of buildable folder resolution to avoid FD exhaustion by [@fortmarek](https://github.com/fortmarek) in [#9626](https://github.com/tuist/tuist/pull/9626)
+* add validation folder exists for BuildableFolder by [@ivan-gaydamakin](https://github.com/ivan-gaydamakin) in [#9609](https://github.com/tuist/tuist/pull/9609)
+* prune static xcframework deps from dynamic xcframeworks for hostless unit tests by [@pepicrft](https://github.com/pepicrft) in [#9602](https://github.com/tuist/tuist/pull/9602)
+* upload APK files directly instead of wrapping in zip by [@fortmarek](https://github.com/fortmarek) in [#9581](https://github.com/tuist/tuist/pull/9581)
+* populate explicitFolders for excluded directories in buildable folders by [@fortmarek](https://github.com/fortmarek) in [#9578](https://github.com/tuist/tuist/pull/9578)
+### 🚜 Refactor
+
+* migrate acceptance tests to Swift Testing by [@pepicrft](https://github.com/pepicrft) in [#9352](https://github.com/tuist/tuist/pull/9352)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.151.1...4.152.0
 

@@ -3,6 +3,7 @@ defmodule TuistWeb.TestRunLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Helpers.AttachmentHelpers
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.TestLabels
@@ -13,6 +14,7 @@ defmodule TuistWeb.TestRunLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
@@ -284,6 +286,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failed_test_case_runs, [])
     |> assign(:failures_meta, %{})
     |> assign(:failures_page, 1)
+    |> assign(:text_attachment_urls, %{})
   end
 
   defp assign_initial_flaky_runs_state(socket) do
@@ -353,6 +356,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign_selective_testing_defaults()
       |> assign_binary_cache_defaults()
       |> assign_param_defaults(params)
+      |> assign_text_attachment_urls(failed_test_case_runs)
 
     case selected_test_tab do
       "test-cases" ->
@@ -609,7 +613,7 @@ defmodule TuistWeb.TestRunLive do
     }
 
     Tests.list_test_case_runs(attrs,
-      preload: [:failures, :repetitions, crash_report: :test_case_run_attachment]
+      preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
     )
   end
 
@@ -618,6 +622,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failed_test_case_runs, failed_test_case_runs)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
+    |> assign_text_attachment_urls(failed_test_case_runs)
   end
 
   defp load_flaky_runs_data(run, params) do
@@ -981,5 +986,41 @@ defmodule TuistWeb.TestRunLive do
       end
     end)
     |> Filter.Operations.convert_filters_to_flop()
+  end
+
+  # Renders a failure message span without whitespace around the content.
+  # Using ~H[] on a single line prevents the HEEx formatter from splitting
+  # the tag across lines, which would introduce visible leading whitespace.
+  attr :failure, :map, required: true
+  attr :context, :map, required: true
+
+  defp failure_message_span(assigns) do
+    ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
+  defp assign_text_attachment_urls(socket, test_case_runs) do
+    project = socket.assigns.selected_project
+
+    urls =
+      test_case_runs
+      |> Enum.flat_map(fn tcr ->
+        tcr.attachments
+        |> Enum.filter(fn att -> text_attachment_type?(attachment_type(att.file_name)) end)
+        |> Enum.map(fn att ->
+          s3_key =
+            Tests.attachment_storage_key(%{
+              account_handle: project.account.name,
+              project_handle: project.name,
+              test_case_run_id: tcr.id,
+              attachment_id: att.id,
+              file_name: att.file_name
+            })
+
+          {att.id, Storage.generate_download_url(s3_key, project.account, expires_in: 3600)}
+        end)
+      end)
+      |> Map.new()
+
+    assign(socket, :text_attachment_urls, urls)
   end
 end
