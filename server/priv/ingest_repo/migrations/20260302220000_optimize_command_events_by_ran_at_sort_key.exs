@@ -31,7 +31,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW command_events_by_ran_at
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, ran_at)
     POPULATE
@@ -43,7 +43,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW command_events_by_duration
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
     ENGINE = MergeTree
     ORDER BY (project_id, duration)
     POPULATE
@@ -57,7 +57,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW command_events_by_ran_at
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, name, ran_at)
     POPULATE
@@ -69,7 +69,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW command_events_by_duration
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
     ENGINE = MergeTree
     ORDER BY (project_id, name, duration)
     POPULATE
