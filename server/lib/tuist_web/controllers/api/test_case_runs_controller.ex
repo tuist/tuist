@@ -509,8 +509,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
       %{
         file_name: attachment.file_name,
         url:
-          TuistWeb.Endpoint.url() <>
-            "/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{attachment.file_name}"
+          url(conn, ~p"/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{attachment.file_name}")
       }
     end)
   end
@@ -526,8 +525,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
       exception_subtype: cr.exception_subtype,
       triggered_thread_frames: cr.triggered_thread_frames,
       attachment_url:
-        TuistWeb.Endpoint.url() <>
-          "/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
+        url(conn, ~p"/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}")
     }
   end
 
