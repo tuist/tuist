@@ -83,7 +83,8 @@ defmodule Cache.RegistryDownloadEventsPipeline do
 
     headers = [
       {"x-cache-signature", signature},
-      {"content-type", "application/json"}
+      {"content-type", "application/json"},
+      {"x-cache-endpoint", Cache.Config.cache_endpoint()}
     ]
 
     req_options = Application.get_env(:cache, :req_options, [])

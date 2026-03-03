@@ -123,6 +123,13 @@ defmodule Cache.Config do
     Application.fetch_env(:ex_aws, :s3)
   end
 
+  def cache_endpoint do
+    node()
+    |> to_string()
+    |> String.split("@")
+    |> List.last()
+  end
+
   defp parse_float(nil, default), do: default
 
   defp parse_float(value, default) do
