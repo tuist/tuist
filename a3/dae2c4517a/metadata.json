@@ -3,7 +3,7 @@
   "checkpoint_id": "a3dae2c4517a",
   "strategy": "manual-commit",
   "branch": "fix/buildable-folder-opaque-directories",
-  "checkpoints_count": 3,
+  "checkpoints_count": 5,
   "files_touched": [
     ".build/index-build/registry/downloads/1024jp/GzipSwift/5.2.0/.github/workflows/ci.yml",
     ".build/index-build/registry/downloads/CoreOffice/XMLCoder/0.18.0/.github/workflows/documentation.yml",
@@ -97,6 +97,8 @@
     ".build/index-build/registry/downloads/tid-kijyun/Kanna/5.3.0/.github/FUNDING.yml",
     ".build/index-build/registry/downloads/tid-kijyun/Kanna/5.3.0/.github/ISSUE_TEMPLATE.md",
     ".build/index-build/registry/downloads/tid-kijyun/Kanna/5.3.0/.github/workflows/ci.yml",
+    "cli/Sources/TuistLoader/Models+ManifestMappers/BuildableFolder+ManifestMapper.swift",
+    "cli/Tests/TuistLoaderTests/Models+ManifestMappers/BuildableFolder+ManifestMapperTests.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -115,13 +117,20 @@
       "context": "/a3/dae2c4517a/0/context.md",
       "content_hash": "/a3/dae2c4517a/0/content_hash.txt",
       "prompt": "/a3/dae2c4517a/0/prompt.txt"
+    },
+    {
+      "metadata": "/a3/dae2c4517a/1/metadata.json",
+      "transcript": "/a3/dae2c4517a/1/full.jsonl",
+      "context": "/a3/dae2c4517a/1/context.md",
+      "content_hash": "/a3/dae2c4517a/1/content_hash.txt",
+      "prompt": "/a3/dae2c4517a/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 53,
-    "cache_creation_tokens": 122639,
-    "cache_read_tokens": 4438560,
-    "output_tokens": 5873,
-    "api_call_count": 43
+    "input_tokens": 878,
+    "cache_creation_tokens": 234271,
+    "cache_read_tokens": 5995387,
+    "output_tokens": 13018,
+    "api_call_count": 73
   }
 }
