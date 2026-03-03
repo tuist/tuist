@@ -27,6 +27,10 @@
       height: 148px;
     }
 
+    & .noora-chart.tuist-loading-skeleton {
+      width: 100%;
+    }
+
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
     }

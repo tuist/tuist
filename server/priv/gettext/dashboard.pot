@@ -195,7 +195,7 @@ msgstr ""
 msgid "Next"
 msgstr ""
 
-#: lib/tuist_web/components/widget.ex:144
+#: lib/tuist_web/components/widget.ex:146
 #, elixir-autogen, elixir-format
 msgid "No data yet"
 msgstr ""

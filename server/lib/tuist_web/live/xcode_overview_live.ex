@@ -6,6 +6,7 @@ defmodule TuistWeb.XcodeOverviewLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Previews.AppPreview
 
+  alias Tuist.AppBuilds
   alias Tuist.Builds
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
@@ -21,76 +22,83 @@ defmodule TuistWeb.XcodeOverviewLive do
 
   def assign_handle_params(socket, params, uri_path) do
     uri = URI.new!("?" <> URI.encode_query(params))
+    project = socket.assigns.selected_project
 
-    socket
-    |> assign_analytics(params)
-    |> assign_builds(params)
-    |> assign_bundles(params)
-    |> assign(:uri, uri)
-    |> assign(:uri_path, uri_path)
-  end
-
-  defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+    %{preset: analytics_preset, period: analytics_period} =
       DatePicker.date_picker_params(params, "analytics")
 
     analytics_environment = params["analytics-environment"] || "any"
 
-    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+    %{preset: builds_preset, period: builds_period} =
+      DatePicker.date_picker_params(params, "builds")
 
-    opts =
-      case analytics_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
+    builds_environment = params["builds-environment"] || "any"
+
+    %{preset: bundle_size_preset, period: bundle_size_period} =
+      DatePicker.date_picker_params(params, "bundle-size")
+
+    bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
+
+    analytics_opts = build_opts(project.id, analytics_period, analytics_environment)
+    builds_opts = build_opts(project.id, builds_period, builds_environment)
 
     socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
     |> assign(
-      :analytics_trend_label,
-      analytics_trend_label(preset)
+      uri: uri,
+      uri_path: uri_path,
+      analytics_preset: analytics_preset,
+      analytics_period: analytics_period,
+      analytics_trend_label: analytics_trend_label(analytics_preset),
+      analytics_environment: analytics_environment,
+      analytics_environment_label: environment_label(analytics_environment),
+      builds_preset: builds_preset,
+      builds_period: builds_period,
+      builds_environment: builds_environment,
+      builds_environment_label: environment_label(builds_environment),
+      bundle_size_preset: bundle_size_preset,
+      bundle_size_period: bundle_size_period,
+      bundle_size_selected_app: bundle_size_selected_app
     )
-    |> assign(
-      :analytics_environment,
-      analytics_environment
-    )
-    |> assign(
-      :analytics_environment_label,
-      environment_label(analytics_environment)
-    )
-    |> then(fn socket ->
-      [
-        binary_cache_hit_rate_analytics,
-        selective_testing_analytics,
-        build_analytics,
-        test_analytics
-      ] = combined_overview_analytics(project.id, opts)
-
-      socket
-      |> assign(
-        :build_time_analytics,
-        BuildsAnalytics.build_time_analytics(opts)
-      )
-      |> assign(:binary_cache_hit_rate_analytics, binary_cache_hit_rate_analytics)
-      |> assign(:selective_testing_analytics, selective_testing_analytics)
-      |> assign(:build_analytics, build_analytics)
-      |> assign(:test_analytics, test_analytics)
+    |> assign_async([:binary_cache_hit_rate_analytics, :selective_testing_analytics], fn ->
+      {:ok,
+       %{
+         binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts),
+         selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)
+       }}
     end)
-    |> assign_test_runs_analytics()
-    |> assign(
-      :latest_app_previews,
-      Tuist.AppBuilds.latest_previews_with_distinct_bundle_ids(project)
+    |> assign_async(:build_analytics, fn ->
+      {:ok, %{build_analytics: BuildsAnalytics.build_duration_analytics(project.id, analytics_opts)}}
+    end)
+    |> assign_async(:test_analytics, fn ->
+      {:ok, %{test_analytics: RunsAnalytics.runs_duration_analytics("test", analytics_opts)}}
+    end)
+    |> assign_async(:build_time_analytics, fn ->
+      {:ok, %{build_time_analytics: BuildsAnalytics.build_time_analytics(analytics_opts)}}
+    end)
+    |> assign_async([:recent_test_runs, :failed_test_runs_count, :passed_test_runs_count], fn ->
+      fetch_test_runs_data(project.id)
+    end)
+    |> assign_async(:latest_app_previews, fn ->
+      {:ok, %{latest_app_previews: AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
+    end)
+    |> assign_async([:recent_build_runs, :passed_build_runs_count, :failed_build_runs_count], fn ->
+      fetch_build_runs_data(project.id)
+    end)
+    |> assign_async(:builds_duration_analytics, fn ->
+      {:ok, %{builds_duration_analytics: BuildsAnalytics.build_duration_analytics(project.id, builds_opts)}}
+    end)
+    |> assign_async(
+      [:bundle_size_apps, :bundle_size_analytics],
+      fn -> fetch_bundles_data(project, bundle_size_period) end
     )
   end
 
-  defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do
+  defp fetch_test_runs_data(project_id) do
     {recent_test_runs, _meta} =
       Tests.list_test_runs(%{
         last: 40,
         filters: [
-          %{field: :project_id, op: :==, value: project.id}
+          %{field: :project_id, op: :==, value: project_id}
         ],
         order_by: [:ran_at],
         order_directions: [:asc]
@@ -115,20 +123,52 @@ defmodule TuistWeb.XcodeOverviewLive do
     passed_test_runs_count =
       Enum.count(recent_test_runs, fn run -> run.status == "success" end)
 
-    socket
-    |> assign(:recent_test_runs, recent_test_runs_chart_data)
-    |> assign(:failed_test_runs_count, failed_test_runs_count)
-    |> assign(:passed_test_runs_count, passed_test_runs_count)
+    {:ok,
+     %{
+       recent_test_runs: recent_test_runs_chart_data,
+       failed_test_runs_count: failed_test_runs_count,
+       passed_test_runs_count: passed_test_runs_count
+     }}
   end
 
-  defp assign_bundles(%{assigns: %{selected_project: project}} = socket, params) do
-    bundle_size_apps = Bundles.distinct_project_app_bundles(project)
-    bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
+  defp fetch_build_runs_data(project_id) do
+    {recent_build_runs, _meta} =
+      Builds.list_build_runs(%{
+        last: 30,
+        filters: [
+          %{field: :project_id, op: :==, value: project_id}
+        ],
+        order_by: [:inserted_at],
+        order_directions: [:asc]
+      })
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "bundle-size")
+    recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
 
+    %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
+      Builds.recent_build_status_counts(project_id, limit: 30)
+
+    {:ok,
+     %{
+       recent_build_runs: recent_build_runs_chart_data,
+       passed_build_runs_count: passed_build_runs_count,
+       failed_build_runs_count: failed_build_runs_count
+     }}
+  end
+
+  defp build_opts(project_id, {start_datetime, end_datetime}, environment) do
+    opts = [project_id: project_id, start_datetime: start_datetime, end_datetime: end_datetime]
+
+    case environment do
+      "ci" -> Keyword.put(opts, :is_ci, true)
+      "local" -> Keyword.put(opts, :is_ci, false)
+      _ -> opts
+    end
+  end
+
+  defp fetch_bundles_data(project, {start_datetime, end_datetime}) do
     opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
+
+    bundle_size_apps = Bundles.distinct_project_app_bundles(project)
 
     bundle_size_analytics =
       project
@@ -140,56 +180,11 @@ defmodule TuistWeb.XcodeOverviewLive do
         ]
       )
 
-    socket
-    |> assign(:bundle_size_selected_app, bundle_size_selected_app)
-    |> assign(:bundle_size_apps, Enum.map(bundle_size_apps, & &1.name))
-    |> assign(:bundle_size_preset, preset)
-    |> assign(:bundle_size_period, period)
-    |> assign(:bundle_size_analytics, bundle_size_analytics)
-  end
-
-  defp assign_builds(%{assigns: %{selected_project: project}} = socket, params) do
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "builds")
-
-    builds_environment = params["builds-environment"] || "any"
-
-    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
-
-    opts =
-      case builds_environment do
-        "ci" -> Keyword.put(opts, :is_ci, true)
-        "local" -> Keyword.put(opts, :is_ci, false)
-        _ -> opts
-      end
-
-    {recent_build_runs, _meta} =
-      Builds.list_build_runs(%{
-        last: 30,
-        filters: [
-          %{field: :project_id, op: :==, value: project.id}
-        ],
-        order_by: [:inserted_at],
-        order_directions: [:asc]
-      })
-
-    recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
-
-    %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
-      Builds.recent_build_status_counts(project.id, limit: 30)
-
-    socket
-    |> assign(:builds_preset, preset)
-    |> assign(:builds_period, period)
-    |> assign(:builds_environment, builds_environment)
-    |> assign(:builds_environment_label, environment_label(builds_environment))
-    |> assign(:recent_build_runs, recent_build_runs_chart_data)
-    |> assign(:failed_build_runs_count, failed_build_runs_count)
-    |> assign(:passed_build_runs_count, passed_build_runs_count)
-    |> assign(
-      :builds_duration_analytics,
-      BuildsAnalytics.build_duration_analytics(project.id, opts)
-    )
+    {:ok,
+     %{
+       bundle_size_apps: Enum.map(bundle_size_apps, & &1.name),
+       bundle_size_analytics: bundle_size_analytics
+     }}
   end
 
   defp recent_build_runs_chart_data(recent_build_runs) do
@@ -215,15 +210,4 @@ defmodule TuistWeb.XcodeOverviewLive do
   defp environment_label("any"), do: dgettext("dashboard_projects", "Any")
   defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
-
-  defp combined_overview_analytics(project_id, opts) do
-    queries = [
-      fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
-      fn -> BuildsAnalytics.selective_testing_analytics(opts) end,
-      fn -> BuildsAnalytics.build_duration_analytics(project_id, opts) end,
-      fn -> RunsAnalytics.runs_duration_analytics("test", opts) end
-    ]
-
-    Tuist.Tasks.parallel_tasks(queries)
-  end
 end
