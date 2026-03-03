@@ -59,11 +59,12 @@ defmodule TuistWeb.XcodeOverviewLive do
       bundle_size_period: bundle_size_period,
       bundle_size_selected_app: bundle_size_selected_app
     )
-    |> assign_async(:binary_cache_hit_rate_analytics, fn ->
-      {:ok, %{binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts)}}
-    end)
-    |> assign_async(:selective_testing_analytics, fn ->
-      {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
+    |> assign_async([:binary_cache_hit_rate_analytics, :selective_testing_analytics], fn ->
+      {:ok,
+       %{
+         binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts),
+         selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)
+       }}
     end)
     |> assign_async(:build_analytics, fn ->
       {:ok, %{build_analytics: BuildsAnalytics.build_duration_analytics(project.id, analytics_opts)}}

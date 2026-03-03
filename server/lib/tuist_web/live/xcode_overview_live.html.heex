@@ -324,12 +324,6 @@
           />
         </div>
       </.card_section>
-      <.card_section :if={!@build_time_analytics.ok?} data-part="time-saved-card-chart-section">
-        <div data-part="legends">
-          <.skeleton_legend />
-        </div>
-        <.skeleton_chart height="100px" />
-      </.card_section>
       <.card_section
         :if={
           @build_time_analytics.ok? &&

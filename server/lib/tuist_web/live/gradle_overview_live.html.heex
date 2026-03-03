@@ -177,6 +177,17 @@
       />
     </div>
     <.card_section
+      :if={!@cache_hit_rate_analytics.ok?}
+      data-part="cache-hit-rate-chart-section"
+    >
+      <div data-part="cache-hit-rate-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
+    <.card_section
       :if={@cache_hit_rate_analytics.ok? && @cache_hit_rate_analytics.result.avg_hit_rate != 0.0}
       data-part="cache-hit-rate-chart-section"
     >
