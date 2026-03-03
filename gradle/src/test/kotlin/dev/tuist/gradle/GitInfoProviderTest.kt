@@ -135,4 +135,67 @@ class GitInfoProviderTest {
 
         assertEquals("azure-branch", provider.branch())
     }
+
+    @Test
+    fun `ref prefers GITHUB_REF over git describe`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { key ->
+                when (key) {
+                    "GITHUB_REF" -> "refs/pull/123/merge"
+                    else -> null
+                }
+            },
+            gitCommandRunner = { "v1.0.0" }
+        )
+
+        assertEquals("refs/pull/123/merge", provider.ref())
+    }
+
+    @Test
+    fun `ref falls back to git describe when no CI env vars`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { null },
+            gitCommandRunner = { args ->
+                when (args.first()) {
+                    "describe" -> "v1.0.0"
+                    else -> "fallback"
+                }
+            }
+        )
+
+        assertEquals("v1.0.0", provider.ref())
+    }
+
+    @Test
+    fun `ref returns null when git fails and no CI env vars`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { null },
+            gitCommandRunner = { throw RuntimeException("git not found") }
+        )
+
+        assertEquals(null, provider.ref())
+    }
+
+    @Test
+    fun `remoteUrlOrigin returns git remote origin URL`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { null },
+            gitCommandRunner = { args ->
+                if (args.contains("remote.origin.url")) "https://github.com/tuist/tuist.git"
+                else "fallback"
+            }
+        )
+
+        assertEquals("https://github.com/tuist/tuist.git", provider.remoteUrlOrigin())
+    }
+
+    @Test
+    fun `remoteUrlOrigin returns null when git fails`() {
+        val provider = ProcessGitInfoProvider(
+            environmentProvider = { null },
+            gitCommandRunner = { throw RuntimeException("git not found") }
+        )
+
+        assertEquals(null, provider.remoteUrlOrigin())
+    }
 }

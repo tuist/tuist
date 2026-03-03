@@ -51,6 +51,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["authorization_endpoint"] == "https://test.tuist.dev/oauth2/authorize"
       assert response["token_endpoint"] == "https://test.tuist.dev/oauth2/token"
       assert response["registration_endpoint"] == "https://test.tuist.dev/oauth2/register"
+      assert response["scopes_supported"] == ["mcp"]
     end
   end
 
@@ -63,6 +64,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["resource"] == "http://www.example.com/mcp"
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
+      assert response["scopes_supported"] == ["mcp"]
       refute Map.has_key?(response, "resource_documentation")
     end
 

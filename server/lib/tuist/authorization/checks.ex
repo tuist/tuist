@@ -16,6 +16,14 @@ defmodule Tuist.Authorization.Checks do
       "project:tests:write",
       "project:builds:write",
       "project:runs:write"
+    ],
+    "mcp" => [
+      "project:cache:read",
+      "project:previews:read",
+      "project:bundles:read",
+      "project:tests:read",
+      "project:builds:read",
+      "project:runs:read"
     ]
   }
 

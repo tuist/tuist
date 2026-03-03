@@ -482,7 +482,9 @@ defmodule CacheWeb.ModuleCacheController do
   defp translate_add_part_error(reason), do: {:error, reason}
 
   defp read_part_body(conn) do
-    opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000]
+    tmp_dir = buffered_part_tmp_dir()
+    File.mkdir_p(tmp_dir)
+    opts = [max_bytes: @max_part_size, read_length: 262_144, read_timeout: 60_000, tmp_dir: tmp_dir]
 
     case BodyReader.read(conn, opts) do
       {:ok, {:file, tmp_path}, conn_after} ->
@@ -513,10 +515,11 @@ defmodule CacheWeb.ModuleCacheController do
   end
 
   defp tmp_path do
-    base = System.tmp_dir!()
     unique = :erlang.unique_integer([:positive, :monotonic])
-    Path.join(base, "cache-part-#{unique}")
+    Path.join(buffered_part_tmp_dir(), "cache-part-#{unique}")
   end
+
+  defp buffered_part_tmp_dir, do: Path.join(Cache.Disk.storage_dir(), "tmp")
 
   defp validate_part_numbers(:invalid), do: {:error, :parts_mismatch}
 

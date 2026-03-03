@@ -26,6 +26,7 @@ defmodule Tuist.Accounts.AccountToken do
 
   @valid_scopes [
     "ci",
+    "mcp",
     "account:members:read",
     "account:members:write",
     "account:registry:read",
