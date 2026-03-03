@@ -578,18 +578,19 @@
       }
 
       & .test-failure-card [data-part="attachment-image"] {
-        max-width: 400px;
-        max-height: 500px;
-        width: auto;
-        height: auto;
-        border-radius: var(--noora-radius-medium);
         border: 1px solid var(--noora-surface-border-secondary);
+        border-radius: var(--noora-radius-medium);
+        width: auto;
+        max-width: 400px;
+        height: auto;
+        max-height: 500px;
       }
 
       & .test-failure-card [data-part="text-attachment-content"] {
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-2);
+        margin: 0;
         box-shadow: var(--noora-border-section);
         border-radius: var(--noora-radius-medium);
         background: var(--noora-surface-background-tertiary);
@@ -598,9 +599,7 @@
         font: var(--noora-font-weight-regular) var(--noora-font-code-large);
         white-space: pre-wrap;
         word-break: break-word;
-        margin: 0;
       }
-
     }
   }
 }
