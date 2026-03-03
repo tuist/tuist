@@ -24,6 +24,10 @@
     height: 148px;
   }
 
+  & .noora-chart.tuist-loading-skeleton {
+    width: 100%;
+  }
+
   & [data-part="legends"] {
     display: flex;
     flex-direction: row;
@@ -150,6 +154,10 @@
     & .noora-chart {
       width: 105%;
       height: 148px;
+    }
+
+    & .noora-chart.tuist-loading-skeleton {
+      width: 100%;
     }
 
     & > [data-part="bundle-size-chart-card-section"] {
