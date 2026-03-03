@@ -7,12 +7,14 @@ defmodule TuistWeb.TestRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+    stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3.example.com/download" end)
     %{conn: conn, user: user}
   end
 

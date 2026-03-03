@@ -1,10 +1,12 @@
 defmodule TuistWeb.TestCaseRunLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
+  use Mimic
 
   import Ecto.Query
   import Phoenix.LiveViewTest
 
+  alias Tuist.Storage
   alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -16,6 +18,8 @@ defmodule TuistWeb.TestCaseRunLiveTest do
     account = user.account
 
     project = ProjectsFixtures.project_fixture(name: "my-project", account_id: account.id)
+
+    stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3.example.com/download" end)
 
     conn =
       conn
