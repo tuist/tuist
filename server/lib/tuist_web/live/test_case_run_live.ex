@@ -4,6 +4,7 @@ defmodule TuistWeb.TestCaseRunLive do
   use Noora
 
   import TuistWeb.Components.EmptyTabStateBackground
+  import TuistWeb.Helpers.AttachmentHelpers
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.TestLabels
@@ -11,6 +12,7 @@ defmodule TuistWeb.TestCaseRunLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Projects
+  alias Tuist.Storage
   alias Tuist.Tests
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -19,7 +21,7 @@ defmodule TuistWeb.TestCaseRunLive do
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     test_case_run =
       case Tests.get_test_case_run_by_id(params["test_case_run_id"],
-             preload: [:failures, :repetitions, crash_report: :test_case_run_attachment]
+             preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
            ) do
         {:ok, run} ->
           Tuist.Repo.preload(run, :ran_by_account)
@@ -63,6 +65,7 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:test_case, test_case)
       |> assign(:flaky_run_group, flaky_run_group)
       |> assign(:head_title, "#{test_case_run.name} · #{slug} · Tuist")
+      |> assign_text_attachment_urls(test_case_run)
 
     {:ok, socket}
   end
@@ -77,5 +80,37 @@ defmodule TuistWeb.TestCaseRunLive do
       |> assign(:uri, uri)
 
     {:noreply, socket}
+  end
+
+  # Renders a failure message span without whitespace around the content.
+  # Using ~H[] on a single line prevents the HEEx formatter from splitting
+  # the tag across lines, which would introduce visible leading whitespace.
+  attr :failure, :map, required: true
+  attr :context, :map, required: true
+
+  defp failure_message_span(assigns) do
+    ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
+  defp assign_text_attachment_urls(socket, test_case_run) do
+    project = socket.assigns.selected_project
+
+    urls =
+      test_case_run.attachments
+      |> Enum.filter(fn att -> text_attachment_type?(attachment_type(att.file_name)) end)
+      |> Map.new(fn attachment ->
+        s3_key =
+          Tests.attachment_storage_key(%{
+            account_handle: project.account.name,
+            project_handle: project.name,
+            test_case_run_id: test_case_run.id,
+            attachment_id: attachment.id,
+            file_name: attachment.file_name
+          })
+
+        {attachment.id, Storage.generate_download_url(s3_key, project.account, expires_in: 3600)}
+      end)
+
+    assign(socket, :text_attachment_urls, urls)
   end
 end

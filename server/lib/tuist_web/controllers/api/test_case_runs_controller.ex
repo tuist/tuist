@@ -369,6 +369,17 @@ defmodule TuistWeb.API.TestCaseRunsController do
                    description: "URL to download the full crash log attachment."
                  }
                }
+             },
+             attachments: %Schema{
+               type: :array,
+               items: %Schema{
+                 type: :object,
+                 properties: %{
+                   file_name: %Schema{type: :string, description: "Attachment file name."},
+                   url: %Schema{type: :string, description: "URL to download the attachment."}
+                 },
+                 required: [:file_name, :url]
+               }
              }
            },
            required: [
@@ -381,7 +392,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
              :is_flaky,
              :is_new,
              :failures,
-             :repetitions
+             :repetitions,
+             :attachments
            ]
          }},
       not_found: {"Test case run not found", "application/json", Error},
@@ -394,7 +406,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
         _params
       ) do
     case Tests.get_test_case_run_by_id(test_case_run_id,
-           preload: [:failures, :repetitions, crash_report: :test_case_run_attachment]
+           preload: [:failures, :repetitions, :attachments, crash_report: :test_case_run_attachment]
          ) do
       {:ok, run} ->
         if run.project_id == selected_project.id do
@@ -431,7 +443,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
                   duration: r.duration
                 }
               end),
-            crash_report: map_crash_report(conn, run)
+            crash_report: map_crash_report(conn, run),
+            attachments: map_attachments(conn, run)
           })
         else
           conn
@@ -489,6 +502,21 @@ defmodule TuistWeb.API.TestCaseRunsController do
     })
   end
 
+  defp map_attachments(conn, %{attachments: attachments, id: test_case_run_id}) do
+    %{account_handle: account_handle, project_handle: project_handle} = conn.params
+
+    Enum.map(attachments, fn attachment ->
+      %{
+        file_name: attachment.file_name,
+        url:
+          url(
+            conn,
+            ~p"/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{attachment.file_name}"
+          )
+      }
+    end)
+  end
+
   defp map_crash_report(_conn, %{crash_report: nil}), do: nil
 
   defp map_crash_report(conn, %{crash_report: cr, id: test_case_run_id}) do
@@ -500,8 +528,10 @@ defmodule TuistWeb.API.TestCaseRunsController do
       exception_subtype: cr.exception_subtype,
       triggered_thread_frames: cr.triggered_thread_frames,
       attachment_url:
-        TuistWeb.Endpoint.url() <>
-          "/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
+        url(
+          conn,
+          ~p"/#{account_handle}/#{project_handle}/tests/test-cases/runs/#{test_case_run_id}/attachments/#{cr.test_case_run_attachment.file_name}"
+        )
     }
   end
 

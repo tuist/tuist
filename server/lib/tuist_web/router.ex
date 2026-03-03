@@ -19,12 +19,17 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :content_security_policy do
-    plug :put_content_security_policy,
+    plug :put_content_security_policy, &__MODULE__.csp_opts/1
+  end
+
+  def csp_opts(_conn) do
+    s3_endpoint = Tuist.Environment.s3_endpoint()
+
+    [
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
-      media_src:
-        "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_endpoint}",
+      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
@@ -37,7 +42,8 @@ defmodule TuistWeb.Router do
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
+      connect_src: "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com #{s3_endpoint}"
+    ]
   end
 
   pipeline :browser_app do

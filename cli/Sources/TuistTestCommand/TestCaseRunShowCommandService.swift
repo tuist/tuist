@@ -70,6 +70,13 @@ struct TestCaseRunShowCommandService: TestCaseRunShowCommandServicing {
         let info = formatRunInfo(run)
         Noora.current.passthrough("\(info)")
 
+        if !run.attachments.isEmpty {
+            Noora.current.passthrough("\("Attachments (\(run.attachments.count))".bold())\n")
+            for attachment in run.attachments {
+                Noora.current.passthrough("  \(.link(title: attachment.file_name, href: attachment.url))\n")
+            }
+        }
+
         if let crashReport = run.crash_report {
             var summary: [String] = []
             summary.append("Crash Report".bold())
