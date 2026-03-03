@@ -18,7 +18,7 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     :ok = validate_state_length!(params)
 
     Oauth.authorize(
-      strip_scope(conn),
+      conn,
       %ResourceOwner{sub: to_string(current_user.id), username: current_user.email},
       __MODULE__
     )
@@ -114,35 +114,6 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     |> put_session(:user_return_to, current_path(conn))
     |> redirect(to: ~p"/users/log_in")
     |> halt()
-  end
-
-  @allowed_scopes ["mcp"]
-
-  defp strip_scope(conn) do
-    case conn.query_params["scope"] do
-      nil ->
-        conn
-
-      scope ->
-        allowed =
-          scope
-          |> String.split(" ")
-          |> Enum.filter(&(&1 in @allowed_scopes))
-          |> Enum.join(" ")
-
-        case allowed do
-          "" ->
-            Logger.info("OAuth authorize stripping unsupported scope: #{inspect(scope)}")
-            %{conn | query_params: Map.delete(conn.query_params, "scope")}
-
-          filtered ->
-            if filtered != scope do
-              Logger.info("OAuth authorize filtering scope from #{inspect(scope)} to #{inspect(filtered)}")
-            end
-
-            %{conn | query_params: Map.put(conn.query_params, "scope", filtered)}
-        end
-    end
   end
 
   defp validate_state_length!(%{"state" => state}) when byte_size(state) > @max_state_length do

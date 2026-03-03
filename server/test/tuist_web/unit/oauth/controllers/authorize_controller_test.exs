@@ -71,33 +71,6 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
     end
   end
 
-  describe "authorize/2 scope filtering" do
-    test "strips unknown scopes and keeps mcp scope", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-
-      params = %{
-        "client_id" => Environment.oauth_client_id(),
-        "redirect_uri" => "tuist://oauth-callback",
-        "response_type" => "code",
-        "scope" => "mcp unknown_scope",
-        "state" => "test_state",
-        "code_challenge" => "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
-        "code_challenge_method" => "S256"
-      }
-
-      conn =
-        conn
-        |> Map.put(:query_params, params)
-        |> Map.put(:params, params)
-        |> assign(:current_user, user)
-
-      conn = AuthorizeController.authorize(conn, params)
-
-      assert conn.status == 302
-      assert redirected_to(conn) =~ "tuist://oauth-callback"
-    end
-  end
-
   describe "authorize_with_apple/2" do
     test "stores the OAuth return URL in session and redirects to Apple auth", %{conn: conn} do
       params = %{
