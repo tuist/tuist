@@ -270,7 +270,6 @@ defmodule TuistWeb.API.TestsController do
     case get_or_create_test(run_params) do
       {:ok, test_run} ->
         Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-          build_id: nil,
           git_commit_sha: Map.get(body_params, :git_commit_sha),
           git_ref: Map.get(body_params, :git_ref),
           git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
