@@ -22,7 +22,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_ran_at"
+    execute "DROP VIEW IF EXISTS command_events_by_ran_at SYNC"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -34,7 +34,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
     """
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_duration"
+    execute "DROP VIEW IF EXISTS command_events_by_duration SYNC"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -46,7 +46,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
     """
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_hit_rate"
+    execute "DROP VIEW IF EXISTS command_events_by_hit_rate SYNC"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -61,7 +61,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
   def down do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_ran_at"
+    execute "DROP VIEW IF EXISTS command_events_by_ran_at SYNC"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -73,7 +73,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
     """
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_duration"
+    execute "DROP VIEW IF EXISTS command_events_by_duration SYNC"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -85,7 +85,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
     """
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_hit_rate"
+    execute "DROP VIEW IF EXISTS command_events_by_hit_rate SYNC"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
