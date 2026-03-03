@@ -14,8 +14,10 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
   predicate. This reduces reads from ~180K to ~8K rows (one granule).
 
   Note: `command_events_by_hit_rate` is NOT changed because `hit_rate` is
-  Nullable, which prevents the read-in-order optimization. Keeping `name`
-  in its sort key is better since it at least narrows the scan range.
+  Float32 and ClickHouse does not use the read-in-order optimization for
+  float sort keys (EXPLAIN PLAN shows ReadType: Default instead of
+  InReverseOrder). Keeping `name` in its sort key is better since it at
+  least narrows the scan range.
   """
 
   use Ecto.Migration
@@ -29,7 +31,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_ran_at
+    CREATE MATERIALIZED VIEW command_events_by_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, ran_at)
     POPULATE
@@ -41,7 +43,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
+    CREATE MATERIALIZED VIEW command_events_by_duration
     ENGINE = MergeTree
     ORDER BY (project_id, duration)
     POPULATE
@@ -55,7 +57,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_ran_at
+    CREATE MATERIALIZED VIEW command_events_by_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, name, ran_at)
     POPULATE
@@ -67,7 +69,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
+    CREATE MATERIALIZED VIEW command_events_by_duration
     ENGINE = MergeTree
     ORDER BY (project_id, name, duration)
     POPULATE
