@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-03 13:20+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -854,23 +854,29 @@ msgstr "测试用例运行未找到。"
 msgid "Test Case: %{name}"
 msgstr "测试用例：%{name}"
 
+#, fuzzy
 msgid "Attachments"
-msgstr ""
+msgstr "附件"
 
+#, fuzzy
 msgid "File"
-msgstr ""
+msgstr "文件"
 
+#, fuzzy
 msgid "Image"
-msgstr ""
+msgstr "图片"
 
+#, fuzzy
 msgid "Loading..."
-msgstr ""
+msgstr "加载中..."
 
+#, fuzzy
 msgid "Text File"
-msgstr ""
+msgstr "文本文件"
 
+#, fuzzy
 msgid "Log File"
-msgstr ""
+msgstr "日志文件"
 
 #, fuzzy
 #~ msgid "Test suite"
