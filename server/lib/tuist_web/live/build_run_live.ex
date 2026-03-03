@@ -535,13 +535,13 @@ defmodule TuistWeb.BuildRunLive do
               label={Enum.count(@issues)}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="small"
+              size="large"
             />
           </div>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
             <.chevron_down />
           </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
             <.chevron_up />
           </.neutral_button>
         </div>

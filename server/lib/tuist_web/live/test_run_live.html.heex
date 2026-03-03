@@ -334,7 +334,7 @@
           <.button
             variant="secondary"
             label={dgettext("dashboard_tests", "View more")}
-            size="small"
+            size="medium"
             patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
           />
         </div>
@@ -374,20 +374,20 @@
                     label={length(test_case_run.failures)}
                     color="destructive"
                     style="light-fill"
-                    size="small"
+                    size="large"
                   />
                 </div>
                 <.neutral_button
                   data-part="closed-collapsible-button"
                   variant="secondary"
-                  size="small"
+                  size="medium"
                 >
                   <.chevron_down />
                 </.neutral_button>
                 <.neutral_button
                   data-part="open-collapsible-button"
                   variant="secondary"
-                  size="small"
+                  size="medium"
                 >
                   <.chevron_up />
                 </.neutral_button>
@@ -712,7 +712,7 @@
           <.button
             variant="secondary"
             label={dgettext("dashboard_tests", "View more")}
-            size="small"
+            size="medium"
             patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
           />
         </div>
@@ -1692,20 +1692,20 @@
                   label={length(test_case_run.failures)}
                   color="destructive"
                   style="light-fill"
-                  size="small"
+                  size="large"
                 />
               </div>
               <.neutral_button
                 data-part="closed-collapsible-button"
                 variant="secondary"
-                size="small"
+                size="medium"
               >
                 <.chevron_down />
               </.neutral_button>
               <.neutral_button
                 data-part="open-collapsible-button"
                 variant="secondary"
-                size="small"
+                size="medium"
               >
                 <.chevron_up />
               </.neutral_button>

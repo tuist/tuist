@@ -80,18 +80,21 @@
                 label={dgettext("dashboard_gradle", "Success")}
                 color="success"
                 style="fill"
+                size="large"
               />
               <.badge
                 :if={@build.status == "failure"}
                 label={dgettext("dashboard_gradle", "Failure")}
                 color="destructive"
                 style="fill"
+                size="large"
               />
               <.badge
                 :if={@build.status == "cancelled"}
                 label={dgettext("dashboard_gradle", "Cancelled")}
                 color="warning"
                 style="fill"
+                size="large"
               />
             </div>
             <div data-part="metadata">
