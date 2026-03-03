@@ -375,7 +375,8 @@ msgstr "お問い合わせください"
 #, fuzzy
 msgid ""
 "This is a public dashboard for the %{account_name}/%{project_name} project."
-msgstr "これは %{account_name}/%{project_name} プロジェクトの公開ダッシュボードです。"
+msgstr ""
+"これは %{account_name}/%{project_name} プロジェクトの公開ダッシュボードです。"
 
 #, fuzzy
 msgid "Quarantined Tests"
