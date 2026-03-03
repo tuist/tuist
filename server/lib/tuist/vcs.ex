@@ -817,45 +817,74 @@ defmodule Tuist.VCS do
          build_url: build_url,
          project: project
        }) do
-    all_builds =
-      Enum.map(builds, fn build ->
-        %{
-          name: build.scheme,
-          status: build.status,
-          duration_ms: build.duration,
-          git_commit_sha: build.git_commit_sha,
-          id: build.id
-        }
-      end) ++
-        Enum.map(gradle_builds, fn build ->
-          %{
-            name: build.root_project_name,
-            status: build.status,
-            duration_ms: build.duration_ms,
-            git_commit_sha: build.git_commit_sha,
-            id: build.id
-          }
-        end)
-
-    if Enum.empty?(all_builds) do
+    if Enum.empty?(builds) and Enum.empty?(gradle_builds) do
       nil
     else
+      xcode_body =
+        get_xcode_builds_body(%{
+          builds: builds,
+          git_remote_url_origin: git_remote_url_origin,
+          build_url: build_url,
+          project: project
+        })
+
+      gradle_body =
+        get_gradle_builds_body(%{
+          builds: gradle_builds,
+          git_remote_url_origin: git_remote_url_origin,
+          build_url: build_url,
+          project: project
+        })
+
       """
 
       #### Builds 🔨
 
-      | Build | Status | Duration | Commit |
-      |:-:|:-:|:-:|:-:|
-      #{Enum.map(all_builds, fn build ->
-        url = build_url.(%{project: project, build: build})
-        duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
-
-        """
-        | [#{build.name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |
-        """
-      end)}
+      #{xcode_body}#{gradle_body}
       """
     end
+  end
+
+  defp get_xcode_builds_body(%{builds: [], project: _project} = _args), do: ""
+
+  defp get_xcode_builds_body(%{
+         builds: builds,
+         git_remote_url_origin: git_remote_url_origin,
+         build_url: build_url,
+         project: project
+       }) do
+    rows =
+      Enum.map_join(builds, "", fn build ->
+        url = build_url.(%{project: project, build: %{id: build.id}})
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration)
+
+        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+      end)
+
+    "| Scheme | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
+  end
+
+  defp get_gradle_builds_body(%{builds: [], project: _project} = _args), do: ""
+
+  defp get_gradle_builds_body(%{
+         builds: builds,
+         git_remote_url_origin: git_remote_url_origin,
+         build_url: build_url,
+         project: project
+       }) do
+    rows =
+      Enum.map_join(builds, "", fn build ->
+        url = build_url.(%{project: project, build: %{id: build.id}})
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
+
+        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+      end)
+
+    "| Project | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
   end
 
   defp get_build_status_text(build) do

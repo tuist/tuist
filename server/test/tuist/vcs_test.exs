@@ -975,7 +975,7 @@ defmodule Tuist.VCSTest do
 
         #### Builds 🔨
 
-        | Build | Status | Duration | Commit |
+        | Scheme | Status | Duration | Commit |
         |:-:|:-:|:-:|:-:|
         | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
 
@@ -1038,7 +1038,7 @@ defmodule Tuist.VCSTest do
 
         #### Builds 🔨
 
-        | Build | Status | Duration | Commit |
+        | Project | Status | Duration | Commit |
         |:-:|:-:|:-:|:-:|
         | [MyAndroidApp](https://tuist.dev/build-runs/#{gradle_build_id}) | ✅ | 30.0s | #{commit_link} |
 
@@ -1340,7 +1340,7 @@ defmodule Tuist.VCSTest do
 
         #### Builds 🔨
 
-        | Build | Status | Duration | Commit |
+        | Scheme | Status | Duration | Commit |
         |:-:|:-:|:-:|:-:|
         | [MyApp](https://tuist.dev/build-runs/#{build_run.id}) | ✅ | 45.0s | #{commit_link} |
 
