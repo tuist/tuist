@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 * add warningsAsErrors generation option by [@fortmarek](https://github.com/fortmarek) in [#9574](https://github.com/tuist/tuist/pull/9574)
 ### 🐛 Bug Fixes
 
+* exclude directories from buildable folder resolved files by [@fortmarek](https://github.com/fortmarek) in [#9678](https://github.com/tuist/tuist/pull/9678)
+* cap concurrency to avoid file descriptor exhaustion by [@fortmarek](https://github.com/fortmarek) in [#9677](https://github.com/tuist/tuist/pull/9677)
 * Fix case-insensitive prioritize local packages over registry by [@fdiaz](https://github.com/fdiaz) in [#9673](https://github.com/tuist/tuist/pull/9673)
 * add xcassets and xcstrings to sources build phase for static targets by [@pepicrft](https://github.com/pepicrft) in [#9666](https://github.com/tuist/tuist/pull/9666)
 * update Command package to 0.14.0 by [@fortmarek](https://github.com/fortmarek) in [#9657](https://github.com/tuist/tuist/pull/9657)
