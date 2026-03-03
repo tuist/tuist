@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-27 15:28+0000\n"
+"PO-Revision-Date: 2026-03-03 13:20+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ja/>\n"
@@ -863,23 +863,29 @@ msgstr "テストケースの実行が見つかりませんでした。"
 msgid "Test Case: %{name}"
 msgstr "テストケース: %{name}"
 
+#, fuzzy
 msgid "Attachments"
-msgstr ""
+msgstr "添付ファイル"
 
+#, fuzzy
 msgid "File"
-msgstr ""
+msgstr "ファイル"
 
+#, fuzzy
 msgid "Image"
-msgstr ""
+msgstr "Image"
 
+#, fuzzy
 msgid "Loading..."
-msgstr ""
+msgstr "読み込み中..."
 
+#, fuzzy
 msgid "Text File"
-msgstr ""
+msgstr "テキストファイル"
 
+#, fuzzy
 msgid "Log File"
-msgstr ""
+msgstr "ログファイル"
 
 #, fuzzy
 #~ msgid "Test suite"
