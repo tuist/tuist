@@ -1,0 +1,136 @@
+Implement the following plan:
+
+# Fix: Missing transitive module dependencies through dynamic frameworks
+
+## Context
+
+**Issue:** [tuist/tuist#9676](https://github.com/tuist/tuist/issues/9676) - "Unable to find module dependency"
+
+When a user has:
+- App target depending on a local dynamic `.framework` (e.g., `FirebaseFeatureModuleImp`)
+- That framework depending on external SPM packages (e.g., `FirebaseCrashlytics`, `SVGKit`)
+
+The app fails to compile with "Unable to find module dependency" errors because the Swift compiler cannot find `.swiftmodule` files for the SPM packages that are statically linked into the dynamic framework. The compiler needs these modules to resolve transitive imports in the framework's module interface.
+
+This is **not a recent regression** - the dynamic framework section of `linkableDependencies` has been unchanged since 2020. The `ExplicitDependencyGraphMapper` that could handle this is skipped when packages are present.
+
+## Root Cause
+
+`GraphTraverser.searchablePathDependencies()` (line 461-466) delegates to `linkableDependencies()` for generating `FRAMEWORK_SEARCH_PATHS`. The `linkableDependencies` method:
+
+1. **Static section** (lines 565-614): Traverses transitively through static deps but **stops** at dynamic framework boundaries (`canDependencyLinkStaticProducts` returns true for `.framework`)
+2. **Dynamic section** (lines 616-623): Only picks up **direct** dynamic dependencies, doesn't traverse into their deps
+
+So the app never gets search paths to SPM targets that are statically linked inside its dynamic framework dependencies.
+
+## Fix
+
+Add a new method to `GraphTraverser` and call it from `searchablePathDependencies` to include the transitive static target dependencies of dynamic framework dependencies.
+
+### Files to modify
+
+1. **`cli/Sources/TuistCore/Graph/GraphTraverser.swift`**
+   - Add new private method `transitiveStaticTargetDependenciesOfDirectDynamicFrameworkDependencies(path:name:)` that:
+     1. Gets direct dependencies of the target
+     2. Filters to only dynamic framework targets (using existing `isDependencyDynamicLibrary`/`isDependencyFramework`)
+     3. For each dynamic framework, calls `transitiveStaticDependencies()` to get its static deps
+     4. Returns them as `GraphDependencyReference` (using existing `dependencyReference()`)
+   - Modify `searchablePathDependencies()` to union the result of this new method
+
+2. **`cli/Tests/TuistCoreTests/Graph/GraphTraverserTests.swift`**
+   - Add test: app depending on dynamic framework that depends on external static framework targets - verify `searchablePathDependencies` includes the transitive static deps
+   - The test should NOT change `linkableDependencies` behavior (dynamic frameworks should still not propagate deps for linking)
+
+### Implementation detail
+
+In `searchablePathDependencies`:
+
+```swift
+public func searchablePathDependencies(path: Path.AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+    try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+        .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
+        .union(transitiveStaticDependenciesOfDynamicFrameworkDependencies(path: path, name: name))
+}
+```
+
+New method:
+
+```swift
+private func transitiveStaticDependenciesOfDynamicFrameworkDependencies(
+    path: Path.AbsolutePath,
+    name: String
+) -> Set<GraphDependencyReference> {
+    let targetGraphDependency = GraphDependency.target(name: name, path: path)
+
+    // Get direct dynamic framework/library dependencies
+    let directDynamicDeps = graph.dependencies[targetGraphDependency, default: []]
+        .filter(or(isDependencyDynamicLibrary, isDependencyFramework))
+
+    // For each dynamic dependency, get its transitive static dependencies
+    let transitiveStaticDeps = directDynamicDeps.flatMap { dynamicDep in
+        transitiveStaticDependencies(from: dynamicDep)
+    }
+
+    return Set(transitiveStaticDeps.compactMap {
+        dependencyReference(to: $0, from: targetGraphDependency)
+    })
+}
+```
+
+## Verification
+
+1. Add a unit test in `GraphTraverserTests.swift` that creates:
+   - App target (`.app`)
+   - Dynamic framework target (`.framework`) depending on a static framework target
+   - Verify `searchablePathDependencies` for the app includes the static framework
+   - Verify `linkableDependencies` for the app does NOT include the static framework (preserving existing behavior)
+
+2. Run the specific test:
+   ```
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing TuistCoreTests/GraphTraverserTests
+   ```
+
+3. Ideally test with the reproduction project from the issue (download, `tuist install`, `tuist generate`, build)
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+Generate with "tuist generate --no-open" and run the tests with xcodebuild and the scheme TuistUnitTests
+
+---
+
+Can you create a PR, ensuring you describe well what the issue is for someone that's not deeply familiar with the graph?
+
+---
+
+Did you try to reproduce the issue with the attachment included in https://github.com/tuist/tuist/issues/9676 ? It'd be great to test if the issue is gone with your fixes
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+you can build it thorugh the "tuist" scheme and run it from the derived data product
+
+---
+
+[Request interrupted by user]
+
+---
+
+Rebase from origin/main, and revert any changes under TuistCacheEE
+
+---
+
+why when I connect to a remote mac via SSH when I use back key it doesn't delete?
+
+---
+
+Can I pass an env. varible when eestablishing the connection?
