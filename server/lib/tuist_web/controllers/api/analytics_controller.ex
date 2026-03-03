@@ -458,7 +458,6 @@ defmodule TuistWeb.API.AnalyticsController do
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do
       VCS.enqueue_vcs_pull_request_comment(%{
-        build_id: build_run_id,
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,

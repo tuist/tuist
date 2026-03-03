@@ -19,6 +19,7 @@ class TuistTestInsightsTest {
             gitBranch = "main",
             gitCommitSha = "abc123",
             gitRef = "v1.0",
+            gitRemoteUrlOrigin = "https://github.com/tuist/tuist.git",
             gradleBuildId = null
         )
 
@@ -30,6 +31,7 @@ class TuistTestInsightsTest {
         assertEquals("main", report.gitBranch)
         assertEquals("abc123", report.gitCommitSha)
         assertEquals("v1.0", report.gitRef)
+        assertEquals("https://github.com/tuist/tuist.git", report.gitRemoteUrlOrigin)
         assertNull(report.gradleBuildId)
         assertTrue(report.testModules.isEmpty())
     }
@@ -46,7 +48,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.FAILURE, 0, 200, null
         )
 
-        val report = collector.buildReport(5000, false, null, null, null, null, null)
+        val report = collector.buildReport(5000, false, null, null, null, null, null, null)
 
         assertEquals("failure", report.status)
     }
@@ -63,7 +65,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.SUCCESS, 0, 200, null
         )
 
-        val report = collector.buildReport(5000, false, null, null, null, null, null)
+        val report = collector.buildReport(5000, false, null, null, null, null, null, null)
 
         assertEquals("success", report.status)
     }
@@ -80,7 +82,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.FAILURE, 150, 300, RuntimeException("timeout")
         )
 
-        val report = collector.buildReport(5000, true, "my-app", "feature/auth", "def456", null, "build-123")
+        val report = collector.buildReport(5000, true, "my-app", "feature/auth", "def456", null, null, "build-123")
 
         assertEquals(1, report.testModules.size)
         val appModule = report.testModules[0]
@@ -122,7 +124,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.SUCCESS, 0, 200, null
         )
 
-        val report = collector.buildReport(5000, false, null, null, null, null, null)
+        val report = collector.buildReport(5000, false, null, null, null, null, null, null)
 
         val appModule = report.testModules[0]
         assertEquals(2, appModule.testSuites.size)
@@ -139,7 +141,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.SUCCESS, 0, 50, null
         )
 
-        val report = collector.buildReport(50, false, null, null, null, null, null)
+        val report = collector.buildReport(50, false, null, null, null, null, null, null)
 
         val appModule = report.testModules[0]
         assertEquals(1, appModule.testCases.size)
@@ -155,7 +157,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.SKIPPED, 0, 0, null
         )
 
-        val report = collector.buildReport(0, false, null, null, null, null, null)
+        val report = collector.buildReport(0, false, null, null, null, null, null, null)
 
         assertEquals("skipped", report.testModules[0].testCases[0].status)
     }
@@ -173,7 +175,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.FAILURE, 0, 100, exception
         )
 
-        val report = collector.buildReport(100, false, null, null, null, null, null)
+        val report = collector.buildReport(100, false, null, null, null, null, null, null)
         val testCase = report.testModules[0].testCases[0]
         assertEquals("error_thrown", testCase.failures[0].issueType)
         assertEquals("something went wrong", testCase.failures[0].message)
@@ -188,7 +190,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.FAILURE, 0, 100, null
         )
 
-        val report = collector.buildReport(100, false, null, null, null, null, null)
+        val report = collector.buildReport(100, false, null, null, null, null, null, null)
         val testCase = report.testModules[0].testCases[0]
         assertEquals(1, testCase.failures.size)
         assertEquals("Test failed", testCase.failures[0].message)
@@ -209,7 +211,7 @@ class TuistTestInsightsTest {
             TestResult.ResultType.SUCCESS, 100, 250, null
         )
 
-        val report = collector.buildReport(250, false, "my-gradle-plugin", "main", "abc123", null, null)
+        val report = collector.buildReport(250, false, "my-gradle-plugin", "main", "abc123", null, null, null)
 
         assertEquals(1, report.testModules.size)
         val module = report.testModules[0]
@@ -250,6 +252,7 @@ class TuistTestInsightsTest {
             gitBranch = "main",
             gitCommitSha = "abc123",
             gitRef = "v2.0",
+            gitRemoteUrlOrigin = null,
             gradleBuildId = "build-456"
         )
 
