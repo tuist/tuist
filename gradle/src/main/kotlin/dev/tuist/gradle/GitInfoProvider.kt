@@ -4,6 +4,7 @@ interface GitInfoProvider {
     fun branch(): String?
     fun commitSha(): String?
     fun ref(): String?
+    fun remoteUrlOrigin(): String?
 }
 
 class ProcessGitInfoProvider(
@@ -20,7 +21,20 @@ class ProcessGitInfoProvider(
     }
 
     override fun commitSha(): String? = runCatching { gitCommandRunner(listOf("rev-parse", "HEAD")) }.getOrNull()
-    override fun ref(): String? = runCatching { gitCommandRunner(listOf("describe", "--tags", "--always")) }.getOrNull()
+
+    override fun ref(): String? {
+        val ciRef = ciRef()
+        if (ciRef != null) return ciRef
+        return runCatching { gitCommandRunner(listOf("describe", "--tags", "--always")) }.getOrNull()
+    }
+
+    override fun remoteUrlOrigin(): String? =
+        runCatching { gitCommandRunner(listOf("config", "--get", "remote.origin.url")) }.getOrNull()
+
+    private fun ciRef(): String? =
+        refEnvironmentVariables
+            .mapNotNull { environmentProvider(it) }
+            .firstOrNull { it.isNotEmpty() }
 
     private fun ciBranch(): String? =
         branchEnvironmentVariables
@@ -28,6 +42,13 @@ class ProcessGitInfoProvider(
             .firstOrNull { it.isNotEmpty() }
 
     companion object {
+        private val refEnvironmentVariables = listOf(
+            // GitHub Actions
+            "GITHUB_REF",
+            // GitLab CI
+            "CI_MERGE_REQUEST_REF_PATH",
+        )
+
         private val branchEnvironmentVariables = listOf(
             // GitHub Actions
             "GITHUB_HEAD_REF",
