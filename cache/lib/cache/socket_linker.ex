@@ -13,13 +13,20 @@ defmodule Cache.SocketLinker do
   end
 
   defp promote_socket_link do
-    with {:ok, target} <- socket_env("PHX_SOCKET_PATH"),
+    with {:ok, target} <- get_socket_path(),
          {:ok, link} <- socket_env("PHX_SOCKET_LINK") do
       File.mkdir_p!(Path.dirname(link))
       wait_for_socket(target)
       publish_link(target, link)
     else
       _ -> :ok
+    end
+  end
+
+  defp get_socket_path do
+    case Application.get_env(:cache, :socket_path) do
+      nil -> :error
+      path -> {:ok, path}
     end
   end
 
@@ -53,14 +60,27 @@ defmodule Cache.SocketLinker do
 
     case File.ln_s(target, tmp_link) do
       :ok ->
-        _ = File.rm(link)
         :ok = File.rename(tmp_link, link)
         :ok = File.chmod(link, 0o777)
         Logger.info("Socket link promoted: #{link} -> #{target}")
+        cleanup_stale_sockets(target)
 
       {:error, reason} ->
         Logger.error("Failed to create socket symlink #{tmp_link}: #{inspect(reason)}")
     end
+  end
+
+  defp cleanup_stale_sockets(target) do
+    dir = Path.dirname(target)
+    pattern = Path.join(dir, "cache-*.sock")
+
+    pattern
+    |> Path.wildcard()
+    |> Enum.each(fn socket ->
+      if socket != target do
+        _ = File.rm(socket)
+      end
+    end)
   end
 
   defp socket_env(var) do
