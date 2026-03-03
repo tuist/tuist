@@ -659,7 +659,7 @@ defmodule Tuist.VCS do
         "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
       end)
 
-    "| Scheme | Status | Tests | Commit |\n" <>
+    "| Project | Status | Tests | Commit |\n" <>
       "|:-:|:-:|:-:|:-:|\n" <>
       rows
   end
