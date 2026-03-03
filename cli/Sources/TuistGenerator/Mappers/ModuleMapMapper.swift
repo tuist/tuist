@@ -59,29 +59,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
-                if let updatedOtherSwiftFlags = Self.updatedOtherSwiftFlags(
+                mappedSettingsDictionary = Self.applyModuleMapFlags(
+                    to: mappedSettingsDictionary,
                     targetID: targetID,
-                    oldOtherSwiftFlags: mappedSettingsDictionary[Self.otherSwiftFlagsSetting],
                     targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.otherSwiftFlagsSetting] = updatedOtherSwiftFlags
-                }
-
-                if let updatedOtherCFlags = Self.updatedOtherCFlags(
-                    targetID: targetID,
-                    oldOtherCFlags: mappedSettingsDictionary[Self.otherCFlagsSetting],
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
-                }
-
-                if let updatedHeaderSearchPaths = Self.updatedHeaderSearchPaths(
-                    targetID: targetID,
-                    oldHeaderSearchPaths: mappedSettingsDictionary[Self.headerSearchPaths],
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.headerSearchPaths] = updatedHeaderSearchPaths
-                }
+                )
 
                 let targetSettings = target.settings ?? Settings(
                     base: [:],
@@ -89,48 +71,21 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                     defaultSettings: project.settings.defaultSettings
                 )
 
-                var updatedConfigurations = targetSettings.configurations
-                for (buildConfig, configuration) in targetSettings.configurations {
-                    var configSettings = configuration?.settings ?? [:]
-                    var didUpdate = false
-
-                    if configSettings[Self.otherSwiftFlagsSetting] != nil,
-                       let updated = Self.updatedOtherSwiftFlags(
-                           targetID: targetID,
-                           oldOtherSwiftFlags: configSettings[Self.otherSwiftFlagsSetting],
-                           targetToDependenciesMetadata: targetToDependenciesMetadata
-                       )
-                    {
-                        configSettings[Self.otherSwiftFlagsSetting] = updated
-                        didUpdate = true
+                let updatedConfigurations: [BuildConfiguration: Configuration?] = Dictionary(
+                    uniqueKeysWithValues: targetSettings.configurations.map { buildConfig, configuration in
+                        let configSettings = Self.applyModuleMapFlags(
+                            to: configuration?.settings ?? [:],
+                            targetID: targetID,
+                            targetToDependenciesMetadata: targetToDependenciesMetadata,
+                            onlyExistingKeys: true
+                        )
+                        return (
+                            buildConfig,
+                            configuration?.with(settings: configSettings)
+                                ?? Configuration(settings: configSettings)
+                        )
                     }
-
-                    if configSettings[Self.otherCFlagsSetting] != nil,
-                       let updated = Self.updatedOtherCFlags(
-                           targetID: targetID,
-                           oldOtherCFlags: configSettings[Self.otherCFlagsSetting],
-                           targetToDependenciesMetadata: targetToDependenciesMetadata
-                       )
-                    {
-                        configSettings[Self.otherCFlagsSetting] = updated
-                        didUpdate = true
-                    }
-
-                    if configSettings[Self.headerSearchPaths] != nil,
-                       let updated = Self.updatedHeaderSearchPaths(
-                           targetID: targetID,
-                           oldHeaderSearchPaths: configSettings[Self.headerSearchPaths],
-                           targetToDependenciesMetadata: targetToDependenciesMetadata
-                       )
-                    {
-                        configSettings[Self.headerSearchPaths] = updated
-                        didUpdate = true
-                    }
-
-                    if didUpdate {
-                        updatedConfigurations[buildConfig] = configuration?.with(settings: configSettings)
-                    }
-                }
+                )
 
                 target.settings = Settings(
                     base: mappedSettingsDictionary,
@@ -237,6 +192,47 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         }
 
         targetToDependenciesMetadata[targetID] = dependenciesMetadata
+    }
+
+    private static func applyModuleMapFlags(
+        to settings: SettingsDictionary,
+        targetID: TargetID,
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        onlyExistingKeys: Bool = false
+    ) -> SettingsDictionary {
+        var settings = settings
+
+        if !onlyExistingKeys || settings[otherSwiftFlagsSetting] != nil,
+           let updated = updatedOtherSwiftFlags(
+               targetID: targetID,
+               oldOtherSwiftFlags: settings[otherSwiftFlagsSetting],
+               targetToDependenciesMetadata: targetToDependenciesMetadata
+           )
+        {
+            settings[otherSwiftFlagsSetting] = updated
+        }
+
+        if !onlyExistingKeys || settings[otherCFlagsSetting] != nil,
+           let updated = updatedOtherCFlags(
+               targetID: targetID,
+               oldOtherCFlags: settings[otherCFlagsSetting],
+               targetToDependenciesMetadata: targetToDependenciesMetadata
+           )
+        {
+            settings[otherCFlagsSetting] = updated
+        }
+
+        if !onlyExistingKeys || settings[headerSearchPaths] != nil,
+           let updated = updatedHeaderSearchPaths(
+               targetID: targetID,
+               oldHeaderSearchPaths: settings[headerSearchPaths],
+               targetToDependenciesMetadata: targetToDependenciesMetadata
+           )
+        {
+            settings[headerSearchPaths] = updated
+        }
+
+        return settings
     }
 
     private static func updatedHeaderSearchPaths(
