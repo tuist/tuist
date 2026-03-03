@@ -26,7 +26,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeBranchCiProjectionAddProjectId do
 
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_branch_ci SETTINGS mutations_sync = 1"
+    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_branch_ci SETTINGS alter_sync = 2"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -35,12 +35,13 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeBranchCiProjectionAddProjectId do
       SELECT project_id, git_branch, is_ci, ran_at, test_case_id
       ORDER BY project_id, git_branch, is_ci, ran_at, test_case_id
     )
+    SETTINGS alter_sync = 2
     """
   end
 
   def down do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_branch_ci SETTINGS mutations_sync = 1"
+    execute "ALTER TABLE test_case_runs DROP PROJECTION IF EXISTS proj_by_branch_ci SETTINGS alter_sync = 2"
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
@@ -49,6 +50,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeBranchCiProjectionAddProjectId do
       SELECT git_branch, is_ci, ran_at, test_case_id
       ORDER BY git_branch, is_ci, ran_at, test_case_id
     )
+    SETTINGS alter_sync = 2
     """
   end
 end
