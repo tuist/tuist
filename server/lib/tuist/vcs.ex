@@ -578,7 +578,7 @@ defmodule Tuist.VCS do
       project = Repo.preload(project, :account)
 
       {xcode_runs, gradle_runs} = Enum.split_with(test_runs, &(&1.build_system != "gradle"))
-      has_both = xcode_runs != [] and gradle_runs != []
+      has_multiple_build_systems = xcode_runs != [] and gradle_runs != []
 
       xcode_body =
         get_xcode_test_body(%{
@@ -596,8 +596,8 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      xcode_section = if has_both and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
-      gradle_section = if has_both and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+      xcode_section = if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
+      gradle_section = if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
 
       """
 
@@ -824,7 +824,7 @@ defmodule Tuist.VCS do
     if Enum.empty?(builds) and Enum.empty?(gradle_builds) do
       nil
     else
-      has_both = builds != [] and gradle_builds != []
+      has_multiple_build_systems = builds != [] and gradle_builds != []
 
       xcode_body =
         get_xcode_builds_body(%{
@@ -842,8 +842,8 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      xcode_section = if has_both and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
-      gradle_section = if has_both and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+      xcode_section = if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
+      gradle_section = if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
 
       """
 
