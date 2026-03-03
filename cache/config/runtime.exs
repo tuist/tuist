@@ -26,7 +26,7 @@ if config_env() == :prod do
       path ->
         File.mkdir_p!(Path.dirname(path))
         suffix = 4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
-        unique_path = String.replace_trailing(path, ".sock", "-#{suffix}.sock")
+        unique_path = Path.rootname(path) <> "-#{suffix}" <> Path.extname(path)
         Application.put_env(:cache, :socket_path, unique_path)
 
         [

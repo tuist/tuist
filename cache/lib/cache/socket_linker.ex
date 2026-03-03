@@ -60,8 +60,8 @@ defmodule Cache.SocketLinker do
 
     case File.ln_s(target, tmp_link) do
       :ok ->
+        :ok = File.chmod(target, 0o777)
         :ok = File.rename(tmp_link, link)
-        :ok = File.chmod(link, 0o777)
         Logger.info("Socket link promoted: #{link} -> #{target}")
         cleanup_stale_sockets(target)
 
