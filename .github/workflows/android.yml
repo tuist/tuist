@@ -76,4 +76,6 @@ jobs:
         run: tuist share app/build/outputs/apk/debug/app-debug.apk
       - name: Inspect bundle
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist inspect bundle app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          export PATH="$ANDROID_HOME/build-tools/$(ls -1 $ANDROID_HOME/build-tools | tail -n1):$PATH"
+          tuist inspect bundle app/build/outputs/apk/debug/app-debug.apk
