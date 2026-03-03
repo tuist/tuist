@@ -180,7 +180,7 @@ tuist generate
 
 確保
 <LocalizedLink href="/guides/features/projects/hashing#debugging">雜湊值在不同環境與執行次數間具有確定性</LocalizedLink>。若專案存在環境參照（例如透過絕對路徑），可能導致此問題。可使用`diff`
-指令，比較連續兩次執行`tuist generate` 所產生的專案，或跨環境/執行次數進行比對。
+指令，比較連續兩次執行`tuist generate` 產生的專案，或跨環境/執行次數進行比對。
 
 同時請確保目標不直接或間接依賴於<LocalizedLink href="/guides/features/cache/generated-project#supported-products">不可快取的目標</LocalizedLink>。
 
