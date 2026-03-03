@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-03-03 13:20+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
 "Language: ko\n"
@@ -663,27 +663,21 @@ msgstr "테스트 케이스 실행을 찾을 수 없습니다."
 msgid "Test Case: %{name}"
 msgstr "테스트 케이스: %{name}"
 
-#, fuzzy
 msgid "Attachments"
 msgstr "첨부 파일"
 
-#, fuzzy
 msgid "File"
 msgstr "파일"
 
-#, fuzzy
 msgid "Image"
 msgstr "이미지"
 
-#, fuzzy
 msgid "Loading..."
 msgstr "로딩 중..."
 
-#, fuzzy
 msgid "Text File"
 msgstr "텍스트 파일"
 
-#, fuzzy
 msgid "Log File"
 msgstr "로그 파일"
 
