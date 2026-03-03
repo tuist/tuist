@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-03 13:20+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/es/>\n"
 "Language: es\n"
@@ -876,23 +876,29 @@ msgstr "No se ha encontrado la ejecución del caso de prueba."
 msgid "Test Case: %{name}"
 msgstr "Caso de prueba: %{name}"
 
+#, fuzzy
 msgid "Attachments"
-msgstr ""
+msgstr "Archivos adjuntos"
 
+#, fuzzy
 msgid "File"
-msgstr ""
+msgstr "Archivo"
 
+#, fuzzy
 msgid "Image"
-msgstr ""
+msgstr "Imagen"
 
+#, fuzzy
 msgid "Loading..."
-msgstr ""
+msgstr "Cargando..."
 
+#, fuzzy
 msgid "Text File"
-msgstr ""
+msgstr "Archivo de texto"
 
+#, fuzzy
 msgid "Log File"
-msgstr ""
+msgstr "Archivo de registro"
 
 #, fuzzy
 #~ msgid "Test suite"
