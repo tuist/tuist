@@ -596,8 +596,11 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      xcode_section = if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
-      gradle_section = if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+      xcode_section =
+        if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
+
+      gradle_section =
+        if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
 
       """
 
@@ -842,8 +845,11 @@ defmodule Tuist.VCS do
           project: project
         })
 
-      xcode_section = if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
-      gradle_section = if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+      xcode_section =
+        if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
+
+      gradle_section =
+        if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
 
       """
 
