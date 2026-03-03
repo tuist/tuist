@@ -663,6 +663,24 @@ msgstr "테스트 케이스 실행을 찾을 수 없습니다."
 msgid "Test Case: %{name}"
 msgstr "테스트 케이스: %{name}"
 
+msgid "Attachments"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Text File"
+msgstr ""
+
+msgid "Log File"
+msgstr ""
+
 #~ msgid "Test suite"
 #~ msgstr "테스트 suite"
 

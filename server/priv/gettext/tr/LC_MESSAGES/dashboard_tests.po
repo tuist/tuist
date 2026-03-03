@@ -867,6 +867,24 @@ msgstr "Test durumu çalıştırması bulunamadı."
 msgid "Test Case: %{name}"
 msgstr "Test Örneği: %{name}"
 
+msgid "Attachments"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Text File"
+msgstr ""
+
+msgid "Log File"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Test paketi"

@@ -872,6 +872,24 @@ msgstr "Nie znaleziono przypadku testowego."
 msgid "Test Case: %{name}"
 msgstr "Przykład testowy: %{name}"
 
+msgid "Attachments"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Text File"
+msgstr ""
+
+msgid "Log File"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Zestaw testów"

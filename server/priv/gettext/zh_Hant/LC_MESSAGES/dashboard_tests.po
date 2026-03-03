@@ -855,6 +855,24 @@ msgstr "測試案例執行未找到。"
 msgid "Test Case: %{name}"
 msgstr "測試案例：%{name}"
 
+msgid "Attachments"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Text File"
+msgstr ""
+
+msgid "Log File"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "測試套件"

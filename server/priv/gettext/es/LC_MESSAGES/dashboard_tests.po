@@ -876,6 +876,24 @@ msgstr "No se ha encontrado la ejecución del caso de prueba."
 msgid "Test Case: %{name}"
 msgstr "Caso de prueba: %{name}"
 
+msgid "Attachments"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Text File"
+msgstr ""
+
+msgid "Log File"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Conjunto de pruebas"

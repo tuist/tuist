@@ -866,6 +866,24 @@ msgstr "لم يتم العثور على حالة الاختبار."
 msgid "Test Case: %{name}"
 msgstr "حالة الاختبار: %{name}"
 
+msgid "Attachments"
+msgstr ""
+
+msgid "File"
+msgstr ""
+
+msgid "Image"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
+msgid "Text File"
+msgstr ""
+
+msgid "Log File"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "مجموعة الاختبارات"
