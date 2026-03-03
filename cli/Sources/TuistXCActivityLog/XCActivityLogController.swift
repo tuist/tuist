@@ -511,13 +511,13 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func createCASOutputDownloads(nodeMetadata: [CASNodeMetadata]) async throws -> [CASOutput] {
-        return try await nodeMetadata.concurrentCompactMap { metadata in
+        return try await nodeMetadata.concurrentCompactMap(maxConcurrentTasks: 100) { metadata in
             try await createCASOutput(for: metadata, operation: .download)
         }
     }
 
     private func createCASOutputUploads(nodeMetadata: [CASNodeMetadata]) async throws -> [CASOutput] {
-        return try await nodeMetadata.concurrentCompactMap { metadata in
+        return try await nodeMetadata.concurrentCompactMap(maxConcurrentTasks: 100) { metadata in
             try await createCASOutput(for: metadata, operation: .upload)
         }
     }

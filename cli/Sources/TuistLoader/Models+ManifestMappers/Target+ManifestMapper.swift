@@ -73,7 +73,7 @@ extension XcodeGraph.Target {
             fileSystem: fileSystem
         )
 
-        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap {
+        let copyFiles = try await (manifest.copyFiles ?? []).concurrentMap(maxConcurrentTasks: 100) {
             try await XcodeGraph.CopyFilesAction.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -93,20 +93,20 @@ extension XcodeGraph.Target {
             headers = nil
         }
 
-        let coreDataModels = try await manifest.coreDataModels.concurrentMap {
+        let coreDataModels = try await manifest.coreDataModels.concurrentMap(maxConcurrentTasks: 100) {
             try await XcodeGraph.CoreDataModel.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 fileSystem: fileSystem
             )
-        } + resourcesCoreDatas.concurrentMap {
+        } + resourcesCoreDatas.concurrentMap(maxConcurrentTasks: 100) {
             try await XcodeGraph.CoreDataModel.from(
                 path: $0,
                 fileSystem: fileSystem
             )
         }
 
-        let scripts = try await manifest.scripts.concurrentMap {
+        let scripts = try await manifest.scripts.concurrentMap(maxConcurrentTasks: 100) {
             try await XcodeGraph.TargetScript.from(
                 manifest: $0,
                 generatorPaths: generatorPaths,
@@ -120,7 +120,7 @@ extension XcodeGraph.Target {
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
         let additionalFiles = try await manifest.additionalFiles
-            .concurrentMap {
+            .concurrentMap(maxConcurrentTasks: 100) {
                 try await XcodeGraph.FileElement.from(
                     manifest: $0,
                     generatorPaths: generatorPaths,
@@ -240,7 +240,7 @@ extension XcodeGraph.Target {
         var coreDataModels: Set<AbsolutePath> = []
 
         let result = try await (manifest.resources?.resources ?? [])
-            .concurrentMap { manifest async throws -> [XcodeGraph.ResourceFileElement] in
+            .concurrentMap(maxConcurrentTasks: 100) { manifest async throws -> [XcodeGraph.ResourceFileElement] in
                 do {
                     return try await XcodeGraph.ResourceFileElement.from(
                         manifest: manifest,
