@@ -3,10 +3,12 @@
   "checkpoint_id": "687025be51fa",
   "strategy": "manual-commit",
   "branch": "fix/module-map-flags-config-override",
-  "checkpoints_count": 5,
+  "checkpoints_count": 8,
   "files_touched": [
     "cli/Sources/TuistGenerator/Mappers/ExplicitDependencyGraphMapper.swift",
+    "cli/Sources/TuistGenerator/Mappers/ModuleMapMapper.swift",
     "cli/Tests/TuistGeneratorTests/ProjectMappers/ExplicitDependencyGraphMapperTests.swift",
+    "cli/Tests/TuistGeneratorTests/ProjectMappers/ModuleMapMapperTests.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -32,13 +34,20 @@
       "context": "/68/7025be51fa/1/context.md",
       "content_hash": "/68/7025be51fa/1/content_hash.txt",
       "prompt": "/68/7025be51fa/1/prompt.txt"
+    },
+    {
+      "metadata": "/68/7025be51fa/2/metadata.json",
+      "transcript": "/68/7025be51fa/2/full.jsonl",
+      "context": "/68/7025be51fa/2/context.md",
+      "content_hash": "/68/7025be51fa/2/content_hash.txt",
+      "prompt": "/68/7025be51fa/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 205,
-    "cache_creation_tokens": 211298,
-    "cache_read_tokens": 17791637,
-    "output_tokens": 45808,
-    "api_call_count": 185
+    "input_tokens": 268,
+    "cache_creation_tokens": 273538,
+    "cache_read_tokens": 20984212,
+    "output_tokens": 57277,
+    "api_call_count": 238
   }
 }

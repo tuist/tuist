@@ -1,0 +1,98 @@
+Implement the following plan:
+
+# Fix: ModuleMapMapper flags lost when configuration-level OTHER_SWIFT_FLAGS overrides base
+
+## Context
+
+Issue [#9676](https://github.com/tuist/tuist/issues/9676): When an app depends on dynamic frameworks that import ObjC modules from static SPM packages, the Swift compiler fails with `Unable to find module dependency: 'FirebaseCrashlytics'` (and similar).
+
+**Root cause:** The `ModuleMapMapper` writes `-Xcc -fmodule-map-file=` flags to `target.settings.base["OTHER_SWIFT_FLAGS"]`. During code generation, `ConfigGenerator.generateTargetSettingsFor` (line 189-193) applies settings in order: base -> baseDebug -> configuration. When a user sets `OTHER_SWIFT_FLAGS` at the configuration level (e.g., `"-D DEBUG -D ENABLE_CALORIE_COUNTER"` as a string without `$(inherited)`), `SettingsHelper.merge()` falls to the `default` case (line 109-111) and discards the base value entirely, losing all module map flags.
+
+This explains why `OTHER_CFLAGS` works (the user doesn't override it at config level) while `OTHER_SWIFT_FLAGS` doesn't.
+
+Confirmed in the fixture's `Tuist/ProjectDescriptionHelpers/Settings.swift`:
+- `debugDevSettings` has `"OTHER_SWIFT_FLAGS": "-D DEBUG -D ENABLE_CALORIE_COUNTER -D ENABLE_ACHIEVEMENTS -D ENABLE_DEBUG_MENU"` (no `$(inherited)`)
+- `OTHER_LDFLAGS` in the same settings correctly includes `$(inherited)` and works fine
+
+## Fix
+
+### `cli/Sources/TuistGenerator/Mappers/ModuleMapMapper.swift`
+
+After updating `settings.base` (line 91), also propagate module map flags into each configuration that overrides `OTHER_SWIFT_FLAGS`, `OTHER_CFLAGS`, or `HEADER_SEARCH_PATHS`.
+
+Specifically, after line 91 (`target.settings = targetSettings.with(base: mappedSettingsDictionary)`):
+
+1. Extract the computed module map paths and header search paths for this target from `targetToDependenciesMetadata[targetID]`
+2. Iterate over `target.settings.configurations`
+3. For each configuration that has a non-nil `Configuration`:
+   - If its `settings` dict contains `OTHER_SWIFT_FLAGS`, append the same `-Xcc -fmodule-map-file=...` flags that were added to base
+   - If its `settings` dict contains `OTHER_CFLAGS`, append the same `-fmodule-map-file=...` flags
+   - If its `settings` dict contains `HEADER_SEARCH_PATHS`, append the same header search paths
+4. Only modify keys that the configuration already sets (don't add new keys -- configurations that don't override these settings will inherit from base correctly)
+5. Construct a new `Settings` with the updated configurations
+
+Implementation approach: extract the flag-appending logic into a helper method that takes a `SettingsDictionary` and the dependency metadata, and applies the module map flags. Call this helper for both `base` and each configuration's settings. This avoids duplicating the flag computation logic.
+
+### `cli/Tests/TuistGeneratorTests/ProjectMappers/ModuleMapMapperTests.swift`
+
+Add a new test: `test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags`
+
+The test should:
+- Create target A with `settings.base["OTHER_SWIFT_FLAGS"] = "Other"` AND a debug configuration that also sets `OTHER_SWIFT_FLAGS` (e.g., `"-D DEBUG"`, no `$(inherited)`)
+- Create dependency target B with a `MODULEMAP_FILE`
+- Run the mapper
+- Assert that target A's base `OTHER_SWIFT_FLAGS` has the module map flags (existing behavior)
+- Assert that target A's debug configuration's `OTHER_SWIFT_FLAGS` ALSO has the module map flags appended (new behavior)
+- Assert configurations that don't override `OTHER_SWIFT_FLAGS` are unchanged
+
+## Files to modify
+
+1. `cli/Sources/TuistGenerator/Mappers/ModuleMapMapper.swift` (lines ~48-98)
+2. `cli/Tests/TuistGeneratorTests/ProjectMappers/ModuleMapMapperTests.swift` (add test)
+
+## Verification
+
+1. Run the ModuleMapMapper tests:
+   ```
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+     -only-testing TuistGeneratorTests/ModuleMapMapperTests
+   ```
+2. New test verifies module map flags survive configuration-level overrides
+3. Existing tests should still pass unchanged
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+Did you try that against the fixture to check if everything works?
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+It's the fixture included in this issue: https://github.com/tuist/tuist/issues/9676
+
+---
+
+[Request interrupted by user]
+
+---
+
+/Users/pepicrft/Downloads/tuistexample
+
+It's here
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+I want you to build and test that project e2e. That's the only one we can confirm if the fix works
+
+---
+
+Can you create a PR with the fix? Explain the issue el5
