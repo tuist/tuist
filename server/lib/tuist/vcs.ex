@@ -16,6 +16,7 @@ defmodule Tuist.VCS do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
+  alias Tuist.Gradle
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Repo
@@ -362,6 +363,12 @@ defmodule Tuist.VCS do
         project: project
       })
 
+    gradle_builds =
+      get_latest_gradle_builds(%{
+        git_ref: git_ref,
+        project: project
+      })
+
     previews_body =
       get_previews_body(%{
         previews: previews,
@@ -390,6 +397,7 @@ defmodule Tuist.VCS do
     builds_body =
       get_builds_body(%{
         builds: builds,
+        gradle_builds: gradle_builds,
         git_remote_url_origin: git_remote_url_origin,
         build_url: build_url,
         project: project
@@ -692,6 +700,32 @@ defmodule Tuist.VCS do
     |> Map.values()
   end
 
+  defp get_latest_gradle_builds(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
+    from(b in Gradle.Build)
+    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> order_by([b], desc: b.inserted_at)
+    |> ClickHouseRepo.all()
+    |> Enum.filter(&(&1.root_project_name != ""))
+    |> Enum.reduce(%{}, fn build, acc ->
+      name = build.root_project_name
+
+      current_build = Map.get(acc, name)
+
+      if current_build == nil or
+           NaiveDateTime.after?(
+             build.inserted_at,
+             current_build.inserted_at
+           ) do
+        Map.put(acc, name, build)
+      else
+        acc
+      end
+    end)
+    |> Map.values()
+  end
+
   defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
@@ -720,28 +754,46 @@ defmodule Tuist.VCS do
 
   defp get_builds_body(%{
          builds: builds,
+         gradle_builds: gradle_builds,
          git_remote_url_origin: git_remote_url_origin,
          build_url: build_url,
          project: project
        }) do
-    if Enum.empty?(builds) do
+    all_builds =
+      Enum.map(builds, fn build ->
+        %{
+          name: build.scheme,
+          status: build.status,
+          duration_ms: build.duration,
+          git_commit_sha: build.git_commit_sha,
+          id: build.id
+        }
+      end) ++
+        Enum.map(gradle_builds, fn build ->
+          %{
+            name: build.root_project_name,
+            status: build.status,
+            duration_ms: build.duration_ms,
+            git_commit_sha: build.git_commit_sha,
+            id: build.id
+          }
+        end)
+
+    if Enum.empty?(all_builds) do
       nil
     else
       """
 
       #### Builds 🔨
 
-      | Scheme | Status | Duration | Commit |
+      | Build | Status | Duration | Commit |
       |:-:|:-:|:-:|:-:|
-      #{Enum.map(builds, fn build ->
-        git_commit_sha = build.git_commit_sha
-        build_url = build_url.(%{project: project, build: build})
-
-        scheme = build.scheme
-        duration = DateFormatter.format_duration_from_milliseconds(build.duration)
+      #{Enum.map(all_builds, fn build ->
+        url = build_url.(%{project: project, build: build})
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
 
         """
-        | [#{scheme}](#{build_url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+        | [#{build.name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |
         """
       end)}
       """
@@ -752,6 +804,8 @@ defmodule Tuist.VCS do
     case build.status do
       "failure" -> "❌"
       "success" -> "✅"
+      "cancelled" -> "🚫"
+      _ -> "❓"
     end
   end
 
