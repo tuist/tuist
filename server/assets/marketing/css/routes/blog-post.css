@@ -86,6 +86,13 @@
     @media (min-width: 1024px) {
       align-self: center;
       max-width: 650px;
+
+      & img,
+      & video {
+        margin-left: calc((650px - 780px) / 2);
+        width: 780px;
+        max-width: 780px;
+      }
     }
   }
 }
