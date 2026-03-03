@@ -13,6 +13,21 @@ import XCLogParser
 
 import struct TSCBasic.RegEx
 
+enum XCActivityLogControllerError: LocalizedError, Equatable {
+    case failedToParseActivityLog(path: AbsolutePath, reason: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .failedToParseActivityLog(path, reason):
+            return "Failed to parse the activity log at \(path.pathString): \(reason)"
+        }
+    }
+
+    static func wrap(_ error: Error, path: AbsolutePath) -> XCActivityLogControllerError {
+        .failedToParseActivityLog(path: path, reason: error.localizedDescription)
+    }
+}
+
 @Mockable
 public protocol XCActivityLogControlling {
     func mostRecentActivityLogFile(
@@ -74,9 +89,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let logStoreManifestPlistPath = buildLogsPath.appending(components: [
             "LogStoreManifest.plist",
         ])
-        let logStoreManifest: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
-            at: logStoreManifestPlistPath
-        )
+        let logStoreManifest: XCLogStoreManifestPlist
+        do {
+            logStoreManifest = try await fileSystem.readPlistFile(
+                at: logStoreManifestPlistPath
+            )
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: logStoreManifestPlistPath)
+        }
 
         let activityLogPaths = logStoreManifest.logs.keys.map {
             buildLogsPath.appending(components: ["\($0).xcactivitylog"])
@@ -90,17 +110,27 @@ public struct XCActivityLogController: XCActivityLogControlling {
     {
         var buildTimes: [String: Double] = [:]
         for activityLogPath in activityLogPaths {
-            let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
-                activityLogPath.url,
-                redacted: false,
-                withoutBuildSpecificInformation: false
-            )
-            let buildStep = try XCLogParser.ParserBuildSteps(
-                omitWarningsDetails: true,
-                omitNotesDetails: true,
-                truncLargeIssues: true
-            )
-            .parse(activityLog: activityLog)
+            let activityLog: IDEActivityLog
+            do {
+                activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
+                    activityLogPath.url,
+                    redacted: false,
+                    withoutBuildSpecificInformation: false
+                )
+            } catch {
+                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+            }
+            let buildStep: BuildStep
+            do {
+                buildStep = try XCLogParser.ParserBuildSteps(
+                    omitWarningsDetails: true,
+                    omitNotesDetails: true,
+                    truncLargeIssues: true
+                )
+                .parse(activityLog: activityLog)
+            } catch {
+                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+            }
 
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
                 .filter({ $0.title.starts(with: "Build target") }).map({
@@ -145,9 +175,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
         Logger.current.debug("Activity log manifest found at \(logManifestPlistPath.pathString)")
-        let plist: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
-            at: logManifestPlistPath
-        )
+        let plist: XCLogStoreManifestPlist
+        do {
+            plist = try await fileSystem.readPlistFile(
+                at: logManifestPlistPath
+            )
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: logManifestPlistPath)
+        }
         Logger.current.debug("Activity log manifest contains \(plist.logs.count) log(s)")
 
         let logFiles = plist.logs.values.map {
@@ -176,18 +211,28 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
-        let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
-            path.url,
-            redacted: false,
-            withoutBuildSpecificInformation: false
-        )
+        let activityLog: IDEActivityLog
+        do {
+            activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
+                path.url,
+                redacted: false,
+                withoutBuildSpecificInformation: false
+            )
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: path)
+        }
 
-        let buildStep = try XCLogParser.ParserBuildSteps(
-            omitWarningsDetails: false,
-            omitNotesDetails: false,
-            truncLargeIssues: false
-        )
-        .parse(activityLog: activityLog)
+        let buildStep: BuildStep
+        do {
+            buildStep = try XCLogParser.ParserBuildSteps(
+                omitWarningsDetails: false,
+                omitNotesDetails: false,
+                truncLargeIssues: false
+            )
+            .parse(activityLog: activityLog)
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: path)
+        }
 
         let steps = flattenedXCLogParserBuildStep([buildStep])
         let targets = steps.filter { $0.type == .target }
