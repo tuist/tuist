@@ -5768,6 +5768,28 @@ paths:
             application/json:
               schema:
                 properties:
+                  attachments:
+                    items:
+                      properties:
+                        file_name:
+                          description: Attachment file name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          description: URL to download the attachment.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - file_name
+                        - url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   crash_report:
                     description: Crash report associated with this test case run.
                     nullable: true
@@ -5972,6 +5994,7 @@ paths:
                   - is_new
                   - failures
                   - repetitions
+                  - attachments
                 type: object
                 x-struct:
                 x-validate:
@@ -6012,6 +6035,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -6024,14 +6055,6 @@ paths:
           in: query
           name: git_branch
           required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
           schema:
             type: string
             x-struct:

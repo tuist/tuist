@@ -25,6 +25,8 @@ struct InspectResultBundleServiceTests {
     private let subject: InspectResultBundleService
     private let machineEnvironment = MockMachineEnvironmentRetrieving()
     private let createTestService = MockCreateTestServicing()
+    private let createCrashReportService = MockCreateCrashReportServicing()
+    private let createTestCaseRunAttachmentService = MockCreateTestCaseRunAttachmentServicing()
     private let xcResultService = MockXCResultServicing()
     private let dateService = MockDateServicing()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
@@ -33,11 +35,14 @@ struct InspectResultBundleServiceTests {
     private let xcodeBuildController = MockXcodeBuildControlling()
     private let rootDirectoryLocator = MockRootDirectoryLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
+    private let fileSystem = FileSystem()
 
     init() throws {
         subject = InspectResultBundleService(
             machineEnvironment: machineEnvironment,
             createTestService: createTestService,
+            createCrashReportService: createCrashReportService,
+            createTestCaseRunAttachmentService: createTestCaseRunAttachmentService,
             xcResultService: xcResultService,
             dateService: dateService,
             serverEnvironmentService: serverEnvironmentService,
@@ -45,7 +50,8 @@ struct InspectResultBundleServiceTests {
             ciController: ciController,
             xcodeBuildController: xcodeBuildController,
             rootDirectoryLocator: rootDirectoryLocator,
-            xcActivityLogController: xcActivityLogController
+            xcActivityLogController: xcActivityLogController,
+            fileSystem: fileSystem
         )
 
         given(machineEnvironment)
@@ -469,5 +475,291 @@ struct InspectResultBundleServiceTests {
                 ciProvider: .value(nil)
             )
             .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func inspectResultBundle_uploadsAttachments() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
+        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
+
+        let crashFilePath = currentWorkingDirectory.appending(component: "crash.ips")
+        let screenshotFilePath = currentWorkingDirectory.appending(component: "screenshot.png")
+
+        let crashReport = CrashReport(
+            exceptionType: "EXC_BAD_ACCESS",
+            signal: "SIGSEGV",
+            exceptionSubtype: "KERN_INVALID_ADDRESS",
+            filePath: crashFilePath,
+            triggeredThreadFrames: "frame #0"
+        )
+
+        let testCaseWithAttachments = TestCase(
+            name: "test_example",
+            testSuite: "ExampleTests",
+            module: "AppTests",
+            duration: 500,
+            status: .failed,
+            failures: [],
+            crashReport: crashReport,
+            attachments: [
+                TestAttachment(filePath: screenshotFilePath, fileName: "screenshot.png"),
+                TestAttachment(filePath: crashFilePath, fileName: "crash.ips"),
+            ]
+        )
+
+        let testModule = TestModule(
+            name: "AppTests",
+            status: .failed,
+            duration: 500,
+            testSuites: [],
+            testCases: [testCaseWithAttachments]
+        )
+
+        let testSummary = TestSummary(
+            testPlanName: nil,
+            status: .failed,
+            duration: 500,
+            testModules: [testModule]
+        )
+
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willReturn(testSummary)
+
+        gitController.reset()
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(currentWorkingDirectory)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        createTestService.reset()
+        given(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 500,
+                    id: "test-id",
+                    project_id: 1,
+                    test_case_runs: [
+                        .init(
+                            id: "test-case-run-1",
+                            module_name: "AppTests",
+                            name: "test_example",
+                            suite_name: "ExampleTests"
+                        ),
+                    ],
+                    _type: .test,
+                    url: "https://tuist.dev/tuist/tuist/runs/test-id"
+                )
+            )
+
+        given(createTestCaseRunAttachmentService)
+            .createAttachment(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testCaseRunId: .value("test-case-run-1"),
+                fileName: .value("screenshot.png"),
+                filePath: .value(screenshotFilePath)
+            )
+            .willReturn("attachment-1")
+
+        given(createTestCaseRunAttachmentService)
+            .createAttachment(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testCaseRunId: .value("test-case-run-1"),
+                fileName: .value("crash.ips"),
+                filePath: .value(crashFilePath)
+            )
+            .willReturn("attachment-2")
+
+        given(createCrashReportService)
+            .createCrashReport(
+                fullHandle: .any,
+                serverURL: .any,
+                crashReport: .any,
+                testCaseRunId: .any,
+                testCaseRunAttachmentId: .any
+            )
+            .willReturn()
+
+        // When
+        _ = try await subject.inspectResultBundle(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist")
+        )
+
+        // Then
+        verify(createTestCaseRunAttachmentService)
+            .createAttachment(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testCaseRunId: .value("test-case-run-1"),
+                fileName: .value("screenshot.png"),
+                filePath: .value(screenshotFilePath)
+            )
+            .called(1)
+
+        verify(createTestCaseRunAttachmentService)
+            .createAttachment(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                testCaseRunId: .value("test-case-run-1"),
+                fileName: .value("crash.ips"),
+                filePath: .value(crashFilePath)
+            )
+            .called(1)
+
+        verify(createCrashReportService)
+            .createCrashReport(
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                crashReport: .any,
+                testCaseRunId: .value("test-case-run-1"),
+                testCaseRunAttachmentId: .value("attachment-2")
+            )
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func inspectResultBundle_skipsAttachmentsWhenTestCaseHasNone() async throws {
+        // Given
+        let mockedEnvironment = try #require(Environment.mocked)
+        let currentWorkingDirectory = try await mockedEnvironment.currentWorkingDirectory()
+        let resultBundlePath = currentWorkingDirectory.appending(component: "Test.xcresult")
+
+        let testCaseWithoutAttachments = TestCase(
+            name: "test_passing",
+            testSuite: "PassingTests",
+            module: "AppTests",
+            duration: 100,
+            status: .passed,
+            failures: []
+        )
+
+        let testModule = TestModule(
+            name: "AppTests",
+            status: .passed,
+            duration: 100,
+            testSuites: [],
+            testCases: [testCaseWithoutAttachments]
+        )
+
+        let testSummary = TestSummary(
+            testPlanName: nil,
+            status: .passed,
+            duration: 100,
+            testModules: [testModule]
+        )
+
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willReturn(testSummary)
+
+        gitController.reset()
+        given(gitController)
+            .isInGitRepository(workingDirectory: .any)
+            .willReturn(true)
+
+        given(gitController)
+            .topLevelGitDirectory(workingDirectory: .any)
+            .willReturn(currentWorkingDirectory)
+
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(.test())
+
+        createTestService.reset()
+        given(createTestService)
+            .createTest(
+                fullHandle: .any,
+                serverURL: .any,
+                testSummary: .any,
+                buildRunId: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                xcodeVersion: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 100,
+                    id: "test-id",
+                    project_id: 1,
+                    test_case_runs: [
+                        .init(
+                            id: "test-case-run-1",
+                            module_name: "AppTests",
+                            name: "test_passing",
+                            suite_name: "PassingTests"
+                        ),
+                    ],
+                    _type: .test,
+                    url: "https://tuist.dev/tuist/tuist/runs/test-id"
+                )
+            )
+
+        // When
+        _ = try await subject.inspectResultBundle(
+            resultBundlePath: resultBundlePath,
+            projectDerivedDataDirectory: nil,
+            config: .test(fullHandle: "tuist/tuist")
+        )
+
+        // Then
+        verify(createTestCaseRunAttachmentService)
+            .createAttachment(
+                fullHandle: .any,
+                serverURL: .any,
+                testCaseRunId: .any,
+                fileName: .any,
+                filePath: .any
+            )
+            .called(0)
+
+        verify(createCrashReportService)
+            .createCrashReport(
+                fullHandle: .any,
+                serverURL: .any,
+                crashReport: .any,
+                testCaseRunId: .any,
+                testCaseRunAttachmentId: .any
+            )
+            .called(0)
     }
 }

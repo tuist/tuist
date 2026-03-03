@@ -81,6 +81,7 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
 #if DEBUG
     extension ServerTestCaseRun {
         public static func test(
+            attachments: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.attachmentsPayloadPayload] = [],
             duration: Int = 1500,
             failures: [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.failuresPayloadPayload] = [],
             gitBranch: String? = "main",
@@ -101,6 +102,7 @@ public struct GetTestCaseRunService: GetTestCaseRunServicing {
             testRunId: String? = "test-run-id"
         ) -> Self {
             .init(
+                attachments: attachments,
                 crash_report: crashReport,
                 duration: duration,
                 failures: failures,

@@ -3803,6 +3803,45 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_searchablePathDependencies_when_transitiveStaticDependenciesThroughDynamicFramework() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
+        let staticFramework = Target.test(name: "StaticLib", product: .staticFramework)
+        let project = Project.test(targets: [app, dynamicFramework, staticFramework])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [
+                .target(name: dynamicFramework.name, path: project.path),
+            ],
+            .target(name: dynamicFramework.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: app.name)
+        let linkableDeps = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then: searchablePathDependencies includes the transitive static dep
+        XCTAssertTrue(
+            searchablePaths.contains(
+                .product(target: staticFramework.name, productName: staticFramework.productNameWithExtension)
+            )
+        )
+        // And: linkableDependencies does NOT include the transitive static dep (it's inside the dynamic framework)
+        XCTAssertFalse(
+            linkableDeps.contains(
+                .product(target: staticFramework.name, productName: staticFramework.productNameWithExtension)
+            )
+        )
+    }
+
     func test_librariesSwiftIncludePaths() throws {
         // Given
         let target = Target.test(name: "Main")

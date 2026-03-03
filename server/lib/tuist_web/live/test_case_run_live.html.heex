@@ -292,30 +292,29 @@
                       />
                       <span data-part="repetition-name">{repetition.name}</span>
                     </div>
-                    <span
+                    <.failure_message_span
                       :if={
                         repetition.status == "failure" and Enum.any?(@test_case_run.failures) and
                           Enum.at(@test_case_run.failures, rep_index)
                       }
-                      data-part="repetition-failure"
-                    >
-                      {format_failure_message(Enum.at(@test_case_run.failures, rep_index), %{
-                        project: @selected_project,
-                        git_commit_sha: @test_case_run.git_commit_sha
-                      })}
-                    </span>
+                      failure={Enum.at(@test_case_run.failures, rep_index)}
+                      context={
+                        %{
+                          project: @selected_project,
+                          git_commit_sha: @test_case_run.git_commit_sha
+                        }
+                      }
+                    />
                   </div>
                 </div>
-                <span
+                <.failure_message_span
                   :for={failure <- @test_case_run.failures}
                   :if={!Enum.any?(@test_case_run.repetitions)}
-                  data-part="repetition-failure"
-                >
-                  {format_failure_message(failure, %{
-                    project: @selected_project,
-                    git_commit_sha: @test_case_run.git_commit_sha
-                  })}
-                </span>
+                  failure={failure}
+                  context={
+                    %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+                  }
+                />
               </div>
             </div>
           </div>
@@ -380,6 +379,187 @@
               <span :if={index} data-part="frame-index">{index}</span>
               <span :if={image_name} data-part="frame-image">{image_name}</span>
               <span data-part="frame-symbol">{symbol}</span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={
+        Enum.any?(@test_case_run.attachments, fn att -> attachment_type(att.file_name) != :ips end)
+      }
+      title={dgettext("dashboard_tests", "Attachments")}
+      icon="file"
+      data-part="attachments-card"
+    >
+      <.card_section data-part="attachments-card-section">
+        <div data-part="attachments-list">
+          <div
+            :for={{attachment, att_index} <- Enum.with_index(@test_case_run.attachments)}
+            :if={attachment_type(attachment.file_name) == :image}
+            id={"attachment-#{att_index}"}
+            phx-hook="NooraCollapsible"
+            data-part="collapsible"
+            data-state="closed"
+            class="test-failure-card"
+          >
+            <div data-part="root">
+              <div data-part="trigger">
+                <div data-part="header">
+                  <div data-part="icon">
+                    <.photo />
+                  </div>
+                  <div data-part="title-and-subtitle">
+                    <h3 data-part="title">
+                      {attachment.file_name}
+                    </h3>
+                  </div>
+                  <.badge
+                    label={attachment_type_label(attachment_type(attachment.file_name))}
+                    color="primary"
+                    style="light-fill"
+                    size="small"
+                  />
+                </div>
+                <.neutral_button
+                  href={
+                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{attachment.file_name}"
+                  }
+                  target="_blank"
+                  size="small"
+                >
+                  <.download />
+                </.neutral_button>
+                <.neutral_button
+                  data-part="closed-collapsible-button"
+                  variant="secondary"
+                  size="small"
+                >
+                  <.chevron_down />
+                </.neutral_button>
+                <.neutral_button
+                  data-part="open-collapsible-button"
+                  variant="secondary"
+                  size="small"
+                >
+                  <.chevron_up />
+                </.neutral_button>
+              </div>
+              <div data-part="content">
+                <a
+                  href={
+                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{attachment.file_name}"
+                  }
+                  target="_blank"
+                >
+                  <img
+                    src={
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{attachment.file_name}"
+                    }
+                    data-part="attachment-image"
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+            </div>
+          </div>
+          <div
+            :for={{attachment, att_index} <- Enum.with_index(@test_case_run.attachments)}
+            :if={text_attachment_type?(attachment_type(attachment.file_name))}
+            id={"text-attachment-#{att_index}"}
+            phx-hook="NooraCollapsible"
+            data-part="collapsible"
+            data-state="closed"
+            class="test-failure-card"
+          >
+            <div data-part="root">
+              <div data-part="trigger">
+                <div data-part="header">
+                  <div data-part="icon">
+                    <.file_text />
+                  </div>
+                  <div data-part="title-and-subtitle">
+                    <h3 data-part="title">
+                      {attachment.file_name}
+                    </h3>
+                  </div>
+                  <.badge
+                    label={attachment_type_label(attachment_type(attachment.file_name))}
+                    color="primary"
+                    style="light-fill"
+                    size="small"
+                  />
+                </div>
+                <.neutral_button
+                  href={
+                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{attachment.file_name}"
+                  }
+                  target="_blank"
+                  size="small"
+                >
+                  <.download />
+                </.neutral_button>
+                <.neutral_button
+                  data-part="closed-collapsible-button"
+                  variant="secondary"
+                  size="small"
+                >
+                  <.chevron_down />
+                </.neutral_button>
+                <.neutral_button
+                  data-part="open-collapsible-button"
+                  variant="secondary"
+                  size="small"
+                >
+                  <.chevron_up />
+                </.neutral_button>
+              </div>
+              <div data-part="content">
+                <div
+                  id={"text-attachment-content-#{att_index}"}
+                  phx-hook="TextAttachmentContent"
+                  data-url={@text_attachment_urls[attachment.id]}
+                >
+                  <pre data-part="text-attachment-content">{dgettext("dashboard_tests", "Loading...")}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            :for={{attachment, att_index} <- Enum.with_index(@test_case_run.attachments)}
+            :if={attachment_type(attachment.file_name) == :file}
+            class="test-failure-card"
+            data-part="collapsible"
+          >
+            <div data-part="root">
+              <div data-part="trigger">
+                <div data-part="header">
+                  <div data-part="icon">
+                    <.file />
+                  </div>
+                  <div data-part="title-and-subtitle">
+                    <h3 data-part="title">
+                      {attachment.file_name}
+                    </h3>
+                  </div>
+                  <.badge
+                    label={attachment_type_label(:file)}
+                    color="primary"
+                    style="light-fill"
+                    size="small"
+                  />
+                </div>
+                <.neutral_button
+                  href={
+                    ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{attachment.file_name}"
+                  }
+                  target="_blank"
+                  size="small"
+                >
+                  <.download />
+                </.neutral_button>
+              </div>
             </div>
           </div>
         </div>
@@ -528,30 +708,24 @@
                         />
                         <span data-part="repetition-name">{repetition.name}</span>
                       </div>
-                      <span
+                      <.failure_message_span
                         :if={
                           repetition.status == "failure" and Enum.any?(run.failures) and
                             Enum.at(run.failures, rep_index)
                         }
-                        data-part="repetition-failure"
-                      >
-                        {format_failure_message(Enum.at(run.failures, rep_index), %{
-                          project: @selected_project,
-                          git_commit_sha: run.git_commit_sha
-                        })}
-                      </span>
+                        failure={Enum.at(run.failures, rep_index)}
+                        context={
+                          %{project: @selected_project, git_commit_sha: run.git_commit_sha}
+                        }
+                      />
                     </div>
                   </div>
-                  <span
+                  <.failure_message_span
                     :for={failure <- run.failures}
                     :if={!Enum.any?(run.repetitions) and run.status == "failure"}
-                    data-part="repetition-failure"
-                  >
-                    {format_failure_message(failure, %{
-                      project: @selected_project,
-                      git_commit_sha: run.git_commit_sha
-                    })}
-                  </span>
+                    failure={failure}
+                    context={%{project: @selected_project, git_commit_sha: run.git_commit_sha}}
+                  />
                 </div>
                 <.line_divider :if={index < length(@flaky_run_group.runs) - 1} />
               </div>
@@ -646,30 +820,26 @@
                     />
                     <span data-part="repetition-name">{repetition.name}</span>
                   </div>
-                  <span
+                  <.failure_message_span
                     :if={
                       repetition.status == "failure" and Enum.any?(@test_case_run.failures) and
                         Enum.at(@test_case_run.failures, rep_index)
                     }
-                    data-part="repetition-failure"
-                  >
-                    {format_failure_message(Enum.at(@test_case_run.failures, rep_index), %{
-                      project: @selected_project,
-                      git_commit_sha: @test_case_run.git_commit_sha
-                    })}
-                  </span>
+                    failure={Enum.at(@test_case_run.failures, rep_index)}
+                    context={
+                      %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+                    }
+                  />
                 </div>
               </div>
-              <span
+              <.failure_message_span
                 :for={failure <- @test_case_run.failures}
                 :if={!Enum.any?(@test_case_run.repetitions)}
-                data-part="repetition-failure"
-              >
-                {format_failure_message(failure, %{
-                  project: @selected_project,
-                  git_commit_sha: @test_case_run.git_commit_sha
-                })}
-              </span>
+                failure={failure}
+                context={
+                  %{project: @selected_project, git_commit_sha: @test_case_run.git_commit_sha}
+                }
+              />
             </div>
           </div>
         </div>

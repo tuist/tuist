@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* upload and display all test attachments from xcresult bundles by [@fortmarek](https://github.com/fortmarek) in [#9630](https://github.com/tuist/tuist/pull/9630)
 * make tuist inspect bundle available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9644](https://github.com/tuist/tuist/pull/9644)
 * prune old binary cache entries on startup by [@pepicrft](https://github.com/pepicrft)
 * vendor XcodeGraph into tuist and reconcile dependency graphs by [@pepicrft](https://github.com/pepicrft) in [#9616](https://github.com/tuist/tuist/pull/9616)
@@ -12,6 +13,9 @@ All notable changes to this project will be documented in this file.
 * add warningsAsErrors generation option by [@fortmarek](https://github.com/fortmarek) in [#9574](https://github.com/tuist/tuist/pull/9574)
 ### 🐛 Bug Fixes
 
+* include transitive search paths through dynamic framework dependencies by [@pepicrft](https://github.com/pepicrft) in [#9681](https://github.com/tuist/tuist/pull/9681)
+* exclude directories from buildable folder resolved files by [@fortmarek](https://github.com/fortmarek) in [#9678](https://github.com/tuist/tuist/pull/9678)
+* cap concurrency to avoid file descriptor exhaustion by [@fortmarek](https://github.com/fortmarek) in [#9677](https://github.com/tuist/tuist/pull/9677)
 * Fix case-insensitive prioritize local packages over registry by [@fdiaz](https://github.com/fdiaz) in [#9673](https://github.com/tuist/tuist/pull/9673)
 * add xcassets and xcstrings to sources build phase for static targets by [@pepicrft](https://github.com/pepicrft) in [#9666](https://github.com/tuist/tuist/pull/9666)
 * update Command package to 0.14.0 by [@fortmarek](https://github.com/fortmarek) in [#9657](https://github.com/tuist/tuist/pull/9657)
