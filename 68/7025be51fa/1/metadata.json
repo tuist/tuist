@@ -1,12 +1,12 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "687025be51fa",
+  "session_id": "9208f8b6-d478-426a-bfe4-592a45998dd3",
   "strategy": "manual-commit",
+  "created_at": "2026-03-03T16:31:06.527351Z",
   "branch": "fix/module-map-flags-config-override",
-  "checkpoints_count": 5,
+  "checkpoints_count": 2,
   "files_touched": [
-    "cli/Sources/TuistGenerator/Mappers/ExplicitDependencyGraphMapper.swift",
-    "cli/Tests/TuistGeneratorTests/ProjectMappers/ExplicitDependencyGraphMapperTests.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -18,27 +18,24 @@
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
-  "sessions": [
-    {
-      "metadata": "/68/7025be51fa/0/metadata.json",
-      "transcript": "/68/7025be51fa/0/full.jsonl",
-      "context": "/68/7025be51fa/0/context.md",
-      "content_hash": "/68/7025be51fa/0/content_hash.txt",
-      "prompt": "/68/7025be51fa/0/prompt.txt"
-    },
-    {
-      "metadata": "/68/7025be51fa/1/metadata.json",
-      "transcript": "/68/7025be51fa/1/full.jsonl",
-      "context": "/68/7025be51fa/1/context.md",
-      "content_hash": "/68/7025be51fa/1/content_hash.txt",
-      "prompt": "/68/7025be51fa/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "46c9633a-2448-464b-8c63-2ccb99e2f912",
+  "checkpoint_transcript_start": 753,
+  "transcript_lines_at_start": 753,
   "token_usage": {
-    "input_tokens": 205,
-    "cache_creation_tokens": 211298,
-    "cache_read_tokens": 17791637,
-    "output_tokens": 45808,
-    "api_call_count": 185
+    "input_tokens": 15,
+    "cache_creation_tokens": 3829,
+    "cache_read_tokens": 644265,
+    "output_tokens": 1774,
+    "api_call_count": 9
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-03T16:31:06.184213Z",
+    "agent_lines": 0,
+    "human_added": 148146,
+    "human_modified": 35,
+    "human_removed": 0,
+    "total_committed": 148146,
+    "agent_percentage": 0
   }
 }
