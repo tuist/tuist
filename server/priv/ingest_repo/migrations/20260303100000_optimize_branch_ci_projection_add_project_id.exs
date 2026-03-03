@@ -31,7 +31,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeBranchCiProjectionAddProjectId do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     ALTER TABLE test_case_runs
-    ADD PROJECTION proj_by_branch_ci (
+    ADD PROJECTION IF NOT EXISTS proj_by_branch_ci (
       SELECT project_id, git_branch, is_ci, ran_at, test_case_id
       ORDER BY project_id, git_branch, is_ci, ran_at, test_case_id
     )
@@ -45,7 +45,7 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeBranchCiProjectionAddProjectId do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
     ALTER TABLE test_case_runs
-    ADD PROJECTION proj_by_branch_ci (
+    ADD PROJECTION IF NOT EXISTS proj_by_branch_ci (
       SELECT git_branch, is_ci, ran_at, test_case_id
       ORDER BY git_branch, is_ci, ran_at, test_case_id
     )
