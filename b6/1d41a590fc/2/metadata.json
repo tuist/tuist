@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "b61d41a590fc",
+  "session_id": "5636fba5-28f0-4e86-8784-b85451d66cd5",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-03T11:08:22.515417Z",
+  "branch": "fix/transitive-search-paths-through-dynamic-frameworks",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "adcdd576-8581-4273-8e58-2ee7826ce49b",
+  "token_usage": {
+    "input_tokens": 127,
+    "cache_creation_tokens": 123272,
+    "cache_read_tokens": 8625248,
+    "output_tokens": 20235,
+    "api_call_count": 121
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-03T11:08:22.438323Z",
+    "agent_lines": 0,
+    "human_added": 141596,
+    "human_modified": 230,
+    "human_removed": 0,
+    "total_committed": 141596,
+    "agent_percentage": 0
+  }
+}

@@ -3,7 +3,7 @@
   "checkpoint_id": "b61d41a590fc",
   "strategy": "manual-commit",
   "branch": "fix/transitive-search-paths-through-dynamic-frameworks",
-  "checkpoints_count": 9,
+  "checkpoints_count": 11,
   "files_touched": [
     "cache/test/cache/disk_eviction_worker_test.exs",
     "examples/xcode/generated_tuist_plugin/.gitignore",
@@ -31,13 +31,20 @@
       "context": "/b6/1d41a590fc/1/context.md",
       "content_hash": "/b6/1d41a590fc/1/content_hash.txt",
       "prompt": "/b6/1d41a590fc/1/prompt.txt"
+    },
+    {
+      "metadata": "/b6/1d41a590fc/2/metadata.json",
+      "transcript": "/b6/1d41a590fc/2/full.jsonl",
+      "context": "/b6/1d41a590fc/2/context.md",
+      "content_hash": "/b6/1d41a590fc/2/content_hash.txt",
+      "prompt": "/b6/1d41a590fc/2/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 218,
-    "cache_creation_tokens": 85820,
-    "cache_read_tokens": 2777131,
-    "output_tokens": 5891,
-    "api_call_count": 42
+    "input_tokens": 345,
+    "cache_creation_tokens": 209092,
+    "cache_read_tokens": 11402379,
+    "output_tokens": 26126,
+    "api_call_count": 163
   }
 }
