@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-27 15:28+0000\n"
+"PO-Revision-Date: 2026-03-03 13:20+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
@@ -874,23 +874,29 @@ msgstr "Тестовый случай не найден."
 msgid "Test Case: %{name}"
 msgstr "Тестовый случай: %{name}"
 
+#, fuzzy
 msgid "Attachments"
-msgstr ""
+msgstr "Вложения"
 
+#, fuzzy
 msgid "File"
-msgstr ""
+msgstr "Файл"
 
+#, fuzzy
 msgid "Image"
-msgstr ""
+msgstr "Изображение"
 
+#, fuzzy
 msgid "Loading..."
-msgstr ""
+msgstr "Загрузка..."
 
+#, fuzzy
 msgid "Text File"
-msgstr ""
+msgstr "Текстовый файл"
 
+#, fuzzy
 msgid "Log File"
-msgstr ""
+msgstr "Файл журнала"
 
 #, fuzzy
 #~ msgid "Test suite"
