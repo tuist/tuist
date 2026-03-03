@@ -1,16 +1,18 @@
-defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsByRanAtSortKey do
+defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
   @moduledoc """
-  Recreates `command_events_by_ran_at` with ORDER BY (project_id, ran_at)
-  instead of (project_id, name, ran_at).
+  Recreates all three command_events materialized views with `name` removed
+  from the sort key.
 
-  With `name` between `project_id` and `ran_at` in the sort key, queries that
-  filter with `name IN (...)` and sort by `ran_at DESC LIMIT N` cannot use
-  ClickHouse's read-in-order optimization. ClickHouse reads ALL matching rows
-  (~432K avg in production) then merge-sorts them for just ~20 result rows.
+  The views previously used ORDER BY (project_id, name, <sort_column>). With
+  `name` between `project_id` and the sort column, queries that filter with
+  `name IN (...)` and sort by the target column cannot use ClickHouse's
+  read-in-order optimization — ClickHouse reads ALL matching rows and then
+  merge-sorts them.
 
-  Removing `name` from the sort key lets ClickHouse read backwards from the
-  latest ran_at and apply the name filter as a lightweight predicate, stopping
-  at LIMIT. This reduces reads from ~432K to ~8K rows (one granule).
+  Removing `name` from the sort key lets ClickHouse read directly in sort
+  order within each project, applying the name filter as a lightweight
+  predicate. This reduces reads from ~432K to ~8K rows (one granule) for
+  the ran_at view, and the same improvement applies to duration and hit_rate.
   """
 
   use Ecto.Migration
@@ -30,6 +32,31 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsByRanAtSortKey do
     POPULATE
     AS SELECT * FROM command_events
     """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP VIEW IF EXISTS command_events_by_duration"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
+    ENGINE = MergeTree
+    ORDER BY (project_id, duration)
+    POPULATE
+    AS SELECT * FROM command_events
+    """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP VIEW IF EXISTS command_events_by_hit_rate"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_hit_rate
+    ENGINE = MergeTree
+    ORDER BY (project_id, hit_rate)
+    SETTINGS allow_nullable_key = 1
+    POPULATE
+    AS SELECT * FROM command_events
+    """
   end
 
   def down do
@@ -41,6 +68,31 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsByRanAtSortKey do
     CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, name, ran_at)
+    POPULATE
+    AS SELECT * FROM command_events
+    """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP VIEW IF EXISTS command_events_by_duration"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
+    ENGINE = MergeTree
+    ORDER BY (project_id, name, duration)
+    POPULATE
+    AS SELECT * FROM command_events
+    """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP VIEW IF EXISTS command_events_by_hit_rate"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_hit_rate
+    ENGINE = MergeTree
+    ORDER BY (project_id, name, hit_rate)
+    SETTINGS allow_nullable_key = 1
     POPULATE
     AS SELECT * FROM command_events
     """
