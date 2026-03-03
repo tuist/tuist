@@ -1,5 +1,5 @@
 ---
-title: "Scaling Gradle projects with Tuist"
+title: "Velocity for Every Gradle Team"
 category: "product"
 tags: ["product", "gradle", "android", "cache", "test-insights", "build-insights"]
 excerpt: "We're bringing years of experience scaling Xcode projects to the Gradle ecosystem. Remote cache, build insights, test insights including flaky test detection are all available for your Gradle projects today."
@@ -16,8 +16,6 @@ That's why we're excited to announce that Tuist now supports Gradle.
 
 ## What's included
 
-The [Tuist Gradle plugin](https://docs.tuist.dev/en/guides/install-gradle-plugin) brings build insights, remote caching, test insights, and flaky test detection to your Gradle and Android projects. Here's what's available today.
-
 ### Build insights
 
 Build time directly affects your feedback loop. As projects grow, build performance degrades. But most teams have no visibility into how or why. They track CI pipeline duration but can't answer basic questions: Which tasks take the longest? How does build time change across Gradle versions? Did that dependency upgrade actually make things worse? You can't improve what you can't measure. And with coding agents generating more changes than ever, slow builds don't just slow down one developer, they become a multiplier on wasted CI time across the whole team. 
@@ -26,7 +24,7 @@ The plugin automatically sends build analytics to Tuist, giving you visibility i
 
 ### Remote Gradle cache
 
-Once you understand where build time goes, caching is the most effective lever to reduce it. Tuist integrates directly with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache. Your team stops rebuilding the same things over and over, and CI times drop.
+Once you understand where build time goes, caching is the most effective lever to reduce it. Tuist provides a [remote cache](https://docs.tuist.dev/en/guides/features/cache) that integrates directly with [Gradle's built-in build cache](https://docs.gradle.org/current/userguide/build_cache.html) to share build artifacts remotely. When a task's outputs are already cached, Gradle skips execution and pulls the result from Tuist's remote cache. Your team stops rebuilding the same things over and over, and CI times drop.
 
 But a remote cache is only as fast as the network between your builds and the storage. That's why Tuist hosts cache infrastructure with global coverage, giving you low latency no matter where your CI runners or developers are located. You get the speed of a local cache with the reach of a shared one, without provisioning or maintaining anything yourself.
 
@@ -69,7 +67,7 @@ First, [install the Tuist CLI](https://docs.tuist.dev/en/guides/quick-start/inst
 
 ```kotlin
 plugins {
-    id("dev.tuist") version "0.1.0"
+    id("dev.tuist") version "0.2.2"
 }
 ```
 
