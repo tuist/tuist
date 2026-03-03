@@ -97,7 +97,7 @@ public struct DeviceController: DeviceControlling {
             )
             .concatenatedString()
         } catch let error as CommandError {
-            if case let .terminated(_, stderr, _) = error, stderr.contains("ApplicationVerificationFailed") {
+            if case let .terminated(_, stderr) = error, stderr.contains("ApplicationVerificationFailed") {
                 throw DeviceControllerError.applicationVerificationFailed
             } else {
                 throw error

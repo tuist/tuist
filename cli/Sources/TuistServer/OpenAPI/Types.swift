@@ -11835,6 +11835,37 @@ public enum Operations {
                 @frozen public enum Body: Sendable, Hashable {
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json`.
                     public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/attachmentsPayload`.
+                        public struct attachmentsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Attachment file name.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/attachmentsPayload/file_name`.
+                            public var file_name: Swift.String
+                            /// URL to download the attachment.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/attachmentsPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `attachmentsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - file_name: Attachment file name.
+                            ///   - url: URL to download the attachment.
+                            public init(
+                                file_name: Swift.String,
+                                url: Swift.String
+                            ) {
+                                self.file_name = file_name
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case file_name
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/attachments`.
+                        public typealias attachmentsPayload = [Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.attachmentsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/attachments`.
+                        public var attachments: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.attachmentsPayload
                         /// Crash report associated with this test case run.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/GET/responses/200/content/json/crash_report`.
@@ -12057,6 +12088,7 @@ public enum Operations {
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
+                        ///   - attachments:
                         ///   - crash_report: Crash report associated with this test case run.
                         ///   - duration: Duration in milliseconds.
                         ///   - failures:
@@ -12076,6 +12108,7 @@ public enum Operations {
                         ///   - test_case_id: The test case ID.
                         ///   - test_run_id: The test run ID.
                         public init(
+                            attachments: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.attachmentsPayload,
                             crash_report: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.crash_reportPayload? = nil,
                             duration: Swift.Int,
                             failures: Operations.getTestCaseRun.Output.Ok.Body.jsonPayload.failuresPayload,
@@ -12095,6 +12128,7 @@ public enum Operations {
                             test_case_id: Swift.String? = nil,
                             test_run_id: Swift.String? = nil
                         ) {
+                            self.attachments = attachments
                             self.crash_report = crash_report
                             self.duration = duration
                             self.failures = failures
@@ -12115,6 +12149,7 @@ public enum Operations {
                             self.test_run_id = test_run_id
                         }
                         public enum CodingKeys: String, CodingKey {
+                            case attachments
                             case crash_report
                             case duration
                             case failures
