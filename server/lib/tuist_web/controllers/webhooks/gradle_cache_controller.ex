@@ -3,21 +3,18 @@ defmodule TuistWeb.Webhooks.GradleCacheController do
 
   alias Tuist.Gradle
   alias Tuist.Projects
+  alias TuistWeb.Plugs.RequireCacheEndpointPlug
 
   require Logger
 
   def handle(conn, %{"events" => events}) when is_list(events) do
-    cache_endpoint =
-      conn
-      |> Plug.Conn.get_req_header("x-cache-endpoint")
-      |> List.first()
+    conn = RequireCacheEndpointPlug.call(conn, [])
 
-    if is_nil(cache_endpoint) or cache_endpoint == "" do
+    if conn.halted do
       conn
-      |> put_status(:bad_request)
-      |> json(%{error: "Missing x-cache-endpoint header"})
-      |> halt()
     else
+      cache_endpoint = conn.assigns.cache_endpoint
+
       full_handles =
         events
         |> Enum.map(fn event ->
