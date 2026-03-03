@@ -285,4 +285,125 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(gotSideEffects, [])
     }
+
+    func test_maps_modulemap_flags_to_configurations_that_override_other_swift_flags() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectAPath = try temporaryPath().appending(component: "A")
+        let projectBPath = try temporaryPath().appending(component: "B")
+
+        let debugConfig = BuildConfiguration(name: "Debug", variant: .debug)
+        let releaseConfig = BuildConfiguration(name: "Release", variant: .release)
+
+        let targetA = Target.test(
+            name: "A",
+            settings: .test(
+                base: [
+                    "OTHER_SWIFT_FLAGS": "Other",
+                    "OTHER_CFLAGS": ["Other"],
+                ],
+                configurations: [
+                    debugConfig: Configuration(
+                        settings: [
+                            "OTHER_SWIFT_FLAGS": "-D DEBUG -D FEATURE",
+                            "OTHER_CFLAGS": "-DDEBUG",
+                        ],
+                        xcconfig: nil
+                    ),
+                    releaseConfig: Configuration(
+                        settings: [:],
+                        xcconfig: nil
+                    ),
+                ]
+            ),
+            dependencies: [
+                .project(target: "B", path: projectBPath),
+            ]
+        )
+        let projectA = Project.test(
+            path: projectAPath,
+            name: "A",
+            targets: [targetA]
+        )
+
+        let targetB = Target.test(
+            name: "B",
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B", "B.module").pathString),
+                "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B/include"]),
+            ])
+        )
+        let projectB = Project.test(
+            path: projectBPath,
+            name: "B",
+            targets: [targetB]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectAPath: projectA,
+                    projectBPath: projectB,
+                ],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB.name, path: projectBPath),
+                    ],
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
+
+        // Base settings should have the module map flags
+        XCTAssertBetterEqual(
+            gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"],
+            .array([
+                "Other",
+                "-Xcc",
+                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+            ])
+        )
+        XCTAssertBetterEqual(
+            gotTargetA.settings?.base["OTHER_CFLAGS"],
+            .array([
+                "Other",
+                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+            ])
+        )
+
+        // Debug configuration overrides OTHER_SWIFT_FLAGS and OTHER_CFLAGS, so it should also get the flags
+        let debugConfiguration = try XCTUnwrap(gotTargetA.settings?.configurations[debugConfig] as? Configuration)
+        XCTAssertBetterEqual(
+            debugConfiguration.settings["OTHER_SWIFT_FLAGS"],
+            .array([
+                "-D",
+                "DEBUG",
+                "-D",
+                "FEATURE",
+                "-Xcc",
+                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+            ])
+        )
+        XCTAssertBetterEqual(
+            debugConfiguration.settings["OTHER_CFLAGS"],
+            .array([
+                "-DDEBUG",
+                "-fmodule-map-file=$(SRCROOT)/../B/B/B.module",
+            ])
+        )
+
+        // Release configuration does not override these keys, so it should remain unchanged
+        let releaseConfiguration = try XCTUnwrap(
+            gotTargetA.settings?.configurations[releaseConfig] as? Configuration
+        )
+        XCTAssertNil(releaseConfiguration.settings["OTHER_SWIFT_FLAGS"])
+        XCTAssertNil(releaseConfiguration.settings["OTHER_CFLAGS"])
+
+        XCTAssertEqual(gotSideEffects, [])
+    }
 }

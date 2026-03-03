@@ -88,7 +88,57 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                     configurations: [:],
                     defaultSettings: project.settings.defaultSettings
                 )
-                target.settings = targetSettings.with(base: mappedSettingsDictionary)
+
+                var updatedConfigurations = targetSettings.configurations
+                for (buildConfig, configuration) in targetSettings.configurations {
+                    guard var configSettings = configuration?.settings else { continue }
+                    var didUpdate = false
+
+                    if configSettings[Self.otherSwiftFlagsSetting] != nil,
+                       let updated = Self.updatedOtherSwiftFlags(
+                           targetID: targetID,
+                           oldOtherSwiftFlags: configSettings[Self.otherSwiftFlagsSetting],
+                           targetToDependenciesMetadata: targetToDependenciesMetadata
+                       )
+                    {
+                        configSettings[Self.otherSwiftFlagsSetting] = updated
+                        didUpdate = true
+                    }
+
+                    if configSettings[Self.otherCFlagsSetting] != nil,
+                       let updated = Self.updatedOtherCFlags(
+                           targetID: targetID,
+                           oldOtherCFlags: configSettings[Self.otherCFlagsSetting],
+                           targetToDependenciesMetadata: targetToDependenciesMetadata
+                       )
+                    {
+                        configSettings[Self.otherCFlagsSetting] = updated
+                        didUpdate = true
+                    }
+
+                    if configSettings[Self.headerSearchPaths] != nil,
+                       let updated = Self.updatedHeaderSearchPaths(
+                           targetID: targetID,
+                           oldHeaderSearchPaths: configSettings[Self.headerSearchPaths],
+                           targetToDependenciesMetadata: targetToDependenciesMetadata
+                       )
+                    {
+                        configSettings[Self.headerSearchPaths] = updated
+                        didUpdate = true
+                    }
+
+                    if didUpdate {
+                        updatedConfigurations[buildConfig] = configuration?.with(settings: configSettings)
+                    }
+                }
+
+                target.settings = Settings(
+                    base: mappedSettingsDictionary,
+                    baseDebug: targetSettings.baseDebug,
+                    configurations: updatedConfigurations,
+                    defaultSettings: targetSettings.defaultSettings,
+                    defaultConfiguration: targetSettings.defaultConfiguration
+                )
 
                 return (target.name, target)
             })
