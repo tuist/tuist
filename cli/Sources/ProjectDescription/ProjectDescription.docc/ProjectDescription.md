@@ -133,7 +133,3 @@ The Swift DSL for defining Tuist manifest files.
 - ``BuildableFolder``
 - ``BuildableFolderException``
 - ``BuildableFolderExceptions``
-
-### Cloud
-
-- ``Cloud``
