@@ -1,0 +1,26 @@
+Check format in server and cache, and also run the tests
+
+---
+
+Can you commit and push or re-run the failing jobs on CI?
+
+---
+
+cache test is failing
+
+---
+
+https://github.com/tuist/tuist/actions/runs/22487580043/job/65144457787?pr=9618 is failing on CI
+
+---
+
+No... I want you to rebase from origin/main. I believe Chris already addressed that
+
+---
+
+Did you push here?
+https://github.com/tuist/tuist/pull/9618
+
+---
+
+Yes, to that branch
