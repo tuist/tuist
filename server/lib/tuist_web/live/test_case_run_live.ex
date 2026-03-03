@@ -4,6 +4,7 @@ defmodule TuistWeb.TestCaseRunLive do
   use Noora
 
   import TuistWeb.Components.EmptyTabStateBackground
+  import TuistWeb.Helpers.AttachmentHelpers
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.StackFrames
   import TuistWeb.Helpers.TestLabels
@@ -90,31 +91,6 @@ defmodule TuistWeb.TestCaseRunLive do
   defp failure_message_span(assigns) do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
   end
-
-  defp attachment_type(file_name) do
-    ext = file_name |> String.downcase() |> Path.extname()
-
-    cond do
-      ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic"] -> :image
-      ext in [".txt"] -> :text
-      ext in [".log"] -> :log
-      ext in [".json"] -> :json
-      ext in [".xml"] -> :xml
-      ext in [".csv"] -> :csv
-      ext in [".ips"] -> :ips
-      true -> :file
-    end
-  end
-
-  defp text_attachment_type?(type), do: type in [:text, :log, :json, :xml, :csv]
-
-  defp attachment_type_label(:image), do: dgettext("dashboard_tests", "Image")
-  defp attachment_type_label(:text), do: dgettext("dashboard_tests", "Text File")
-  defp attachment_type_label(:log), do: dgettext("dashboard_tests", "Log File")
-  defp attachment_type_label(:json), do: "JSON"
-  defp attachment_type_label(:xml), do: "XML"
-  defp attachment_type_label(:csv), do: "CSV"
-  defp attachment_type_label(:file), do: dgettext("dashboard_tests", "File")
 
   defp assign_text_attachment_urls(socket, test_case_run) do
     project = socket.assigns.selected_project

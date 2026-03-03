@@ -127,7 +127,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
     }
 
     private static func contentType(for fileName: String) -> String {
-        switch (fileName as NSString).pathExtension.lowercased() {
+        switch (try? RelativePath(validating: fileName))?.extension?.lowercased() ?? "" {
         case "png": return "image/png"
         case "jpg", "jpeg": return "image/jpeg"
         case "gif": return "image/gif"

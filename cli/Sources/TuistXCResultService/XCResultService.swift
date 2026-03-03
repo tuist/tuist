@@ -574,7 +574,7 @@ public struct XCResultService: XCResultServicing {
             .map(\.exportedFileName)
             .filter { $0.lowercased().hasSuffix(".png") }
 
-        for fileName in pngFileNames {
+        await pngFileNames.forEach(context: .concurrent) { fileName in
             let filePath = directory.appending(component: fileName)
             do {
                 _ = try await commandRunner.run(

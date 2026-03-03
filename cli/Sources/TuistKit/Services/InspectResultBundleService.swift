@@ -166,7 +166,7 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
         )
         guard let testCaseRunId = testCaseRunIdsByIdentity[identityKey] else { return }
 
-        for attachment in testCase.attachments {
+        await testCase.attachments.forEach(context: .concurrent) { attachment in
             do {
                 let testCaseRunAttachmentId = try await createTestCaseRunAttachmentService.createAttachment(
                     fullHandle: fullHandle,
