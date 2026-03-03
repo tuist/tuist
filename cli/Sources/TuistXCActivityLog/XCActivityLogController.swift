@@ -199,11 +199,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 )
             }
 
+        let totalProjectTargetCount = totalTargetCountFromDependencyGraph(activityLog)
+
         let category = buildCategory(
-            steps: steps.filter {
-                $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation
-            },
-            targets: targets
+            steps: steps,
+            targets: targets,
+            totalProjectTargetCount: totalProjectTargetCount
         )
         let rootDirectory = try await rootDirectory()
 
@@ -370,10 +371,16 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
     }
 
-    private func buildCategory(steps: [BuildStep], targets: [TargetWithStep])
-        -> XCActivityBuildCategory
-    {
-        let targetIdentifiers = targetIdentifiers(buildSteps: steps)
+    private func buildCategory(
+        steps: [BuildStep],
+        targets: [TargetWithStep],
+        totalProjectTargetCount: Int
+    ) -> XCActivityBuildCategory {
+        let detailSteps = steps.filter {
+            $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation
+        }
+
+        let targetIdentifiers = targetIdentifiers(buildSteps: detailSteps)
         var targetsCompiledCount = [String: Int]()
 
         for target in targets {
@@ -381,7 +388,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
 
         let buildSteps =
-            steps
+            detailSteps
                 .filter {
                     $0.detailStepType != .other && $0.detailStepType != .scriptExecution
                         && $0.detailStepType != .copySwiftLibs
@@ -413,8 +420,22 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
         }
 
+        // When Xcode's compilation cache is active (Xcode 26+), only targets with actual
+        // work appear in the log. Unchanged targets are completely absent. Use the total
+        // project target count from the dependency graph as the denominator instead, so
+        // that absent (fully cached) targets count toward the incremental side.
+        let hasCompilationCache = steps.contains { step in
+            step.title.contains("Swift caching") || step.title.contains("Clang caching")
+        }
+        let totalTargets: Int
+        if hasCompilationCache, totalProjectTargetCount > targets.count {
+            totalTargets = totalProjectTargetCount
+        } else {
+            totalTargets = targets.count
+        }
+
         // If at least 50% of the targets are clean, we categorise the build as clean.
-        if targetsCategory.values.filter({ $0 == .clean }).count > targets.count / 2 {
+        if targetsCategory.values.filter({ $0 == .clean }).count > totalTargets / 2 {
             return .clean
         } else {
             return .incremental
@@ -468,6 +489,43 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
 
         return targetIdentifiers
+    }
+
+    /// Extracts the total number of unique targets in the project from the xcactivitylog's
+    /// "Compute target dependency graph" section.
+    ///
+    /// This is needed because when Xcode's compilation cache is active (Xcode 26+), the log
+    /// only contains build steps for targets that had actual work to do. Fully cached targets
+    /// are completely absent. The dependency graph section, however, always lists every target
+    /// in the project regardless of whether it was rebuilt, giving us the true total count.
+    private func totalTargetCountFromDependencyGraph(_ activityLog: IDEActivityLog) -> Int {
+        var targetNames = Set<String>()
+        collectDependencyGraphTargets(from: activityLog.mainSection, into: &targetNames)
+        return targetNames.count
+    }
+
+    private func collectDependencyGraphTargets(
+        from section: IDEActivityLogSection,
+        into targetNames: inout Set<String>
+    ) {
+        targetNamesFromDependencyGraph(from: section.text, into: &targetNames)
+
+        for message in section.messages {
+            targetNamesFromDependencyGraph(from: message.title, into: &targetNames)
+        }
+
+        for subSection in section.subSections {
+            collectDependencyGraphTargets(from: subSection, into: &targetNames)
+        }
+    }
+
+    private static let dependencyGraphTargetRegex = /Target '(?<name>[^']+)' in project/
+
+    private func targetNamesFromDependencyGraph(from text: String, into targetNames: inout Set<String>) {
+        guard text.contains("Target dependency graph") else { return }
+        for match in text.matches(of: Self.dependencyGraphTargetRegex) {
+            targetNames.insert(String(match.output.name))
+        }
     }
 
     private func path(of step: BuildStep, rootDirectory: AbsolutePath?) async throws -> RelativePath? {
