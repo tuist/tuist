@@ -44,6 +44,13 @@ extension XcodeGraph.BuildableFolder {
             .glob(directory: path, include: ["**/*"]).collect()
             .filter { !exclusions.contains($0) }
         let resolvedFiles = try await allPaths.concurrentCompactMap(maxConcurrentTasks: 100) { filePath -> BuildableFolderFile? in
+            if filePath.isInOpaqueDirectory { return nil }
+            if filePath.isOpaqueDirectory {
+                return BuildableFolderFile(
+                    path: filePath,
+                    compilerFlags: compilerFlagsByPath[filePath]
+                )
+            }
             if try await fileSystem.exists(filePath, isDirectory: true) { return nil }
             return BuildableFolderFile(
                 path: filePath,
