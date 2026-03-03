@@ -577,33 +577,93 @@ defmodule Tuist.VCS do
     else
       project = Repo.preload(project, :account)
 
-      metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
-      metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+      {xcode_runs, gradle_runs} = Enum.split_with(test_runs, &(&1.build_system != "gradle"))
+
+      xcode_body =
+        get_xcode_test_body(%{
+          test_runs: xcode_runs,
+          git_remote_url_origin: git_remote_url_origin,
+          test_run_url: test_run_url,
+          project: project
+        })
+
+      gradle_body =
+        get_gradle_test_body(%{
+          test_runs: gradle_runs,
+          git_remote_url_origin: git_remote_url_origin,
+          test_run_url: test_run_url,
+          project: project
+        })
 
       """
 
       #### Tests 🧪
 
-      | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-      |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-      #{Enum.map(test_runs, fn test_run ->
-        test_run_metrics = Map.get(metrics_map, test_run.id)
-
-        git_commit_sha = test_run.git_commit_sha
-        test_url = test_run_url.(%{project: project, test_run: test_run})
-        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
-
-        cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
-        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
-        skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
-        ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
-
-        """
-        | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
-        """
-      end)}
+      #{xcode_body}#{gradle_body}
       """
     end
+  end
+
+  defp get_xcode_test_body(%{test_runs: [], project: _project} = _args), do: ""
+
+  defp get_xcode_test_body(%{
+         test_runs: test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
+    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
+    """
+    | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+    |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+    #{Enum.map(test_runs, fn test_run ->
+      test_run_metrics = Map.get(metrics_map, test_run.id)
+
+      git_commit_sha = test_run.git_commit_sha
+      test_url = test_run_url.(%{project: project, test_run: test_run})
+      scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+
+      cache_hit_rate = if test_run_metrics, do: test_run_metrics.cache_hit_rate, else: "0 %"
+      total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+      skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
+      ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
+
+      """
+      | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+      """
+    end)}
+    """
+  end
+
+  defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
+
+  defp get_gradle_test_body(%{
+         test_runs: test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
+    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
+    """
+    | Scheme | Status | Tests | Commit |
+    |:-:|:-:|:-:|:-:|
+    #{Enum.map(test_runs, fn test_run ->
+      test_run_metrics = Map.get(metrics_map, test_run.id)
+
+      git_commit_sha = test_run.git_commit_sha
+      test_url = test_run_url.(%{project: project, test_run: test_run})
+      scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+      total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+
+      """
+      | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
+      """
+    end)}
+    """
   end
 
   defp get_test_run_status_text(test_run) do
