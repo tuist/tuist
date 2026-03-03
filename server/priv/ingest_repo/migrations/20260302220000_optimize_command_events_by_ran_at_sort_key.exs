@@ -1,7 +1,7 @@
 defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
   @moduledoc """
-  Recreates all three command_events materialized views with `name` removed
-  from the sort key.
+  Recreates `command_events_by_ran_at` and `command_events_by_duration` with
+  `name` removed from the sort key.
 
   The views previously used ORDER BY (project_id, name, <sort_column>). With
   `name` between `project_id` and the sort column, queries that filter with
@@ -11,8 +11,11 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
 
   Removing `name` from the sort key lets ClickHouse read directly in sort
   order within each project, applying the name filter as a lightweight
-  predicate. This reduces reads from ~432K to ~8K rows (one granule) for
-  the ran_at view, and the same improvement applies to duration and hit_rate.
+  predicate. This reduces reads from ~180K to ~8K rows (one granule).
+
+  Note: `command_events_by_hit_rate` is NOT changed because `hit_rate` is
+  Nullable, which prevents the read-in-order optimization. Keeping `name`
+  in its sort key is better since it at least narrows the scan range.
   """
 
   use Ecto.Migration
@@ -44,19 +47,6 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
     POPULATE
     AS SELECT * FROM command_events
     """
-
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_hit_rate SYNC"
-
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_hit_rate
-    ENGINE = MergeTree
-    ORDER BY (project_id, hit_rate)
-    SETTINGS allow_nullable_key = 1
-    POPULATE
-    AS SELECT * FROM command_events
-    """
   end
 
   def down do
@@ -80,19 +70,6 @@ defmodule Tuist.IngestRepo.Migrations.OptimizeCommandEventsMvSortKeys do
     CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_duration
     ENGINE = MergeTree
     ORDER BY (project_id, name, duration)
-    POPULATE
-    AS SELECT * FROM command_events
-    """
-
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_hit_rate SYNC"
-
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_hit_rate
-    ENGINE = MergeTree
-    ORDER BY (project_id, name, hit_rate)
-    SETTINGS allow_nullable_key = 1
     POPULATE
     AS SELECT * FROM command_events
     """
