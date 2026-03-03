@@ -1,17 +1,18 @@
 defmodule Tuist.OAuth.TokenGenerator do
   @moduledoc """
   Custom token generator for Boruta that uses Guardian to generate JWT tokens.
+
+  OAuth tokens are generated as scoped AuthenticatedAccount JWTs with
+  all_projects access. The scopes from the OAuth grant determine what
+  operations the token can perform.
   """
 
   @behaviour Boruta.Oauth.TokenGenerator
 
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts.User
-  alias Tuist.Authentication
   alias Tuist.OAuth.Clients
   alias Tuist.Repo
-
-  @scoped_grants ["mcp"]
 
   @impl TokenGenerator
   def generate(token_type, %Boruta.Ecto.Token{sub: sub, client_id: client_id, scope: scope}) do
@@ -27,49 +28,27 @@ defmodule Tuist.OAuth.TokenGenerator do
 
       scopes = parse_scopes(scope)
 
-      if has_scoped_grant?(scopes) do
-        generate_scoped_token(user, scopes, token_type, ttl)
-      else
-        generate_user_token(user, token_type, ttl)
-      end
+      claims = %{
+        "type" => "account",
+        "scopes" => scopes,
+        "all_projects" => true,
+        "preferred_username" => user.account.name,
+        "email" => user.email
+      }
+
+      {:ok, jwt_token, _claims} =
+        Tuist.Guardian.encode_and_sign(user.account, claims,
+          token_type: Atom.to_string(token_type),
+          ttl: {ttl, :second}
+        )
+
+      jwt_token
     end
-  end
-
-  defp generate_user_token(user, token_type, ttl) do
-    {:ok, jwt_token, _claims} =
-      Authentication.encode_and_sign(user, %{"preferred_username" => user.account.name, "email" => user.email},
-        token_type: Atom.to_string(token_type),
-        ttl: {ttl, :second}
-      )
-
-    jwt_token
-  end
-
-  defp generate_scoped_token(user, scopes, token_type, ttl) do
-    claims = %{
-      "type" => "account",
-      "scopes" => scopes,
-      "all_projects" => true,
-      "preferred_username" => user.account.name,
-      "email" => user.email
-    }
-
-    {:ok, jwt_token, _claims} =
-      Tuist.Guardian.encode_and_sign(user.account, claims,
-        token_type: Atom.to_string(token_type),
-        ttl: {ttl, :second}
-      )
-
-    jwt_token
   end
 
   defp parse_scopes(nil), do: []
   defp parse_scopes(""), do: []
   defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
-
-  defp has_scoped_grant?(scopes) do
-    Enum.any?(scopes, &(&1 in @scoped_grants))
-  end
 
   @impl TokenGenerator
   def secret(client) do
