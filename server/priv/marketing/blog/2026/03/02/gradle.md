@@ -8,7 +8,7 @@ og_image_path: /marketing/images/blog/2026/03/02/gradle/og.jpg
 highlighted: true
 ---
 
-We've spent years helping teams scale their Xcode projects. Be it build caching, test insights, flaky test detection, or bundle analysis, we've built these features because we've seen firsthand how much time teams lose to slow builds, unreliable tests, and tooling gaps that no one has time to fill.
+We've spent years helping teams scale their Xcode projects. Be it build caching, test insights, flaky test detection, or bundle analysis, we've built these features because we've seen firsthand how much time teams waste in slow builds, unreliable tests, and tooling gaps that no one has time to fill.
 
 Along the way, we noticed something. Many of the problems we were solving weren't unique to Xcode. Slow builds? Gradle has them too. Flaky tests blocking PRs? That's universal. Build cache infrastructure that's expensive and painful to maintain? Teams working with Gradle deal with this every day. The underlying challenges are remarkably similar across ecosystems.
 
