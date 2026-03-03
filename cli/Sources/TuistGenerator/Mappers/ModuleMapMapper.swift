@@ -91,7 +91,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
                 var updatedConfigurations = targetSettings.configurations
                 for (buildConfig, configuration) in targetSettings.configurations {
-                    guard var configSettings = configuration?.settings else { continue }
+                    var configSettings = configuration?.settings ?? [:]
                     var didUpdate = false
 
                     if configSettings[Self.otherSwiftFlagsSetting] != nil,
