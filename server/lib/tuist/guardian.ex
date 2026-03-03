@@ -37,7 +37,7 @@ defmodule Tuist.Guardian do
          %AuthenticatedAccount{
            account: account,
            scopes: claims["scopes"],
-           all_projects: false,
+           all_projects: Map.get(claims, "all_projects", false),
            project_ids: extract_project_ids(claims)
          }}
 

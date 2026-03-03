@@ -66,13 +66,23 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   @impl AuthorizeApplication
   def authorize_error(%Plug.Conn{} = conn, %Error{status: :unauthorized} = error) do
     Logger.error("OAuth authorize unauthorized: #{inspect(error)}")
-    redirect_to_login(conn)
+
+    if conn.assigns[:current_user] do
+      render_authorize_error(conn, error)
+    else
+      redirect_to_login(conn)
+    end
   end
 
   @impl AuthorizeApplication
   def authorize_error(%Plug.Conn{} = conn, %Error{} = error) do
     Logger.error("OAuth authorize error: #{inspect(error)}")
-    redirect_to_login(conn)
+
+    if conn.assigns[:current_user] do
+      render_authorize_error(conn, error)
+    else
+      redirect_to_login(conn)
+    end
   end
 
   @impl AuthorizeApplication
@@ -80,6 +90,24 @@ defmodule TuistWeb.Oauth.AuthorizeController do
 
   @impl AuthorizeApplication
   def preauthorize_error(_conn, _response), do: :ok
+
+  defp render_authorize_error(conn, %Error{format: format} = error) when not is_nil(format) do
+    redirect(conn, external: Error.redirect_to_url(error))
+  end
+
+  defp render_authorize_error(conn, error) do
+    conn
+    |> put_status(error_status_code(error.status))
+    |> json(%{
+      error: to_string(error.error),
+      error_description: error.error_description
+    })
+  end
+
+  defp error_status_code(:bad_request), do: 400
+  defp error_status_code(:unauthorized), do: 401
+  defp error_status_code(:internal_server_error), do: 500
+  defp error_status_code(_), do: 400
 
   defp redirect_to_login(conn) do
     conn

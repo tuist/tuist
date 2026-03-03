@@ -18,7 +18,7 @@ MCP and <LocalizedLink href="/guides/features/agentic-coding/skills">Skills</Loc
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically.
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically. The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. See the <LocalizedLink href="/guides/server/authentication#scope-groups">scope groups documentation</LocalizedLink> for details.
 
 ::: details Claude Code
 Run:
