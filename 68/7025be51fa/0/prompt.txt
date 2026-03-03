@@ -1,0 +1,228 @@
+Implement the following plan:
+
+# Fix: App targets missing FRAMEWORK_SEARCH_PATHS for transitive dependencies behind dynamic frameworks
+
+## Context
+
+Issue [#9676](https://github.com/tuist/tuist/issues/9676): When using explicit dependencies (the default for `.tuist()` projects), the `ExplicitDependencyGraphMapper` scopes each framework/library target's `BUILT_PRODUCTS_DIR` to a unique subdirectory. It then sets `FRAMEWORK_SEARCH_PATHS` on each framework/library/bundle target to point at all transitive dependencies' scoped directories. However, **app targets are skipped entirely** (early return at line 67), so they never get these search paths.
+
+The previous fix in PR #9681 tried to address this via `searchablePathDependencies` in `GraphTraverser`, but that approach cannot work because:
+1. Target-based dependencies become `.product` references which have no `precompiledPath`, so they produce zero `FRAMEWORK_SEARCH_PATHS` entries in `LinkGenerator.setupFrameworkSearchPath`
+2. The traversal only looks at direct dynamic framework deps, missing deeper chains
+
+The real fix belongs in `ExplicitDependencyGraphMapper` which already computes the correct `frameworkSearchPaths` for all targets but only applies them to framework/library/bundle types.
+
+## Changes
+
+### 1. `cli/Sources/TuistGenerator/Mappers/ExplicitDependencyGraphMapper.swift`
+
+Restructure `map(_:graphTraverser:debugConfigurations:)` (lines 52-163) so that app targets (and other non-framework consumer targets) also get `FRAMEWORK_SEARCH_PATHS` in their `baseDebug` settings:
+
+- Keep the `frameworkSearchPaths` computation (lines 53-61) unchanged
+- Before the early return for non-framework targets (line 63-68), compute and apply `FRAMEWORK_SEARCH_PATHS` (and `ENABLE_TESTING_SEARCH_PATHS` if needed) to ALL target types
+- For non-framework/library/bundle targets: apply only these search path settings, then return (no `BUILT_PRODUCTS_DIR` scoping, no copy script)
+- For framework/library/bundle targets: continue with existing full logic unchanged
+
+### 2. `cli/Tests/TuistGeneratorTests/ProjectMappers/ExplicitDependencyGraphMapperTests.swift`
+
+- Update the existing `test_map` assertion for the App target (lines 95-103) to expect `FRAMEWORK_SEARCH_PATHS` in `baseDebug` settings pointing to FrameworkA, DynamicLibraryB, and ExternalFrameworkC product dirs
+- Add a new test case for the specific bug scenario: `App -> DynamicFramework -> StaticSPMPackage` verifying the App gets search paths for both
+
+## Verification
+
+1. Run the updated tests:
+   ```
+   xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace \
+     -only-testing TuistGeneratorTests/ExplicitDependencyGraphMapperTests
+   ```
+2. The existing test should pass with updated App assertion
+3. The new test should verify the specific scenario from the issue
+
+
+If you need specific details from before exiting plan mode (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+Can you test this against the fixture included in the issue?
+
+---
+
+Is it a bug or a misconfiguration on their side?
+
+---
+
+But what's the solution there? What can or we do?
+
+---
+
+[Request interrupted by user]
+
+---
+
+Should I revert the changes and investigate the actual root cause from the fixture instead? Or do you still want to ship this fix since the ExplicitDependencyGraphMapper gap is a
+
+What's the solution? what can we or they do?
+
+---
+
+Yes
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me chronologically analyze the entire conversation:
+
+1. **Initial Request**: User asked to implement a plan to fix app targets missing FRAMEWORK_SEARCH_PATHS for transitive dependencies behind dynamic frameworks (issue #9676).
+
+2. **First Implementation Attempt**: I read ExplicitDependencyGraphMapper.swift and its tests, understood the code, and made changes:
+   - Modified ExplicitDependencyGraphMapper.swift to compute searchPathSettings (FRAMEWORK_SEARCH_PATHS and ENABLE_TESTING_SEARCH_PATHS) before the early return for non-framework targets, applying them to all target types
+   - Updated tests to expect FRAMEWORK_SEARCH_PATHS on App target
+   - Added new test for App -> DynamicFramework -> StaticSPMPackage scenario
+
+3. **User asked to test against the fixture from issue #9676**: Downloaded tuistexample.zip fixture, investigated it.
+
+4. **Key Discovery 1**: The ExplicitDependencyGraphMapper is NOT active for the fixture because `enforceExplicitDependencies` defaults to `false` and the fixture doesn't set it. The fixture's build errors are unrelated to scoped BUILT_PRODUCTS_DIR.
+
+5. **Unit tests passed**: After fixing the test (adding App's dependency entry to graph dependencies dict), all 3 ExplicitDependencyGraphMapper tests passed.
+
+6. **User asked "Is it a bug or a misconfiguration?"**: I explained it's a misconfiguration - the fixture doesn't enable enforceExplicitDependencies.
+
+7. **User asked "What's the solution? What can we or they do?"**: I investigated the actual root cause of the fixture's build failure.
+
+8. **Key Discovery 2**: Initially thought it was a modulemap propagation issue. The build error is `Unable to find module dependency: 'FirebaseCrashlytics'` on the app target.
+
+9. **User said "Yes" to reverting and investigating the actual root cause**: I reverted the ExplicitDependencyGraphMapper changes.
+
+10. **Deep Investigation of ModuleMapMapper**: Explored how modulemaps are propagated through the dependency graph.
+
+11. **Key Discovery 3**: The ModuleMapMapper DOES propagate modulemaps transitively through directTargetDependencies. The app target DOES have `-fmodule-map-file` for FirebaseCrashlytics in OTHER_CFLAGS. BUT it does NOT have them in OTHER_SWIFT_FLAGS!
+
+12. **Root Cause Found**: The app target's OTHER_SWIFT_FLAGS is set to a string value `"-D DEBUG -D ENABLE_CALORIE_COUNTER -D ENABLE_ACHIEVEMENTS -D ENABLE_DEBUG_MENU"` from user-defined project settings. The ModuleMapMapper reads from `target.settings?.base` (line 53), and the app target's OTHER_SWIFT_FLAGS appears to be set in configuration-level settings rather than base settings. Or more precisely, the ModuleMapMapper's `updatedOtherSwiftFlags` generates the flags, but they may not be getting applied because the base settings don't have the right key, or there's a merge issue between base and configuration-level settings.
+
+Actually, re-reading more carefully: The ModuleMapMapper at line 62-68 calls `updatedOtherSwiftFlags` with `mappedSettingsDictionary[Self.otherSwiftFlagsSetting]` which comes from `target.settings?.base`. If OTHER_SWIFT_FLAGS is not in base but in the configuration, then `oldOtherSwiftFlags` is nil, and the function defaults to `["$(inherited)"]`. But then it SHOULD still append the module map flags. The result should be set at line 67 into `mappedSettingsDictionary`. Then at line 91, `target.settings = targetSettings.with(base: mappedSettingsDictionary)`.
+
+Wait - but the output shows OTHER_CFLAGS HAS the modulemap flags but OTHER_SWIFT_FLAGS does NOT. This is very strange. The ModuleMapMapper updates both in the same code path (lines 62-76). If OTHER_CFLAGS got updated, OTHER_SWIFT_FLAGS should too...
+
+Unless the issue is that OTHER_SWIFT_FLAGS was already being written into the base settings dictionary by something else BEFORE the mapper, and then the mapper's output is getting overwritten by configuration-level settings. Or the `with(base:)` method doesn't merge properly.
+
+Actually, I think the real issue might be simpler: the app target's OTHER_SWIFT_FLAGS in the generated project shows `"-D DEBUG -D ENABLE_CALORIE_COUNTER..."` as a STRING, not an array. This could mean the configuration-level setting is overriding the base setting. The ModuleMapMapper writes to base, but the configuration-level setting (from the user's Project.swift) overwrites it. The OTHER_CFLAGS works because the user didn't set OTHER_CFLAGS in their configuration, so the base value from the mapper is used.
+
+This is where I was when the user asked for a summary. I had entered plan mode to design the fix.
+
+Let me compile all the technical details carefully.
+
+Summary:
+1. Primary Request and Intent:
+   The user initially asked to implement a plan to fix issue #9676: app targets missing `FRAMEWORK_SEARCH_PATHS` for transitive dependencies behind dynamic frameworks. The original plan targeted `ExplicitDependencyGraphMapper`. After investigation revealed the fixture's actual root cause was different, the user asked to revert the changes and investigate the real bug: the Swift compiler failing to find transitive ObjC module dependencies (`Unable to find module dependency: 'FirebaseCrashlytics'`) when an app depends on a dynamic framework that imports ObjC modules from static SPM packages. The user wants to find the actual fix for the fixture from issue #9676.
+
+2. Key Technical Concepts:
+   - **ExplicitDependencyGraphMapper**: Only active when `enforceExplicitDependencies == true` (defaults to `false`). Scopes each framework/library target's `BUILT_PRODUCTS_DIR` to a unique subdirectory. NOT the root cause.
+   - **ModuleMapMapper**: Converts `MODULEMAP_FILE` build settings to `-fmodule-map-file` compiler flags in `OTHER_CFLAGS` and `OTHER_SWIFT_FLAGS`. Propagates transitively through `directTargetDependencies`.
+   - **SwiftPackageManagerModuleMapGenerator**: Generates `.modulemap` files for SPM packages in `Tuist/.build/tuist-derived/` directories.
+   - **PackageInfoMapper**: Maps SPM packages to Tuist targets. Sets `MODULEMAP_FILE` on targets that have modulemaps (line 1189-1190).
+   - **SettingsMapper**: Maps SPM target build settings (`.unsafeFlags`, `.headerSearchPath`, etc.) to Xcode build settings.
+   - **`.tuist()` project type**: Resolves SPM packages externally via `tuist install` into native Xcode targets in separate xcodeproj files, making `graph.packages` empty.
+   - **Graph mapper pipeline order**: `ForeignBuildGraphMapper` -> `ModuleMapMapper` -> `UpdateWorkspaceProjectsGraphMapper` -> `ExternalProjectsPlatformNarrowerGraphMapper` -> etc.
+   - The Swift compiler error `Unable to find module dependency` occurs when importing a framework whose `.swiftmodule` declares dependencies on modules that the consuming target can't find. The modulemap must be passed via `-Xcc -fmodule-map-file=` in `OTHER_SWIFT_FLAGS`.
+
+3. Files and Code Sections:
+   - **`cli/Sources/TuistGenerator/Mappers/ExplicitDependencyGraphMapper.swift`**
+     - Was modified then reverted. Only active when `enforceExplicitDependencies == true`. Not relevant to the actual bug.
+     - Line 15: `if !graph.packages.isEmpty` early return (skips when SPM packages present)
+     - Lines 63-68: Early return for non-framework/library/bundle targets (the original planned fix target)
+   
+   - **`cli/Sources/TuistGenerator/Mappers/ModuleMapMapper.swift`** (THE KEY FILE)
+     - Central to the actual bug. Propagates `MODULEMAP_FILE` settings as `-fmodule-map-file` flags.
+     - Line 53: `var mappedSettingsDictionary = target.settings?.base ?? [:]` — reads from BASE settings only
+     - Lines 62-68: Generates `updatedOtherSwiftFlags` with `-Xcc -fmodule-map-file=` flags
+     - Lines 70-76: Generates `updatedOtherCFlags` with `-fmodule-map-file=` flags
+     - Line 91: `target.settings = targetSettings.with(base: mappedSettingsDictionary)` — writes back to BASE
+     - Lines 119-190: `dependenciesModuleMaps()` — recursive traversal using `directTargetDependencies`
+     - Lines 133: Uses `graphTraverser.directTargetDependencies()` to find deps
+     - Lines 141-153: Extracts `MODULEMAP_FILE` from dependency's base settings
+     - Lines 176-179: Unions indirect dependency metadata (transitive propagation)
+     - Lines 221-246: `updatedOtherSwiftFlags()` — generates `-Xcc -fmodule-map-file=` Swift flags
+     - Lines 248-270: `updatedOtherCFlags()` — generates `-fmodule-map-file=` C flags
+
+   - **`cli/Sources/TuistCore/Graph/GraphTraverser.swift`**
+     - Lines 189-200: `directTargetDependencies()` — returns direct target deps from graph
+     - Lines 461-467: `searchablePathDependencies()` — includes transitive statics through dynamic frameworks
+     - Lines 1700-1716: `transitiveStaticDependenciesOfDynamicFrameworkDependencies()` (added in PR #9681)
+
+   - **`cli/Sources/TuistLoader/SwiftPackageManager/PackageInfoMapper.swift`**
+     - Lines 1189-1190: Sets `MODULEMAP_FILE` on SPM targets with modulemaps
+     - Lines 1193-1207: Sets `DEFINES_MODULE = NO` and `-fmodule-name=` for directory/header/custom module maps
+     - Line 1180: `let resolvedSettings = try mapper.mapSettings()` — maps SPM build settings
+
+   - **`cli/Sources/TuistLoader/SwiftPackageManager/SwiftPackageManagerModuleMapGenerator.swift`**
+     - Generates modulemap files for SPM packages
+     - Lines 92-105: Detects umbrella headers and generates `.header` ModuleMap type
+     - Lines 18-29: `moduleMapPath` property — returns path for all types except `.none`
+
+   - **`cli/Sources/TuistKit/Mappers/Factories/GraphMapperFactory.swift`**
+     - Lines 73: `ModuleMapMapper()` added at position 2 in default pipeline
+     - Lines 77-79: `ExplicitDependencyGraphMapper()` only added when `enforceExplicitDependencies == true`
+
+   - **`cli/Tests/TuistGeneratorTests/ProjectMappers/ExplicitDependencyGraphMapperTests.swift`**
+     - Was modified then reverted. Tests were passing before revert.
+
+   - **`cli/Sources/TuistLoader/SwiftPackageManager/SettingsMapper.swift`**
+     - Maps SPM `.unsafeFlags` to `OTHER_CFLAGS`/`OTHER_SWIFT_FLAGS` (lines 93-94, 103-104)
+
+   - **Fixture project** (`/tmp/tuistexample/tuistexample/`)
+     - Structure: App -> dynamic frameworks -> static SPM packages (Firebase, SVGKit, CocoaLumberjack)
+     - ALL module targets use `.framework` product type (dynamic frameworks)
+     - `Tuist.swift`: Uses `.tuist()` project type with default options
+     - `Project.swift`: App has custom `OTHER_SWIFT_FLAGS` in debug config: `"-D DEBUG -D ENABLE_CALORIE_COUNTER -D ENABLE_ACHIEVEMENTS -D ENABLE_DEBUG_MENU"`
+
+4. Errors and fixes:
+   - **ExplicitDependencyGraphMapper test failure (test_map)**: The App target assertion expected `FRAMEWORK_SEARCH_PATHS` but the graph's `dependencies` dictionary didn't have an entry for `App -> FrameworkA`. Fixed by adding the dependency entry. Then all 3 tests passed.
+   - **Fixture `tuist install` failure with local binary**: Copying the built `tuist` binary failed because it couldn't find `ProjectDescription` resource bundle. Used `mise exec tuist@4.154.0` instead.
+   - **Fixture `mise.toml` version mismatch**: `min_version = '2026.3.0'` didn't match installed mise. Fixed by changing to `'2025.11.0'`.
+   - **User feedback "Is it a bug or a misconfiguration?"**: This led to the discovery that the `ExplicitDependencyGraphMapper` fix was targeting the wrong code path entirely.
+   - **User feedback "Yes" (revert and investigate)**: Reverted all code changes to ExplicitDependencyGraphMapper and tests.
+   - **Root cause discovery**: The ACTUAL bug is that the app target's `OTHER_SWIFT_FLAGS` does NOT contain the `-Xcc -fmodule-map-file=` flags for transitive ObjC dependencies, while `OTHER_CFLAGS` DOES contain them. The Swift compiler needs these flags to resolve module dependencies when importing frameworks that depend on ObjC modules.
+
+5. Problem Solving:
+   - **Solved**: Confirmed the ExplicitDependencyGraphMapper is NOT the root cause (fixture doesn't enable `enforceExplicitDependencies`).
+   - **Solved**: Reproduced the exact build error from issue #9676 locally with the fixture.
+   - **Solved**: Traced the modulemap propagation through ModuleMapMapper and confirmed it works correctly for `OTHER_CFLAGS`.
+   - **Ongoing**: The `OTHER_SWIFT_FLAGS` in the generated project for the app target shows user-defined flags as a string (`"-D DEBUG -D ENABLE_CALORIE_COUNTER..."`) but NO `-Xcc -fmodule-map-file=` flags. Meanwhile `OTHER_CFLAGS` correctly has all the modulemap flags. The `ModuleMapMapper` should update both in the same code path. The likely cause is that the user's configuration-level `OTHER_SWIFT_FLAGS` (set in `Project.swift` settings configurations) overrides the base-level value that the `ModuleMapMapper` writes. The mapper writes to `settings.base`, but the user's config-level setting takes precedence.
+
+6. All user messages:
+   - "Implement the following plan: [detailed plan about ExplicitDependencyGraphMapper fix]"
+   - "[Request interrupted by user] Can you test this against the fixture included in the issue?"
+   - "Is it a bug or a misconfiguration on their side?"
+   - "What's the solution? what can we or they do?"
+   - "Yes" (to reverting changes and investigating actual root cause)
+   - "Your task is to create a detailed summary..." (current message)
+
+7. Pending Tasks:
+   - Investigate and fix why `OTHER_SWIFT_FLAGS` doesn't get the `-Xcc -fmodule-map-file=` flags on the app target while `OTHER_CFLAGS` does
+   - The root cause appears to be in how `ModuleMapMapper` writes to `settings.base` but configuration-level `OTHER_SWIFT_FLAGS` (from user's `Project.swift`) overrides it
+   - Need to design and implement the actual fix for issue #9676
+
+8. Current Work:
+   I had just entered plan mode to design the fix for the actual root cause. The investigation revealed:
+   - The generated `tuistexample` app target has `OTHER_CFLAGS` with all 28 `-fmodule-map-file=` entries (correctly propagated by ModuleMapMapper)
+   - The same target has `OTHER_SWIFT_FLAGS = "-D DEBUG -D ENABLE_CALORIE_COUNTER -D ENABLE_ACHIEVEMENTS -D ENABLE_DEBUG_MENU"` (user-defined string, NO modulemap flags)
+   - The `ModuleMapMapper` writes modulemap flags to `target.settings.base`, but configuration-level settings (Debug-dev) override `OTHER_SWIFT_FLAGS` with the user's custom value
+   - All code changes to `ExplicitDependencyGraphMapper` have been reverted. Only `mise.lock` has unrelated changes.
+
+9. Optional Next Step:
+   Continue investigating the root cause in plan mode. The key question to answer: Why does `OTHER_CFLAGS` get the modulemap flags but `OTHER_SWIFT_FLAGS` does not? The most likely hypothesis is that the app target's `Project.swift` sets `OTHER_SWIFT_FLAGS` at the configuration level (e.g., in `.debug(name: .debugDevConfig, settings: ...)`) which overrides the base-level value written by `ModuleMapMapper`. Since the user doesn't set `OTHER_CFLAGS` at the configuration level, the base value from the mapper is preserved.
+
+   The user's last explicit request was "Yes" to reverting and investigating the actual root cause. I was in the process of entering plan mode to design the fix when the summary was requested.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
+
+---
+
+[Request interrupted by user for tool use]

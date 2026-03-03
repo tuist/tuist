@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "687025be51fa",
+  "strategy": "manual-commit",
+  "branch": "fix/module-map-flags-config-override",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "cli/Sources/TuistGenerator/Mappers/ExplicitDependencyGraphMapper.swift",
+    "cli/Tests/TuistGeneratorTests/ProjectMappers/ExplicitDependencyGraphMapperTests.swift",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/68/7025be51fa/0/metadata.json",
+      "transcript": "/68/7025be51fa/0/full.jsonl",
+      "context": "/68/7025be51fa/0/context.md",
+      "content_hash": "/68/7025be51fa/0/content_hash.txt",
+      "prompt": "/68/7025be51fa/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 190,
+    "cache_creation_tokens": 207469,
+    "cache_read_tokens": 17147372,
+    "output_tokens": 44034,
+    "api_call_count": 176
+  }
+}
