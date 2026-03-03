@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-27 15:28+0000\n"
+"PO-Revision-Date: 2026-03-03 13:20+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ar/>\n"
@@ -866,23 +866,29 @@ msgstr "لم يتم العثور على حالة الاختبار."
 msgid "Test Case: %{name}"
 msgstr "حالة الاختبار: %{name}"
 
+#, fuzzy
 msgid "Attachments"
-msgstr ""
+msgstr "المرفقات"
 
+#, fuzzy
 msgid "File"
-msgstr ""
+msgstr "ملف"
 
+#, fuzzy
 msgid "Image"
-msgstr ""
+msgstr "صورة"
 
+#, fuzzy
 msgid "Loading..."
-msgstr ""
+msgstr "جاري التحميل..."
 
+#, fuzzy
 msgid "Text File"
-msgstr ""
+msgstr "ملف نصي"
 
+#, fuzzy
 msgid "Log File"
-msgstr ""
+msgstr "ملف السجل"
 
 #, fuzzy
 #~ msgid "Test suite"
