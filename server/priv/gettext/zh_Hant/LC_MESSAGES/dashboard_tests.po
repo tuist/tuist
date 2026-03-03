@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-27 15:28+0000\n"
+"PO-Revision-Date: 2026-03-03 13:20+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hant/>\n"
@@ -855,23 +855,29 @@ msgstr "測試案例執行未找到。"
 msgid "Test Case: %{name}"
 msgstr "測試案例：%{name}"
 
+#, fuzzy
 msgid "Attachments"
-msgstr ""
+msgstr "附件"
 
+#, fuzzy
 msgid "File"
-msgstr ""
+msgstr "檔案"
 
+#, fuzzy
 msgid "Image"
-msgstr ""
+msgstr "圖片"
 
+#, fuzzy
 msgid "Loading..."
-msgstr ""
+msgstr "載入中..."
 
+#, fuzzy
 msgid "Text File"
-msgstr ""
+msgstr "文字檔案"
 
+#, fuzzy
 msgid "Log File"
-msgstr ""
+msgstr "日誌檔案"
 
 #, fuzzy
 #~ msgid "Test suite"
