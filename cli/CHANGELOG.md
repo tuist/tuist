@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.154.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix build categorization for Xcode 26+ compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9689](https://github.com/tuist/tuist/pull/9689)
+* bump XCLogParser to 0.2.46 and improve activity log error messages by [@fortmarek](https://github.com/fortmarek) in [#9691](https://github.com/tuist/tuist/pull/9691)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.1...4.154.2
+
 ## What's Changed in 4.154.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
