@@ -1,7 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.152.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.154.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix buildable-folder header visibility and generation crash by [@pepicrft](https://github.com/pepicrft) in [#9604](https://github.com/tuist/tuist/pull/9604)
+* treat opaque directories as files in buildable folder resolution by [@pepicrft](https://github.com/pepicrft) in [#9683](https://github.com/tuist/tuist/pull/9683)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.0...4.154.1
+
+## What's Changed in 4.154.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -31,7 +40,7 @@ All notable changes to this project will be documented in this file.
 
 * migrate acceptance tests to Swift Testing by [@pepicrft](https://github.com/pepicrft) in [#9352](https://github.com/tuist/tuist/pull/9352)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.151.1...4.152.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.151.1...4.154.0
 
 ## What's Changed in 4.151.1<!-- RELEASE NOTES START -->
 
