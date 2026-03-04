@@ -1165,12 +1165,6 @@ defmodule TuistWeb.TestRunLive do
     end)
   end
 
-  defp has_any_repetition_attachments?(attachments) do
-    Enum.any?(attachments, fn att ->
-      attachment_type(att.file_name) != :ips and att.repetition_number != nil
-    end)
-  end
-
   defp assign_text_attachment_urls(socket, test_case_runs) do
     project = socket.assigns.selected_project
 

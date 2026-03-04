@@ -518,27 +518,11 @@
                   </div>
                 </div>
                 <div
-                  :if={
-                    if Enum.any?(test_case_run.repetitions) and
-                         has_any_repetition_attachments?(test_case_run.attachments),
-                       do: Enum.any?(attachments_without_repetition(test_case_run.attachments)),
-                       else:
-                         Enum.any?(test_case_run.attachments, fn att ->
-                           attachment_type(att.file_name) != :ips
-                         end)
-                  }
+                  :if={Enum.any?(attachments_without_repetition(test_case_run.attachments))}
                   data-part="attachments-list"
                 >
                   <.inline_attachment_items
-                    attachments={
-                      if Enum.any?(test_case_run.repetitions) and
-                           has_any_repetition_attachments?(test_case_run.attachments),
-                         do: attachments_without_repetition(test_case_run.attachments),
-                         else:
-                           Enum.filter(test_case_run.attachments, fn att ->
-                             attachment_type(att.file_name) != :ips
-                           end)
-                    }
+                    attachments={attachments_without_repetition(test_case_run.attachments)}
                     test_case_run={test_case_run}
                     project={@selected_project}
                     id_prefix="overview"
@@ -1698,27 +1682,11 @@
                 </div>
               </div>
               <div
-                :if={
-                  if Enum.any?(test_case_run.repetitions) and
-                       has_any_repetition_attachments?(test_case_run.attachments),
-                     do: Enum.any?(attachments_without_repetition(test_case_run.attachments)),
-                     else:
-                       Enum.any?(test_case_run.attachments, fn att ->
-                         attachment_type(att.file_name) != :ips
-                       end)
-                }
+                :if={Enum.any?(attachments_without_repetition(test_case_run.attachments))}
                 data-part="attachments-list"
               >
                 <.inline_attachment_items
-                  attachments={
-                    if Enum.any?(test_case_run.repetitions) and
-                         has_any_repetition_attachments?(test_case_run.attachments),
-                       do: attachments_without_repetition(test_case_run.attachments),
-                       else:
-                         Enum.filter(test_case_run.attachments, fn att ->
-                           attachment_type(att.file_name) != :ips
-                         end)
-                  }
+                  attachments={attachments_without_repetition(test_case_run.attachments)}
                   test_case_run={test_case_run}
                   project={@selected_project}
                   id_prefix="failure"
