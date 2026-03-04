@@ -3,9 +3,7 @@ defmodule Tuist.IngestRepo.Migrations.AddCacheEndpointToCacheEventTables do
 
   def up do
     execute "ALTER TABLE cas_events ADD COLUMN IF NOT EXISTS cache_endpoint LowCardinality(String) DEFAULT ''"
-
     execute "ALTER TABLE gradle_cache_events ADD COLUMN IF NOT EXISTS cache_endpoint LowCardinality(String) DEFAULT ''"
-
     execute "ALTER TABLE registry_download_events ADD COLUMN IF NOT EXISTS cache_endpoint LowCardinality(String) DEFAULT ''"
   end
 
