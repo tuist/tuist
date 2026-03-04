@@ -45,7 +45,14 @@ tasks.shadowJar {
 }
 
 tasks.jar {
-    enabled = false
+    archiveClassifier.set("thin")
+}
+
+listOf(configurations.apiElements, configurations.runtimeElements).forEach { config ->
+    config.configure {
+        outgoing.artifacts.clear()
+        outgoing.artifact(tasks.shadowJar)
+    }
 }
 
 tasks.test {
