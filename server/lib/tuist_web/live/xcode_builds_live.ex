@@ -4,6 +4,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
@@ -13,10 +14,7 @@ defmodule TuistWeb.XcodeBuildsLive do
   alias TuistWeb.Utilities.Query
 
   def assign_mount(socket, params) do
-    socket
-    |> assign_configuration_insights_options(params)
-    |> assign_initial_configuration_insights()
-    |> assign_recent_builds()
+    assign_configuration_insights_options(socket, params)
   end
 
   def assign_handle_params(socket, params) do
@@ -42,7 +40,8 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign(:current_params, params)
     |> assign_analytics(params)
     |> assign_configuration_insights_options(params)
-    |> assign_configuration_insights()
+    |> assign_configuration_insights(params)
+    |> assign_recent_builds()
   end
 
   def handle_info_build_created(socket) do
@@ -53,12 +52,22 @@ defmodule TuistWeb.XcodeBuildsLive do
     end
   end
 
-  def handle_info_update_configuration_insights(socket) do
-    assign(
-      socket,
-      :configuration_insights_analytics,
-      socket.assigns.next_configuration_insights_analytics
-    )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    socket = assign(socket, :analytics_selected_widget, widget)
+
+    if socket.assigns.builds_duration_analytics.ok? do
+      chart_data =
+        build_analytics_chart_data(
+          widget,
+          socket.assigns.total_builds_analytics.result,
+          socket.assigns.failed_builds_analytics.result,
+          socket.assigns.build_success_rate_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -88,28 +97,10 @@ defmodule TuistWeb.XcodeBuildsLive do
         _ -> opts
       end
 
-    [
-      builds_duration_analytics,
-      builds_p99_durations,
-      builds_p90_durations,
-      builds_p50_durations,
-      total_builds_analytics,
-      failed_builds_analytics,
-      build_success_rate_analytics
-    ] = Analytics.combined_builds_analytics(project.id, opts)
+    analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
 
     socket
-    |> assign(:builds_duration_analytics, builds_duration_analytics)
-    |> assign(:builds_p99_durations, builds_p99_durations)
-    |> assign(:builds_p90_durations, builds_p90_durations)
-    |> assign(:builds_p50_durations, builds_p50_durations)
-    |> assign(:total_builds_analytics, total_builds_analytics)
-    |> assign(:failed_builds_analytics, failed_builds_analytics)
-    |> assign(:build_success_rate_analytics, build_success_rate_analytics)
-    |> assign(
-      :analytics_selected_widget,
-      params["analytics-selected-widget"] || "build-duration"
-    )
+    |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(
       :analytics_trend_label,
       trend_label(preset)
@@ -125,6 +116,103 @@ defmodule TuistWeb.XcodeBuildsLive do
     |> assign(:build_configurations, Builds.project_build_configurations(project))
     |> assign(:build_tags, Builds.project_build_tags(project))
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
+    |> assign_async(
+      [
+        :builds_duration_analytics,
+        :builds_p99_durations,
+        :builds_p90_durations,
+        :builds_p50_durations,
+        :total_builds_analytics,
+        :failed_builds_analytics,
+        :build_success_rate_analytics,
+        :analytics_chart_data
+      ],
+      fn ->
+        [
+          builds_duration_analytics,
+          builds_p99_durations,
+          builds_p90_durations,
+          builds_p50_durations,
+          total_builds_analytics,
+          failed_builds_analytics,
+          build_success_rate_analytics
+        ] = Analytics.combined_builds_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           builds_duration_analytics: builds_duration_analytics,
+           builds_p99_durations: builds_p99_durations,
+           builds_p90_durations: builds_p90_durations,
+           builds_p50_durations: builds_p50_durations,
+           total_builds_analytics: total_builds_analytics,
+           failed_builds_analytics: failed_builds_analytics,
+           build_success_rate_analytics: build_success_rate_analytics,
+           analytics_chart_data:
+             build_analytics_chart_data(
+               analytics_selected_widget,
+               total_builds_analytics,
+               failed_builds_analytics,
+               build_success_rate_analytics
+             )
+         }}
+      end
+    )
+  end
+
+  defp build_analytics_chart_data(
+         analytics_selected_widget,
+         total_builds_analytics,
+         failed_builds_analytics,
+         build_success_rate_analytics
+       ) do
+    analytics_chart_data(
+      analytics_selected_widget,
+      total_builds_analytics,
+      failed_builds_analytics,
+      build_success_rate_analytics
+    )
+  end
+
+  defp analytics_chart_data(
+         "total-builds",
+         total_builds_analytics,
+         _failed_builds_analytics,
+         _build_success_rate_analytics
+       ) do
+    %{
+      dates: total_builds_analytics.dates,
+      values: total_builds_analytics.values,
+      name: dgettext("dashboard_builds", "Build runs"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data(
+         "failed-builds",
+         _total_builds_analytics,
+         failed_builds_analytics,
+         _build_success_rate_analytics
+       ) do
+    %{
+      dates: failed_builds_analytics.dates,
+      values: failed_builds_analytics.values,
+      name: dgettext("dashboard_builds", "Failed builds"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data(
+         _analytics_selected_widget,
+         _total_builds_analytics,
+         _failed_builds_analytics,
+         build_success_rate_analytics
+       ) do
+    %{
+      dates: build_success_rate_analytics.dates,
+      values: Enum.map(build_success_rate_analytics.values, &(&1 * 100)),
+      name: dgettext("dashboard_builds", "Build success rate"),
+      value_formatter: "{value}%"
+    }
   end
 
   defp opts_with_analytics_build_scheme(opts, analytics_build_scheme) do
@@ -155,94 +243,91 @@ defmodule TuistWeb.XcodeBuildsLive do
     end
   end
 
-  defp assign_initial_configuration_insights(
-         %{assigns: %{next_configuration_insights_analytics: next_configuration_insights_analytics}} = socket
-       ) do
-    socket
-    |> assign(
-      :configuration_insights_analytics,
-      next_configuration_insights_analytics
-    )
-    |> assign(
-      :configuration_insights_chart_height,
-      (next_configuration_insights_analytics |> Enum.map(& &1.category) |> Enum.count()) * 28
-    )
-  end
-
-  defp assign_configuration_insights_options(%{assigns: %{selected_project: project}} = socket, params) do
+  defp assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "xcode-version"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+    %{preset: preset, period: period} =
       DatePicker.date_picker_params(params, "configuration-insights")
+
+    socket
+    |> assign(:configuration_insights_type, configuration_insights_type)
+    |> assign(:configuration_insights_preset, preset)
+    |> assign(:configuration_insights_period, period)
+  end
+
+  defp assign_configuration_insights(
+         %{assigns: %{selected_project: project, configuration_insights_type: configuration_insights_type}} = socket,
+         params
+       ) do
+    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "configuration-insights")
 
     opts = [start_datetime: start_datetime, end_datetime: end_datetime]
 
-    socket =
-      socket
-      |> assign(:configuration_insights_type, configuration_insights_type)
-      |> assign(:configuration_insights_preset, preset)
-      |> assign(:configuration_insights_period, period)
-
-    configuration_insights_analytics =
-      Analytics.build_duration_analytics_by_category(
-        project.id,
-        case configuration_insights_type do
-          "macos-version" -> :macos_version
-          "device" -> :model_identifier
-          _ -> :xcode_version
-        end,
-        opts
-      )
-
     socket
-    |> assign(
-      :configuration_insights_chart_height,
-      (configuration_insights_analytics |> Enum.map(& &1.category) |> Enum.count()) * 28
-    )
-    |> assign(:next_configuration_insights_analytics, configuration_insights_analytics)
+    |> assign_async(:configuration_insights_analytics, fn ->
+      configuration_insights_analytics =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          case configuration_insights_type do
+            "macos-version" -> :macos_version
+            "device" -> :model_identifier
+            _ -> :xcode_version
+          end,
+          opts
+        )
+
+      {:ok, %{configuration_insights_analytics: configuration_insights_analytics}}
+    end)
+    |> push_event("resize", %{})
   end
 
-  defp assign_configuration_insights(socket) do
-    Process.send_after(self(), :update_configuration_insights, 0)
-
-    push_event(socket, "resize", %{})
+  def configuration_insights_chart_height(configuration_insights_analytics) do
+    Enum.count(configuration_insights_analytics) * 28
   end
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
-    {recent_builds, _meta} =
-      Builds.list_build_runs(
-        %{
-          first: 40,
-          filters: [
-            %{field: :project_id, op: :==, value: project.id}
-          ],
-          order_by: [:inserted_at],
-          order_directions: [:desc]
-        },
-        preload: [:ran_by_account]
-      )
+    assign_async(
+      socket,
+      [:recent_builds, :recent_builds_chart_data, :successful_builds_count, :failed_builds_count],
+      fn ->
+        {recent_builds, _meta} =
+          Builds.list_build_runs(
+            %{
+              first: 40,
+              filters: [
+                %{field: :project_id, op: :==, value: project.id}
+              ],
+              order_by: [:inserted_at],
+              order_directions: [:desc]
+            },
+            preload: [:ran_by_account]
+          )
 
-    recent_builds_chart_data =
-      Enum.map(recent_builds, fn run ->
-        color =
-          case run.status do
-            "success" -> "var:noora-chart-primary"
-            "failure" -> "var:noora-chart-destructive"
-          end
+        recent_builds_chart_data =
+          Enum.map(recent_builds, fn run ->
+            color =
+              case run.status do
+                "success" -> "var:noora-chart-primary"
+                "failure" -> "var:noora-chart-destructive"
+              end
 
-        value = run.duration
+            value = run.duration
 
-        %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
-      end)
+            %{value: value, itemStyle: %{color: color}, date: run.inserted_at}
+          end)
 
-    %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
-      Builds.recent_build_status_counts(project.id, limit: 40)
+        %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
+          Builds.recent_build_status_counts(project.id, limit: 40)
 
-    socket
-    |> assign(:recent_builds, recent_builds)
-    |> assign(:recent_builds_chart_data, recent_builds_chart_data)
-    |> assign(:successful_builds_count, successful_builds_count)
-    |> assign(:failed_builds_count, failed_builds_count)
+        {:ok,
+         %{
+           recent_builds: recent_builds,
+           recent_builds_chart_data: recent_builds_chart_data,
+           successful_builds_count: successful_builds_count,
+           failed_builds_count: failed_builds_count
+         }}
+      end
+    )
   end
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_builds", "since yesterday")
