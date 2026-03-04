@@ -4,13 +4,13 @@ defmodule TuistWeb.GradleBuildsLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Gradle
   alias Tuist.Gradle.Analytics
   alias Tuist.Repo
-  alias Tuist.Tasks
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -21,6 +21,24 @@ defmodule TuistWeb.GradleBuildsLive do
     |> assign(:current_params, params)
     |> assign_analytics(params)
     |> assign_recent_builds()
+  end
+
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    socket = assign(socket, :analytics_selected_widget, widget)
+
+    if socket.assigns.builds_duration_analytics.ok? do
+      chart_data =
+        build_analytics_chart_data(
+          widget,
+          socket.assigns.total_builds_analytics.result,
+          socket.assigns.failed_builds_analytics.result,
+          socket.assigns.build_success_rate_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -44,25 +62,6 @@ defmodule TuistWeb.GradleBuildsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [
-      builds_duration_analytics,
-      builds_p99_durations,
-      builds_p90_durations,
-      builds_p50_durations,
-      total_builds_analytics,
-      failed_builds_analytics,
-      build_success_rate_analytics
-    ] =
-      Tasks.parallel_tasks([
-        fn -> Analytics.build_duration_analytics(project.id, opts) end,
-        fn -> Analytics.build_percentile_durations(project.id, 0.99, opts) end,
-        fn -> Analytics.build_percentile_durations(project.id, 0.9, opts) end,
-        fn -> Analytics.build_percentile_durations(project.id, 0.5, opts) end,
-        fn -> Analytics.build_analytics(project.id, opts) end,
-        fn -> Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure")) end,
-        fn -> Analytics.build_success_rate_analytics(project.id, opts) end
-      ])
-
     analytics_selected_widget = params["analytics-selected-widget"] || "build-duration"
 
     socket
@@ -72,15 +71,103 @@ defmodule TuistWeb.GradleBuildsLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
-    |> assign(:builds_duration_analytics, builds_duration_analytics)
-    |> assign(:builds_p99_durations, builds_p99_durations)
-    |> assign(:builds_p90_durations, builds_p90_durations)
-    |> assign(:builds_p50_durations, builds_p50_durations)
-    |> assign(:total_builds_analytics, total_builds_analytics)
-    |> assign(:failed_builds_analytics, failed_builds_analytics)
-    |> assign(:build_success_rate_analytics, build_success_rate_analytics)
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
     |> assign(:uri, uri)
+    |> assign_async(
+      [
+        :builds_duration_analytics,
+        :builds_p99_durations,
+        :builds_p90_durations,
+        :builds_p50_durations,
+        :total_builds_analytics,
+        :failed_builds_analytics,
+        :build_success_rate_analytics,
+        :analytics_chart_data
+      ],
+      fn ->
+        builds_duration_analytics = Analytics.build_duration_analytics(project.id, opts)
+        builds_p99_durations = Analytics.build_percentile_durations(project.id, 0.99, opts)
+        builds_p90_durations = Analytics.build_percentile_durations(project.id, 0.9, opts)
+        builds_p50_durations = Analytics.build_percentile_durations(project.id, 0.5, opts)
+        total_builds_analytics = Analytics.build_analytics(project.id, opts)
+        failed_builds_analytics = Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
+        build_success_rate_analytics = Analytics.build_success_rate_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           builds_duration_analytics: builds_duration_analytics,
+           builds_p99_durations: builds_p99_durations,
+           builds_p90_durations: builds_p90_durations,
+           builds_p50_durations: builds_p50_durations,
+           total_builds_analytics: total_builds_analytics,
+           failed_builds_analytics: failed_builds_analytics,
+           build_success_rate_analytics: build_success_rate_analytics,
+           analytics_chart_data:
+             build_analytics_chart_data(
+               analytics_selected_widget,
+               total_builds_analytics,
+               failed_builds_analytics,
+               build_success_rate_analytics
+             )
+         }}
+      end
+    )
+  end
+
+  defp build_analytics_chart_data(
+         analytics_selected_widget,
+         total_builds_analytics,
+         failed_builds_analytics,
+         build_success_rate_analytics
+       ) do
+    analytics_chart_data(
+      analytics_selected_widget,
+      total_builds_analytics,
+      failed_builds_analytics,
+      build_success_rate_analytics
+    )
+  end
+
+  defp analytics_chart_data(
+         "total-builds",
+         total_builds_analytics,
+         _failed_builds_analytics,
+         _build_success_rate_analytics
+       ) do
+    %{
+      dates: total_builds_analytics.dates,
+      values: total_builds_analytics.values,
+      name: dgettext("dashboard_gradle", "Builds"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data(
+         "failed-builds",
+         _total_builds_analytics,
+         failed_builds_analytics,
+         _build_success_rate_analytics
+       ) do
+    %{
+      dates: failed_builds_analytics.dates,
+      values: failed_builds_analytics.values,
+      name: dgettext("dashboard_gradle", "Failed builds"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data(
+         _analytics_selected_widget,
+         _total_builds_analytics,
+         _failed_builds_analytics,
+         build_success_rate_analytics
+       ) do
+    %{
+      dates: build_success_rate_analytics.dates,
+      values: Enum.map(build_success_rate_analytics.values, &(&1 * 100)),
+      name: dgettext("dashboard_gradle", "Build success rate"),
+      value_formatter: "{value}%"
+    }
   end
 
   defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
@@ -93,56 +180,57 @@ defmodule TuistWeb.GradleBuildsLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_gradle", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
-  def assign_configuration_insights_options(%{assigns: %{selected_project: project}} = socket, params) do
+  def assign_configuration_insights_options(socket, params) do
     configuration_insights_type = params["configuration-insights-type"] || "gradle-version"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+    %{preset: preset, period: period} =
       DatePicker.date_picker_params(params, "configuration-insights")
 
-    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
-
-    socket =
-      socket
-      |> assign(:configuration_insights_type, configuration_insights_type)
-      |> assign(:configuration_insights_preset, preset)
-      |> assign(:configuration_insights_period, period)
-
-    configuration_insights_analytics =
-      Analytics.build_duration_analytics_by_category(
-        project.id,
-        case configuration_insights_type do
-          "java-version" -> :java_version
-          _ -> :gradle_version
-        end,
-        opts
-      )
-
     socket
-    |> assign(
-      :configuration_insights_chart_height,
-      (configuration_insights_analytics |> Enum.map(& &1.category) |> Enum.count()) * 28
-    )
-    |> assign(:next_configuration_insights_analytics, configuration_insights_analytics)
+    |> assign(:configuration_insights_type, configuration_insights_type)
+    |> assign(:configuration_insights_preset, preset)
+    |> assign(:configuration_insights_period, period)
   end
 
-  def assign_initial_configuration_insights(
-        %{assigns: %{next_configuration_insights_analytics: next_configuration_insights_analytics}} = socket
-      ) do
+  def assign_initial_configuration_insights(%{assigns: %{current_params: current_params}} = socket) do
+    assign_configuration_insights(socket, current_params)
+  end
+
+  def assign_initial_configuration_insights(socket) do
     socket
-    |> assign(
-      :configuration_insights_analytics,
-      next_configuration_insights_analytics
-    )
-    |> assign(
-      :configuration_insights_chart_height,
-      (next_configuration_insights_analytics |> Enum.map(& &1.category) |> Enum.count()) * 28
-    )
   end
 
   def assign_configuration_insights(socket) do
-    Process.send_after(self(), :update_configuration_insights, 0)
+    assign_configuration_insights(socket, socket.assigns.current_params)
+  end
 
-    push_event(socket, "resize", %{})
+  def assign_configuration_insights(
+        %{assigns: %{selected_project: project, configuration_insights_type: configuration_insights_type}} = socket,
+        params
+      ) do
+    %{period: {start_datetime, end_datetime}} = DatePicker.date_picker_params(params, "configuration-insights")
+
+    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+
+    socket
+    |> assign_async(:configuration_insights_analytics, fn ->
+      configuration_insights_analytics =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          case configuration_insights_type do
+            "java-version" -> :java_version
+            _ -> :gradle_version
+          end,
+          opts
+        )
+
+      {:ok, %{configuration_insights_analytics: configuration_insights_analytics}}
+    end)
+    |> push_event("resize", %{})
+  end
+
+  def configuration_insights_chart_height(configuration_insights_analytics) do
+    Enum.count(configuration_insights_analytics) * 28
   end
 
   def configuration_insights_label("java-version"), do: dgettext("dashboard_gradle", "Java version")

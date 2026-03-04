@@ -89,49 +89,56 @@
     </:actions>
     <div data-part="widgets">
       <.widget
+        loading={!@total_builds_analytics.ok?}
         title={dgettext("dashboard_gradle", "Total builds")}
         legend_color="primary"
         description={dgettext("dashboard_gradle", "The total number of Gradle builds.")}
-        value={@total_builds_analytics.count}
+        value={if @total_builds_analytics.ok?, do: @total_builds_analytics.result.count}
         id="widget-total-builds"
         phx_click="select_widget"
         phx_value_widget="total-builds"
         selected={@analytics_selected_widget == "total-builds"}
-        trend_value={@total_builds_analytics.trend}
+        trend_value={if @total_builds_analytics.ok?, do: @total_builds_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@total_builds_analytics.count == 0}
+        empty={@total_builds_analytics.ok? && @total_builds_analytics.result.count == 0}
       />
       <.widget
+        loading={!@build_success_rate_analytics.ok?}
         title={dgettext("dashboard_gradle", "Build success rate")}
         legend_color="primary"
         description={dgettext("dashboard_gradle", "The percentage of builds that succeeded.")}
         value={
-          dgettext("dashboard_gradle", "%{percentage}%",
-            percentage: Float.round(@build_success_rate_analytics.success_rate * 100, 1)
-          )
+          if @build_success_rate_analytics.ok? do
+            dgettext("dashboard_gradle", "%{percentage}%",
+              percentage: Float.round(@build_success_rate_analytics.result.success_rate * 100, 1)
+            )
+          end
         }
         id="widget-build-success-rate"
         phx_click="select_widget"
         phx_value_widget="build-success-rate"
         selected={@analytics_selected_widget == "build-success-rate"}
-        trend_value={@build_success_rate_analytics.trend}
+        trend_value={
+          if @build_success_rate_analytics.ok?, do: @build_success_rate_analytics.result.trend
+        }
         trend_label={@analytics_trend_label}
-        empty={@total_builds_analytics.count == 0}
+        empty={@total_builds_analytics.ok? && @total_builds_analytics.result.count == 0}
       />
       <.widget
+        loading={!@failed_builds_analytics.ok?}
         title={dgettext("dashboard_gradle", "Failed builds")}
         legend_color="destructive"
         description={dgettext("dashboard_gradle", "The number of builds that failed.")}
-        value={@failed_builds_analytics.count}
+        value={if @failed_builds_analytics.ok?, do: @failed_builds_analytics.result.count}
         id="widget-failed-builds"
         phx_click="select_widget"
         phx_value_widget="failed-builds"
         selected={@analytics_selected_widget == "failed-builds"}
-        trend_value={@failed_builds_analytics.trend}
+        trend_value={if @failed_builds_analytics.ok?, do: @failed_builds_analytics.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@failed_builds_analytics.count == 0}
+        empty={@failed_builds_analytics.ok? && @failed_builds_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
         id="widget-build-duration"
@@ -158,34 +165,38 @@
           )
         }
         value={
-          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            case @selected_build_duration_type do
-              "p99" -> @builds_p99_durations.total_percentile_duration
-              "p90" -> @builds_p90_durations.total_percentile_duration
-              "p50" -> @builds_p50_durations.total_percentile_duration
-              _ -> @builds_duration_analytics.total_average_duration
-            end
-          )
+          if @builds_duration_analytics.ok? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              case @selected_build_duration_type do
+                "p99" -> @builds_p99_durations.result.total_percentile_duration
+                "p90" -> @builds_p90_durations.result.total_percentile_duration
+                "p50" -> @builds_p50_durations.result.total_percentile_duration
+                _ -> @builds_duration_analytics.result.total_average_duration
+              end
+            )
+          end
         }
         metrics={
-          %{
-            avg:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @builds_duration_analytics.total_average_duration
-              ),
-            p99:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @builds_p99_durations.total_percentile_duration
-              ),
-            p90:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @builds_p90_durations.total_percentile_duration
-              ),
-            p50:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @builds_p50_durations.total_percentile_duration
-              )
-          }
+          if @builds_duration_analytics.ok? do
+            %{
+              avg:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @builds_duration_analytics.result.total_average_duration
+                ),
+              p99:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @builds_p99_durations.result.total_percentile_duration
+                ),
+              p90:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @builds_p90_durations.result.total_percentile_duration
+                ),
+              p50:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @builds_p50_durations.result.total_percentile_duration
+                )
+            }
+          end
         }
         selected_type={@selected_build_duration_type}
         event_name="select_build_duration_type"
@@ -193,20 +204,36 @@
         phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
         trend_value={
-          case @selected_build_duration_type do
-            "p99" -> @builds_p99_durations.trend
-            "p90" -> @builds_p90_durations.trend
-            "p50" -> @builds_p50_durations.trend
-            _ -> @builds_duration_analytics.trend
+          if @builds_duration_analytics.ok? do
+            case @selected_build_duration_type do
+              "p99" -> @builds_p99_durations.result.trend
+              "p90" -> @builds_p90_durations.result.trend
+              "p50" -> @builds_p50_durations.result.trend
+              _ -> @builds_duration_analytics.result.trend
+            end
           end
         }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@builds_duration_analytics.total_average_duration == 0}
+        empty={
+          @builds_duration_analytics.ok? &&
+            @builds_duration_analytics.result.total_average_duration == 0
+        }
       />
     </div>
+    <.card_section :if={!@builds_duration_analytics.ok?}>
+      <div data-part="analytics-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
     <.card_section
-      :if={@builds_duration_analytics.total_average_duration != 0}
+      :if={
+        @builds_duration_analytics.ok? &&
+          @builds_duration_analytics.result.total_average_duration != 0
+      }
       data-part="analytics-card-chart-section"
     >
       <.chart
@@ -244,8 +271,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @builds_duration_analytics.dates |> List.first(),
-                  @builds_duration_analytics.dates |> List.last()
+                  @builds_duration_analytics.result.dates |> List.first(),
+                  @builds_duration_analytics.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -275,8 +302,8 @@
             color: "var:noora-chart-secondary",
             data:
               Enum.zip(
-                @builds_duration_analytics.dates,
-                @builds_duration_analytics.values
+                @builds_duration_analytics.result.dates,
+                @builds_duration_analytics.result.values
                 |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
               )
               |> Enum.map(&Tuple.to_list/1),
@@ -289,8 +316,8 @@
             color: "var:noora-chart-p99",
             data:
               Enum.zip(
-                @builds_p99_durations.dates,
-                @builds_p99_durations.values
+                @builds_p99_durations.result.dates,
+                @builds_p99_durations.result.values
                 |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
               )
               |> Enum.map(&Tuple.to_list/1),
@@ -303,8 +330,8 @@
             color: "var:noora-chart-p90",
             data:
               Enum.zip(
-                @builds_p90_durations.dates,
-                @builds_p90_durations.values
+                @builds_p90_durations.result.dates,
+                @builds_p90_durations.result.values
                 |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
               )
               |> Enum.map(&Tuple.to_list/1),
@@ -317,8 +344,8 @@
             color: "var:noora-chart-p50",
             data:
               Enum.zip(
-                @builds_p50_durations.dates,
-                @builds_p50_durations.values
+                @builds_p50_durations.result.dates,
+                @builds_p50_durations.result.values
                 |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
               )
               |> Enum.map(&Tuple.to_list/1),
@@ -331,8 +358,8 @@
         y_axis_min={0}
       />
       <.chart
-        :if={@analytics_selected_widget == "total-builds"}
-        id="gradle-total-builds-chart"
+        :if={@analytics_selected_widget != "build-duration"}
+        id="gradle-builds-analytics-chart"
         type="line"
         extra_options={
           %{
@@ -349,85 +376,21 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @total_builds_analytics.dates |> List.first(),
-                  @total_builds_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
             },
             yAxis: %{
-              splitNumber: 4,
               splitLine: %{
                 lineStyle: %{
                   color: "var:noora-chart-lines"
                 }
               },
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary"
-              }
-            },
-            legend: %{
-              show: false
-            },
-            tooltip:
-              if @analytics_preset == "last-24-hours" do
-                %{dateFormat: "hour"}
-              else
-                %{}
-              end
-          }
-        }
-        series={[
-          %{
-            color: "var:noora-chart-primary",
-            data:
-              Enum.zip(
-                @total_builds_analytics.dates,
-                @total_builds_analytics.values
-              )
-              |> Enum.map(&Tuple.to_list/1),
-            name: dgettext("dashboard_gradle", "Builds"),
-            type: "line",
-            smooth: 0.1,
-            symbol: "none"
-          }
-        ]}
-        y_axis_min={0}
-      />
-      <.chart
-        :if={@analytics_selected_widget == "failed-builds"}
-        id="gradle-failed-builds-chart"
-        type="line"
-        extra_options={
-          %{
-            grid: %{
-              width: "97%",
-              left: "0.4%",
-              height: "88%",
-              top: "5%"
-            },
-            xAxis: %{
-              boundaryGap: false,
-              type: "category",
               axisLabel: %{
                 color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                customValues: [
-                  @failed_builds_analytics.dates |> List.first(),
-                  @failed_builds_analytics.dates |> List.last()
-                ],
-                padding: [10, 0, 0, 0]
-              }
-            },
-            yAxis: %{
-              splitNumber: 4,
-              splitLine: %{
-                lineStyle: %{
-                  color: "var:noora-chart-lines"
-                }
-              },
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary"
+                formatter: @analytics_chart_data.result.value_formatter
               }
             },
             legend: %{
@@ -435,97 +398,47 @@
             },
             tooltip:
               if @analytics_preset == "last-24-hours" do
-                %{dateFormat: "hour"}
+                %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
               else
-                %{}
+                %{valueFormat: @analytics_chart_data.result.value_formatter}
               end
           }
         }
         series={[
           %{
-            color: "var:noora-chart-destructive",
+            color:
+              if(
+                @analytics_selected_widget == "failed-builds",
+                do: "var:noora-chart-destructive",
+                else: "var:noora-chart-primary"
+              ),
             data:
               Enum.zip(
-                @failed_builds_analytics.dates,
-                @failed_builds_analytics.values
+                @analytics_chart_data.result.dates,
+                if @analytics_selected_widget == "build-success-rate" do
+                  @analytics_chart_data.result.values
+                  |> Enum.map(&Decimal.from_float/1)
+                  |> Enum.map(&Decimal.round(&1, 1))
+                else
+                  @analytics_chart_data.result.values
+                end
               )
               |> Enum.map(&Tuple.to_list/1),
-            name: dgettext("dashboard_gradle", "Failed builds"),
+            name: @analytics_chart_data.result.name,
             type: "line",
             smooth: 0.1,
             symbol: "none"
           }
         ]}
         y_axis_min={0}
-      />
-      <.chart
-        :if={@analytics_selected_widget == "build-success-rate"}
-        id="gradle-build-success-rate-chart"
-        type="line"
-        extra_options={
-          %{
-            grid: %{
-              width: "97%",
-              left: "0.4%",
-              height: "88%",
-              top: "5%"
-            },
-            xAxis: %{
-              boundaryGap: false,
-              type: "category",
-              axisLabel: %{
-                color: "var:noora-surface-label-secondary",
-                formatter: "fn:toLocaleDate",
-                customValues: [
-                  @build_success_rate_analytics.dates |> List.first(),
-                  @build_success_rate_analytics.dates |> List.last()
-                ],
-                padding: [10, 0, 0, 0]
-              }
-            },
-            yAxis: %{
-              splitLine: %{
-                lineStyle: %{
-                  color: "var:noora-chart-lines"
-                }
-              },
-              axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
-            },
-            legend: %{
-              show: false
-            },
-            tooltip:
-              if @analytics_preset == "last-24-hours" do
-                %{valueFormat: "{value}%", dateFormat: "hour"}
-              else
-                %{valueFormat: "{value}%"}
-              end
-          }
-        }
-        series={[
-          %{
-            color: "var:noora-chart-success",
-            data:
-              Enum.zip(
-                @build_success_rate_analytics.dates,
-                @build_success_rate_analytics.values
-                |> Enum.map(&(&1 * 100))
-                |> Enum.map(&Decimal.from_float/1)
-                |> Enum.map(&Decimal.round(&1, 1))
-              )
-              |> Enum.map(&Tuple.to_list/1),
-            name: dgettext("dashboard_gradle", "Build success rate"),
-            type: "line",
-            smooth: 0.1,
-            symbol: "none"
-          }
-        ]}
-        y_axis_min={0}
-        y_axis_max={100}
+        y_axis_max={if @analytics_selected_widget == "build-success-rate", do: 100}
       />
     </.card_section>
     <.empty_card_section
-      :if={@builds_duration_analytics.total_average_duration == 0}
+      :if={
+        @builds_duration_analytics.ok? &&
+          @builds_duration_analytics.result.total_average_duration == 0
+      }
       title={dgettext("dashboard_gradle", "No data yet")}
     >
       <:image>
@@ -616,15 +529,23 @@
         </:actions>
       </.date_picker>
     </:actions>
+    <.card_section :if={!@configuration_insights_analytics.ok?}>
+      <div data-part="configuration-insights-chart-skeleton">
+        <.skeleton_chart />
+      </div>
+    </.card_section>
     <.card_section
-      :if={not Enum.empty?(@configuration_insights_analytics)}
+      :if={
+        @configuration_insights_analytics.ok? &&
+          not Enum.empty?(@configuration_insights_analytics.result)
+      }
       data-part="configuration-insights-card-chart-section"
     >
       <.legend title={dgettext("dashboard_gradle", "Build duration")} style="secondary" />
       <.chart
         id="gradle-configuration-insights-chart"
         type="line"
-        style={"height: #{@configuration_insights_chart_height}px"}
+        style={"height: #{TuistWeb.GradleBuildsLive.configuration_insights_chart_height(@configuration_insights_analytics.result)}px"}
         extra_options={
           %{
             grid: %{
@@ -653,7 +574,7 @@
               axisLabel: %{
                 color: "var:noora-surface-label-secondary"
               },
-              data: Enum.map(@configuration_insights_analytics, & &1.category)
+              data: Enum.map(@configuration_insights_analytics.result, & &1.category)
             },
             legend: %{
               show: false
@@ -669,7 +590,7 @@
         series={[
           %{
             color: "var:noora-chart-secondary",
-            data: Enum.map(@configuration_insights_analytics, & &1.value),
+            data: Enum.map(@configuration_insights_analytics.result, & &1.value),
             name: dgettext("dashboard_gradle", "Build duration"),
             type: "bar",
             smooth: 0.1,
@@ -682,7 +603,10 @@
       />
     </.card_section>
     <.empty_card_section
-      :if={Enum.empty?(@configuration_insights_analytics)}
+      :if={
+        @configuration_insights_analytics.ok? &&
+          Enum.empty?(@configuration_insights_analytics.result)
+      }
       title={dgettext("dashboard_gradle", "No data yet")}
       get_started_href="https://docs.tuist.dev/en/guides/features/cache/gradle-cache"
     >
