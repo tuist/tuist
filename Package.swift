@@ -1645,7 +1645,7 @@ let package = Package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(id: "apple.swift-protobuf", exact: "1.32.0"),
+        .package(id: "apple.swift-protobuf", exact: "1.35.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
