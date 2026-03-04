@@ -878,6 +878,9 @@ msgstr "文本文件"
 msgid "Log File"
 msgstr "日志文件"
 
+msgid "Other"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "测试套件"

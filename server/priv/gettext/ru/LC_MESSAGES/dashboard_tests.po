@@ -898,6 +898,9 @@ msgstr "Текстовый файл"
 msgid "Log File"
 msgstr "Файл журнала"
 
+msgid "Other"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Набор тестов"

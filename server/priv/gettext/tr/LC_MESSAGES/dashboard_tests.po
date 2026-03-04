@@ -891,6 +891,9 @@ msgstr "Metin Dosyası"
 msgid "Log File"
 msgstr "Günlük Dosyası"
 
+msgid "Other"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Test paketi"

@@ -664,3 +664,6 @@ msgstr ""
 
 msgid "Log File"
 msgstr ""
+
+msgid "Other"
+msgstr ""
