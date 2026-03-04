@@ -4,6 +4,7 @@ defmodule TuistWeb.QALive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.Components.Terminal
   import TuistWeb.Previews.PlatformTag
 
@@ -22,11 +23,9 @@ defmodule TuistWeb.QALive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_qa", "QA")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("qa"))
-      |> assign(:qa_runs, [])
-      |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))
       |> assign(:has_qa_runs, has_qa_runs?(project))
-      |> load_qa_runs()
+      |> assign_qa_runs()
 
     {:ok, socket}
   end
@@ -37,24 +36,26 @@ defmodule TuistWeb.QALive do
       socket
       |> assign(:current_params, params)
       |> assign_analytics(params)
-      |> load_qa_runs(params)
+      |> assign_qa_runs(params)
     }
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/qa?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    socket = assign(socket, :analytics_selected_widget, widget)
 
-    {:noreply, socket}
+    if socket.assigns.qa_runs_analytics.ok? do
+      chart_data =
+        analytics_chart_data(
+          widget,
+          socket.assigns.qa_runs_analytics.result,
+          socket.assigns.qa_issues_analytics.result,
+          socket.assigns.qa_duration_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event(
@@ -75,7 +76,7 @@ defmodule TuistWeb.QALive do
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/qa?#{query_params}")}
   end
 
-  defp load_qa_runs(socket, params \\ %{}) do
+  defp assign_qa_runs(socket, params \\ %{}) do
     project = socket.assigns.selected_project
 
     options = %{
@@ -99,19 +100,19 @@ defmodule TuistWeb.QALive do
           Map.put(options, :first, 20)
       end
 
-    {qa_runs, qa_runs_meta} =
-      QA.list_qa_runs_for_project(
-        project,
-        options,
-        preload: [
-          :run_steps,
-          app_build: :preview
-        ]
-      )
+    assign_async(socket, [:qa_runs, :qa_runs_meta], fn ->
+      {qa_runs, qa_runs_meta} =
+        QA.list_qa_runs_for_project(
+          project,
+          options,
+          preload: [
+            :run_steps,
+            app_build: :preview
+          ]
+        )
 
-    socket
-    |> assign(:qa_runs, qa_runs)
-    |> assign(:qa_runs_meta, qa_runs_meta)
+      {:ok, %{qa_runs: qa_runs, qa_runs_meta: qa_runs_meta}}
+    end)
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -133,42 +134,7 @@ defmodule TuistWeb.QALive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    qa_runs_analytics = QA.qa_runs_analytics(project.id, opts)
-    qa_issues_analytics = QA.qa_issues_analytics(project.id, opts)
-    qa_duration_analytics = QA.qa_duration_analytics(project.id, opts)
-
     analytics_selected_widget = params["analytics-selected-widget"] || "qa_run_count"
-
-    analytics_chart_data =
-      case analytics_selected_widget do
-        "qa_run_count" ->
-          %{
-            dates: qa_runs_analytics.dates,
-            values: qa_runs_analytics.values,
-            name: dgettext("dashboard_qa", "QA run count"),
-            value_formatter: "{value}"
-          }
-
-        "qa_issues_count" ->
-          %{
-            dates: qa_issues_analytics.dates,
-            values: qa_issues_analytics.values,
-            name: dgettext("dashboard_qa", "App issues found"),
-            value_formatter: "{value}"
-          }
-
-        "qa_duration" ->
-          %{
-            dates: qa_duration_analytics.dates,
-            values:
-              Enum.map(
-                qa_duration_analytics.values,
-                &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))
-              ),
-            name: dgettext("dashboard_qa", "Avg. QA duration"),
-            value_formatter: "fn:formatSeconds"
-          }
-      end
 
     socket
     |> assign(:analytics_preset, preset)
@@ -177,11 +143,61 @@ defmodule TuistWeb.QALive do
     |> assign(:analytics_app, analytics_app)
     |> assign(:analytics_app_label, analytics_app_label(analytics_app, socket.assigns.available_apps))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:qa_runs_analytics, qa_runs_analytics)
-    |> assign(:qa_issues_analytics, qa_issues_analytics)
-    |> assign(:qa_duration_analytics, qa_duration_analytics)
-    |> assign(:analytics_chart_data, analytics_chart_data)
     |> assign(:uri, uri)
+    |> assign_async(
+      [:qa_runs_analytics, :qa_issues_analytics, :qa_duration_analytics, :analytics_chart_data],
+      fn ->
+        qa_runs_analytics = QA.qa_runs_analytics(project.id, opts)
+        qa_issues_analytics = QA.qa_issues_analytics(project.id, opts)
+        qa_duration_analytics = QA.qa_duration_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           qa_runs_analytics: qa_runs_analytics,
+           qa_issues_analytics: qa_issues_analytics,
+           qa_duration_analytics: qa_duration_analytics,
+           analytics_chart_data:
+             analytics_chart_data(
+               analytics_selected_widget,
+               qa_runs_analytics,
+               qa_issues_analytics,
+               qa_duration_analytics
+             )
+         }}
+      end
+    )
+  end
+
+  defp analytics_chart_data(analytics_selected_widget, qa_runs_analytics, qa_issues_analytics, qa_duration_analytics) do
+    case analytics_selected_widget do
+      "qa_run_count" ->
+        %{
+          dates: qa_runs_analytics.dates,
+          values: qa_runs_analytics.values,
+          name: dgettext("dashboard_qa", "QA run count"),
+          value_formatter: "{value}"
+        }
+
+      "qa_issues_count" ->
+        %{
+          dates: qa_issues_analytics.dates,
+          values: qa_issues_analytics.values,
+          name: dgettext("dashboard_qa", "App issues found"),
+          value_formatter: "{value}"
+        }
+
+      "qa_duration" ->
+        %{
+          dates: qa_duration_analytics.dates,
+          values:
+            Enum.map(
+              qa_duration_analytics.values,
+              &((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1))
+            ),
+          name: dgettext("dashboard_qa", "Avg. QA duration"),
+          value_formatter: "fn:formatSeconds"
+        }
+    end
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_qa", "since yesterday")
