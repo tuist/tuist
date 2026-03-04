@@ -349,15 +349,15 @@ if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name
   |> Repo.insert!()
 end
 
-android_app_project =
-  case Projects.get_project_by_slug("tuist/android-app") do
+android_project =
+  case Projects.get_project_by_slug("tuist/android") do
     {:ok, project} ->
       project
 
     {:error, _} ->
       Projects.create_project!(
         %{
-          name: "android-app",
+          name: "android",
           account: %{id: organization.account.id}
         },
         build_system: :gradle
@@ -2580,12 +2580,58 @@ if slack_installation do
 end
 
 # =============================================================================
+# Android (Gradle) Test Runs
+# =============================================================================
+
+android_test_run_count = div(seed_config.test_runs, 5)
+IO.puts("Generating #{android_test_run_count} test runs for android (gradle) project...")
+
+android_project_id = android_project.id
+
+android_test_runs =
+  Enum.map(1..android_test_run_count, fn _i ->
+    status = Enum.random(["success", "failure"])
+    is_ci = Enum.random([true, false])
+    git_branch = Enum.random(branches)
+    day_offset = Enum.random(0..400)
+    ran_at = DateTime.utc_now() |> Date.add(-day_offset) |> DateTime.new!(~T[12:00:00.000000]) |> DateTime.to_naive()
+
+    %{
+      id: UUIDv7.generate(),
+      duration: Enum.random(5_000..60_000),
+      macos_version: Enum.random(["11.2.3", "12.3.4", "13.4.5"]),
+      xcode_version: "",
+      is_ci: is_ci,
+      is_flaky: Enum.random([false, false, false, false, true]),
+      model_identifier: Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"]),
+      scheme: Enum.random(["app:testDebug", "core:testDebug", "network:testDebug"]),
+      status: status,
+      git_branch: git_branch,
+      git_commit_sha: Enum.random(["a1b2c3d4e5f6", "f6e5d4c3b2a1", "123456789abc", "abcdef123456"]),
+      git_ref: "refs/heads/#{git_branch}",
+      ran_at: ran_at,
+      project_id: android_project_id,
+      account_id: if(is_ci, do: org_account_id, else: user_account_id),
+      inserted_at: ran_at,
+      build_system: "gradle",
+      ci_run_id: if(is_ci, do: "#{Enum.random(19_000_000_000..20_000_000_000)}", else: ""),
+      ci_project_handle: if(is_ci, do: "tuist/android", else: ""),
+      ci_host: "",
+      ci_provider: if(is_ci, do: "github")
+    }
+  end)
+
+SeedHelpers.insert_bulk_ch(android_test_runs, Test, IngestRepo, "android test runs")
+
+IO.puts("  - Created #{length(android_test_runs)} android (gradle) test runs")
+
+# =============================================================================
 # Gradle Build Analytics
 # =============================================================================
 
 IO.puts("Generating Gradle builds with tasks and cache events...")
 
-gradle_project_id = android_app_project.id
+gradle_project_id = android_project.id
 gradle_account_id = organization.account.id
 gradle_build_count = 50
 
@@ -2797,7 +2843,7 @@ gradle_seed_data =
                 gradle_build_id: build_id,
                 project_id: gradle_project_id,
                 account_handle: gradle_account_handle,
-                project_handle: "android-app",
+                project_handle: "android",
                 inserted_at: build_inserted_at
               }
             ]
@@ -2815,7 +2861,7 @@ gradle_seed_data =
                 gradle_build_id: build_id,
                 project_id: gradle_project_id,
                 account_handle: gradle_account_handle,
-                project_handle: "android-app",
+                project_handle: "android",
                 inserted_at: build_inserted_at
               }
             ]
@@ -2848,6 +2894,7 @@ IO.puts("  - #{seed_config.test_runs} test runs")
 IO.puts("  - #{seed_config.command_events} command events")
 IO.puts("  - #{seed_config.previews} previews")
 IO.puts("  - #{seed_config.bundles} bundles")
+IO.puts("  - #{length(android_test_runs)} android test runs")
 IO.puts("  - #{length(gradle_builds)} gradle builds")
 IO.puts("")
 IO.puts("To generate production-like volumes, run:")
