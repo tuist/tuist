@@ -31,13 +31,13 @@ import org.gradle.api.logging.Logging
  * }
  * ```
  */
+
 /**
  * Shared configuration passed from the settings plugin to project-level feature plugins.
  */
 data class TuistGradleConfig(
     val url: String,
     val project: String?,
-    val executablePath: String,
     val uploadInBackground: Boolean? = null,
     val testQuarantineEnabled: Boolean? = null
 ) {
@@ -61,7 +61,6 @@ class TuistPlugin : Plugin<Settings> {
             TuistExtension::class.java
         )
 
-        // Register the custom build cache type
         settings.buildCache.registerBuildCacheService(
             TuistBuildCache::class.java,
             TuistBuildCacheServiceFactory::class.java
@@ -84,7 +83,6 @@ class TuistPlugin : Plugin<Settings> {
             extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
                 url = extension.url,
                 project = project,
-                executablePath = extension.executablePath ?: "tuist",
                 uploadInBackground = extension.uploadInBackground,
                 testQuarantineEnabled = extension.testQuarantine.enabled
             ))
@@ -115,7 +113,6 @@ class TuistPlugin : Plugin<Settings> {
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
                 this.project = project
-                this.executablePath = extension.executablePath
                 this.url = extension.url
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
@@ -139,10 +136,7 @@ open class TuistExtension {
      */
     var project: String = ""
 
-    /**
-     * Path to the tuist executable. When null, the plugin will look for
-     * 'tuist' in the system PATH.
-     */
+    @Deprecated("No longer used. The plugin resolves auth natively without the Tuist CLI.")
     var executablePath: String? = null
 
     /**
@@ -213,4 +207,3 @@ open class TestQuarantineExtension {
      */
     var enabled: Boolean? = null
 }
-

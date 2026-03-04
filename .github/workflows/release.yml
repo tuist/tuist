@@ -477,6 +477,9 @@ jobs:
         run: |
           sed -i '' "s/tuist = \".*\"/tuist = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" mise.toml
 
+      - name: Update mise.lock
+        run: mise lock
+
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -493,6 +496,7 @@ jobs:
             cli/CHANGELOG.md
             cli/Sources/TuistConstants/Constants.swift
             mise.toml
+            mise.lock
             build/ProjectDescription.xcframework.zip
             build/tuist.zip
             build/SHASUMS256.txt
@@ -1343,7 +1347,7 @@ jobs:
 
           # Add files from each component that was released
           if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
-            git add cli/CHANGELOG.md cli/Sources/TuistConstants/Constants.swift mise.toml
+            git add cli/CHANGELOG.md cli/Sources/TuistConstants/Constants.swift mise.toml mise.lock
             FILES_ADDED=true
           fi
 
