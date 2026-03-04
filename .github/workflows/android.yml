@@ -74,3 +74,6 @@ jobs:
       - name: Share
         if: github.event.pull_request.head.repo.fork != true
         run: tuist share app/build/outputs/apk/debug/app-debug.apk
+      - name: Inspect bundle
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist inspect bundle app/build/outputs/apk/debug/app-debug.apk

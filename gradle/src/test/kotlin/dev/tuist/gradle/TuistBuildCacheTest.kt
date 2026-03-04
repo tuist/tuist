@@ -18,57 +18,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class TuistVersionTest {
-
-    @Test
-    fun `parseVersion parses valid version strings`() {
-        assertEquals(listOf(4, 31, 0), TuistVersion.parseVersion("4.31.0"))
-        assertEquals(listOf(1, 0, 0), TuistVersion.parseVersion("1.0.0"))
-        assertEquals(listOf(10, 20, 30), TuistVersion.parseVersion("10.20.30"))
-        assertEquals(listOf(4, 31), TuistVersion.parseVersion("4.31"))
-    }
-
-    @Test
-    fun `parseVersion returns null for invalid versions`() {
-        assertNull(TuistVersion.parseVersion(""))
-        assertNull(TuistVersion.parseVersion("abc"))
-        assertNull(TuistVersion.parseVersion("1.2.abc"))
-    }
-
-    @Test
-    fun `isVersionSufficient returns true for equal versions`() {
-        assertTrue(TuistVersion.isVersionSufficient("4.31.0", "4.31.0"))
-        assertTrue(TuistVersion.isVersionSufficient("1.0.0", "1.0.0"))
-    }
-
-    @Test
-    fun `isVersionSufficient returns true for newer versions`() {
-        assertTrue(TuistVersion.isVersionSufficient("4.32.0", "4.31.0"))
-        assertTrue(TuistVersion.isVersionSufficient("5.0.0", "4.31.0"))
-        assertTrue(TuistVersion.isVersionSufficient("4.31.1", "4.31.0"))
-    }
-
-    @Test
-    fun `isVersionSufficient returns false for older versions`() {
-        assertFalse(TuistVersion.isVersionSufficient("4.30.0", "4.31.0"))
-        assertFalse(TuistVersion.isVersionSufficient("3.0.0", "4.31.0"))
-        assertFalse(TuistVersion.isVersionSufficient("4.30.99", "4.31.0"))
-    }
-
-    @Test
-    fun `isVersionSufficient handles versions with different segment counts`() {
-        assertTrue(TuistVersion.isVersionSufficient("4.32", "4.31.0"))
-        assertTrue(TuistVersion.isVersionSufficient("4.31.0", "4.31"))
-        assertFalse(TuistVersion.isVersionSufficient("4.30", "4.31.0"))
-    }
-
-    @Test
-    fun `isVersionSufficient returns false for invalid versions`() {
-        assertFalse(TuistVersion.isVersionSufficient("invalid", "4.31.0"))
-        assertFalse(TuistVersion.isVersionSufficient("4.31.0", "invalid"))
-    }
-}
-
 class TuistBuildCacheTest {
 
     private lateinit var mockServer: MockWebServer
@@ -89,7 +38,6 @@ class TuistBuildCacheTest {
         val cache = TuistBuildCache()
 
         assertNull(cache.project)
-        assertNull(cache.executablePath)
         assertEquals(false, cache.allowInsecureProtocol)
         assertEquals(false, cache.isPush)
     }
@@ -98,19 +46,17 @@ class TuistBuildCacheTest {
     fun `TuistBuildCache properties can be configured`() {
         val cache = TuistBuildCache().apply {
             project = "my-account/my-project"
-            executablePath = "/custom/path/tuist"
             allowInsecureProtocol = true
             isPush = true
         }
 
         assertEquals("my-account/my-project", cache.project)
-        assertEquals("/custom/path/tuist", cache.executablePath)
         assertEquals(true, cache.allowInsecureProtocol)
         assertEquals(true, cache.isPush)
     }
 
     @Test
-    fun `TuistCacheConfiguration parses JSON correctly with snake_case`() {
+    fun `CacheConfiguration parses JSON correctly with snake_case`() {
         val json = """
             {
                 "url": "https://cache.tuist.dev",
@@ -120,7 +66,7 @@ class TuistBuildCacheTest {
             }
         """.trimIndent()
 
-        val config = Gson().fromJson(json, TuistCacheConfiguration::class.java)
+        val config = Gson().fromJson(json, CacheConfiguration::class.java)
 
         assertEquals("https://cache.tuist.dev", config.url)
         assertEquals("tuist_test_token_12345", config.token)
@@ -248,7 +194,7 @@ class TuistBuildCacheTest {
 
     @Test
     fun `buildCacheUrl constructs correct URL`() {
-        val config = TuistCacheConfiguration(
+        val config = CacheConfiguration(
             url = "http://localhost:8080",
             token = "token",
             accountHandle = "acct",
@@ -267,7 +213,7 @@ class TuistBuildCacheTest {
 
     @Test
     fun `buildCacheUrl handles trailing slash in base URL`() {
-        val config = TuistCacheConfiguration(
+        val config = CacheConfiguration(
             url = "http://localhost:8080/",
             token = "token",
             accountHandle = "acct",
@@ -280,7 +226,7 @@ class TuistBuildCacheTest {
         assertEquals("/api/cache/gradle/key", url.path)
     }
 
-    private fun createConfig() = TuistCacheConfiguration(
+    private fun createConfig() = CacheConfiguration(
         url = mockServer.url("/").toString().trimEnd('/'),
         token = "test-token",
         accountHandle = "test-account",
@@ -289,11 +235,11 @@ class TuistBuildCacheTest {
 
     private fun createService(
         isPushEnabled: Boolean = true,
-        configProvider: (Boolean) -> TuistCacheConfiguration = { createConfig() }
+        configProvider: (Boolean) -> CacheConfiguration = { createConfig() }
     ): TuistBuildCacheService {
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration =
+                override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration =
                     configProvider(forceRefresh)
             }
         )
