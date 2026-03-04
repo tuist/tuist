@@ -81,6 +81,7 @@
     </:actions>
     <div data-part="widgets">
       <.widget
+        loading={!@test_runs_analytics.ok?}
         title={dgettext("dashboard_tests", "Test run count")}
         description={
           dgettext(
@@ -88,18 +89,21 @@
             "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
-        value={@test_runs_analytics.count}
+        value={if @test_runs_analytics.ok?, do: @test_runs_analytics.result.count}
         id="widget-test-run-count"
         legend_color="primary"
-        trend_value={@test_runs_analytics.trend}
+        trend_value={
+          if @test_runs_analytics.ok?, do: @test_runs_analytics.result.trend, else: nil
+        }
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="test_run_count"
         selected={@analytics_selected_widget == "test_run_count"}
-        empty={@test_runs_analytics.count == 0}
+        empty={@test_runs_analytics.ok? && @test_runs_analytics.result.count == 0}
       />
       <.widget
+        loading={!@failed_test_runs_analytics.ok?}
         title={dgettext("dashboard_tests", "Failed run count")}
         description={
           dgettext(
@@ -107,16 +111,20 @@
             "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
           )
         }
-        value={@failed_test_runs_analytics.count}
+        value={if @failed_test_runs_analytics.ok?, do: @failed_test_runs_analytics.result.count}
         id="widget-failed-test-run-count"
         legend_color="destructive"
-        trend_value={@failed_test_runs_analytics.trend}
+        trend_value={
+          if @failed_test_runs_analytics.ok?,
+            do: @failed_test_runs_analytics.result.trend,
+            else: nil
+        }
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
         phx_click="select_widget"
         phx_value_widget="failed_test_run_count"
         selected={@analytics_selected_widget == "failed_test_run_count"}
-        empty={@test_runs_analytics.count == 0}
+        empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
         id="widget-test-run-duration"
@@ -140,48 +148,67 @@
           dgettext("dashboard_tests", "Average duration of test runs during a given period.")
         }
         value={
-          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            case @selected_duration_type do
-              "avg" -> @test_runs_duration_analytics.total_average_duration
-              "p99" -> @test_runs_duration_analytics.p99
-              "p90" -> @test_runs_duration_analytics.p90
-              "p50" -> @test_runs_duration_analytics.p50
-            end
-          )
+          if @test_runs_duration_analytics.ok? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              case @selected_duration_type do
+                "avg" -> @test_runs_duration_analytics.result.total_average_duration
+                "p99" -> @test_runs_duration_analytics.result.p99
+                "p90" -> @test_runs_duration_analytics.result.p90
+                "p50" -> @test_runs_duration_analytics.result.p50
+              end
+            )
+          end
         }
         metrics={
-          %{
-            avg:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.total_average_duration
-              ),
-            p99:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p99
-              ),
-            p90:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p90
-              ),
-            p50:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p50
-              )
-          }
+          if @test_runs_duration_analytics.ok? do
+            %{
+              avg:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.total_average_duration
+                ),
+              p99:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p99
+                ),
+              p90:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p90
+                ),
+              p50:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p50
+                )
+            }
+          end
         }
         selected_type={@selected_duration_type}
         event_name="select_duration_type"
-        trend_value={@test_runs_duration_analytics.trend}
+        trend_value={
+          if @test_runs_duration_analytics.ok?,
+            do: @test_runs_duration_analytics.result.trend,
+            else: nil
+        }
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
         phx_click="select_widget"
         phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
-        empty={@test_runs_analytics.count == 0}
+        empty={
+          @test_runs_duration_analytics.ok? &&
+            @test_runs_duration_analytics.result.total_average_duration == 0
+        }
         empty_label={dgettext("dashboard_tests", "No data")}
       />
     </div>
-    <.card_section :if={@test_runs_analytics.count != 0}>
+    <.card_section :if={!@test_runs_analytics.ok?}>
+      <div data-part="analytics-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
+    <.card_section :if={@test_runs_analytics.ok? && @test_runs_analytics.result.count != 0}>
       <div data-part="analytics-chart">
         <.chart
           :if={@analytics_selected_widget != "test_run_duration"}
@@ -203,8 +230,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @analytics_chart_data.dates |> List.first(),
-                    @analytics_chart_data.dates |> List.last()
+                    @analytics_chart_data.result.dates |> List.first(),
+                    @analytics_chart_data.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -217,14 +244,14 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: @analytics_chart_data.value_formatter
+                  formatter: @analytics_chart_data.result.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: @analytics_chart_data.value_formatter}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter}
                 end,
               legend: %{
                 show: false
@@ -235,11 +262,11 @@
             %{
               data:
                 Enum.zip(
-                  @analytics_chart_data.dates,
-                  @analytics_chart_data.values
+                  @analytics_chart_data.result.dates,
+                  @analytics_chart_data.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: @analytics_chart_data.name,
+              name: @analytics_chart_data.result.name,
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -283,8 +310,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @test_runs_duration_analytics.dates |> List.first(),
-                    @test_runs_duration_analytics.dates |> List.last()
+                    @test_runs_duration_analytics.result.dates |> List.first(),
+                    @test_runs_duration_analytics.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -314,8 +341,8 @@
               color: "var:noora-chart-secondary",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.values
+                  @test_runs_duration_analytics.result.dates,
+                  @test_runs_duration_analytics.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_tests", "Average"),
@@ -327,8 +354,8 @@
               color: "var:noora-chart-p99",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.p99_values
+                  @test_runs_duration_analytics.result.dates,
+                  @test_runs_duration_analytics.result.p99_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_tests", "p99"),
@@ -340,8 +367,8 @@
               color: "var:noora-chart-p90",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.p90_values
+                  @test_runs_duration_analytics.result.dates,
+                  @test_runs_duration_analytics.result.p90_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_tests", "p90"),
@@ -353,8 +380,8 @@
               color: "var:noora-chart-p50",
               data:
                 Enum.zip(
-                  @test_runs_duration_analytics.dates,
-                  @test_runs_duration_analytics.p50_values
+                  @test_runs_duration_analytics.result.dates,
+                  @test_runs_duration_analytics.result.p50_values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_tests", "p50"),
@@ -368,7 +395,7 @@
       </div>
     </.card_section>
     <.empty_card_section
-      :if={@test_runs_analytics.count == 0}
+      :if={@test_runs_analytics.ok? && @test_runs_analytics.result.count == 0}
       title={dgettext("dashboard_tests", "No data yet")}
     >
       <:image>
