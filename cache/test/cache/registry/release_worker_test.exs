@@ -286,20 +286,21 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
     end
 
-    test "zip_directory resolves directory symlinks and removes recursive ones" do
+    test "zip_directory resolves directory symlinks whose target contains broken symlinks" do
       root = Briefly.create!(directory: true)
       source_dir = Path.join(root, "repo")
       archive_path = Path.join(root, "source_archive.zip")
 
-      File.mkdir_p!(Path.join(source_dir, "Sources/LocalReceiptParsing"))
-      File.write!(Path.join(source_dir, "Sources/main.swift"), "print(\"hello\")")
-      File.write!(Path.join(source_dir, "Sources/LocalReceiptParsing/LocalReceiptParsing.swift"), "")
-      File.write!(Path.join(source_dir, "target.md"), "content")
-      File.ln_s!("target.md", Path.join(source_dir, "link.md"))
-      File.ln_s!("Sources", Path.join(source_dir, "CustomEntitlementComputation"))
-      File.ln_s!("Sources/LocalReceiptParsing", Path.join(source_dir, "LocalReceiptParsing"))
-      File.mkdir_p!(Path.join(source_dir, "Tests/InstallationTests/CarthageInstallation"))
-      File.ln_s!("../../../", Path.join(source_dir, "Tests/InstallationTests/CarthageInstallation/purchases-root"))
+      # On ext4 with htree, "BuildScripts" hashes before "Tests" in readdir order,
+      # so `find -type l` discovers the BuildScripts directory symlink BEFORE the
+      # broken symlink inside Tests/. This reproduces the production crash where
+      # single-pass resolution called File.cp_r! with dereference_symlinks: true
+      # on a directory containing a broken symlink (target doesn't exist), causing
+      # a File.CopyError with :enoent.
+      File.mkdir_p!(Path.join(source_dir, "Tests/nested"))
+      File.write!(Path.join(source_dir, "Tests/nested/real_file.swift"), "")
+      File.ln_s!("nonexistent_submodule_path", Path.join(source_dir, "Tests/nested/broken"))
+      File.ln_s!("Tests", Path.join(source_dir, "BuildScripts"))
 
       assert :ok = ReleaseWorker.zip_directory(source_dir, archive_path)
 
@@ -309,14 +310,10 @@ defmodule Cache.Registry.ReleaseWorkerTest do
 
       assert symlink_lines == []
 
-      file_lines = Enum.filter(lines, &String.starts_with?(&1, "-"))
-      assert Enum.any?(file_lines, &String.contains?(&1, "link.md"))
-
       dir_lines = Enum.filter(lines, &String.starts_with?(&1, "d"))
-      assert Enum.any?(dir_lines, &String.contains?(&1, "CustomEntitlementComputation"))
-      assert Enum.any?(dir_lines, &String.contains?(&1, "LocalReceiptParsing"))
+      assert Enum.any?(dir_lines, &String.contains?(&1, "BuildScripts"))
 
-      refute Enum.any?(lines, &String.contains?(&1, "purchases-root"))
+      refute Enum.any?(lines, &String.contains?(&1, "broken"))
     end
 
     test "zip_directory rejects symlinks that point outside root" do
