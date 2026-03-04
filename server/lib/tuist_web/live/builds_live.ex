@@ -53,7 +53,7 @@ defmodule TuistWeb.BuildsLive do
          socket.assigns.next_configuration_insights_analytics
        )}
     else
-      {:noreply, TuistWeb.XcodeBuildsLive.handle_info_update_configuration_insights(socket)}
+      {:noreply, socket}
     end
   end
 
