@@ -1,5 +1,8 @@
 package dev.tuist.gradle
 
+import dev.tuist.gradle.services.GetCacheEndpointsService
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.gradle.api.logging.Logging
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -54,7 +57,11 @@ object TuistCacheEndpointResolver {
     @Volatile
     private var cachedEndpoint: String? = null
 
-    fun resolve(serverURL: String, accountHandle: String): String {
+    fun resolve(
+        serverURL: String,
+        accountHandle: String,
+        tokenProvider: TuistTokenProvider
+    ): String {
         cachedEndpoint?.let { return it }
 
         val envEndpoint = System.getenv("TUIST_CACHE_ENDPOINT")
@@ -63,9 +70,8 @@ object TuistCacheEndpointResolver {
             return envEndpoint
         }
 
-        val client = TuistApiClient(serverURL)
         val endpoints = try {
-            client.getCacheEndpoints(accountHandle)
+            GetCacheEndpointsService().getCacheEndpoints(serverURL, accountHandle, tokenProvider)
         } catch (_: Exception) {
             null
         }
@@ -73,22 +79,27 @@ object TuistCacheEndpointResolver {
         val result = when {
             endpoints.isNullOrEmpty() -> serverURL
             endpoints.size == 1 -> endpoints[0]
-            else -> pickFastestEndpoint(endpoints, client) ?: endpoints[0]
+            else -> pickFastestEndpoint(endpoints) ?: endpoints[0]
         }
 
         cachedEndpoint = result
         return result
     }
 
-    private fun pickFastestEndpoint(endpoints: List<String>, client: TuistApiClient): String? {
+    private fun pickFastestEndpoint(endpoints: List<String>): String? {
         val bestEndpoint = AtomicReference<String?>(null)
         val bestLatency = AtomicReference(Long.MAX_VALUE)
         val latch = CountDownLatch(endpoints.size)
 
+        val latencyClient = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .build()
+
         for (endpoint in endpoints) {
             Thread {
                 try {
-                    val latency = client.measureLatency(endpoint)
+                    val latency = measureLatency(endpoint, latencyClient)
                     synchronized(bestLatency) {
                         if (latency < bestLatency.get()) {
                             bestLatency.set(latency)
@@ -105,6 +116,21 @@ object TuistCacheEndpointResolver {
 
         latch.await(10, TimeUnit.SECONDS)
         return bestEndpoint.get()
+    }
+
+    private fun measureLatency(endpointUrl: String, client: OkHttpClient): Long {
+        val request = Request.Builder()
+            .url("${endpointUrl.trimEnd('/')}/up")
+            .get()
+            .build()
+        val start = System.nanoTime()
+        return try {
+            client.newCall(request).execute().use {
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
+            }
+        } catch (_: Exception) {
+            Long.MAX_VALUE
+        }
     }
 
     internal fun resetCache() {

@@ -1,6 +1,8 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import dev.tuist.gradle.services.ExchangeOIDCTokenService
+import dev.tuist.gradle.services.RefreshAuthTokenService
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URI
@@ -75,15 +77,16 @@ object TuistCredentialStore {
     }
 }
 
-class TuistTokenProvider(
+open class TuistTokenProvider(
     private val serverURL: String,
-    internal var apiClient: TuistApiClient? = null
+    internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService(),
+    internal var exchangeOIDCTokenService: ExchangeOIDCTokenService = ExchangeOIDCTokenService()
 ) {
     @Volatile
     private var cachedToken: String? = null
     private val lock = Any()
 
-    fun getToken(forceRefresh: Boolean = false): String {
+    open fun getToken(forceRefresh: Boolean = false): String {
         val envToken = System.getenv("TUIST_TOKEN")
         if (!envToken.isNullOrBlank()) return envToken
 
@@ -115,8 +118,7 @@ class TuistTokenProvider(
             val refreshToken = credentials.refreshToken
             if (!refreshToken.isNullOrBlank()) {
                 try {
-                    val client = apiClient ?: TuistApiClient(serverURL)
-                    val newTokens = client.refreshToken(refreshToken)
+                    val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
                     if (newTokens != null) {
                         TuistCredentialStore.write(
                             serverURL,
@@ -144,8 +146,7 @@ class TuistTokenProvider(
 
     private fun tryOidcExchange(): String? {
         val ciToken = fetchCIOIDCToken() ?: return null
-        val client = apiClient ?: TuistApiClient(serverURL)
-        return client.exchangeOIDCToken(ciToken)
+        return exchangeOIDCTokenService.exchangeOIDCToken(serverURL, ciToken)
     }
 
     private fun fetchCIOIDCToken(): String? {

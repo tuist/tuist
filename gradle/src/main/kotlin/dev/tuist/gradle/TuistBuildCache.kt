@@ -97,7 +97,7 @@ class NativeConfigurationProvider(
 
     private fun resolveCacheEndpoint(accountHandle: String): String {
         val endpoint = try {
-            TuistCacheEndpointResolver.resolve(resolvedServerUrl, accountHandle)
+            TuistCacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
         } catch (_: Exception) {
             resolvedServerUrl
         }
