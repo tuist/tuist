@@ -507,6 +507,7 @@ struct BuildPhaseGeneratorTests {
         // When
         try subject.generateHeadersBuildPhase(
             headers: headers,
+            buildableFolders: [],
             pbxTarget: target,
             fileElements: fileElements,
             pbxproj: pbxproj
@@ -533,6 +534,43 @@ struct BuildPhaseGeneratorTests {
             FileWithSettings(name: "Public1.h", attributes: ["Public"]),
             FileWithSettings(name: "Project1.h", attributes: nil),
         ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateHeadersBuildPhase_skipsHeadersFromBuildableFolders() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+
+        let headers = Headers(
+            public: ["/test/Sources/Public1.h"],
+            private: ["/test/Sources/Private1.h"],
+            project: ["/test/Sources/Project1.h"]
+        )
+        let buildableFolders = [
+            BuildableFolder(
+                path: "/test/Sources",
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: []
+            ),
+        ]
+
+        // When
+        try subject.generateHeadersBuildPhase(
+            headers: headers,
+            buildableFolders: buildableFolders,
+            pbxTarget: target,
+            fileElements: .init(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try #require(target.buildPhases.first as? PBXHeadersBuildPhase)
+        #expect(buildPhase.files?.isEmpty == true)
     }
 
     @Test(

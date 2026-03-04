@@ -30,6 +30,7 @@ data class TestReport(
     @SerializedName("git_branch") val gitBranch: String?,
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
+    @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
@@ -108,6 +109,7 @@ internal class TestReportCollector {
         gitBranch: String?,
         gitCommitSha: String?,
         gitRef: String?,
+        gitRemoteUrlOrigin: String?,
         gradleBuildId: String?
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
@@ -147,6 +149,7 @@ internal class TestReportCollector {
             gitBranch = gitBranch,
             gitCommitSha = gitCommitSha,
             gitRef = gitRef,
+            gitRemoteUrlOrigin = gitRemoteUrlOrigin,
             gradleBuildId = gradleBuildId,
             testModules = testModules
         )
@@ -359,6 +362,7 @@ abstract class TuistTestInsightsService :
             gitBranch = gitInfoProvider.branch(),
             gitCommitSha = gitInfoProvider.commitSha(),
             gitRef = gitInfoProvider.ref(),
+            gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId
         )
 

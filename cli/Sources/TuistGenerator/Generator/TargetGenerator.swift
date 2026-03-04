@@ -227,10 +227,66 @@ struct TargetGenerator: TargetGenerating {
                 synchronizedGroup.exceptions?.append(exceptionSet)
             }
 
+            let targetHeadersInSynchronizedGroup = synchronizedHeaders(
+                buildableFolderPath: buildableFolder.path,
+                targetHeaders: target.headers,
+                buildableFolderExceptions: buildableFolder.exceptions
+            )
+            if !targetHeadersInSynchronizedGroup.public.isEmpty || !targetHeadersInSynchronizedGroup.private.isEmpty {
+                let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
+                    target: pbxTarget,
+                    membershipExceptions: [],
+                    publicHeaders: targetHeadersInSynchronizedGroup.public,
+                    privateHeaders: targetHeadersInSynchronizedGroup.private,
+                    additionalCompilerFlagsByRelativePath: [:],
+                    attributesByRelativePath: nil,
+                    platformFiltersByRelativePath: nil
+                )
+                pbxproj.add(object: exceptionSet)
+                synchronizedGroup.exceptions?.append(exceptionSet)
+            }
+
             if !explicitFolders.isEmpty {
                 synchronizedGroup.explicitFolders = explicitFolders
             }
         }
+    }
+
+    private func synchronizedHeaders(
+        buildableFolderPath: AbsolutePath,
+        targetHeaders: Headers?,
+        buildableFolderExceptions: BuildableFolderExceptions
+    ) -> (public: [String], private: [String]) {
+        guard let targetHeaders else { return (public: [], private: []) }
+
+        let existingPublicHeaders = Set(
+            buildableFolderExceptions
+                .flatMap(\.publicHeaders)
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+        let existingPrivateHeaders = Set(
+            buildableFolderExceptions
+                .flatMap(\.privateHeaders)
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+
+        let publicHeaders = Set(
+            targetHeaders.public
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+        let privateHeaders = Set(
+            targetHeaders.private
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+
+        return (
+            public: Array(publicHeaders.subtracting(existingPublicHeaders)).sorted(),
+            private: Array(privateHeaders.subtracting(existingPrivateHeaders)).sorted()
+        )
     }
 
     func generateTargetDependencies(

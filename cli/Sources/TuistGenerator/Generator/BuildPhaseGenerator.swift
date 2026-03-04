@@ -70,6 +70,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         if shouldAddHeadersBuildPhase(target) {
             try generateHeadersBuildPhase(
                 headers: target.headers,
+                buildableFolders: target.buildableFolders,
                 pbxTarget: pbxTarget,
                 fileElements: fileElements,
                 pbxproj: pbxproj
@@ -345,6 +346,7 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
 
     func generateHeadersBuildPhase(
         headers: Headers?,
+        buildableFolders: [BuildableFolder],
         pbxTarget: PBXTarget,
         fileElements: ProjectFileElements,
         pbxproj: PBXProj
@@ -352,6 +354,10 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         let headersBuildPhase = PBXHeadersBuildPhase()
         pbxproj.add(object: headersBuildPhase)
         pbxTarget.buildPhases.append(headersBuildPhase)
+
+        let isPartOfSynchronizedGroup: (AbsolutePath) -> Bool = { path in
+            buildableFolders.contains { path.isDescendant(of: $0.path) }
+        }
 
         let addHeader: (AbsolutePath, String?) throws -> PBXBuildFile = { path, accessLevel in
             guard let fileReference = fileElements.file(path: path) else {
@@ -363,9 +369,18 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             return PBXBuildFile(file: fileReference, settings: settings)
         }
         if let headers {
-            let pbxBuildFiles = try headers.private.sorted().map { try addHeader($0, "private") } +
-                headers.public.sorted().map { try addHeader($0, "public") } +
-                headers.project.sorted().map { try addHeader($0, nil) }
+            let pbxBuildFiles = try headers.private
+                .filter { !isPartOfSynchronizedGroup($0) }
+                .sorted()
+                .map { try addHeader($0, "private") } +
+                headers.public
+                .filter { !isPartOfSynchronizedGroup($0) }
+                .sorted()
+                .map { try addHeader($0, "public") } +
+                headers.project
+                .filter { !isPartOfSynchronizedGroup($0) }
+                .sorted()
+                .map { try addHeader($0, nil) }
 
             pbxBuildFiles.forEach { pbxproj.add(object: $0) }
             headersBuildPhase.files = pbxBuildFiles

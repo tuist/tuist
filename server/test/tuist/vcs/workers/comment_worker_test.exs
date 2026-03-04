@@ -6,18 +6,15 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
   alias Tuist.VCS.Workers.CommentWorker
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
-  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup do
     project = ProjectsFixtures.project_fixture()
-    {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
-    %{project: project, build: build}
+    %{project: project}
   end
 
   describe "perform/1" do
     test "calls VCS.post_vcs_pull_request_comment with correct parameters", %{
-      project: project,
-      build: build
+      project: project
     } do
       # Given
       expect(VCS, :post_vcs_pull_request_comment, fn args ->
@@ -35,7 +32,6 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       end)
 
       job_args = %{
-        "build_id" => build.id,
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
@@ -55,7 +51,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       assert result == :ok
     end
 
-    test "URL template functions work correctly", %{project: project, build: build} do
+    test "URL template functions work correctly", %{project: project} do
       # Given
       expect(VCS, :post_vcs_pull_request_comment, fn args ->
         # Test the URL functions with mock data
@@ -90,7 +86,6 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       end)
 
       job_args = %{
-        "build_id" => build.id,
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
@@ -111,8 +106,7 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
     end
 
     test "handles missing keys gracefully when URL functions are called with partial data", %{
-      project: project,
-      build: build
+      project: project
     } do
       # Given - Create a preview to test URL generation with missing keys
       preview = AppBuildsFixtures.preview_fixture(project: project)
@@ -131,7 +125,6 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       end)
 
       job_args = %{
-        "build_id" => build.id,
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
@@ -149,12 +142,13 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
       assert result == :ok
     end
 
-    test "cancels competing jobs with same args when starting", %{project: project, build: build} do
+    test "cancels competing jobs targeting the same PR", %{project: project} do
       # Given
       stub(VCS, :post_vcs_pull_request_comment, fn _ -> :ok end)
 
-      job_args = %{
-        "build_id" => build.id,
+      # The competing job was enqueued from a different endpoint (e.g. builds)
+      # but targets the same PR (same project_id + git_ref)
+      competing_job_args = %{
         "git_commit_sha" => "abc123",
         "git_ref" => "refs/pull/123/head",
         "git_remote_url_origin" => "https://github.com/tuist/tuist",
@@ -167,13 +161,12 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
       }
 
-      # Insert a competing job into the database and then update it to "executing" state
+      # Insert a competing job and set it to "executing" state
       {:ok, competing_job} =
-        job_args
+        competing_job_args
         |> CommentWorker.new(queue: "default")
         |> Tuist.Repo.insert()
 
-      # Update the job state to "executing" to simulate a running job
       {:ok, competing_job} =
         competing_job
         |> Ecto.Changeset.change(state: "executing")
@@ -184,8 +177,23 @@ defmodule Tuist.VCS.Workers.CommentWorkerTest do
         :ok
       end)
 
+      # The current job comes from a different endpoint (e.g. tests)
+      # but targets the same PR (same project_id + git_ref)
+      current_job_args = %{
+        "git_commit_sha" => "abc123",
+        "git_ref" => "refs/pull/123/head",
+        "git_remote_url_origin" => "https://github.com/tuist/tuist",
+        "project_id" => project.id,
+        "preview_url_template" => "/:account_name/:project_name/previews/:preview_id",
+        "preview_qr_code_url_template" => "/:account_name/:project_name/previews/:preview_id/qr-code.png",
+        "command_run_url_template" => "/:account_name/:project_name/runs/:command_event_id",
+        "test_run_url_template" => "/:account_name/:project_name/tests/test-runs/:test_run_id",
+        "bundle_url_template" => "/:account_name/:project_name/bundles/:bundle_id",
+        "build_url_template" => "/:account_name/:project_name/builds/build-runs/:build_id"
+      }
+
       # When
-      result = CommentWorker.perform(%Oban.Job{id: 999, args: job_args})
+      result = CommentWorker.perform(%Oban.Job{id: 999, args: current_job_args})
 
       # Then
       assert result == :ok

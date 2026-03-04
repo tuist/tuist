@@ -785,7 +785,6 @@ defmodule TuistWeb.API.RunsController do
         case get_or_create_build(run_params) do
           {:ok, build} ->
             Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-              build_id: build.id,
               git_commit_sha: build.git_commit_sha,
               git_ref: build.git_ref,
               git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),

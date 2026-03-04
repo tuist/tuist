@@ -16,24 +16,24 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{
         id: job_id,
-        args:
-          %{
-            "build_id" => _build_id,
-            "git_commit_sha" => git_commit_sha,
-            "git_ref" => git_ref,
-            "git_remote_url_origin" => git_remote_url_origin,
-            "project_id" => project_id,
-            "preview_url_template" => preview_url_template,
-            "preview_qr_code_url_template" => preview_qr_code_url_template,
-            "command_run_url_template" => command_run_url_template,
-            "test_run_url_template" => test_run_url_template,
-            "bundle_url_template" => bundle_url_template,
-            "build_url_template" => build_url_template
-          } = args
+        args: %{
+          "git_commit_sha" => git_commit_sha,
+          "git_ref" => git_ref,
+          "git_remote_url_origin" => git_remote_url_origin,
+          "project_id" => project_id,
+          "preview_url_template" => preview_url_template,
+          "preview_qr_code_url_template" => preview_qr_code_url_template,
+          "command_run_url_template" => command_run_url_template,
+          "test_run_url_template" => test_run_url_template,
+          "bundle_url_template" => bundle_url_template,
+          "build_url_template" => build_url_template
+        }
       }) do
-    # Cancel any other running jobs with the same args to implement debouncing.
-    # We want only the latest comment worker to run as it will have the most up-to-date information and this way we don't have to worry about data races due to longer-running GitHub API calls.
-    cancel_competing_jobs(job_id, args)
+    # Cancel any other running jobs targeting the same PR to implement debouncing.
+    # We match on project_id + git_ref (which identifies the PR) rather than full
+    # args, so jobs from different endpoints (builds, tests, analytics, previews,
+    # bundles) and different commits properly cancel each other.
+    cancel_competing_jobs(job_id, project_id, git_ref)
 
     project = Projects.get_project_by_id(project_id)
 
@@ -53,15 +53,17 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     :ok
   end
 
-  defp cancel_competing_jobs(current_job_id, args) do
+  defp cancel_competing_jobs(current_job_id, project_id, git_ref) do
     worker = inspect(__MODULE__, structs: false)
+    project_id_str = to_string(project_id)
 
     competing_jobs =
       Oban.Job
       |> where([j], j.worker == ^worker)
       |> where([j], j.state == "executing")
       |> where([j], j.id != ^current_job_id)
-      |> where([j], j.args == ^args)
+      |> where([j], fragment("?->>'project_id' = ?", j.args, ^project_id_str))
+      |> where([j], fragment("?->>'git_ref' = ?", j.args, ^git_ref))
       |> Repo.all()
 
     Enum.each(competing_jobs, fn job ->
