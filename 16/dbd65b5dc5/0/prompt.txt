@@ -1,0 +1,74 @@
+Can you list the Tuist projects?
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+I noticed when you use the list_projects tool from the Tuist mcp it hangs. Can you investigate why that's the case? The tuist mcp is at https://tuist.dev/mcp
+
+---
+
+How does Hermes recommend solving this?
+
+---
+
+Change the server to return JSON instead. I think in the case of those tools we don't need to stream the responses
+
+---
+
+But locally I used a real connection where I ran the http server locally
+
+---
+
+I want something very simple. I'm very surprised I'm the only one running into this. That Hermes package seems very matured
+
+---
+
+Can you test this e2e using curl locally?
+
+---
+
+But why does it fail in production? Can you curl against production?
+
+---
+
+➜  tuist3 git:(main) ✗ curl -s -D /tmp/mcp_h -X POST https://tuist.dev/mcp \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl-test","version":"1.0"}}}' \
+    --max-time 10 && echo
+{"error":"invalid_token","error_description":"Missing or invalid access token."}
+
+---
+
+The claude code (you) are also authenticated...
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+You are hanging
+
+---
+
+Can you open a PR with this?
+
+---
+
+You didn't write tests for your work. Also make the Elixir code more eloquent and not that nested
+
+---
+
+[Request interrupted by user]
+
+---
+
+actually the issue that you mention suggest to use this fork instead:
+https://github.com/zoedsoupe/anubis-mcp
+
+Can you change the dependency, and check if the issue has been fixed there
