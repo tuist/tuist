@@ -45,14 +45,26 @@ class CredentialStoreTest {
     }
 
     @Test
-    fun `credentials serialize with snake_case field names`() {
-        val store = CredentialStore(File(tempDir, "snake"))
+    fun `credentials serialize with camelCase field names matching CLI format`() {
+        val store = CredentialStore(File(tempDir, "camel"))
         store.write(serverURL, Credentials("access", "refresh"))
 
-        val json = File(File(tempDir, "snake"), "tuist.dev.json").readText()
-        assert(json.contains("\"access_token\""))
-        assert(json.contains("\"refresh_token\""))
-        assert(!json.contains("\"accessToken\""))
+        val json = File(File(tempDir, "camel"), "tuist.dev.json").readText()
+        assert(json.contains("\"accessToken\""))
+        assert(json.contains("\"refreshToken\""))
+    }
+
+    @Test
+    fun `read handles snake_case credentials from older versions`() {
+        val dir = File(tempDir, "legacy")
+        dir.mkdirs()
+        File(dir, "tuist.dev.json").writeText("""{"access_token":"old-access","refresh_token":"old-refresh"}""")
+
+        val store = CredentialStore(dir)
+        val read = store.read(serverURL)
+        assertNotNull(read)
+        assertEquals("old-access", read.accessToken)
+        assertEquals("old-refresh", read.refreshToken)
     }
 
     @Test

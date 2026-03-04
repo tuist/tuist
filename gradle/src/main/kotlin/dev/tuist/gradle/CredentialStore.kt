@@ -7,9 +7,9 @@ import java.io.File
 import java.net.URI
 
 data class Credentials(
-    @SerializedName("access_token")
+    @SerializedName(value = "accessToken", alternate = ["access_token"])
     val accessToken: String,
-    @SerializedName("refresh_token")
+    @SerializedName(value = "refreshToken", alternate = ["refresh_token"])
     val refreshToken: String? = null
 )
 
