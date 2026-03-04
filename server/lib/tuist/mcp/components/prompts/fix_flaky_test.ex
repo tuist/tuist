@@ -3,9 +3,9 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
   Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction.
   """
 
-  use Hermes.Server.Component, type: :prompt
+  use Anubis.Server.Component, type: :prompt
 
-  alias Hermes.Server.Response
+  alias Anubis.Server.Response
 
   schema do
     field :account_handle, :string,

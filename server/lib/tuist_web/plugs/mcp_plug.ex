@@ -1,14 +1,14 @@
 defmodule TuistWeb.Plugs.MCPPlug do
   @moduledoc """
-  Wraps the Hermes StreamableHTTP plug to return plain JSON for POST requests
+  Wraps the Anubis StreamableHTTP plug to return plain JSON for POST requests
   instead of opening an SSE stream that never closes.
 
-  The Hermes plug opens an SSE stream for POST responses when the client has a
+  The Anubis plug opens an SSE stream for POST responses when the client has a
   GET SSE connection, but never closes the stream after delivering the response.
   This causes MCP clients to hang indefinitely. Since the MCP spec allows servers
   to respond with either JSON or SSE for POST requests, we always use JSON.
 
-  GET and DELETE requests are delegated to the Hermes plug unchanged.
+  GET and DELETE requests are delegated to the Anubis plug unchanged.
 
   See: https://github.com/cloudwalk/hermes-mcp/issues/244
   """
@@ -17,11 +17,12 @@ defmodule TuistWeb.Plugs.MCPPlug do
 
   import Plug.Conn
 
-  alias Hermes.MCP.Error
-  alias Hermes.MCP.ID
-  alias Hermes.MCP.Message
-  alias Hermes.Server.Transport.StreamableHTTP
-  alias Hermes.Server.Transport.StreamableHTTP.Plug, as: HermesPlug
+  alias Anubis.MCP.Error
+  alias Anubis.MCP.ID
+  alias Anubis.MCP.Message
+  alias Anubis.Server.Transport.StreamableHTTP
+  alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
+  alias Anubis.Server.Transport.StreamableHTTP.RequestParams
   alias Plug.Conn.Unfetched
 
   require Message
@@ -29,11 +30,11 @@ defmodule TuistWeb.Plugs.MCPPlug do
   @session_header "mcp-session-id"
 
   @impl Plug
-  def init(opts), do: HermesPlug.init(opts)
+  def init(opts), do: AnubisPlug.init(opts)
 
   @impl Plug
   def call(%Plug.Conn{method: "POST"} = conn, opts), do: handle_post(conn, opts)
-  def call(conn, opts), do: HermesPlug.call(conn, opts)
+  def call(conn, opts), do: AnubisPlug.call(conn, opts)
 
   defp handle_post(conn, %{transport: transport, timeout: timeout}) do
     with {:ok, body, conn} <- fetch_body(conn, timeout),
@@ -41,9 +42,19 @@ defmodule TuistWeb.Plugs.MCPPlug do
       session_id = extract_session_id(conn)
       context = build_context(conn)
 
+      params =
+        RequestParams.new(
+          transport: transport,
+          session_id: session_id,
+          session_header: @session_header,
+          timeout: timeout,
+          context: context,
+          message: message
+        )
+
       conn
       |> maybe_put_session_header(session_id)
-      |> dispatch(transport, session_id, message, context)
+      |> dispatch(message, params)
     else
       {:error, :invalid_json} ->
         send_error(conn, Error.protocol(:parse_error, %{message: "Invalid JSON"}), nil)
@@ -53,14 +64,14 @@ defmodule TuistWeb.Plugs.MCPPlug do
     end
   end
 
-  defp dispatch(conn, transport, session_id, message, context) do
+  defp dispatch(conn, message, params) do
     if Message.is_request(message),
-      do: handle_request(conn, transport, session_id, message, context),
-      else: handle_notification(conn, transport, session_id, message, context)
+      do: handle_request(conn, message, params),
+      else: handle_notification(conn, params)
   end
 
-  defp handle_request(conn, transport, session_id, message, context) do
-    case StreamableHTTP.handle_message(transport, session_id, message, context) do
+  defp handle_request(conn, message, params) do
+    case StreamableHTTP.handle_message(params) do
       {:ok, response} ->
         send_json(conn, 200, response)
 
@@ -72,8 +83,8 @@ defmodule TuistWeb.Plugs.MCPPlug do
     end
   end
 
-  defp handle_notification(conn, transport, session_id, message, context) do
-    StreamableHTTP.handle_message(transport, session_id, message, context)
+  defp handle_notification(conn, params) do
+    StreamableHTTP.handle_message(params)
     send_json(conn, 202, "{}")
   end
 
