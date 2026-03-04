@@ -23,8 +23,7 @@ object ServerUrlResolver {
         if (!envUrl.isNullOrBlank()) return envUrl
 
         if (projectDir != null) {
-            val tomlConfig = TomlParser.parse(File(projectDir, "tuist.toml"))
-            if (!tomlConfig?.url.isNullOrBlank()) return tomlConfig!!.url!!
+            TomlParser.parse(File(projectDir, "tuist.toml"))?.url?.takeIf { it.isNotBlank() }?.let { return it }
         }
 
         return extensionUrl ?: DEFAULT_URL
@@ -50,17 +49,17 @@ object CacheEndpointResolver {
             return envEndpoint
         }
 
-        val endpoints = try {
-            GetCacheEndpointsService().getCacheEndpoints(serverURL, accountHandle, tokenProvider)
-        } catch (e: Exception) {
-            logger.warn("Tuist: Failed to fetch cache endpoints: ${e.message}")
-            null
+        val endpoints = GetCacheEndpointsService().getCacheEndpoints(serverURL, accountHandle, tokenProvider)
+
+        if (endpoints.isEmpty()) {
+            throw RuntimeException("No cache endpoints available.")
         }
 
-        val result = when {
-            endpoints.isNullOrEmpty() -> serverURL.toString()
-            endpoints.size == 1 -> endpoints[0]
-            else -> pickFastestEndpoint(endpoints) ?: endpoints[0]
+        val result = if (endpoints.size == 1) {
+            endpoints[0]
+        } else {
+            pickFastestEndpoint(endpoints)
+                ?: throw RuntimeException("None of the cache endpoints are reachable.")
         }
 
         cachedEndpoint = result
