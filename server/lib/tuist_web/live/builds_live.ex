@@ -44,19 +44,6 @@ defmodule TuistWeb.BuildsLive do
     end
   end
 
-  def handle_info(:update_configuration_insights, %{assigns: %{selected_project: project}} = socket) do
-    if Project.gradle_project?(project) do
-      {:noreply,
-       assign(
-         socket,
-         :configuration_insights_analytics,
-         socket.assigns.next_configuration_insights_analytics
-       )}
-    else
-      {:noreply, socket}
-    end
-  end
-
   def handle_info({:build_created, _build}, socket) do
     {:noreply, TuistWeb.XcodeBuildsLive.handle_info_build_created(socket)}
   end
