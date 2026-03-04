@@ -84,12 +84,7 @@ class DefaultConfigurationProvider(
         TokenProvider(resolvedServerUrl)
     }
 
-    private val cacheEndpointCache: CachedValueStore<Pair<String, Long>> by lazy {
-        CachedValueStore(
-            isExpired = { System.currentTimeMillis() - it.second > CACHE_ENDPOINT_TTL_MS },
-            lockFilePath = null
-        )
-    }
+    private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
         val token = tokenProvider.getToken(forceRefresh)
@@ -102,20 +97,21 @@ class DefaultConfigurationProvider(
         }
 
         return CacheConfiguration(
-            url = cacheEndpoint.first,
+            url = cacheEndpoint,
             token = token,
             accountHandle = accountHandle,
             projectHandle = projectHandle
         )
     }
 
-    private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long> {
+    private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
         val endpoint = try {
             CacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
         } catch (_: Exception) {
             resolvedServerUrl.toString()
         }
-        return Pair(endpoint, System.currentTimeMillis())
+        val expiresAtMs = System.currentTimeMillis() + CACHE_ENDPOINT_TTL_MS
+        return Pair(endpoint, expiresAtMs)
     }
 
     companion object {

@@ -11,7 +11,6 @@ open class TokenProvider(
     private val tokenCache: CachedValueStore<String> by lazy {
         val sanitizedUrl = serverURL.toString().replace(Regex("[/: ]"), "_")
         CachedValueStore(
-            isExpired = { JwtParser.isExpired(it) },
             lockFilePath = File(
                 File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
                 "token_$sanitizedUrl.lock"
@@ -26,12 +25,12 @@ open class TokenProvider(
         return tokenCache.getValue(forceRefresh) { resolveToken() }
     }
 
-    private fun resolveToken(): String {
+    private fun resolveToken(): Pair<String, Long?> {
         val credentials = CredentialStore.read(serverURL)
         if (credentials != null) {
             val accessToken = credentials.accessToken
             if (!JwtParser.isExpired(accessToken)) {
-                return accessToken
+                return Pair(accessToken, JwtParser.getExpirationMs(accessToken))
             }
 
             val refreshToken = credentials.refreshToken
@@ -42,7 +41,7 @@ open class TokenProvider(
                         serverURL,
                         Credentials(newTokens.accessToken, newTokens.refreshToken)
                     )
-                    return newTokens.accessToken
+                    return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
                 } catch (_: Exception) {
                     // Fall through
                 }

@@ -29,6 +29,12 @@ object JwtParser {
         return now >= (exp - bufferSeconds)
     }
 
+    fun getExpirationMs(jwt: String): Long? {
+        val payload = decodePayload(jwt) ?: return null
+        val exp = (payload["exp"] as? Number)?.toLong() ?: return null
+        return exp * 1000
+    }
+
     fun getType(jwt: String): String? {
         val payload = decodePayload(jwt) ?: return null
         return payload["type"] as? String

@@ -2,24 +2,33 @@ package dev.tuist.gradle
 
 import java.io.File
 import java.nio.channels.FileChannel
-import java.nio.channels.FileLock
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.CompletableFuture
 
 class CachedValueStore<T>(
-    private val isExpired: (T) -> Boolean,
     private val lockFilePath: File? = null
 ) {
+    private data class CacheEntry<T>(
+        val value: T,
+        val expiresAtMs: Long?
+    ) {
+        val isExpired: Boolean
+            get() {
+                val expiresAt = expiresAtMs ?: return false
+                return System.currentTimeMillis() >= expiresAt
+            }
+    }
+
     @Volatile
-    private var cached: T? = null
+    private var cached: CacheEntry<T>? = null
 
     @Volatile
     private var pending: CompletableFuture<T>? = null
     private val lock = Any()
 
-    fun getValue(forceRefresh: Boolean = false, compute: () -> T): T {
+    fun getValue(forceRefresh: Boolean = false, compute: () -> Pair<T, Long?>): T {
         if (!forceRefresh) {
-            cached?.let { if (!isExpired(it)) return it }
+            cached?.let { if (!it.isExpired) return it.value }
         }
 
         val future: CompletableFuture<T>
@@ -27,7 +36,7 @@ class CachedValueStore<T>(
 
         synchronized(lock) {
             if (!forceRefresh) {
-                cached?.let { if (!isExpired(it)) return it }
+                cached?.let { if (!it.isExpired) return it.value }
             }
 
             val existing = pending
@@ -46,14 +55,14 @@ class CachedValueStore<T>(
         }
 
         try {
-            val result = if (lockFilePath != null) {
+            val (value, expiresAtMs) = if (lockFilePath != null) {
                 withFileLock { compute() }
             } else {
                 compute()
             }
-            cached = result
-            future.complete(result)
-            return result
+            cached = CacheEntry(value, expiresAtMs)
+            future.complete(value)
+            return value
         } catch (e: Exception) {
             future.completeExceptionally(e)
             throw e
@@ -62,7 +71,7 @@ class CachedValueStore<T>(
         }
     }
 
-    private fun withFileLock(action: () -> T): T {
+    private fun withFileLock(action: () -> Pair<T, Long?>): Pair<T, Long?> {
         val lockFile = lockFilePath!!
         lockFile.parentFile.mkdirs()
 
@@ -77,7 +86,7 @@ class CachedValueStore<T>(
 
             try {
                 // Double-check in-memory cache after acquiring lock
-                cached?.let { if (!isExpired(it)) return it }
+                cached?.let { if (!it.isExpired) return Pair(it.value, it.expiresAtMs) }
 
                 return action()
             } finally {
