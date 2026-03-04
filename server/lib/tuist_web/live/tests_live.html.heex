@@ -232,9 +232,6 @@
       />
     </div>
     <.card_section :if={!@test_runs_analytics.ok?} data-part="analytics-card-chart-section">
-      <div data-part="legends">
-        <.skeleton_legend />
-      </div>
       <.skeleton_chart />
     </.card_section>
     <.card_section
