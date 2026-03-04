@@ -5,6 +5,7 @@ defmodule TuistWeb.ModuleCacheLive do
 
   import Ecto.Query
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
@@ -54,20 +55,22 @@ defmodule TuistWeb.ModuleCacheLive do
     }
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/module-cache?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    socket = assign(socket, :analytics_selected_widget, widget)
 
-    {:noreply, socket}
+    if socket.assigns.hit_rate_analytics.ok? do
+      chart_data =
+        build_analytics_chart_data(
+          widget,
+          socket.assigns.hits_analytics.result,
+          socket.assigns.misses_analytics.result,
+          socket.assigns.hit_rate_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event(
@@ -115,7 +118,6 @@ defmodule TuistWeb.ModuleCacheLive do
     {:noreply, socket}
   end
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
 
@@ -135,38 +137,7 @@ defmodule TuistWeb.ModuleCacheLive do
         _ -> opts
       end
 
-    # Get analytics from Analytics module (runs queries in parallel)
-    [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
-      combined_module_cache_analytics(project.id, opts)
-
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
-
-    analytics_chart_data =
-      case analytics_selected_widget do
-        "cache_hits" ->
-          %{
-            dates: hits_analytics.dates,
-            values: hits_analytics.values,
-            name: dgettext("dashboard_cache", "Cache hits"),
-            value_formatter: "{value}"
-          }
-
-        "cache_misses" ->
-          %{
-            dates: misses_analytics.dates,
-            values: misses_analytics.values,
-            name: dgettext("dashboard_cache", "Cache misses"),
-            value_formatter: "{value}"
-          }
-
-        "cache_hit_rate" ->
-          %{
-            dates: hit_rate_analytics.dates,
-            values: hit_rate_analytics.values,
-            name: dgettext("dashboard_cache", "Cache hit rate"),
-            value_formatter: "{value}%"
-          }
-      end
 
     socket
     |> assign(:analytics_preset, preset)
@@ -174,67 +145,127 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
-    |> assign(:hit_rate_analytics, hit_rate_analytics)
-    |> assign(:hit_rate_p99, hit_rate_p99)
-    |> assign(:hit_rate_p90, hit_rate_p90)
-    |> assign(:hit_rate_p50, hit_rate_p50)
-    |> assign(:hits_analytics, hits_analytics)
-    |> assign(:misses_analytics, misses_analytics)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
-    |> assign(:analytics_chart_data, analytics_chart_data)
+    |> assign_async(
+      [
+        :hit_rate_analytics,
+        :hit_rate_p99,
+        :hit_rate_p90,
+        :hit_rate_p50,
+        :hits_analytics,
+        :misses_analytics,
+        :analytics_chart_data
+      ],
+      fn ->
+        [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
+          combined_module_cache_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           hit_rate_analytics: hit_rate_analytics,
+           hit_rate_p99: hit_rate_p99,
+           hit_rate_p90: hit_rate_p90,
+           hit_rate_p50: hit_rate_p50,
+           hits_analytics: hits_analytics,
+           misses_analytics: misses_analytics,
+           analytics_chart_data:
+             build_analytics_chart_data(
+               analytics_selected_widget,
+               hits_analytics,
+               misses_analytics,
+               hit_rate_analytics
+             )
+         }}
+      end
+    )
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
-    # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
-    fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
+    assign_async(socket, [:runs, :recent_runs_chart_data, :avg_recent_hit_rate], fn ->
+      # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
+      fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
 
-    events =
-      from(e in Event,
-        where:
-          e.project_id == ^project.id and
-            e.cacheable_targets_count > 0 and
-            e.ran_at >= ^fourteen_days_ago,
-        order_by: [desc: e.ran_at],
-        limit: 40
-      )
-      |> Tuist.ClickHouseRepo.all()
-      |> Enum.map(&Event.normalize_enums/1)
+      events =
+        from(e in Event,
+          where:
+            e.project_id == ^project.id and
+              e.cacheable_targets_count > 0 and
+              e.ran_at >= ^fourteen_days_ago,
+          order_by: [desc: e.ran_at],
+          limit: 40
+        )
+        |> Tuist.ClickHouseRepo.all()
+        |> Enum.map(&Event.normalize_enums/1)
 
-    user_map = CommandEvents.get_user_account_names_for_runs(events)
+      user_map = CommandEvents.get_user_account_names_for_runs(events)
 
-    events =
-      Enum.map(events, fn event ->
-        Map.put(event, :user_account_name, Map.get(user_map, event.id))
-      end)
+      events =
+        Enum.map(events, fn event ->
+          Map.put(event, :user_account_name, Map.get(user_map, event.id))
+        end)
 
-    recent_runs_chart_data =
-      events
-      |> Enum.reverse()
-      |> Enum.map(fn event ->
-        hit_rate = cache_hit_rate(event)
+      recent_runs_chart_data =
+        events
+        |> Enum.reverse()
+        |> Enum.map(fn event ->
+          hit_rate = cache_hit_rate(event)
 
-        %{
-          value: hit_rate,
-          date: event.ran_at
-        }
-      end)
+          %{
+            value: hit_rate,
+            date: event.ran_at
+          }
+        end)
 
-    avg_recent_hit_rate =
-      if Enum.empty?(recent_runs_chart_data) do
-        0.0
-      else
-        total =
-          recent_runs_chart_data
-          |> Enum.map(& &1.value)
-          |> Enum.sum()
+      avg_recent_hit_rate =
+        if Enum.empty?(recent_runs_chart_data) do
+          0.0
+        else
+          total =
+            recent_runs_chart_data
+            |> Enum.map(& &1.value)
+            |> Enum.sum()
 
-        Float.round(total / length(recent_runs_chart_data), 1)
-      end
+          Float.round(total / length(recent_runs_chart_data), 1)
+        end
 
-    socket
-    |> assign(:runs, events)
-    |> assign(:recent_runs_chart_data, recent_runs_chart_data)
-    |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
+      {:ok,
+       %{
+         runs: events,
+         recent_runs_chart_data: recent_runs_chart_data,
+         avg_recent_hit_rate: avg_recent_hit_rate
+       }}
+    end)
+  end
+
+  defp build_analytics_chart_data(analytics_selected_widget, hits_analytics, misses_analytics, hit_rate_analytics) do
+    analytics_chart_data(analytics_selected_widget, hits_analytics, misses_analytics, hit_rate_analytics)
+  end
+
+  defp analytics_chart_data("cache_hits", hits_analytics, _misses_analytics, _hit_rate_analytics) do
+    %{
+      dates: hits_analytics.dates,
+      values: hits_analytics.values,
+      name: dgettext("dashboard_cache", "Cache hits"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data("cache_misses", _hits_analytics, misses_analytics, _hit_rate_analytics) do
+    %{
+      dates: misses_analytics.dates,
+      values: misses_analytics.values,
+      name: dgettext("dashboard_cache", "Cache misses"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data(_cache_hit_rate, _hits_analytics, _misses_analytics, hit_rate_analytics) do
+    %{
+      dates: hit_rate_analytics.dates,
+      values: hit_rate_analytics.values,
+      name: dgettext("dashboard_cache", "Cache hit rate"),
+      value_formatter: "{value}%"
+    }
   end
 
   def cache_hit_rate(event) do
