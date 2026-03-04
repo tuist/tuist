@@ -4,6 +4,7 @@ category: "vision"
 tags: ["vision", "productivity", "infrastructure", "cache", "compute", "toolchain"]
 excerpt: "Most companies optimize developer productivity by throwing faster machines at the problem. But productivity has three layers, and ignoring the hard ones means wasting the easy ones."
 author: pepicrft
+og_image_path: /marketing/images/blog/2026/03/04/three-layers-of-developer-productivity/og.jpg
 ---
 
 When an organization grows past a certain size, someone eventually says the words out loud: "We need a platform team." It happens when builds start taking too long, when flaky tests erode trust, when onboarding a new engineer takes a week instead of a day. The toolchain that once felt invisible starts becoming the loudest thing in the room.
