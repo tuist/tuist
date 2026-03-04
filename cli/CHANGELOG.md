@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.154.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.154.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* propagate module map flags to configuration-level setting overrides by [@pepicrft](https://github.com/pepicrft) in [#9692](https://github.com/tuist/tuist/pull/9692)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.4...4.154.5
+
+## What's Changed in 4.154.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -12,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 * replace SourceDocs ProjectDescription reference with DocC by [@pepicrft](https://github.com/pepicrft) in [#9637](https://github.com/tuist/tuist/pull/9637)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.1...4.154.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.1...4.154.4
 
 ## What's Changed in 4.154.1<!-- RELEASE NOTES START -->
 
