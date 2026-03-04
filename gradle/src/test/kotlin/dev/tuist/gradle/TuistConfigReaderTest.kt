@@ -6,7 +6,7 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class TuistTomlParserTest {
+class TomlParserTest {
 
     @TempDir
     lateinit var tempDir: File
@@ -19,7 +19,7 @@ class TuistTomlParserTest {
             url = "https://custom.server.dev"
         """.trimIndent())
 
-        val config = TuistTomlParser.parse(toml)
+        val config = TomlParser.parse(toml)
 
         assertEquals("my-org/my-project", config?.project)
         assertEquals("https://custom.server.dev", config?.url)
@@ -30,7 +30,7 @@ class TuistTomlParserTest {
         val toml = File(tempDir, "tuist.toml")
         toml.writeText("""project = "account/project"""")
 
-        val config = TuistTomlParser.parse(toml)
+        val config = TomlParser.parse(toml)
 
         assertEquals("account/project", config?.project)
         assertNull(config?.url)
@@ -39,7 +39,7 @@ class TuistTomlParserTest {
     @Test
     fun `parse returns null for missing file`() {
         val toml = File(tempDir, "nonexistent.toml")
-        assertNull(TuistTomlParser.parse(toml))
+        assertNull(TomlParser.parse(toml))
     }
 
     @Test
@@ -52,7 +52,7 @@ class TuistTomlParserTest {
             # url = "https://ignored.dev"
         """.trimIndent())
 
-        val config = TuistTomlParser.parse(toml)
+        val config = TomlParser.parse(toml)
 
         assertEquals("org/proj", config?.project)
         assertNull(config?.url)
@@ -63,25 +63,25 @@ class TuistTomlParserTest {
         val toml = File(tempDir, "tuist.toml")
         toml.writeText("""  project  =  "spaced/project"  """)
 
-        val config = TuistTomlParser.parse(toml)
+        val config = TomlParser.parse(toml)
         assertEquals("spaced/project", config?.project)
     }
 }
 
-class TuistServerUrlResolverTest {
+class ServerUrlResolverTest {
 
     @TempDir
     lateinit var tempDir: File
 
     @Test
     fun `resolve returns custom extension URL when not default`() {
-        val url = TuistServerUrlResolver.resolve("https://custom.dev", tempDir)
+        val url = ServerUrlResolver.resolve("https://custom.dev", tempDir)
         assertEquals("https://custom.dev", url)
     }
 
     @Test
     fun `resolve falls back to default when extension URL is default`() {
-        val url = TuistServerUrlResolver.resolve("https://tuist.dev", tempDir)
+        val url = ServerUrlResolver.resolve("https://tuist.dev", tempDir)
         assertEquals("https://tuist.dev", url)
     }
 
@@ -90,13 +90,13 @@ class TuistServerUrlResolverTest {
         val toml = File(tempDir, "tuist.toml")
         toml.writeText("""url = "https://from-toml.dev"""")
 
-        val url = TuistServerUrlResolver.resolve("https://tuist.dev", tempDir)
+        val url = ServerUrlResolver.resolve("https://tuist.dev", tempDir)
         assertEquals("https://from-toml.dev", url)
     }
 
     @Test
     fun `resolve returns default when nothing configured`() {
-        val url = TuistServerUrlResolver.resolve(null, tempDir)
+        val url = ServerUrlResolver.resolve(null, tempDir)
         assertEquals("https://tuist.dev", url)
     }
 }
@@ -115,14 +115,14 @@ class NativeConfigurationProviderTest {
         )
 
         val mockConfigProvider = object : ConfigurationProvider {
-            override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration {
+            override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
                 return provider.getConfiguration(forceRefresh)
             }
         }
 
         // This will fail to get a token since we're not authenticated,
         // but we can test the project splitting via a direct mock
-        val config = TuistCacheConfiguration(
+        val config = CacheConfiguration(
             url = "https://cache.tuist.dev",
             token = "test-token",
             accountHandle = "my-account",

@@ -20,11 +20,11 @@ object ServerClient {
             .build()
     }
 
-    fun authenticated(serverURL: URI, tokenProvider: TuistTokenProvider): Retrofit {
+    fun authenticated(serverURL: URI, tokenProvider: TokenProvider): Retrofit {
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
-            .addInterceptor(TuistAuthInterceptor(tokenProvider))
+            .addInterceptor(AuthInterceptor(tokenProvider))
             .build()
         return Retrofit.Builder()
             .baseUrl(serverURL.toURL())

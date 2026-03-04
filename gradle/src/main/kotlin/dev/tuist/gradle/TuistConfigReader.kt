@@ -10,14 +10,14 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-data class TuistTomlConfig(val project: String?, val url: String?)
+data class TomlConfig(val project: String?, val url: String?)
 
-object TuistTomlParser {
-    fun parse(file: File): TuistTomlConfig? {
+object TomlParser {
+    fun parse(file: File): TomlConfig? {
         if (!file.exists()) return null
         return try {
             val content = file.readText()
-            TuistTomlConfig(
+            TomlConfig(
                 project = extractStringValue(content, "project"),
                 url = extractStringValue(content, "url")
             )
@@ -32,7 +32,7 @@ object TuistTomlParser {
     }
 }
 
-object TuistServerUrlResolver {
+object ServerUrlResolver {
     private const val DEFAULT_URL = "https://tuist.dev"
 
     fun resolve(extensionUrl: String?, projectDir: File?): String {
@@ -44,7 +44,7 @@ object TuistServerUrlResolver {
         if (!envUrl.isNullOrBlank()) return envUrl
 
         if (projectDir != null) {
-            val tomlConfig = TuistTomlParser.parse(File(projectDir, "tuist.toml"))
+            val tomlConfig = TomlParser.parse(File(projectDir, "tuist.toml"))
             if (!tomlConfig?.url.isNullOrBlank()) return tomlConfig!!.url!!
         }
 
@@ -52,8 +52,8 @@ object TuistServerUrlResolver {
     }
 }
 
-object TuistCacheEndpointResolver {
-    private val logger = Logging.getLogger(TuistCacheEndpointResolver::class.java)
+object CacheEndpointResolver {
+    private val logger = Logging.getLogger(CacheEndpointResolver::class.java)
 
     @Volatile
     private var cachedEndpoint: String? = null
@@ -61,7 +61,7 @@ object TuistCacheEndpointResolver {
     fun resolve(
         serverURL: URI,
         accountHandle: String,
-        tokenProvider: TuistTokenProvider
+        tokenProvider: TokenProvider
     ): String {
         cachedEndpoint?.let { return it }
 

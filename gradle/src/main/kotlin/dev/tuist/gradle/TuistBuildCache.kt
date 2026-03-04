@@ -45,7 +45,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 }
 
 interface ConfigurationProvider {
-    fun getConfiguration(forceRefresh: Boolean = false): TuistCacheConfiguration
+    fun getConfiguration(forceRefresh: Boolean = false): CacheConfiguration
 }
 
 class NativeConfigurationProvider(
@@ -55,27 +55,27 @@ class NativeConfigurationProvider(
 ) : ConfigurationProvider {
 
     private val resolvedServerUrl: java.net.URI by lazy {
-        java.net.URI.create(TuistServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir))
+        java.net.URI.create(ServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir))
     }
 
     private val resolvedProject: String by lazy {
         if (!project.isNullOrBlank()) project
         else {
-            val toml = TuistTomlParser.parse(java.io.File(projectDir, "tuist.toml"))
+            val toml = TomlParser.parse(java.io.File(projectDir, "tuist.toml"))
             toml?.project ?: throw RuntimeException(
                 "No project configured. Set tuist { project = \"account/project\" } or create a tuist.toml with project = \"account/project\"."
             )
         }
     }
 
-    private val tokenProvider: TuistTokenProvider by lazy {
-        TuistTokenProvider(resolvedServerUrl)
+    private val tokenProvider: TokenProvider by lazy {
+        TokenProvider(resolvedServerUrl)
     }
 
     @Volatile
     private var cachedCacheEndpoint: String? = null
 
-    override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration {
+    override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
         val token = tokenProvider.getToken(forceRefresh)
         val parts = resolvedProject.split("/", limit = 2)
         val accountHandle = parts[0]
@@ -87,7 +87,7 @@ class NativeConfigurationProvider(
             cachedCacheEndpoint ?: resolveCacheEndpoint(accountHandle)
         }
 
-        return TuistCacheConfiguration(
+        return CacheConfiguration(
             url = cacheEndpoint,
             token = token,
             accountHandle = accountHandle,
@@ -97,7 +97,7 @@ class NativeConfigurationProvider(
 
     private fun resolveCacheEndpoint(accountHandle: String): String {
         val endpoint = try {
-            TuistCacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
+            CacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
         } catch (_: Exception) {
             resolvedServerUrl.toString()
         }
@@ -161,7 +161,7 @@ class TuistBuildCacheService(
         // No resources to clean up
     }
 
-    internal fun buildCacheUrl(config: TuistCacheConfiguration, cacheKey: String): URI {
+    internal fun buildCacheUrl(config: CacheConfiguration, cacheKey: String): URI {
         val baseUri = URI.create(config.url.trimEnd('/'))
         return URI(
             baseUri.scheme,
@@ -175,7 +175,7 @@ class TuistBuildCacheService(
     }
 }
 
-data class TuistCacheConfiguration(
+data class CacheConfiguration(
     val url: String,
     val token: String,
     @com.google.gson.annotations.SerializedName("account_handle")

@@ -11,11 +11,11 @@ class TuistHttpClient(
     private val readTimeoutMs: Int = 60_000
 ) {
     @Volatile
-    private var cachedConfig: TuistCacheConfiguration? = null
+    private var cachedConfig: CacheConfiguration? = null
 
     private val configLock = Any()
 
-    fun openConnection(url: URI, config: TuistCacheConfiguration): HttpURLConnection {
+    fun openConnection(url: URI, config: CacheConfiguration): HttpURLConnection {
         val connection = url.toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
@@ -23,7 +23,7 @@ class TuistHttpClient(
         return connection
     }
 
-    fun <T> execute(operation: (TuistCacheConfiguration) -> T): T {
+    fun <T> execute(operation: (CacheConfiguration) -> T): T {
         val config = getOrFetchConfig()
 
         return try {
@@ -44,7 +44,7 @@ class TuistHttpClient(
         }
     }
 
-    private fun getOrFetchConfig(): TuistCacheConfiguration {
+    private fun getOrFetchConfig(): CacheConfiguration {
         cachedConfig?.let { return it }
 
         synchronized(configLock) {

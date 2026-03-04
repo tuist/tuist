@@ -56,7 +56,7 @@ class TuistBuildCacheTest {
     }
 
     @Test
-    fun `TuistCacheConfiguration parses JSON correctly with snake_case`() {
+    fun `CacheConfiguration parses JSON correctly with snake_case`() {
         val json = """
             {
                 "url": "https://cache.tuist.dev",
@@ -66,7 +66,7 @@ class TuistBuildCacheTest {
             }
         """.trimIndent()
 
-        val config = Gson().fromJson(json, TuistCacheConfiguration::class.java)
+        val config = Gson().fromJson(json, CacheConfiguration::class.java)
 
         assertEquals("https://cache.tuist.dev", config.url)
         assertEquals("tuist_test_token_12345", config.token)
@@ -194,7 +194,7 @@ class TuistBuildCacheTest {
 
     @Test
     fun `buildCacheUrl constructs correct URL`() {
-        val config = TuistCacheConfiguration(
+        val config = CacheConfiguration(
             url = "http://localhost:8080",
             token = "token",
             accountHandle = "acct",
@@ -213,7 +213,7 @@ class TuistBuildCacheTest {
 
     @Test
     fun `buildCacheUrl handles trailing slash in base URL`() {
-        val config = TuistCacheConfiguration(
+        val config = CacheConfiguration(
             url = "http://localhost:8080/",
             token = "token",
             accountHandle = "acct",
@@ -226,7 +226,7 @@ class TuistBuildCacheTest {
         assertEquals("/api/cache/gradle/key", url.path)
     }
 
-    private fun createConfig() = TuistCacheConfiguration(
+    private fun createConfig() = CacheConfiguration(
         url = mockServer.url("/").toString().trimEnd('/'),
         token = "test-token",
         accountHandle = "test-account",
@@ -235,11 +235,11 @@ class TuistBuildCacheTest {
 
     private fun createService(
         isPushEnabled: Boolean = true,
-        configProvider: (Boolean) -> TuistCacheConfiguration = { createConfig() }
+        configProvider: (Boolean) -> CacheConfiguration = { createConfig() }
     ): TuistBuildCacheService {
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration =
+                override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration =
                     configProvider(forceRefresh)
             }
         )

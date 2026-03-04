@@ -83,7 +83,7 @@ class JwtUtilsTest {
     }
 }
 
-class TuistCredentialStoreTest {
+class CredentialStoreTest {
 
     @TempDir
     lateinit var tempDir: File
@@ -95,10 +95,10 @@ class TuistCredentialStoreTest {
 
         val hostname = "tuist.dev"
         val credFile = File(credDir, "$hostname.json")
-        val credentials = TuistCredentials("access-token-123", "refresh-token-456")
+        val credentials = Credentials("access-token-123", "refresh-token-456")
         credFile.writeText(Gson().toJson(credentials))
 
-        val read = Gson().fromJson(credFile.readText(), TuistCredentials::class.java)
+        val read = Gson().fromJson(credFile.readText(), Credentials::class.java)
 
         assertNotNull(read)
         assertEquals("access-token-123", read.accessToken)
@@ -107,7 +107,7 @@ class TuistCredentialStoreTest {
 
     @Test
     fun `credentials serialize with camelCase field names`() {
-        val credentials = TuistCredentials("access", "refresh")
+        val credentials = Credentials("access", "refresh")
         val json = Gson().toJson(credentials)
         assertTrue(json.contains("\"accessToken\""))
         assertTrue(json.contains("\"refreshToken\""))
@@ -118,7 +118,7 @@ class TuistCredentialStoreTest {
     @Test
     fun `credentials deserialize from camelCase JSON`() {
         val json = """{"accessToken":"mytoken","refreshToken":"myrefresh"}"""
-        val creds = Gson().fromJson(json, TuistCredentials::class.java)
+        val creds = Gson().fromJson(json, Credentials::class.java)
         assertEquals("mytoken", creds.accessToken)
         assertEquals("myrefresh", creds.refreshToken)
     }
@@ -126,7 +126,7 @@ class TuistCredentialStoreTest {
     @Test
     fun `credentials with null refreshToken`() {
         val json = """{"accessToken":"mytoken"}"""
-        val creds = Gson().fromJson(json, TuistCredentials::class.java)
+        val creds = Gson().fromJson(json, Credentials::class.java)
         assertEquals("mytoken", creds.accessToken)
         assertNull(creds.refreshToken)
     }

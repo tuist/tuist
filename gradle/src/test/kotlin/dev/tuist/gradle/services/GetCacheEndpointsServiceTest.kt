@@ -2,7 +2,7 @@ package dev.tuist.gradle.services
 
 import com.google.gson.Gson
 import dev.tuist.gradle.ServerClient
-import dev.tuist.gradle.TuistTokenProvider
+import dev.tuist.gradle.TokenProvider
 import dev.tuist.gradle.api.model.CacheEndpoints
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -39,7 +39,7 @@ class GetCacheEndpointsServiceTest {
         val responseBody = Gson().toJson(CacheEndpoints(listOf("https://cache1.tuist.dev", "https://cache2.tuist.dev")))
         mockServer.enqueue(MockResponse().setBody(responseBody).setResponseCode(200))
 
-        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toUri()) {
+        val tokenProvider = object : TokenProvider(mockServer.url("/").toUri()) {
             override fun getToken(forceRefresh: Boolean): String = "test-auth-token"
         }
 
@@ -65,7 +65,7 @@ class GetCacheEndpointsServiceTest {
         val responseBody = Gson().toJson(CacheEndpoints(listOf("https://cache.tuist.dev")))
         mockServer.enqueue(MockResponse().setBody(responseBody).setResponseCode(200))
 
-        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toUri()) {
+        val tokenProvider = object : TokenProvider(mockServer.url("/").toUri()) {
             override fun getToken(forceRefresh: Boolean): String = "my-bearer-token"
         }
 
@@ -84,7 +84,7 @@ class GetCacheEndpointsServiceTest {
     fun `getCacheEndpoints throws with server error message on 401`() {
         mockServer.enqueue(MockResponse().setResponseCode(401).setBody("Authentication required"))
 
-        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toUri()) {
+        val tokenProvider = object : TokenProvider(mockServer.url("/").toUri()) {
             override fun getToken(forceRefresh: Boolean): String = "expired-token"
         }
 
@@ -101,7 +101,7 @@ class GetCacheEndpointsServiceTest {
 
     @Test
     fun `getCacheEndpoints throws on network error`() {
-        val tokenProvider = object : TuistTokenProvider(java.net.URI.create("http://localhost:1")) {
+        val tokenProvider = object : TokenProvider(java.net.URI.create("http://localhost:1")) {
             override fun getToken(forceRefresh: Boolean): String = "token"
         }
 

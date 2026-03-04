@@ -41,27 +41,32 @@ object JwtUtils {
     }
 }
 
-data class TuistCredentials(
+data class Credentials(
     val accessToken: String,
     val refreshToken: String? = null
 )
 
-object TuistCredentialStore {
+object CredentialStore {
     val credentialsDir: File
-        get() = File(System.getProperty("user.home"), ".config/tuist/credentials")
+        get() {
+            val baseConfigDir = System.getenv("TUIST_XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
+                ?: System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
+                ?: File(System.getProperty("user.home"), ".config").path
+            return File(File(baseConfigDir, "tuist"), "credentials")
+        }
 
-    fun read(serverURL: URI): TuistCredentials? {
+    fun read(serverURL: URI): Credentials? {
         val hostname = serverURL.host ?: return null
         val credFile = File(credentialsDir, "$hostname.json")
         if (!credFile.exists()) return null
         return try {
-            Gson().fromJson(credFile.readText(), TuistCredentials::class.java)
+            Gson().fromJson(credFile.readText(), Credentials::class.java)
         } catch (_: Exception) {
             null
         }
     }
 
-    fun write(serverURL: URI, credentials: TuistCredentials) {
+    fun write(serverURL: URI, credentials: Credentials) {
         val hostname = serverURL.host ?: return
         credentialsDir.mkdirs()
         val credFile = File(credentialsDir, "$hostname.json")
@@ -75,7 +80,7 @@ object TuistCredentialStore {
     }
 }
 
-open class TuistTokenProvider(
+open class TokenProvider(
     private val serverURL: URI,
     internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService()
 ) {
@@ -105,7 +110,7 @@ open class TuistTokenProvider(
     }
 
     private fun resolveToken(forceRefresh: Boolean): String {
-        val credentials = TuistCredentialStore.read(serverURL)
+        val credentials = CredentialStore.read(serverURL)
         if (credentials != null) {
             if (!forceRefresh && !JwtUtils.isExpired(credentials.accessToken)) {
                 cachedToken = credentials.accessToken
@@ -116,9 +121,9 @@ open class TuistTokenProvider(
             if (!refreshToken.isNullOrBlank()) {
                 try {
                     val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
-                    TuistCredentialStore.write(
+                    CredentialStore.write(
                         serverURL,
-                        TuistCredentials(newTokens.accessToken, newTokens.refreshToken)
+                        Credentials(newTokens.accessToken, newTokens.refreshToken)
                     )
                     cachedToken = newTokens.accessToken
                     return newTokens.accessToken
@@ -166,7 +171,7 @@ open class TuistTokenProvider(
                 throw RuntimeException("Timed out waiting for auth lock")
             }
 
-            val freshCredentials = TuistCredentialStore.read(serverURL)
+            val freshCredentials = CredentialStore.read(serverURL)
             if (freshCredentials != null && !JwtUtils.isExpired(freshCredentials.accessToken)) {
                 cachedToken = freshCredentials.accessToken
                 return freshCredentials.accessToken
