@@ -123,7 +123,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={Enum.any?(@flaky_runs_grouped)}
+      :if={@flaky_runs_grouped.ok? and Enum.any?(@flaky_runs_grouped.result)}
       label={dgettext("dashboard_tests", "Flaky Runs")}
       selected={@selected_tab == "flaky-runs"}
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
@@ -193,7 +193,8 @@
         </div>
         <div data-part="widgets">
           <.widget
-            :if={@flakiness_rate && @flakiness_rate > 0}
+            :if={@flakiness_rate.ok? && @flakiness_rate.result && @flakiness_rate.result > 0}
+            loading={!@flakiness_rate.ok?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
             description={
               dgettext(
@@ -201,10 +202,11 @@
                 "Percentage of test runs that were flaky in the last 30 days."
               )
             }
-            value={"#{@flakiness_rate}%"}
+            value={if @flakiness_rate.ok?, do: "#{@flakiness_rate.result}%"}
             id="widget-flakiness-rate"
           />
           <.widget
+            loading={!@reliability.ok?}
             title={dgettext("dashboard_tests", "Test reliability")}
             description={
               dgettext(
@@ -213,12 +215,13 @@
                 branch: @selected_project.default_branch
               )
             }
-            value={"#{@reliability}%"}
+            value={if @reliability.ok?, do: "#{@reliability.result}%"}
             id="widget-test-reliability"
-            empty={is_nil(@reliability)}
+            empty={@reliability.ok? && is_nil(@reliability.result)}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
           <.widget
+            loading={!@analytics.ok?}
             title={dgettext("dashboard_tests", "Test case runs")}
             description={
               dgettext(
@@ -226,20 +229,30 @@
                 "Total number of times this test case has been executed."
               )
             }
-            value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
+            value={
+              if @analytics.ok?,
+                do:
+                  Number.Delimit.number_to_delimited(@analytics.result.total_count, precision: 0)
+            }
             id="widget-test-case-runs"
-            empty={@analytics.total_count == 0}
+            empty={@analytics.ok? && @analytics.result.total_count == 0}
           />
           <.widget
+            loading={!@analytics.ok?}
             title={dgettext("dashboard_tests", "Failed test case runs")}
             description={
               dgettext("dashboard_tests", "Number of times this test case has failed.")
             }
-            value={Number.Delimit.number_to_delimited(@analytics.failed_count, precision: 0)}
+            value={
+              if @analytics.ok?,
+                do:
+                  Number.Delimit.number_to_delimited(@analytics.result.failed_count, precision: 0)
+            }
             id="widget-failed-test-case-runs"
-            empty={@analytics.total_count == 0}
+            empty={@analytics.ok? && @analytics.result.total_count == 0}
           />
           <.widget
+            loading={!@analytics.ok?}
             title={dgettext("dashboard_tests", "Avg. test case run duration")}
             description={
               dgettext(
@@ -248,12 +261,14 @@
               )
             }
             value={
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @analytics.avg_duration
-              )
+              if @analytics.ok?,
+                do:
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                    @analytics.result.avg_duration
+                  )
             }
             id="widget-avg-duration"
-            empty={@analytics.total_count == 0}
+            empty={@analytics.ok? && @analytics.result.total_count == 0}
             empty_label={dgettext("dashboard_tests", "No data")}
           />
         </div>
@@ -298,14 +313,17 @@
   </.card>
 
   <.card
-    :if={@selected_tab == "flaky-runs" and Enum.any?(@flaky_runs_grouped)}
+    :if={
+      @selected_tab == "flaky-runs" and @flaky_runs_grouped.ok? and
+        Enum.any?(@flaky_runs_grouped.result)
+    }
     title={dgettext("dashboard_tests", "Flaky Runs")}
     icon="alert_triangle"
     data-part="flaky-runs-card"
   >
     <.card_section data-part="flaky-runs-section">
       <div
-        :for={group <- @flaky_runs_grouped}
+        :for={group <- @flaky_runs_grouped.result}
         id={"flaky-group-#{group.scheme}-#{group.git_commit_sha}"}
         phx-hook="NooraCollapsible"
         data-part="collapsible"

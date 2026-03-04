@@ -356,34 +356,24 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_analytics(
          %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
        ) do
-    [reliability, analytics, flakiness_rate, {flaky_runs_grouped, flaky_runs_meta}] =
-      Task.await_many(
-        [
-          Task.async(fn ->
-            Analytics.test_case_reliability_by_id(
-              test_case_id,
-              project.default_branch
-            )
-          end),
-          Task.async(fn ->
-            Analytics.test_case_analytics_by_id(test_case_id)
-          end),
-          Task.async(fn ->
-            Analytics.get_test_case_flakiness_rate(test_case_detail)
-          end),
-          Task.async(fn ->
-            Tests.list_flaky_runs_for_test_case(test_case_id)
-          end)
-        ],
-        30_000
-      )
-
     socket
-    |> assign(:reliability, reliability)
-    |> assign(:analytics, analytics)
-    |> assign(:flakiness_rate, flakiness_rate)
-    |> assign(:flaky_runs_grouped, flaky_runs_grouped)
-    |> assign(:flaky_runs_meta, flaky_runs_meta)
+    |> assign_async([:reliability, :analytics], fn ->
+      {:ok,
+       %{
+         reliability: Analytics.test_case_reliability_by_id(test_case_id, project.default_branch),
+         analytics: Analytics.test_case_analytics_by_id(test_case_id)
+       }}
+    end)
+    |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
+      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(test_case_id)
+
+      {:ok,
+       %{
+         flakiness_rate: Analytics.get_test_case_flakiness_rate(test_case_detail),
+         flaky_runs_grouped: flaky_runs_grouped,
+         flaky_runs_meta: flaky_runs_meta
+       }}
+    end)
   end
 
   defp assign_test_case_runs(
