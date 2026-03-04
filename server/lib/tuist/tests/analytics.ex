@@ -11,7 +11,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
-  alias Tuist.Tests.TestCaseRunDailyStat
+  alias Tuist.Tests.TestCaseRunDailyAggregate
 
   @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 
@@ -584,7 +584,7 @@ defmodule Tuist.Tests.Analytics do
       start_date = DateTime.to_date(start_datetime)
       end_date = DateTime.to_date(end_datetime)
 
-      from(s in TestCaseRunDailyStat,
+      from(s in TestCaseRunDailyAggregate,
         where: s.project_id == ^project_id,
         where: s.date >= ^start_date,
         where: s.date <= ^end_date,
@@ -595,8 +595,8 @@ defmodule Tuist.Tests.Analytics do
         },
         order_by: fragment("formatDateTime(?, ?)", s.date, ^date_format)
       )
-      |> apply_daily_is_ci_filter(is_ci)
-      |> apply_daily_status_filter(status)
+      |> apply_is_ci_filter(is_ci)
+      |> apply_status_filter(status)
       |> ClickHouseRepo.all()
     end
   end
@@ -607,14 +607,14 @@ defmodule Tuist.Tests.Analytics do
     start_date = DateTime.to_date(start_datetime)
     end_date = DateTime.to_date(end_datetime)
 
-    from(s in TestCaseRunDailyStat,
+    from(s in TestCaseRunDailyAggregate,
       where: s.project_id == ^project_id,
       where: s.date >= ^start_date,
       where: s.date <= ^end_date,
       select: fragment("countMerge(count_state)")
     )
-    |> apply_daily_is_ci_filter(is_ci)
-    |> apply_daily_status_filter(status)
+    |> apply_is_ci_filter(is_ci)
+    |> apply_status_filter(status)
     |> ClickHouseRepo.one() || 0
   end
 
@@ -627,16 +627,6 @@ defmodule Tuist.Tests.Analytics do
   defp apply_status_filter(query, "success"), do: where(query, [tcr], tcr.status == "success")
   defp apply_status_filter(query, "skipped"), do: where(query, [tcr], tcr.status == "skipped")
   defp apply_status_filter(query, "flaky"), do: where(query, [tcr], tcr.is_flaky == true)
-
-  defp apply_daily_is_ci_filter(query, nil), do: query
-  defp apply_daily_is_ci_filter(query, true), do: where(query, [s], s.is_ci == true)
-  defp apply_daily_is_ci_filter(query, false), do: where(query, [s], s.is_ci == false)
-
-  defp apply_daily_status_filter(query, nil), do: query
-  defp apply_daily_status_filter(query, "failure"), do: where(query, [s], s.status == "failure")
-  defp apply_daily_status_filter(query, "success"), do: where(query, [s], s.status == "success")
-  defp apply_daily_status_filter(query, "skipped"), do: where(query, [s], s.status == "skipped")
-  defp apply_daily_status_filter(query, "flaky"), do: where(query, [s], s.is_flaky == true)
 
   @doc """
   Gets test case run duration analytics for a project over a time period.
@@ -737,14 +727,14 @@ defmodule Tuist.Tests.Analytics do
     end_date = DateTime.to_date(end_datetime)
 
     query =
-      from(s in TestCaseRunDailyStat,
+      from(s in TestCaseRunDailyAggregate,
         where: s.project_id == ^project_id,
         where: s.date >= ^start_date,
         where: s.date <= ^end_date,
         select: fragment("avgMerge(avg_duration_state)")
       )
 
-    query = apply_daily_is_ci_filter(query, is_ci)
+    query = apply_is_ci_filter(query, is_ci)
 
     result = ClickHouseRepo.one(query)
 
@@ -761,7 +751,7 @@ defmodule Tuist.Tests.Analytics do
     end_date = DateTime.to_date(end_datetime)
 
     query =
-      from(s in TestCaseRunDailyStat,
+      from(s in TestCaseRunDailyAggregate,
         where: s.project_id == ^project_id,
         where: s.date >= ^start_date,
         where: s.date <= ^end_date,
@@ -772,7 +762,7 @@ defmodule Tuist.Tests.Analytics do
         }
       )
 
-    query = apply_daily_is_ci_filter(query, is_ci)
+    query = apply_is_ci_filter(query, is_ci)
 
     result = ClickHouseRepo.one(query)
 
@@ -815,7 +805,7 @@ defmodule Tuist.Tests.Analytics do
       start_date = DateTime.to_date(start_datetime)
       end_date = DateTime.to_date(end_datetime)
 
-      from(s in TestCaseRunDailyStat,
+      from(s in TestCaseRunDailyAggregate,
         where: s.project_id == ^project_id,
         where: s.date >= ^start_date,
         where: s.date <= ^end_date,
@@ -826,7 +816,7 @@ defmodule Tuist.Tests.Analytics do
         },
         order_by: fragment("formatDateTime(?, ?)", s.date, ^date_format)
       )
-      |> apply_daily_is_ci_filter(is_ci)
+      |> apply_is_ci_filter(is_ci)
       |> ClickHouseRepo.all()
     end
   end
@@ -858,7 +848,7 @@ defmodule Tuist.Tests.Analytics do
       start_date = DateTime.to_date(start_datetime)
       end_date = DateTime.to_date(end_datetime)
 
-      from(s in TestCaseRunDailyStat,
+      from(s in TestCaseRunDailyAggregate,
         where: s.project_id == ^project_id,
         where: s.date >= ^start_date,
         where: s.date <= ^end_date,
@@ -871,7 +861,7 @@ defmodule Tuist.Tests.Analytics do
         },
         order_by: fragment("formatDateTime(?, ?)", s.date, ^date_format)
       )
-      |> apply_daily_is_ci_filter(is_ci)
+      |> apply_is_ci_filter(is_ci)
       |> ClickHouseRepo.all()
       |> Enum.map(fn row ->
         %{date: row.date, p50: row.p50 || 0, p90: row.p90 || 0, p99: row.p99 || 0}
