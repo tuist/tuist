@@ -12,6 +12,8 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
 
+  @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
+
   def test_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
@@ -564,7 +566,7 @@ defmodule Tuist.Tests.Analytics do
     status = Keyword.get(opts, :status)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -586,7 +588,7 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
 
-    from(tcr in TestCaseRun,
+    from(tcr in @test_case_runs_by_inserted_at,
       where: tcr.project_id == ^project_id,
       where: tcr.inserted_at >= ^start_datetime,
       where: tcr.inserted_at <= ^end_datetime,
@@ -704,7 +706,7 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -731,7 +733,7 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -774,7 +776,7 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -802,7 +804,7 @@ defmodule Tuist.Tests.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     query =
-      from(tcr in TestCaseRun,
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
