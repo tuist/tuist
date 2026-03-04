@@ -181,8 +181,17 @@
           empty={is_nil(@bundle_size_last_bundle)}
         />
       </div>
+      <.card_section :if={!@bundle_size_analytics.ok?} data-part="bundle-size-chart-card-section">
+        <span data-part="legend" class="tuist-loading-skeleton">
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        </span>
+        <.skeleton_chart />
+      </.card_section>
       <.card_section
-        :if={Enum.any?(@bundle_size_analytics, fn [_date, value] -> value != 0 end)}
+        :if={
+          @bundle_size_analytics.ok? &&
+            Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
+        }
         data-part="bundle-size-chart-card-section"
       >
         <span data-part="legend">
@@ -209,8 +218,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @bundle_size_analytics |> List.first() |> List.first(),
-                    @bundle_size_analytics |> List.last() |> List.first()
+                    @bundle_size_analytics.result |> List.first() |> List.first(),
+                    @bundle_size_analytics.result |> List.last() |> List.first()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -238,7 +247,7 @@
           series={[
             %{
               color: "var:noora-chart-primary",
-              data: @bundle_size_analytics,
+              data: @bundle_size_analytics.result,
               name:
                 case @bundles_sort_by do
                   "install-size" -> dgettext("dashboard_cache", "Install size")
@@ -253,7 +262,10 @@
         />
       </.card_section>
       <.empty_card_section
-        :if={Enum.all?(@bundle_size_analytics, fn [_date, value] -> value == 0 end)}
+        :if={
+          @bundle_size_analytics.ok? &&
+            Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
+        }
         title={dgettext("dashboard_cache", "No bundles yet")}
       >
         <:image>
