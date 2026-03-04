@@ -97,7 +97,7 @@ commit_parsers = [
     { message = "^refactor\\([^)]*\\bcli\\b[^)]*\\)", group = "<!-- 2 -->🚜 Refactor" },
     { message = "^style\\([^)]*\\bcli\\b[^)]*\\)", group = "<!-- 5 -->🎨 Styling" },
     { message = "^test\\([^)]*\\bcli\\b[^)]*\\)", group = "<!-- 6 -->🧪 Testing" },
-    { message = "^chore\\([^)]*\\bcli\\b[^)]*\\)", skip = true },
+    { message = "^chore\\([^)]*\\bcli\\b[^)]*\\)", group = "<!-- 7 -->📦 Dependencies" },
     { message = "^ci\\([^)]*\\bcli\\b[^)]*\\)", skip = true },
     # Skip any other scoped commits
     { message = "^[a-z]+\\([^)]+\\)", skip = true },
