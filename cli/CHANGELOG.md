@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 * bump Rosalind to 0.7.22 and swift-protobuf to 1.35.1 by [@fortmarek](https://github.com/fortmarek) in [#9701](https://github.com/tuist/tuist/pull/9701)
 * fix build categorization for Xcode 26+ compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9689](https://github.com/tuist/tuist/pull/9689)
 * bump XCLogParser to 0.2.46 and improve activity log error messages by [@fortmarek](https://github.com/fortmarek) in [#9691](https://github.com/tuist/tuist/pull/9691)
+### 📚 Documentation
+
+* replace SourceDocs ProjectDescription reference with DocC by [@pepicrft](https://github.com/pepicrft) in [#9637](https://github.com/tuist/tuist/pull/9637)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.154.1...4.154.2
 
