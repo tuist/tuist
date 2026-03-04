@@ -101,35 +101,44 @@ class ServerUrlResolverTest {
     }
 }
 
-class DefaultConfigurationProviderTest {
+class ProjectHandleTest {
+
+    @Test
+    fun `parse splits into account and project`() {
+        val handle = ProjectHandle.parse("my-account/my-project")
+        assertEquals("my-account", handle.accountHandle)
+        assertEquals("my-project", handle.projectHandle)
+    }
+
+    @Test
+    fun `parse single-segment uses empty project`() {
+        val handle = ProjectHandle.parse("my-account")
+        assertEquals("my-account", handle.accountHandle)
+        assertEquals("", handle.projectHandle)
+    }
+}
+
+class ServerUrlResolverFindTomlTest {
 
     @TempDir
     lateinit var tempDir: File
 
     @Test
-    fun `splits project handle into account and project`() {
-        val parts = "my-account/my-project".split("/", limit = 2)
-        assertEquals("my-account", parts[0])
-        assertEquals("my-project", parts.getOrElse(1) { "" })
-    }
-
-    @Test
-    fun `single-segment project handle uses empty project`() {
-        val parts = "my-account".split("/", limit = 2)
-        assertEquals("my-account", parts[0])
-        assertEquals("", parts.getOrElse(1) { "" })
-    }
-
-    @Test
-    fun `resolvedProject reads from tuist toml when project is null`() {
+    fun `findTomlFile traverses up directory tree`() {
+        val nested = File(tempDir, "a/b/c")
+        nested.mkdirs()
         val toml = File(tempDir, "tuist.toml")
-        toml.writeText("""project = "toml-org/toml-project"""")
+        toml.writeText("""project = "org/proj"""")
 
-        val config = TomlParser.parse(toml)
-        assertEquals("toml-org/toml-project", config?.project)
+        val found = ServerUrlResolver.findTomlFile(nested)
+        assertEquals(toml.canonicalPath, found?.canonicalPath)
+    }
 
-        val parts = config!!.project!!.split("/", limit = 2)
-        assertEquals("toml-org", parts[0])
-        assertEquals("toml-project", parts.getOrElse(1) { "" })
+    @Test
+    fun `findTomlFile returns null when no toml exists`() {
+        val nested = File(tempDir, "empty/nested")
+        nested.mkdirs()
+
+        assertNull(ServerUrlResolver.findTomlFile(nested))
     }
 }

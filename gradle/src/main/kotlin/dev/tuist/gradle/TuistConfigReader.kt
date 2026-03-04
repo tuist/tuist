@@ -9,7 +9,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-
 object ServerUrlResolver {
     private const val DEFAULT_URL = "https://tuist.dev"
 
@@ -22,12 +21,34 @@ object ServerUrlResolver {
         }
 
         if (projectDir != null) {
-            TomlParser.parse(File(projectDir, "tuist.toml"))?.url?.takeIf { it.isNotBlank() }?.let { return it }
+            findTomlFile(projectDir)?.let { tomlFile ->
+                TomlParser.parse(tomlFile)?.url?.takeIf { it.isNotBlank() }?.let { return it }
+            }
         }
 
         return extensionUrl ?: DEFAULT_URL
     }
+
+    internal fun findTomlFile(startDir: File): File? {
+        var dir: File? = startDir
+        while (dir != null) {
+            val toml = File(dir, "tuist.toml")
+            if (toml.exists()) return toml
+            dir = dir.parentFile
+        }
+        return null
+    }
 }
+
+class NoCacheEndpointsException(accountHandle: String) : RuntimeException(
+    "No cache endpoints available for account '$accountHandle'. " +
+        "Verify your project is correctly configured at https://tuist.dev."
+)
+
+class CacheEndpointsUnreachableException(endpoints: List<String>) : RuntimeException(
+    "None of the cache endpoints are reachable: ${endpoints.joinToString(", ")}. " +
+        "Check your internet connection and firewall settings."
+)
 
 object CacheEndpointResolver {
 
@@ -46,18 +67,18 @@ object CacheEndpointResolver {
         val endpoints = getCacheEndpointsService.getCacheEndpoints(serverURL, accountHandle, tokenProvider)
 
         if (endpoints.isEmpty()) {
-            throw RuntimeException("No cache endpoints available.")
+            throw NoCacheEndpointsException(accountHandle)
         }
 
         return if (endpoints.size == 1) {
             endpoints[0]
         } else {
             pickFastestEndpoint(endpoints)
-                ?: throw RuntimeException("None of the cache endpoints are reachable.")
+                ?: throw CacheEndpointsUnreachableException(endpoints)
         }
     }
 
-    private fun pickFastestEndpoint(endpoints: List<String>): String? {
+    internal fun pickFastestEndpoint(endpoints: List<String>): String? {
         val bestEndpoint = AtomicReference<String?>(null)
         val bestLatency = AtomicReference(Long.MAX_VALUE)
         val latch = CountDownLatch(endpoints.size)
@@ -78,7 +99,7 @@ object CacheEndpointResolver {
                         }
                     }
                 } catch (_: Exception) {
-                    // skip
+                    // skip unreachable endpoint
                 } finally {
                     latch.countDown()
                 }
@@ -89,9 +110,9 @@ object CacheEndpointResolver {
         return bestEndpoint.get()
     }
 
-    private fun measureLatency(endpointUrl: String, client: OkHttpClient): Long {
+    internal fun measureLatency(endpointUrl: String, client: OkHttpClient): Long {
         val baseUri = URI.create(endpointUrl)
-        val upUri = URI(baseUri.scheme, baseUri.authority, baseUri.path.trimEnd('/') + "/up", null, null)
+        val upUri = baseUri.resolve(baseUri.path.trimEnd('/') + "/up")
         val request = Request.Builder()
             .url(upUri.toURL())
             .get()
@@ -105,5 +126,4 @@ object CacheEndpointResolver {
             Long.MAX_VALUE
         }
     }
-
 }

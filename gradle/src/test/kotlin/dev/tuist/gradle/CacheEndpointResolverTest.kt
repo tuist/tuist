@@ -5,6 +5,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.Test
 import java.net.URI
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -50,8 +51,8 @@ class CacheEndpointResolverTest {
     }
 
     @Test
-    fun `no endpoints throws RuntimeException`() {
-        assertFailsWith<RuntimeException> {
+    fun `no endpoints throws NoCacheEndpointsException`() {
+        assertFailsWith<NoCacheEndpointsException> {
             CacheEndpointResolver.resolve(
                 serverURL, accountHandle, stubTokenProvider,
                 envProvider = { null },
@@ -61,28 +62,28 @@ class CacheEndpointResolverTest {
     }
 
     @Test
-    fun `multiple endpoints selects one via latency check`() {
-        val server1 = MockWebServer()
-        val server2 = MockWebServer()
-        server1.enqueue(MockResponse().setBody("ok"))
-        server2.enqueue(MockResponse().setBody("ok"))
-        server1.start()
-        server2.start()
+    fun `multiple endpoints selects fastest by latency`() {
+        val fastServer = MockWebServer()
+        val slowServer = MockWebServer()
+        fastServer.enqueue(MockResponse().setBody("ok"))
+        slowServer.enqueue(MockResponse().setBody("ok").setBodyDelay(500, TimeUnit.MILLISECONDS))
+        fastServer.start()
+        slowServer.start()
 
         try {
-            val url1 = server1.url("/").toString().trimEnd('/')
-            val url2 = server2.url("/").toString().trimEnd('/')
+            val fastUrl = fastServer.url("/").toString().trimEnd('/')
+            val slowUrl = slowServer.url("/").toString().trimEnd('/')
 
             val result = CacheEndpointResolver.resolve(
                 serverURL, accountHandle, stubTokenProvider,
                 envProvider = { null },
-                getCacheEndpointsService = stubService(listOf(url1, url2))
+                getCacheEndpointsService = stubService(listOf(slowUrl, fastUrl))
             )
 
-            assertTrue(result == url1 || result == url2)
+            assertEquals(fastUrl, result)
         } finally {
-            server1.shutdown()
-            server2.shutdown()
+            fastServer.shutdown()
+            slowServer.shutdown()
         }
     }
 

@@ -7,9 +7,11 @@ import java.net.URI
 open class TokenProvider(
     private val serverURL: URI,
     internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService(),
+    internal val credentialStore: CredentialStore = CredentialStore(),
     internal val envProvider: (String) -> String? = { System.getenv(it) },
     internal val tokenCacheFactory: (URI) -> CachedValueStore<String> = { url ->
-        val sanitizedUrl = url.toString().replace(Regex("[/: ]"), "_")
+        val sanitizedUrl = URI(url.scheme, url.host, url.path, null).toASCIIString()
+            .replace(Regex("[/: ]"), "_")
         CachedValueStore(
             lockFilePath = File(
                 File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
@@ -30,7 +32,7 @@ open class TokenProvider(
     }
 
     private fun resolveToken(): Pair<String, Long?> {
-        val credentials = CredentialStore.read(serverURL)
+        val credentials = credentialStore.read(serverURL)
             ?: throw NotAuthenticatedException()
 
         val accessToken = credentials.accessToken
@@ -45,7 +47,7 @@ open class TokenProvider(
 
         try {
             val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
-            CredentialStore.write(
+            credentialStore.write(
                 serverURL,
                 Credentials(newTokens.accessToken, newTokens.refreshToken)
             )
@@ -58,6 +60,7 @@ open class TokenProvider(
     }
 
     class NotAuthenticatedException : RuntimeException(
-        "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable."
+        "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable. " +
+            "See https://docs.tuist.dev/en/guides/develop/build/cache#authentication"
     )
 }

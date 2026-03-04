@@ -14,7 +14,7 @@ object ServerClient {
             .readTimeout(60, TimeUnit.SECONDS)
             .build()
         return Retrofit.Builder()
-            .baseUrl(serverURL.toURL())
+            .baseUrl(normalizeBaseUrl(serverURL))
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
@@ -27,9 +27,14 @@ object ServerClient {
             .addInterceptor(AuthInterceptor(tokenProvider))
             .build()
         return Retrofit.Builder()
-            .baseUrl(serverURL.toURL())
+            .baseUrl(normalizeBaseUrl(serverURL))
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
+    }
+
+    private fun normalizeBaseUrl(serverURL: URI): String {
+        val base = serverURL.resolve("/")
+        return base.toASCIIString()
     }
 }

@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.URI
 
@@ -12,17 +13,10 @@ data class Credentials(
     val refreshToken: String? = null
 )
 
-object CredentialStore {
-    internal var credentialsDirOverride: File? = null
-
-    val credentialsDir: File
-        get() {
-            credentialsDirOverride?.let { return it }
-            val baseConfigDir = System.getenv("TUIST_XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
-                ?: System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
-                ?: File(System.getProperty("user.home"), ".config").path
-            return File(File(baseConfigDir, "tuist"), "credentials")
-        }
+class CredentialStore(
+    private val credentialsDir: File = defaultCredentialsDir()
+) {
+    private val logger = LoggerFactory.getLogger(CredentialStore::class.java)
 
     fun read(serverURL: URI): Credentials? {
         val hostname = serverURL.host ?: return null
@@ -30,7 +24,9 @@ object CredentialStore {
         if (!credFile.exists()) return null
         return try {
             Gson().fromJson(credFile.readText(), Credentials::class.java)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.warn("Tuist: Credential file {} is corrupt and will be removed. Re-authenticate with `tuist auth login`. Error: {}", credFile, e.message)
+            credFile.delete()
             null
         }
     }
@@ -39,5 +35,12 @@ object CredentialStore {
         val hostname = serverURL.host ?: return
         credentialsDir.mkdirs()
         File(credentialsDir, "$hostname.json").writeText(Gson().toJson(credentials))
+    }
+
+    companion object {
+        fun defaultCredentialsDir(): File {
+            val baseConfigDir = XdgPaths.configHome()
+            return File(File(baseConfigDir, "tuist"), "credentials")
+        }
     }
 }

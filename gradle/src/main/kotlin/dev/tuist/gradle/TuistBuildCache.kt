@@ -57,6 +57,18 @@ interface ConfigurationProvider {
     fun getConfiguration(forceRefresh: Boolean = false): CacheConfiguration
 }
 
+data class ProjectHandle(val accountHandle: String, val projectHandle: String) {
+    companion object {
+        fun parse(fullName: String): ProjectHandle {
+            val parts = fullName.split("/", limit = 2)
+            return ProjectHandle(
+                accountHandle = parts[0],
+                projectHandle = parts.getOrElse(1) { "" }
+            )
+        }
+    }
+}
+
 /**
  * Default configuration provider that resolves auth and cache endpoints natively.
  */
@@ -70,14 +82,16 @@ class DefaultConfigurationProvider(
         java.net.URI.create(ServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir))
     }
 
-    private val resolvedProject: String by lazy {
-        if (!project.isNullOrBlank()) project
+    private val resolvedProject: ProjectHandle by lazy {
+        val fullName = if (!project.isNullOrBlank()) project
         else {
-            val toml = TomlParser.parse(java.io.File(projectDir, "tuist.toml"))
+            val tomlFile = ServerUrlResolver.findTomlFile(projectDir)
+            val toml = tomlFile?.let { TomlParser.parse(it) }
             toml?.project ?: throw RuntimeException(
                 "No project configured. Set tuist { project = \"account/project\" } or create a tuist.toml with project = \"account/project\"."
             )
         }
+        ProjectHandle.parse(fullName)
     }
 
     private val tokenProvider: TokenProvider by lazy {
@@ -88,19 +102,17 @@ class DefaultConfigurationProvider(
 
     override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
         val token = tokenProvider.getToken(forceRefresh)
-        val parts = resolvedProject.split("/", limit = 2)
-        val accountHandle = parts[0]
-        val projectHandle = parts.getOrElse(1) { "" }
+        val handle = resolvedProject
 
         val cacheEndpoint = cacheEndpointCache.getValue(forceRefresh) {
-            resolveCacheEndpoint(accountHandle)
+            resolveCacheEndpoint(handle.accountHandle)
         }
 
         return CacheConfiguration(
             url = cacheEndpoint,
             token = token,
-            accountHandle = accountHandle,
-            projectHandle = projectHandle
+            accountHandle = handle.accountHandle,
+            projectHandle = handle.projectHandle
         )
     }
 

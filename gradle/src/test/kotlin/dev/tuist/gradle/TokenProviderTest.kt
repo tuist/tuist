@@ -3,7 +3,6 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.services.RefreshAuthTokenService
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -20,10 +19,8 @@ class TokenProviderTest {
 
     private val serverURL = URI.create("https://tuist.dev")
 
-    @AfterEach
-    fun tearDown() {
-        CredentialStore.credentialsDirOverride = null
-    }
+    private fun createCredentialStore(): CredentialStore =
+        CredentialStore(File(tempDir, "credentials"))
 
     private fun createJwt(expSeconds: Long): String {
         val header = Base64.getUrlEncoder().withoutPadding()
@@ -38,18 +35,23 @@ class TokenProviderTest {
     private fun validJwt(): String = createJwt(System.currentTimeMillis() / 1000 + 3600)
     private fun expiredJwt(): String = createJwt(System.currentTimeMillis() / 1000 - 3600)
 
-    private fun writeCredentials(accessToken: String, refreshToken: String? = null) {
-        CredentialStore.credentialsDirOverride = File(tempDir, "credentials")
-        CredentialStore.write(serverURL, Credentials(accessToken, refreshToken))
+    private fun writeCredentials(
+        store: CredentialStore,
+        accessToken: String,
+        refreshToken: String? = null
+    ) {
+        store.write(serverURL, Credentials(accessToken, refreshToken))
     }
 
     private fun createProvider(
         envVars: Map<String, String> = emptyMap(),
-        refreshService: RefreshAuthTokenService = RefreshAuthTokenService()
+        refreshService: RefreshAuthTokenService = RefreshAuthTokenService(),
+        credentialStore: CredentialStore = createCredentialStore()
     ): TokenProvider {
         return TokenProvider(
             serverURL = serverURL,
             refreshAuthTokenService = refreshService,
+            credentialStore = credentialStore,
             envProvider = { envVars[it] },
             tokenCacheFactory = { CachedValueStore() }
         )
@@ -64,8 +66,9 @@ class TokenProviderTest {
     @Test
     fun `valid stored credential returns access token`() {
         val jwt = validJwt()
-        writeCredentials(jwt)
-        val provider = createProvider()
+        val store = createCredentialStore()
+        writeCredentials(store, jwt)
+        val provider = createProvider(credentialStore = store)
         assertEquals(jwt, provider.getToken())
     }
 
@@ -73,7 +76,8 @@ class TokenProviderTest {
     fun `expired token with refresh token calls refresh and writes new credentials`() {
         val expiredToken = expiredJwt()
         val newToken = validJwt()
-        writeCredentials(expiredToken, "refresh-token")
+        val store = createCredentialStore()
+        writeCredentials(store, expiredToken, "refresh-token")
 
         val mockRefreshService = object : RefreshAuthTokenService() {
             override fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
@@ -81,18 +85,19 @@ class TokenProviderTest {
             }
         }
 
-        val provider = createProvider(refreshService = mockRefreshService)
+        val provider = createProvider(refreshService = mockRefreshService, credentialStore = store)
         assertEquals(newToken, provider.getToken())
 
-        val stored = CredentialStore.read(serverURL)
+        val stored = store.read(serverURL)
         assertEquals(newToken, stored?.accessToken)
         assertEquals("new-refresh", stored?.refreshToken)
     }
 
     @Test
     fun `expired token without refresh token throws NotAuthenticatedException`() {
-        writeCredentials(expiredJwt(), null)
-        val provider = createProvider()
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), null)
+        val provider = createProvider(credentialStore = store)
 
         assertFailsWith<TokenProvider.NotAuthenticatedException> {
             provider.getToken()
@@ -101,8 +106,8 @@ class TokenProviderTest {
 
     @Test
     fun `no stored credentials throws NotAuthenticatedException`() {
-        CredentialStore.credentialsDirOverride = File(tempDir, "empty-credentials")
-        val provider = createProvider()
+        val store = CredentialStore(File(tempDir, "empty-credentials"))
+        val provider = createProvider(credentialStore = store)
 
         assertFailsWith<TokenProvider.NotAuthenticatedException> {
             provider.getToken()
@@ -111,7 +116,8 @@ class TokenProviderTest {
 
     @Test
     fun `refresh failure throws NotAuthenticatedException`() {
-        writeCredentials(expiredJwt(), "refresh-token")
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
 
         val failingRefreshService = object : RefreshAuthTokenService() {
             override fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
@@ -119,7 +125,7 @@ class TokenProviderTest {
             }
         }
 
-        val provider = createProvider(refreshService = failingRefreshService)
+        val provider = createProvider(refreshService = failingRefreshService, credentialStore = store)
 
         assertFailsWith<TokenProvider.NotAuthenticatedException> {
             provider.getToken()
@@ -128,7 +134,8 @@ class TokenProviderTest {
 
     @Test
     fun `ConnectException is rethrown directly`() {
-        writeCredentials(expiredJwt(), "refresh-token")
+        val store = createCredentialStore()
+        writeCredentials(store, expiredJwt(), "refresh-token")
 
         val connectExceptionService = object : RefreshAuthTokenService() {
             override fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
@@ -136,7 +143,7 @@ class TokenProviderTest {
             }
         }
 
-        val provider = createProvider(refreshService = connectExceptionService)
+        val provider = createProvider(refreshService = connectExceptionService, credentialStore = store)
 
         assertFailsWith<ConnectException> {
             provider.getToken()
