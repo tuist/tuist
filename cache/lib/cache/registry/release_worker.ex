@@ -228,43 +228,64 @@ defmodule Cache.Registry.ReleaseWorker do
     base_name = Path.basename(directory)
 
     with :ok <- ensure_symlinks_within_root(directory),
-         :ok <- resolve_file_symlinks(directory) do
-      case System.cmd("zip", ["--symlinks", "-r", archive_path, base_name], cd: parent_dir) do
+         :ok <- resolve_symlinks(directory) do
+      case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
       end
     end
   end
 
-  defp resolve_file_symlinks(directory) do
+  defp resolve_symlinks(directory) do
     case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
         output
         |> String.split("\n", trim: true)
-        |> resolve_file_symlink_entries()
+        |> resolve_symlink_entries()
 
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
   end
 
-  defp resolve_file_symlink_entries([]), do: :ok
+  defp resolve_symlink_entries([]), do: :ok
 
-  defp resolve_file_symlink_entries([symlink_path | rest]) do
+  defp resolve_symlink_entries([symlink_path | rest]) do
     case File.stat(symlink_path) do
       {:ok, %File.Stat{type: :regular}} ->
         content = File.read!(symlink_path)
         File.rm!(symlink_path)
         File.write!(symlink_path, content)
-        resolve_file_symlink_entries(rest)
+        resolve_symlink_entries(rest)
 
       {:ok, %File.Stat{type: :directory}} ->
-        resolve_file_symlink_entries(rest)
+        resolve_directory_symlink(symlink_path)
+        resolve_symlink_entries(rest)
 
       _ ->
         File.rm(symlink_path)
-        resolve_file_symlink_entries(rest)
+        resolve_symlink_entries(rest)
     end
+  end
+
+  defp resolve_directory_symlink(symlink_path) do
+    {:ok, target} = File.read_link(symlink_path)
+    resolved_target = resolve_symlink_target(symlink_path, target)
+    expanded_symlink = Path.expand(symlink_path)
+
+    File.rm!(symlink_path)
+
+    if symlink_creates_cycle?(expanded_symlink, resolved_target) do
+      Logger.info("Removed recursive directory symlink #{symlink_path} -> #{target}")
+    else
+      File.cp_r!(resolved_target, symlink_path, dereference_symlinks: true)
+    end
+
+    :ok
+  end
+
+  defp symlink_creates_cycle?(symlink_path, resolved_target) do
+    symlink_path == resolved_target or String.starts_with?(symlink_path, resolved_target <> "/")
   end
 
   defp resolve_symlinks_in_archive(tmp_dir, archive_path) do

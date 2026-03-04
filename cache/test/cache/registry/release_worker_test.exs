@@ -248,7 +248,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   end
 
   describe "symlink resolution" do
-    test "zip_directory handles RevenueCat-style fixture with recursive directory symlink" do
+    test "zip_directory resolves RevenueCat-style directory symlinks and removes recursive ones" do
       root = Briefly.create!(directory: true)
       source_dir = Path.join(root, "repo")
       archive_path = Path.join(root, "source_archive.zip")
@@ -262,9 +262,13 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       lines = String.split(output, "\n")
       symlink_lines = Enum.filter(lines, &String.starts_with?(&1, "l"))
 
-      assert Enum.any?(symlink_lines, &String.contains?(&1, "CustomEntitlementComputation"))
-      assert Enum.any?(symlink_lines, &String.contains?(&1, "purchases-root"))
-      refute Enum.any?(lines, &String.contains?(&1, "purchases-root/purchases-root"))
+      assert symlink_lines == []
+
+      dir_lines = Enum.filter(lines, &String.starts_with?(&1, "d"))
+      assert Enum.any?(dir_lines, &String.contains?(&1, "CustomEntitlementComputation"))
+      assert Enum.any?(dir_lines, &String.contains?(&1, "LocalReceiptParsing"))
+
+      refute Enum.any?(lines, &String.contains?(&1, "purchases-root"))
     end
 
     test "zip_directory resolves symlinks for clone+zip path" do
@@ -282,16 +286,18 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       refute Enum.any?(String.split(output, "\n"), &String.starts_with?(&1, "l"))
     end
 
-    test "zip_directory preserves directory symlinks without infinite traversal" do
+    test "zip_directory resolves directory symlinks and removes recursive ones" do
       root = Briefly.create!(directory: true)
       source_dir = Path.join(root, "repo")
       archive_path = Path.join(root, "source_archive.zip")
 
-      File.mkdir_p!(Path.join(source_dir, "Sources"))
+      File.mkdir_p!(Path.join(source_dir, "Sources/LocalReceiptParsing"))
       File.write!(Path.join(source_dir, "Sources/main.swift"), "print(\"hello\")")
+      File.write!(Path.join(source_dir, "Sources/LocalReceiptParsing/LocalReceiptParsing.swift"), "")
       File.write!(Path.join(source_dir, "target.md"), "content")
       File.ln_s!("target.md", Path.join(source_dir, "link.md"))
       File.ln_s!("Sources", Path.join(source_dir, "CustomEntitlementComputation"))
+      File.ln_s!("Sources/LocalReceiptParsing", Path.join(source_dir, "LocalReceiptParsing"))
       File.mkdir_p!(Path.join(source_dir, "Tests/InstallationTests/CarthageInstallation"))
       File.ln_s!("../../../", Path.join(source_dir, "Tests/InstallationTests/CarthageInstallation/purchases-root"))
 
@@ -301,10 +307,16 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       lines = String.split(output, "\n")
       symlink_lines = Enum.filter(lines, &String.starts_with?(&1, "l"))
 
-      assert length(symlink_lines) == 2
-      refute Enum.any?(symlink_lines, &String.contains?(&1, "link.md"))
-      assert Enum.any?(symlink_lines, &String.contains?(&1, "CustomEntitlementComputation"))
-      assert Enum.any?(symlink_lines, &String.contains?(&1, "purchases-root"))
+      assert symlink_lines == []
+
+      file_lines = Enum.filter(lines, &String.starts_with?(&1, "-"))
+      assert Enum.any?(file_lines, &String.contains?(&1, "link.md"))
+
+      dir_lines = Enum.filter(lines, &String.starts_with?(&1, "d"))
+      assert Enum.any?(dir_lines, &String.contains?(&1, "CustomEntitlementComputation"))
+      assert Enum.any?(dir_lines, &String.contains?(&1, "LocalReceiptParsing"))
+
+      refute Enum.any?(lines, &String.contains?(&1, "purchases-root"))
     end
 
     test "zip_directory rejects symlinks that point outside root" do
