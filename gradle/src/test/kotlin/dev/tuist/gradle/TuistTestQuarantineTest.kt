@@ -28,7 +28,7 @@ class TuistTestQuarantineTest {
         val baseUrl = mockWebServer.url("/").toString().trimEnd('/')
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean) = TuistCacheConfiguration(
+                override fun getConfiguration(forceRefresh: Boolean) = CacheConfiguration(
                     url = baseUrl,
                     token = "test-token",
                     accountHandle = "test-account",
@@ -158,7 +158,7 @@ class TuistTestQuarantineTest {
         val baseUrl = "http://localhost:1"
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean) = TuistCacheConfiguration(
+                override fun getConfiguration(forceRefresh: Boolean) = CacheConfiguration(
                     url = baseUrl,
                     token = "test-token",
                     accountHandle = "test-account",

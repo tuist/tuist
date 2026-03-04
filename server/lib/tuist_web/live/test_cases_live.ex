@@ -284,6 +284,11 @@ defmodule TuistWeb.TestCasesLive do
           }
       end
 
+    max_chart_value = Enum.max(analytics_chart_data.values, fn -> 0 end)
+
+    analytics_chart_grid_left =
+      if max_chart_value >= 1_000_000, do: "0.8%", else: "0.4%"
+
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
@@ -296,6 +301,7 @@ defmodule TuistWeb.TestCasesLive do
     |> assign(:failed_test_case_runs_analytics, failed_test_case_runs_analytics)
     |> assign(:test_case_runs_duration_analytics, test_case_runs_duration_analytics)
     |> assign(:analytics_chart_data, analytics_chart_data)
+    |> assign(:analytics_chart_grid_left, analytics_chart_grid_left)
     |> assign(:uri, uri)
   end
 
