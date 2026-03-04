@@ -93,6 +93,57 @@ defmodule TuistWeb.MCPControllerTest do
       assert response["error"]["code"] == -32_603
       assert response["error"]["message"] =~ "Rate limit"
     end
+
+    test "returns JSON content-type for requests, never SSE", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 3,
+          "method" => "tools/list",
+          "params" => %{}
+        })
+
+      [content_type] = get_resp_header(conn, "content-type")
+      assert content_type =~ "application/json"
+      refute content_type =~ "text/event-stream"
+    end
+
+    test "assigns a session ID on first request", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => %{}
+        })
+
+      assert [session_id] = get_resp_header(conn, "mcp-session-id")
+      assert is_binary(session_id)
+      assert session_id != ""
+    end
+
+    test "returns parse error for an invalid JSON-RPC message", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{"invalid" => "not a jsonrpc message"})
+
+      response = json_response(conn, 400)
+      assert response["error"]["code"] == -32_700
+    end
   end
 
   defp post_mcp(conn, body) do
