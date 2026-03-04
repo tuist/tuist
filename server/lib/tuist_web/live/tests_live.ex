@@ -63,20 +63,11 @@ defmodule TuistWeb.TestsLive do
     }
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
     socket =
       socket
       |> assign(:analytics_selected_widget, widget)
       |> maybe_assign_analytics_chart_data(widget, socket.assigns.selected_duration_type)
-      |> push_patch(
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/tests?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
 
     {:noreply, socket}
   end

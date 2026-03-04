@@ -531,6 +531,7 @@
     </:actions>
     <.card_section :if={!@configuration_insights_analytics.ok?}>
       <div data-part="configuration-insights-chart-skeleton">
+        <.skeleton_legend />
         <.skeleton_chart />
       </div>
     </.card_section>

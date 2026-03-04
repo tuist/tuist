@@ -660,6 +660,9 @@
       :if={!@selective_testing_analytics.ok?}
       data-part="selective-testing-chart-section"
     >
+      <div data-part="legends">
+        <.skeleton_legend />
+      </div>
       <.skeleton_chart />
     </.card_section>
     <.card_section
@@ -838,7 +841,13 @@
       />
     </:actions>
     <.card_section :if={!@recent_test_runs.ok?} data-part="recent-test-runs-section">
-      <.skeleton_chart />
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
     </.card_section>
     <.card_section
       :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}
