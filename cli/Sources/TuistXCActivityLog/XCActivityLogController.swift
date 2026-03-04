@@ -441,8 +441,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         for step in buildSteps {
             if !step.fetchedFromCache {
-                guard let targetIdentifier = targetIdentifiers[step.identifier] else { continue }
-                targetsCompiledCount[targetIdentifier, default: 0] += 1
+                guard let targetIdentifier = targetIdentifiers[step.identifier],
+                    targetsCompiledCount[targetIdentifier] != nil
+                else { continue }
+                targetsCompiledCount[targetIdentifier]! += 1
             }
         }
 
@@ -479,7 +481,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
             totalTargets = targets.count
         }
 
-        // If at least 50% of the targets are clean, we categorise the build as clean.
         if targetsCategory.values.filter({ $0 == .clean }).count > totalTargets / 2 {
             return .clean
         } else {
