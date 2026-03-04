@@ -25,25 +25,21 @@ open class TokenProvider(
             }
         }
 
+        val tokenBeforeLock = cachedToken
+
         synchronized(lock) {
-            if (!forceRefresh) {
-                cachedToken?.let { token ->
-                    if (!JwtParser.isExpired(token)) return token
-                }
+            val currentToken = cachedToken
+            if (currentToken != null && currentToken != tokenBeforeLock && !JwtParser.isExpired(currentToken)) {
+                return currentToken
             }
 
-            return withFileLock { resolveToken(forceRefresh) }
+            return withFileLock { resolveToken() }
         }
     }
 
-    private fun resolveToken(forceRefresh: Boolean): String {
+    private fun resolveToken(): String {
         val credentials = CredentialStore.read(serverURL)
         if (credentials != null) {
-            if (!forceRefresh && !JwtParser.isExpired(credentials.accessToken)) {
-                cachedToken = credentials.accessToken
-                return credentials.accessToken
-            }
-
             val refreshToken = credentials.refreshToken
             if (!refreshToken.isNullOrBlank()) {
                 try {
