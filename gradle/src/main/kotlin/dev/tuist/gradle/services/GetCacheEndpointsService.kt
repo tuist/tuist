@@ -8,11 +8,11 @@ import java.net.URI
 
 class GetCacheEndpointsServiceError(message: String) : RuntimeException(message)
 
-class GetCacheEndpointsService(
+open class GetCacheEndpointsService(
     private val retrofitProvider: (URI, TokenProvider) -> Retrofit =
         { url, tokenProvider -> ServerClient.authenticated(url, tokenProvider) }
 ) {
-    fun getCacheEndpoints(
+    open fun getCacheEndpoints(
         serverURL: URI,
         accountHandle: String,
         tokenProvider: TokenProvider

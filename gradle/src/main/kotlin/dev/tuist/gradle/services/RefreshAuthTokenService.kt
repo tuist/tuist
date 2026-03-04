@@ -9,10 +9,10 @@ import java.net.URI
 
 class RefreshAuthTokenServiceError(message: String) : RuntimeException(message)
 
-class RefreshAuthTokenService(
+open class RefreshAuthTokenService(
     private val retrofitProvider: (URI) -> Retrofit = { ServerClient.unauthenticated(it) }
 ) {
-    fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
+    open fun refreshTokens(serverURL: URI, refreshToken: String): AuthenticationTokens {
         val api = retrofitProvider(serverURL).create(AuthenticationApi::class.java)
         val response = api.refreshToken(RefreshTokenBody(refreshToken)).execute()
         if (response.isSuccessful) {

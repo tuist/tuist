@@ -39,17 +39,19 @@ object CacheEndpointResolver {
     fun resolve(
         serverURL: URI,
         accountHandle: String,
-        tokenProvider: TokenProvider
+        tokenProvider: TokenProvider,
+        envProvider: (String) -> String? = { System.getenv(it) },
+        getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService()
     ): String {
         cachedEndpoint?.let { return it }
 
-        val envEndpoint = System.getenv("TUIST_CACHE_ENDPOINT")
+        val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
         if (!envEndpoint.isNullOrBlank()) {
             cachedEndpoint = envEndpoint
             return envEndpoint
         }
 
-        val endpoints = GetCacheEndpointsService().getCacheEndpoints(serverURL, accountHandle, tokenProvider)
+        val endpoints = getCacheEndpointsService.getCacheEndpoints(serverURL, accountHandle, tokenProvider)
 
         if (endpoints.isEmpty()) {
             throw RuntimeException("No cache endpoints available.")

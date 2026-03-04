@@ -6,10 +6,10 @@ import java.net.URI
 
 open class TokenProvider(
     private val serverURL: URI,
-    internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService()
-) {
-    private val tokenCache: CachedValueStore<String> by lazy {
-        val sanitizedUrl = serverURL.toString().replace(Regex("[/: ]"), "_")
+    internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService(),
+    internal val envProvider: (String) -> String? = { System.getenv(it) },
+    internal val tokenCacheFactory: (URI) -> CachedValueStore<String> = { url ->
+        val sanitizedUrl = url.toString().replace(Regex("[/: ]"), "_")
         CachedValueStore(
             lockFilePath = File(
                 File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
@@ -17,9 +17,13 @@ open class TokenProvider(
             )
         )
     }
+) {
+    private val tokenCache: CachedValueStore<String> by lazy {
+        tokenCacheFactory(serverURL)
+    }
 
     open fun getToken(forceRefresh: Boolean = false): String {
-        val envToken = System.getenv("TUIST_TOKEN")
+        val envToken = envProvider("TUIST_TOKEN")
         if (!envToken.isNullOrBlank()) return envToken
 
         return tokenCache.getValue(forceRefresh) { resolveToken() }

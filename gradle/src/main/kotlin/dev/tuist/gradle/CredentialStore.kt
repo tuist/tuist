@@ -10,8 +10,11 @@ data class Credentials(
 )
 
 object CredentialStore {
+    internal var credentialsDirOverride: File? = null
+
     val credentialsDir: File
         get() {
+            credentialsDirOverride?.let { return it }
             val baseConfigDir = System.getenv("TUIST_XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
                 ?: System.getenv("XDG_CONFIG_HOME")?.takeIf { it.isNotBlank() }
                 ?: File(System.getProperty("user.home"), ".config").path
