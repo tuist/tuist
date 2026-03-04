@@ -1,7 +1,5 @@
 package dev.tuist.gradle
 
-import com.google.gson.Gson
-import org.gradle.api.logging.Logging
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
@@ -9,46 +7,16 @@ import org.gradle.caching.BuildCacheKey
 import org.gradle.caching.BuildCacheService
 import org.gradle.caching.BuildCacheServiceFactory
 import org.gradle.caching.configuration.AbstractBuildCache
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URI
-import java.util.concurrent.TimeUnit
-
-/**
- * Minimum required Tuist CLI version for this plugin.
- */
-object TuistVersion {
-    const val MINIMUM_REQUIRED = "4.146.2"
-
-    fun parseVersion(version: String): List<Int>? {
-        return try {
-            version.trim().split(".").map { it.toInt() }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    fun isVersionSufficient(current: String, minimum: String = MINIMUM_REQUIRED): Boolean {
-        val currentParts = parseVersion(current) ?: return false
-        val minimumParts = parseVersion(minimum) ?: return false
-
-        for (i in 0 until maxOf(currentParts.size, minimumParts.size)) {
-            val currentPart = currentParts.getOrElse(i) { 0 }
-            val minimumPart = minimumParts.getOrElse(i) { 0 }
-
-            if (currentPart > minimumPart) return true
-            if (currentPart < minimumPart) return false
-        }
-        return true
-    }
-}
 
 /**
  * Build cache configuration type for Tuist.
  */
 open class TuistBuildCache : AbstractBuildCache() {
     var project: String? = null
+
+    @Deprecated("No longer used. The plugin resolves auth natively.")
     var executablePath: String? = null
     var url: String? = null
     var allowInsecureProtocol: Boolean = false
@@ -58,7 +26,6 @@ open class TuistBuildCache : AbstractBuildCache() {
  * Factory that creates TuistBuildCacheService instances.
  */
 class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> {
-    private val logger = Logging.getLogger(TuistBuildCacheServiceFactory::class.java)
 
     override fun createBuildCacheService(
         configuration: TuistBuildCache,
@@ -68,14 +35,9 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .type("Tuist")
             .config("project", configuration.project ?: "(from tuist.toml)")
 
-        val resolvedCommand = resolveCommand(configuration)
-
-        validateTuistVersion(resolvedCommand)
-
-        val configurationProvider = TuistCommandConfigurationProvider(
+        val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
-            command = resolvedCommand,
-            url = configuration.url,
+            serverUrl = configuration.url ?: "https://tuist.dev",
             projectDir = java.io.File(System.getProperty("user.dir"))
         )
 
@@ -86,130 +48,82 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             isPushEnabled = configuration.isPush
         )
     }
+}
 
-    private fun resolveCommand(configuration: TuistBuildCache): List<String> {
-        return listOf(configuration.executablePath ?: "tuist")
-    }
+/**
+ * Provides cache configuration including auth token and endpoint.
+ */
+interface ConfigurationProvider {
+    fun getConfiguration(forceRefresh: Boolean = false): CacheConfiguration
+}
 
-    private fun validateTuistVersion(command: List<String>) {
-        val version = getTuistVersion(command)
-        if (version == null) {
-            // Version check failed, but the executable exists.
-            // This can happen when running in a Tuist project directory where
-            // dependencies haven't been installed. Log a warning but don't fail.
-            logger.warn("Tuist: Could not determine Tuist version. Proceeding without version validation.")
-            return
-        }
-
-        if (!TuistVersion.isVersionSufficient(version)) {
-            throw BuildCacheException(
-                "Tuist version $version is not supported. " +
-                "Please update to version ${TuistVersion.MINIMUM_REQUIRED} or later. " +
-                "Run 'tuist update' or visit https://docs.tuist.dev/guides/quick-start/install-tuist for installation instructions."
+data class ProjectHandle(val accountHandle: String, val projectHandle: String) {
+    companion object {
+        fun parse(fullName: String): ProjectHandle {
+            val parts = fullName.split("/", limit = 2)
+            return ProjectHandle(
+                accountHandle = parts[0],
+                projectHandle = parts.getOrElse(1) { "" }
             )
         }
     }
-
-    private fun getTuistVersion(command: List<String>): String? {
-        return try {
-            val process = ProcessBuilder(command + "version")
-                .redirectErrorStream(true)
-                .start()
-
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                reader.readLine()?.trim() ?: ""
-            }
-
-            val exitCode = process.waitFor()
-            if (exitCode == 0) output else null
-        } catch (e: Exception) {
-            null
-        }
-    }
 }
 
 /**
- * Provides cache configuration, typically by running `tuist cache config`.
+ * Default configuration provider that resolves auth and cache endpoints natively.
  */
-interface ConfigurationProvider {
-    fun getConfiguration(forceRefresh: Boolean = false): TuistCacheConfiguration
-}
-
-/**
- * Default configuration provider that runs `tuist cache config` command.
- */
-class TuistCommandConfigurationProvider(
+class DefaultConfigurationProvider(
     private val project: String?,
-    private val command: List<String>,
-    private val url: String? = null,
-    private val projectDir: java.io.File? = null
+    private val serverUrl: String,
+    private val projectDir: java.io.File
 ) : ConfigurationProvider {
 
-    override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration {
-        val baseArgs = buildList {
-            add("cache")
-            add("config")
-            if (!project.isNullOrBlank()) {
-                add(project)
-            }
-            add("--json")
-            if (!url.isNullOrBlank()) {
-                addAll(listOf("--url", url))
-            }
+    private val resolvedServerUrl: java.net.URI by lazy {
+        java.net.URI.create(ServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir))
+    }
+
+    private val resolvedProject: ProjectHandle by lazy {
+        val fullName = if (!project.isNullOrBlank()) project
+        else {
+            val tomlFile = ServerUrlResolver.findTomlFile(projectDir)
+            val toml = tomlFile?.let { TomlParser.parse(it) }
+            toml?.project ?: throw RuntimeException(
+                "No project configured. Set tuist { project = \"account/project\" } or create a tuist.toml with project = \"account/project\"."
+            )
         }
-        val args = if (forceRefresh) baseArgs + "--force-refresh" else baseArgs
-        val fullCommand = command + args
+        ProjectHandle.parse(fullName)
+    }
 
-        // When a project handle is provided explicitly, run in a temp directory to
-        // avoid tuist detecting any project context. When relying on tuist.toml,
-        // run in the project directory so the CLI can find the config file.
-        val workDir = if (!project.isNullOrBlank()) {
-            java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
-        } else {
-            projectDir
+    private val tokenProvider: TokenProvider by lazy {
+        TokenProvider(resolvedServerUrl)
+    }
+
+    private val cacheEndpointCache: CachedValueStore<String> = CachedValueStore()
+
+    override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
+        val token = tokenProvider.getToken(forceRefresh)
+        val handle = resolvedProject
+
+        val cacheEndpoint = cacheEndpointCache.getValue(forceRefresh) {
+            resolveCacheEndpoint(handle.accountHandle)
         }
-        val cleanupTempDir = !project.isNullOrBlank()
-        try {
-            val processBuilder = ProcessBuilder(fullCommand)
-                .apply { workDir?.let { directory(it) } }
-                .redirectErrorStream(false)
 
-            if (!project.isNullOrBlank()) {
-                // Clear environment variables that might leak project context to tuist
-                val env = processBuilder.environment()
-                env.remove("PWD")
-                env.remove("TUIST_CONFIG_PATH")
-                env.remove("TUIST_CURRENT_DIRECTORY")
-            }
+        return CacheConfiguration(
+            url = cacheEndpoint,
+            token = token,
+            accountHandle = handle.accountHandle,
+            projectHandle = handle.projectHandle
+        )
+    }
 
-            val process = processBuilder.start()
+    private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
+        val endpoint = CacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
+        val expiresAtMs = System.currentTimeMillis() + CACHE_ENDPOINT_TTL_MS
+        return Pair(endpoint, expiresAtMs)
+    }
 
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                reader.readText()
-            }
-
-            val stderr = BufferedReader(InputStreamReader(process.errorStream)).use { reader ->
-                reader.readText()
-            }
-
-            val completed = process.waitFor(30, TimeUnit.SECONDS)
-            if (!completed) {
-                process.destroyForcibly()
-                throw RuntimeException("tuist cache config timed out after 30 seconds")
-            }
-            val exitCode = process.exitValue()
-            if (exitCode != 0) {
-                val message = stderr.ifBlank { "exit code $exitCode" }
-                throw RuntimeException("tuist cache config failed: $message")
-            }
-
-            return Gson().fromJson(output, TuistCacheConfiguration::class.java)
-                ?: throw RuntimeException("tuist cache config returned invalid JSON")
-        } finally {
-            if (cleanupTempDir) {
-                workDir?.deleteRecursively()
-            }
-        }
+    companion object {
+        private const val CACHE_ENDPOINT_TTL_MS = 60 * 60 * 1000L // 1 hour
     }
 }
 
@@ -274,7 +188,7 @@ class TuistBuildCacheService(
         // No resources to clean up
     }
 
-    internal fun buildCacheUrl(config: TuistCacheConfiguration, cacheKey: String): URI {
+    internal fun buildCacheUrl(config: CacheConfiguration, cacheKey: String): URI {
         val baseUri = URI.create(config.url.trimEnd('/'))
         return URI(
             baseUri.scheme,
@@ -289,9 +203,9 @@ class TuistBuildCacheService(
 }
 
 /**
- * Data class representing the cache configuration returned by `tuist cache config --json`.
+ * Data class representing the cache configuration.
  */
-data class TuistCacheConfiguration(
+data class CacheConfiguration(
     val url: String,
     val token: String,
     @com.google.gson.annotations.SerializedName("account_handle")
