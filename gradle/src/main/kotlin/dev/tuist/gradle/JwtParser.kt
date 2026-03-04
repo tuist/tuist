@@ -3,7 +3,8 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 
 object JwtParser {
-    fun decodePayload(jwt: String): Map<String, Any>? {
+    fun decodePayload(jwt: String?): Map<String, Any>? {
+        if (jwt == null) return null
         return try {
             val parts = jwt.split(".")
             if (parts.size != 3) return null
@@ -22,20 +23,20 @@ object JwtParser {
         }
     }
 
-    fun isExpired(jwt: String, bufferSeconds: Int = 30): Boolean {
+    fun isExpired(jwt: String?, bufferSeconds: Int = 30): Boolean {
         val payload = decodePayload(jwt) ?: return true
         val exp = (payload["exp"] as? Number)?.toLong() ?: return true
         val now = System.currentTimeMillis() / 1000
         return now >= (exp - bufferSeconds)
     }
 
-    fun getExpirationMs(jwt: String): Long? {
+    fun getExpirationMs(jwt: String?): Long? {
         val payload = decodePayload(jwt) ?: return null
         val exp = (payload["exp"] as? Number)?.toLong() ?: return null
         return exp * 1000
     }
 
-    fun getType(jwt: String): String? {
+    fun getType(jwt: String?): String? {
         val payload = decodePayload(jwt) ?: return null
         return payload["type"] as? String
     }
