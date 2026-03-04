@@ -142,49 +142,53 @@
           )
         }
         value={
-          dgettext("dashboard_gradle", "%{hit_rate}%",
-            hit_rate:
-              case @selected_hit_rate_type do
-                "p99" -> @hit_rate_p99.total_percentile_hit_rate
-                "p90" -> @hit_rate_p90.total_percentile_hit_rate
-                "p50" -> @hit_rate_p50.total_percentile_hit_rate
-                _ -> @hit_rate_analytics.avg_hit_rate
-              end
-              |> Decimal.from_float()
-              |> Decimal.round(1)
-          )
+          if @hit_rate_analytics.ok? do
+            dgettext("dashboard_gradle", "%{hit_rate}%",
+              hit_rate:
+                case @selected_hit_rate_type do
+                  "p99" -> @hit_rate_p99.result.total_percentile_hit_rate
+                  "p90" -> @hit_rate_p90.result.total_percentile_hit_rate
+                  "p50" -> @hit_rate_p50.result.total_percentile_hit_rate
+                  _ -> @hit_rate_analytics.result.avg_hit_rate
+                end
+                |> Decimal.from_float()
+                |> Decimal.round(1)
+            )
+          end
         }
         metrics={
-          %{
-            avg:
-              dgettext("dashboard_gradle", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_analytics.avg_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              ),
-            p99:
-              dgettext("dashboard_gradle", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_p99.total_percentile_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              ),
-            p90:
-              dgettext("dashboard_gradle", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_p90.total_percentile_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              ),
-            p50:
-              dgettext("dashboard_gradle", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_p50.total_percentile_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )
-          }
+          if @hit_rate_analytics.ok? do
+            %{
+              avg:
+                dgettext("dashboard_gradle", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_analytics.result.avg_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                ),
+              p99:
+                dgettext("dashboard_gradle", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_p99.result.total_percentile_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                ),
+              p90:
+                dgettext("dashboard_gradle", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_p90.result.total_percentile_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                ),
+              p50:
+                dgettext("dashboard_gradle", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_p50.result.total_percentile_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+            }
+          end
         }
         selected_type={@selected_hit_rate_type}
         event_name="select_hit_rate_type"
@@ -192,17 +196,20 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          case @selected_hit_rate_type do
-            "p99" -> @hit_rate_p99.trend
-            "p90" -> @hit_rate_p90.trend
-            "p50" -> @hit_rate_p50.trend
-            _ -> @hit_rate_analytics.trend
+          if @hit_rate_analytics.ok? do
+            case @selected_hit_rate_type do
+              "p99" -> @hit_rate_p99.result.trend
+              "p90" -> @hit_rate_p90.result.trend
+              "p50" -> @hit_rate_p50.result.trend
+              _ -> @hit_rate_analytics.result.trend
+            end
           end
         }
         trend_label={@analytics_trend_label}
-        empty={@hit_rate_analytics.avg_hit_rate == 0}
+        empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
       <.widget
+        loading={!@cache_events.ok?}
         title={dgettext("dashboard_gradle", "Cache downloads")}
         legend_color="secondary"
         description={
@@ -211,17 +218,21 @@
             "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
           )
         }
-        value={ByteFormatter.format_bytes(@cache_events.downloads.total_size)}
+        value={
+          if @cache_events.ok?,
+            do: ByteFormatter.format_bytes(@cache_events.result.downloads.total_size)
+        }
         id="widget-cache-downloads"
-        trend_value={@cache_events.downloads.trend}
+        trend_value={if @cache_events.ok?, do: @cache_events.result.downloads.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_downloads"
         selected={@analytics_selected_widget == "cache_downloads"}
-        empty={@cache_events.downloads.total_size == 0}
+        empty={@cache_events.ok? && @cache_events.result.downloads.total_size == 0}
       />
       <.widget
+        loading={!@cache_events.ok?}
         title={dgettext("dashboard_gradle", "Cache uploads")}
         legend_color="p99"
         description={
@@ -230,20 +241,33 @@
             "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
           )
         }
-        value={ByteFormatter.format_bytes(@cache_events.uploads.total_size)}
+        value={
+          if @cache_events.ok?,
+            do: ByteFormatter.format_bytes(@cache_events.result.uploads.total_size)
+        }
         id="widget-cache-uploads"
-        trend_value={@cache_events.uploads.trend}
+        trend_value={if @cache_events.ok?, do: @cache_events.result.uploads.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
         phx_value_widget="cache_uploads"
         selected={@analytics_selected_widget == "cache_uploads"}
-        empty={@cache_events.uploads.total_size == 0}
+        empty={@cache_events.ok? && @cache_events.result.uploads.total_size == 0}
       />
     </div>
+    <.card_section :if={!@hit_rate_analytics.ok?}>
+      <div data-part="analytics-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
     <.card_section :if={
-      @hit_rate_analytics.avg_hit_rate != 0 or @cache_events.downloads.total_size != 0 or
-        @cache_events.uploads.total_size != 0
+      @hit_rate_analytics.ok? &&
+        (@hit_rate_analytics.result.avg_hit_rate != 0 or
+           @cache_events.result.downloads.total_size != 0 or
+           @cache_events.result.uploads.total_size != 0)
     }>
       <div data-part="analytics-chart">
         <.chart
@@ -281,8 +305,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @hit_rate_analytics.dates |> List.first(),
-                    @hit_rate_analytics.dates |> List.last()
+                    @hit_rate_analytics.result.dates |> List.first(),
+                    @hit_rate_analytics.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -312,8 +336,8 @@
               color: "var:noora-chart-primary",
               data:
                 Enum.zip(
-                  @hit_rate_analytics.dates,
-                  @hit_rate_analytics.values
+                  @hit_rate_analytics.result.dates,
+                  @hit_rate_analytics.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_gradle", "Average"),
@@ -325,8 +349,8 @@
               color: "var:noora-chart-p99",
               data:
                 Enum.zip(
-                  @hit_rate_p99.dates,
-                  @hit_rate_p99.values
+                  @hit_rate_p99.result.dates,
+                  @hit_rate_p99.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_gradle", "p99"),
@@ -338,8 +362,8 @@
               color: "var:noora-chart-p90",
               data:
                 Enum.zip(
-                  @hit_rate_p90.dates,
-                  @hit_rate_p90.values
+                  @hit_rate_p90.result.dates,
+                  @hit_rate_p90.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_gradle", "p90"),
@@ -351,8 +375,8 @@
               color: "var:noora-chart-p50",
               data:
                 Enum.zip(
-                  @hit_rate_p50.dates,
-                  @hit_rate_p50.values
+                  @hit_rate_p50.result.dates,
+                  @hit_rate_p50.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_gradle", "p50"),
@@ -384,8 +408,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @analytics_chart_data.dates |> List.first(),
-                    @analytics_chart_data.dates |> List.last()
+                    @analytics_chart_data.result.dates |> List.first(),
+                    @analytics_chart_data.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -398,14 +422,14 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: @analytics_chart_data.value_formatter
+                  formatter: @analytics_chart_data.result.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: @analytics_chart_data.value_formatter}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter}
                 end,
               legend: %{
                 show: false
@@ -416,11 +440,11 @@
             %{
               data:
                 Enum.zip(
-                  @analytics_chart_data.dates,
-                  @analytics_chart_data.values
+                  @analytics_chart_data.result.dates,
+                  @analytics_chart_data.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: @analytics_chart_data.name,
+              name: @analytics_chart_data.result.name,
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -432,8 +456,9 @@
     </.card_section>
     <.empty_card_section
       :if={
-        @hit_rate_analytics.avg_hit_rate == 0 and @cache_events.downloads.total_size == 0 and
-          @cache_events.uploads.total_size == 0
+        (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
+          @cache_events.result.downloads.total_size == 0 and
+          @cache_events.result.uploads.total_size == 0
       }
       title={dgettext("dashboard_gradle", "No data yet")}
     >
