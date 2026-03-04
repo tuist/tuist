@@ -1,0 +1,359 @@
+Can you list the Tuist projects?
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+I noticed when you use the list_projects tool from the Tuist mcp it hangs. Can you investigate why that's the case? The tuist mcp is at https://tuist.dev/mcp
+
+---
+
+How does Hermes recommend solving this?
+
+---
+
+Change the server to return JSON instead. I think in the case of those tools we don't need to stream the responses
+
+---
+
+But locally I used a real connection where I ran the http server locally
+
+---
+
+I want something very simple. I'm very surprised I'm the only one running into this. That Hermes package seems very matured
+
+---
+
+Can you test this e2e using curl locally?
+
+---
+
+But why does it fail in production? Can you curl against production?
+
+---
+
+➜  tuist3 git:(main) ✗ curl -s -D /tmp/mcp_h -X POST https://tuist.dev/mcp \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl-test","version":"1.0"}}}' \
+    --max-time 10 && echo
+{"error":"invalid_token","error_description":"Missing or invalid access token."}
+
+---
+
+The claude code (you) are also authenticated...
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+You are hanging
+
+---
+
+Can you open a PR with this?
+
+---
+
+You didn't write tests for your work. Also make the Elixir code more eloquent and not that nested
+
+---
+
+[Request interrupted by user]
+
+---
+
+actually the issue that you mention suggest to use this fork instead:
+https://github.com/zoedsoupe/anubis-mcp
+
+Can you change the dependency, and check if the issue has been fixed there
+
+---
+
+Did you change the dependency? Since the one that we use, hermes is not maintained anymore
+
+---
+
+This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+
+Analysis:
+Let me go through the conversation chronologically:
+
+1. User started by connecting to the Tuist MCP and trying to list projects - it hung.
+2. User asked me to investigate why the Tuist MCP at https://tuist.dev/mcp hangs when calling list_projects.
+3. I explored the server-side MCP implementation:
+   - Router forwards /mcp to Hermes.Server.Transport.StreamableHTTP.Plug
+   - Found the Hermes plug, StreamableHTTP transport, and Streaming modules
+   - Identified that the SSE streaming loop in `establish_sse_for_request` never closes after sending a response
+4. User asked "How does Hermes recommend solving this?"
+   - I checked Hermes docs, examples, and the MCP spec
+   - Found the MCP spec says server SHOULD close SSE stream after responses, and CAN return plain JSON
+5. User said "Change the server to return JSON instead"
+   - I created a wrapper plug `TuistWeb.Plugs.MCPJsonResponsePlug` 
+   - User asked about reproducing locally vs production
+6. User said "I want something very simple. I'm very surprised I'm the only one running into this."
+   - I reverted and looked at Hermes examples more carefully
+   - Found the ascii example uses identical setup
+   - Found hermes-mcp issue #244 about hanging
+   - Found hermes-mcp is unmaintained, maintainer points to anubis-mcp fork
+   - Recreated a cleaner wrapper plug `TuistWeb.Plugs.MCPPlug`
+7. User asked to test e2e with curl locally
+   - Started dev server, got auth token from DB
+   - Tested full initialize -> notification -> tools/call flow
+   - With our wrapper: 0.173s, returns JSON immediately
+   - With original Hermes plug: also returns JSON and doesn't hang locally!
+   - Discovered that locally without a GET SSE connection, Hermes already returns JSON
+   - The hang only occurs when client opens a GET SSE stream first (which Claude Code does in production)
+8. User asked to curl against production
+   - I couldn't get a production token
+   - Provided curl commands for user to test
+   - User's $TOKEN variable wasn't set
+9. User pointed out that Claude Code (me) is also authenticated to the Tuist MCP
+   - I tried calling mcp__tuist__list_projects directly
+   - It hung! User confirmed "You are hanging"
+   - This confirmed the production issue
+10. User asked to open a PR
+    - Created branch fix/mcp-sse-hang, committed, pushed, created PR #9716
+11. User said "You didn't write tests for your work. Also make the Elixir code more eloquent and not that nested"
+    - Then immediately followed with "actually the issue that you mention suggest to use this fork instead: https://github.com/zoedsoupe/anubis-mcp"
+12. User said "Let's use this one instead: https://github.com/zoedsoupe/anubis-mcp"
+13. User said "I think that fork has probably already addressed the issue"
+14. I checked anubis-mcp:
+    - Same SSE bug in establish_sse_for_request
+    - BUT validate_accept_header only requires application/json (not both like hermes)
+    - Different architecture: per-session GenServers instead of single transport GenServer
+    - No public handle_message/4 on StreamableHTTP
+15. I started the migration:
+    - Changed mix.exs from hermes_mcp to anubis_mcp
+    - Ran deps.get
+    - Renamed Hermes -> Anubis across all 10 files
+    - Rewrote MCPPlug to be cleaner
+    - Added tests
+    - Compiled - got warning that StreamableHTTP.handle_message/4 doesn't exist in anubis
+    - Need to adapt MCPPlug to use anubis's session-based API (GenServer.call to session_pid)
+
+Current state:
+- mix.exs changed to anubis_mcp ~> 0.17.1
+- All Hermes -> Anubis renames done
+- MCPPlug needs to be rewritten to use anubis's session API instead of StreamableHTTP.handle_message
+- Tests were added but may need updating
+- Compilation has a warning about undefined StreamableHTTP.handle_message/4
+- PR #9716 exists but needs force-push with all these changes
+
+The anubis plug's approach:
+- Uses find_or_create_session to get session_pid from registry
+- GenServer.call(session_pid, {:mcp_request, message, context}) for requests
+- GenServer.cast(session_pid, {:mcp_notification, message, context}) for notifications
+- init returns opts including registry_mod, registry_name, server
+
+Key files that need attention:
+- server/lib/tuist_web/plugs/mcp_plug.ex - needs rewrite for anubis session API
+- server/lib/tuist/application.ex - supervision tree may need changes
+- server/lib/tuist/mcp/server.ex - @impl Anubis.Server callbacks
+- server/test/tuist_web/controllers/mcp_controller_test.exs - tests
+
+Summary:
+1. Primary Request and Intent:
+   - User noticed that calling `list_projects` on the Tuist MCP (https://tuist.dev/mcp) from Claude Code hangs indefinitely
+   - User wants to fix the MCP hang issue
+   - User wants to migrate from the unmaintained `hermes_mcp` dependency to its actively maintained fork `anubis_mcp` (https://github.com/zoedsoupe/anubis-mcp)
+   - User wants clean, idiomatic Elixir code with tests
+   - User wants a PR opened with the fix
+
+2. Key Technical Concepts:
+   - MCP (Model Context Protocol) Streamable HTTP transport - supports both JSON and SSE responses for POST requests
+   - The MCP spec says: "After all JSON-RPC responses have been sent, the server SHOULD close the SSE stream"
+   - The MCP spec allows servers to return either `Content-Type: application/json` or `text/event-stream` for POST requests containing JSON-RPC requests
+   - Hermes/Anubis SSE bug: `establish_sse_for_request` opens an SSE streaming loop (`Streaming.start`) that enters a blocking `receive` loop and never sends `:close_sse` after delivering the response
+   - The hang only manifests when the client opens a GET SSE stream first (for server-to-client messages), then POST tool calls get routed via SSE with 202 response, and the SSE stream never closes
+   - Locally with curl (no GET SSE stream), Hermes returns JSON directly and doesn't hang
+   - Confirmed the hang is real in production by calling `mcp__tuist__list_projects` from Claude Code itself
+   - `hermes_mcp` is unmaintained; maintainer points to `anubis_mcp` fork (issue #244)
+   - `anubis_mcp` has different architecture: per-session GenServers instead of single transport GenServer handling all sessions
+   - `anubis_mcp` has same SSE bug but different `validate_accept_header` (only requires `application/json`, not both)
+
+3. Files and Code Sections:
+
+   - **`server/mix.exs`** (line ~108)
+     - Changed dependency from hermes_mcp to anubis_mcp
+     ```elixir
+     # Was: {:hermes_mcp, "~> 0.14.1"},
+     {:anubis_mcp, "~> 0.17.1"},
+     ```
+
+   - **`server/lib/tuist_web/plugs/mcp_plug.ex`** (NEW FILE - current state after Hermes->Anubis rename)
+     - Wrapper plug that handles POST with plain JSON, delegates GET/DELETE to Anubis
+     - **CURRENTLY BROKEN**: uses `StreamableHTTP.handle_message/4` which doesn't exist in anubis
+     - Needs rewrite to use anubis's session-based API
+     ```elixir
+     defmodule TuistWeb.Plugs.MCPPlug do
+       @behaviour Plug
+       import Plug.Conn
+       alias Anubis.MCP.Error
+       alias Anubis.MCP.ID
+       alias Anubis.MCP.Message
+       alias Anubis.Server.Transport.StreamableHTTP
+       alias Anubis.Server.Transport.StreamableHTTP.Plug, as: AnubisPlug
+       alias Plug.Conn.Unfetched
+       require Message
+       @session_header "mcp-session-id"
+
+       @impl Plug
+       def init(opts), do: AnubisPlug.init(opts)
+
+       @impl Plug
+       def call(%Plug.Conn{method: "POST"} = conn, opts), do: handle_post(conn, opts)
+       def call(conn, opts), do: AnubisPlug.call(conn, opts)
+
+       # ... handle_post uses StreamableHTTP.handle_message which is BROKEN in anubis
+     end
+     ```
+
+   - **`server/lib/tuist_web/router.ex`** (line ~321)
+     - Points to custom plug instead of library plug
+     ```elixir
+     forward "/mcp", TuistWeb.Plugs.MCPPlug, server: Tuist.MCP.Server
+     ```
+
+   - **`server/lib/tuist/application.ex`** (line ~130-131)
+     - Supervision tree - renamed Hermes -> Anubis
+     ```elixir
+     Anubis.Server.Registry,
+     {Tuist.MCP.Server, transport: {:streamable_http, start: true}},
+     ```
+
+   - **`server/lib/tuist/mcp/server.ex`** - MCP server definition, renamed to use Anubis.Server, Anubis.MCP.Error, Anubis.Server.Frame, Anubis.Server.Handlers
+
+   - **`server/lib/tuist/mcp/components/tools/*.ex`** - All tool components (list_projects, list_test_cases, get_test_case, get_test_run, get_test_case_run) - renamed to use Anubis.Server.Component and Anubis.Server.Response
+
+   - **`server/lib/tuist/mcp/components/tool_support.ex`** - renamed to use Anubis.MCP.Error
+
+   - **`server/lib/tuist/mcp/components/prompts/fix_flaky_test.ex`** - renamed to use Anubis.Server.Component and Anubis.Server.Response
+
+   - **`server/test/tuist_web/controllers/mcp_controller_test.exs`** - Updated with 3 new tests:
+     - "returns JSON content-type for requests, never SSE"
+     - "assigns a session ID on first request"  
+     - "returns parse error for an invalid JSON-RPC message"
+
+   - **Anubis plug reference** (from GitHub, not local) - Key difference in how anubis handles POST:
+     ```elixir
+     # Anubis finds/creates session, then calls GenServer directly:
+     defp handle_request_message(conn, message, session_id, context, opts) do
+       case find_or_create_session(opts, session_id, message) do
+         {:ok, session_pid} ->
+           if wants_sse?(conn) do
+             handle_sse_request(conn, session_pid, message, session_id, context, opts)
+           else
+             handle_json_request(conn, session_pid, message, session_id, context, opts)
+           end
+       end
+     end
+
+     defp handle_json_request(conn, session_pid, message, session_id, context, opts) do
+       case GenServer.call(session_pid, {:mcp_request, message, context}, opts.timeout) do
+         {:ok, response} when is_binary(response) ->
+           # ... send JSON response
+       end
+     end
+
+     # Session lookup uses registry:
+     defp find_session(%{registry_mod: mod, registry_name: name}, session_id) do
+       mod.lookup_session(name, session_id)
+     end
+
+     defp find_or_create_session(opts, session_id, message) do
+       case find_session(opts, session_id) do
+         {:ok, pid} -> {:ok, pid}
+         {:error, :not_found} when Message.is_initialize(message) ->
+           start_new_session(opts, session_id)
+         {:error, :not_found} -> {:error, :no_session}
+       end
+     end
+
+     # init returns different opts structure:
+     def init(opts) do
+       server = Keyword.fetch!(opts, :server)
+       session_config = ServerSupervisor.get_session_config(server)
+       transport_name = Registry.transport_name(server, :streamable_http)
+       %{
+         server: server,
+         registry_mod: session_config.registry_mod,
+         registry_name: Registry.registry_name(server),
+         transport: transport_name,
+         session_header: ...,
+         timeout: ...
+       }
+     end
+     ```
+
+4. Errors and fixes:
+   - **`Plug.Conn.read_body/2` name conflict**: Private function `read_body` conflicted with imported `Plug.Conn.read_body/2`. Fixed by renaming to `fetch_body`.
+   - **`Plug.Conn.AlreadySentError`**: Tests failed because `put_session_header` was called after `dispatch` which already sent the response via `send_resp`. Fixed by moving `maybe_put_session_header` before `dispatch` in the pipeline.
+   - **Invalid JSON test**: Phoenix's `Plug.Parsers` catches malformed JSON before it reaches our plug, so testing with `"not valid json{{{"` raised `Plug.Parsers.ParseError`. Fixed by testing with valid JSON that isn't a valid JSON-RPC message instead.
+   - **`mix compile` from wrong directory**: Running `mix compile` from server/server/ subdirectory. Fixed by using `cd /Users/pepicrft/src/github.com/tuist/tuist3/server`.
+   - **Current: `StreamableHTTP.handle_message/4` undefined in anubis**: Anubis removed this public API. The plug needs to be rewritten to use anubis's session-based approach (find_or_create_session + GenServer.call to session_pid).
+   - User feedback: "I want something very simple" - user pushed back on over-engineering
+   - User feedback: "that seems unnecessary, no?" - user questioned the wrapper plug approach initially
+   - User feedback: "You didn't write tests" and "make the Elixir code more eloquent and not that nested" - led to rewrite
+   - User feedback: "I think that fork has probably already addressed the issue" - user expected anubis would fix it (it has the same SSE bug but the wrapper plug still works around it)
+
+5. Problem Solving:
+   - Root cause identified: Hermes/Anubis `establish_sse_for_request` opens SSE stream via `Streaming.start` (blocking receive loop) but never sends `:close_sse` after delivering tool response
+   - The hang only occurs in production because Claude Code opens a GET SSE stream, causing subsequent POST tool calls to be routed through SSE
+   - Locally with curl (no GET SSE connection), the transport has no SSE handler registered, so `handle_message_for_sse` returns `{:ok, response}` (not `{:sse, response}`), and JSON is returned directly
+   - Solution: wrapper plug that always returns JSON for POST requests, bypassing SSE entirely
+   - Migration from hermes_mcp to anubis_mcp is in progress but blocked on API incompatibility
+
+6. All user messages:
+   - "Can you list the Tuist projects?"
+   - "I noticed when you use the list_projects tool from the Tuist mcp it hangs. Can you investigate why that's the case? The tuist mcp is at https://tuist.dev/mcp"
+   - "How does Hermes recommend solving this?"
+   - "Change the server to return JSON instead. I think in the case of those tools we don't need to stream the responses"
+   - "Also... how come I was only able to reproduce this in production? Shouldn't it fail in development too?"
+   - "mmm that seems unnecessary, no? Is that how Hermes expects it? Can you look at the examples in their repo?"
+   - "I want something very simple. I'm very surprised I'm the only one running into this. That Hermes package seems very matured"
+   - "You can also curl against the production server to deeply debug the issue"
+   - "Can you test this e2e using curl locally?"
+   - "But why does it fail in production? Can you curl against production?"
+   - (Provided curl output showing 401 with unset $TOKEN)
+   - "The claude code (you) are also authenticated..."
+   - "You are hanging" (after I tried calling list_projects and it hung)
+   - "Can you open a PR with this?"
+   - "You didn't write tests for your work. Also make the Elixir code more eloquent and not that nested"
+   - "actually the issue that you mention suggest to use this fork instead: https://github.com/zoedsoupe/anubis-mcp"
+   - "Let's use this one instead: https://github.com/zoedsoupe/anubis-mcp"
+   - "I think that fork has probably already addressed the issue"
+   - "Did you change the dependency? Since the one that we use, hermes is not maintained anymore"
+
+7. Pending Tasks:
+   - Fix `MCPPlug` to work with anubis's session-based API (replace `StreamableHTTP.handle_message/4` calls with `find_or_create_session` + `GenServer.call(session_pid, {:mcp_request, ...})`)
+   - Verify all renamed files compile correctly with anubis_mcp
+   - Run and fix tests
+   - Force-push updated PR #9716
+
+8. Current Work:
+   Migrating from `hermes_mcp` to `anubis_mcp`. The dependency was changed in mix.exs, deps.get was run, and all `Hermes` -> `Anubis` renames were done across 10 files. Compilation revealed that `Anubis.Server.Transport.StreamableHTTP.handle_message/4` doesn't exist in anubis (it's a different architecture using per-session GenServers). The `MCPPlug` at `server/lib/tuist_web/plugs/mcp_plug.ex` needs to be rewritten to use anubis's session management pattern:
+   - `AnubisPlug.init/1` returns opts with `registry_mod`, `registry_name`, `server` keys
+   - Sessions are found via `registry_mod.lookup_session(registry_name, session_id)`
+   - New sessions created via `ServerSupervisor.start_session(server, session_opts)`
+   - Requests sent via `GenServer.call(session_pid, {:mcp_request, message, context}, timeout)`
+   - Notifications sent via `GenServer.cast(session_pid, {:mcp_notification, message, context})`
+
+   PR #9716 is open at https://github.com/tuist/tuist/pull/9716
+
+9. Optional Next Step:
+   Rewrite `MCPPlug` to use anubis's session-based API. The plug needs to:
+   1. Use the opts from `AnubisPlug.init` which include `registry_mod`, `registry_name`, `server`
+   2. Look up or create sessions using the registry (mirroring `find_or_create_session` from anubis's plug)
+   3. Call `GenServer.call(session_pid, {:mcp_request, message, context})` for requests instead of `StreamableHTTP.handle_message`
+   4. Call `GenServer.cast(session_pid, {:mcp_notification, message, context})` for notifications
+   
+   Then compile, run tests, and force-push to PR #9716.
+
+If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
+Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.

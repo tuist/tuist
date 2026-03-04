@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "770f7e194c44",
+  "strategy": "manual-commit",
+  "branch": "fix/mcp-sse-hang",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
+    "server/lib/tuist_web/plugs/mcp_json_response_plug.ex",
+    "server/lib/tuist_web/plugs/mcp_plug.ex",
+    "server/lib/tuist_web/router.ex",
+    "server/mix.exs",
+    "server/test/tuist_web/controllers/mcp_controller_test.exs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/77/0f7e194c44/0/metadata.json",
+      "transcript": "/77/0f7e194c44/0/full.jsonl",
+      "context": "/77/0f7e194c44/0/context.md",
+      "content_hash": "/77/0f7e194c44/0/content_hash.txt",
+      "prompt": "/77/0f7e194c44/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 56368,
+    "cache_read_tokens": 4428813,
+    "output_tokens": 10956,
+    "api_call_count": 44
+  }
+}
