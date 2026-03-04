@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.initialization.Settings
 import org.gradle.api.logging.Logger
@@ -108,14 +109,14 @@ open class TuistExtension {
 
     val buildCache: BuildCacheExtension = BuildCacheExtension()
 
-    fun buildCache(configure: BuildCacheExtension.() -> Unit) {
-        buildCache.configure()
+    fun buildCache(action: Action<BuildCacheExtension>) {
+        action.execute(buildCache)
     }
 
     val testQuarantine: TestQuarantineExtension = TestQuarantineExtension()
 
-    fun testQuarantine(configure: TestQuarantineExtension.() -> Unit) {
-        testQuarantine.configure()
+    fun testQuarantine(action: Action<TestQuarantineExtension>) {
+        action.execute(testQuarantine)
     }
 }
 
