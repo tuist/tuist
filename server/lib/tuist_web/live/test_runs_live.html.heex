@@ -127,6 +127,7 @@
         empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
+        loading={!@test_runs_duration_analytics.ok?}
         id="widget-test-run-duration"
         title={
           case @selected_duration_type do

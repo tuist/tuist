@@ -40,6 +40,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
   attr(:metrics, :map, required: true, doc: "Map containing the metric values (avg, p99, p90, p50)")
   attr(:selected_type, :string, required: true, values: ~w(avg p99 p90 p50))
   attr(:event_name, :string, required: true, doc: "Phoenix event name for selection changes")
+  attr(:loading, :boolean, default: false)
   attr(:empty, :boolean, default: false)
   attr(:empty_label, :string, default: nil)
   attr(:legend_color, :string, default: nil)
@@ -57,6 +58,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
       description={@description}
       value={@value}
       id={@id}
+      loading={@loading}
       empty={@empty}
       empty_label={@empty_label}
       legend_color={@legend_color}
@@ -112,7 +114,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
       <span data-part="label">{percentile_label(@type)}</span>
       <span data-part="separator">-</span>
       <span data-part="value">
-        {Map.get(@metrics, String.to_atom(@type), dgettext("dashboard", "N/A"))}
+        {Map.get(@metrics || %{}, String.to_atom(@type), dgettext("dashboard", "N/A"))}
       </span>
     </div>
     """

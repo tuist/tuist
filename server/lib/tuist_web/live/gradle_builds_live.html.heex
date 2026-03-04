@@ -141,6 +141,7 @@
         empty={@failed_builds_analytics.ok? && @failed_builds_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
+        loading={!@builds_duration_analytics.ok?}
         id="widget-build-duration"
         title={
           case @selected_build_duration_type do

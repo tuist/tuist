@@ -87,6 +87,7 @@
     </:actions>
     <div data-part="widgets">
       <.percentile_dropdown_widget
+        loading={!@hit_rate_analytics.ok?}
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@builds)} do

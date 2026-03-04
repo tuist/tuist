@@ -143,6 +143,7 @@
         }
       />
       <.percentile_dropdown_widget
+        loading={!@test_case_runs_duration_analytics.ok?}
         id="widget-test-case-run-duration"
         title={
           case @selected_duration_type do
