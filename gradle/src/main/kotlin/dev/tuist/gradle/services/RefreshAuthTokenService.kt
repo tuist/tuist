@@ -6,16 +6,19 @@ import dev.tuist.gradle.api.model.AuthenticationTokens
 import dev.tuist.gradle.api.model.RefreshTokenBody
 import retrofit2.Retrofit
 
+class RefreshAuthTokenServiceError(message: String) : RuntimeException(message)
+
 class RefreshAuthTokenService(
     private val retrofitProvider: (String) -> Retrofit = { ServerClient.unauthenticated(it) }
 ) {
-    fun refreshTokens(serverURL: String, refreshToken: String): AuthenticationTokens? {
-        return try {
-            val api = retrofitProvider(serverURL).create(AuthenticationApi::class.java)
-            val response = api.refreshToken(RefreshTokenBody(refreshToken)).execute()
-            if (response.isSuccessful) response.body() else null
-        } catch (_: Exception) {
-            null
+    fun refreshTokens(serverURL: String, refreshToken: String): AuthenticationTokens {
+        val api = retrofitProvider(serverURL).create(AuthenticationApi::class.java)
+        val response = api.refreshToken(RefreshTokenBody(refreshToken)).execute()
+        if (response.isSuccessful) {
+            return response.body()
+                ?: throw RefreshAuthTokenServiceError("Token refresh returned an empty response.")
         }
+        val errorMessage = response.errorBody()?.string() ?: "Token refresh failed with status ${response.code()}."
+        throw RefreshAuthTokenServiceError(errorMessage)
     }
 }

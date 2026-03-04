@@ -8,9 +8,10 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RefreshAuthTokenServiceTest {
 
@@ -39,7 +40,6 @@ class RefreshAuthTokenServiceTest {
         val service = createService()
         val result = service.refreshTokens(mockServer.url("/").toString(), "old-refresh-token")
 
-        assertNotNull(result)
         assertEquals("new-access", result.accessToken)
         assertEquals("new-refresh", result.refreshToken)
 
@@ -47,8 +47,8 @@ class RefreshAuthTokenServiceTest {
         assertEquals("POST", request.method)
         assertEquals("/api/auth/refresh_token", request.path)
         val body = request.body.readUtf8()
-        assert(body.contains("\"refresh_token\""))
-        assert(body.contains("old-refresh-token"))
+        assertTrue(body.contains("\"refresh_token\""))
+        assertTrue(body.contains("old-refresh-token"))
     }
 
     @Test
@@ -64,22 +64,23 @@ class RefreshAuthTokenServiceTest {
     }
 
     @Test
-    fun `refreshTokens returns null on 401`() {
-        mockServer.enqueue(MockResponse().setResponseCode(401))
+    fun `refreshTokens throws with server error message on 401`() {
+        mockServer.enqueue(MockResponse().setResponseCode(401).setBody("Invalid refresh token"))
 
         val service = createService()
-        val result = service.refreshTokens(mockServer.url("/").toString(), "bad-token")
-
-        assertNull(result)
+        val error = assertThrows<RefreshAuthTokenServiceError> {
+            service.refreshTokens(mockServer.url("/").toString(), "bad-token")
+        }
+        assertEquals("Invalid refresh token", error.message)
     }
 
     @Test
-    fun `refreshTokens returns null on network error`() {
+    fun `refreshTokens throws on network error`() {
         mockServer.shutdown()
 
         val service = createService()
-        val result = service.refreshTokens(mockServer.url("/").toString(), "token")
-
-        assertNull(result)
+        assertThrows<Exception> {
+            service.refreshTokens(mockServer.url("/").toString(), "token")
+        }
     }
 }

@@ -72,7 +72,8 @@ object TuistCacheEndpointResolver {
 
         val endpoints = try {
             GetCacheEndpointsService().getCacheEndpoints(serverURL, accountHandle, tokenProvider)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logger.warn("Tuist: Failed to fetch cache endpoints: ${e.message}")
             null
         }
 

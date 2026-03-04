@@ -116,14 +116,12 @@ open class TuistTokenProvider(
             if (!refreshToken.isNullOrBlank()) {
                 try {
                     val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
-                    if (newTokens != null) {
-                        TuistCredentialStore.write(
-                            serverURL,
-                            TuistCredentials(newTokens.accessToken, newTokens.refreshToken)
-                        )
-                        cachedToken = newTokens.accessToken
-                        return newTokens.accessToken
-                    }
+                    TuistCredentialStore.write(
+                        serverURL,
+                        TuistCredentials(newTokens.accessToken, newTokens.refreshToken)
+                    )
+                    cachedToken = newTokens.accessToken
+                    return newTokens.accessToken
                 } catch (_: Exception) {
                     // Fall through
                 }
