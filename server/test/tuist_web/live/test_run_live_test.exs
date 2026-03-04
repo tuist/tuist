@@ -165,8 +165,7 @@ defmodule TuistWeb.TestRunLiveTest do
       {:ok, document} = Floki.parse_document(html)
 
       repetition_wrappers =
-        document
-        |> Floki.find("[data-part=repetition-wrapper]")
+        Floki.find(document, "[data-part=repetition-wrapper]")
 
       assert length(repetition_wrappers) >= 2
 
