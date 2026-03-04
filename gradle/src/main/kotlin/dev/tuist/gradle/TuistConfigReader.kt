@@ -1,0 +1,113 @@
+package dev.tuist.gradle
+
+import org.gradle.api.logging.Logging
+import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+
+data class TuistTomlConfig(val project: String?, val url: String?)
+
+object TuistTomlParser {
+    fun parse(file: File): TuistTomlConfig? {
+        if (!file.exists()) return null
+        return try {
+            val content = file.readText()
+            TuistTomlConfig(
+                project = extractStringValue(content, "project"),
+                url = extractStringValue(content, "url")
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun extractStringValue(content: String, key: String): String? {
+        val regex = Regex("""^\s*$key\s*=\s*"([^"]*)"\s*$""", RegexOption.MULTILINE)
+        return regex.find(content)?.groupValues?.get(1)
+    }
+}
+
+object TuistServerUrlResolver {
+    private const val DEFAULT_URL = "https://tuist.dev"
+
+    fun resolve(extensionUrl: String?, projectDir: File?): String {
+        if (!extensionUrl.isNullOrBlank() && extensionUrl != DEFAULT_URL) {
+            return extensionUrl
+        }
+
+        val envUrl = System.getenv("TUIST_URL")
+        if (!envUrl.isNullOrBlank()) return envUrl
+
+        if (projectDir != null) {
+            val tomlConfig = TuistTomlParser.parse(File(projectDir, "tuist.toml"))
+            if (!tomlConfig?.url.isNullOrBlank()) return tomlConfig!!.url!!
+        }
+
+        return extensionUrl ?: DEFAULT_URL
+    }
+}
+
+object TuistCacheEndpointResolver {
+    private val logger = Logging.getLogger(TuistCacheEndpointResolver::class.java)
+
+    @Volatile
+    private var cachedEndpoint: String? = null
+
+    fun resolve(serverURL: String, accountHandle: String): String {
+        cachedEndpoint?.let { return it }
+
+        val envEndpoint = System.getenv("TUIST_CACHE_ENDPOINT")
+        if (!envEndpoint.isNullOrBlank()) {
+            cachedEndpoint = envEndpoint
+            return envEndpoint
+        }
+
+        val client = TuistApiClient(serverURL)
+        val endpoints = try {
+            client.getCacheEndpoints(accountHandle)
+        } catch (_: Exception) {
+            null
+        }
+
+        val result = when {
+            endpoints.isNullOrEmpty() -> serverURL
+            endpoints.size == 1 -> endpoints[0]
+            else -> pickFastestEndpoint(endpoints, client) ?: endpoints[0]
+        }
+
+        cachedEndpoint = result
+        return result
+    }
+
+    private fun pickFastestEndpoint(endpoints: List<String>, client: TuistApiClient): String? {
+        val bestEndpoint = AtomicReference<String?>(null)
+        val bestLatency = AtomicReference(Long.MAX_VALUE)
+        val latch = CountDownLatch(endpoints.size)
+
+        for (endpoint in endpoints) {
+            Thread {
+                try {
+                    val latency = client.measureLatency(endpoint)
+                    synchronized(bestLatency) {
+                        if (latency < bestLatency.get()) {
+                            bestLatency.set(latency)
+                            bestEndpoint.set(endpoint)
+                        }
+                    }
+                } catch (_: Exception) {
+                    // skip
+                } finally {
+                    latch.countDown()
+                }
+            }.start()
+        }
+
+        latch.await(10, TimeUnit.SECONDS)
+        return bestEndpoint.get()
+    }
+
+    internal fun resetCache() {
+        cachedEndpoint = null
+    }
+}
