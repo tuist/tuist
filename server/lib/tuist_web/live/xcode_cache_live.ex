@@ -4,6 +4,7 @@ defmodule TuistWeb.XcodeCacheLive do
   use Noora
 
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.EmptyState
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
@@ -41,20 +42,22 @@ defmodule TuistWeb.XcodeCacheLive do
     }
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/xcode-cache?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    socket = assign(socket, :analytics_selected_widget, widget)
 
-    {:noreply, socket}
+    if socket.assigns.uploads_analytics.ok? do
+      chart_data =
+        build_analytics_chart_data(
+          widget,
+          socket.assigns.uploads_analytics.result,
+          socket.assigns.downloads_analytics.result,
+          socket.assigns.hit_rate_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event(
@@ -119,82 +122,78 @@ defmodule TuistWeb.XcodeCacheLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
-      Analytics.combined_cache_analytics(project.id, opts)
-
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
-
-    analytics_chart_data =
-      case analytics_selected_widget do
-        "cache_uploads" ->
-          %{
-            dates: uploads_analytics.dates,
-            values: uploads_analytics.values,
-            name: dgettext("dashboard_cache", "Cache uploads"),
-            value_formatter: "fn:formatBytes"
-          }
-
-        "cache_downloads" ->
-          %{
-            dates: downloads_analytics.dates,
-            values: downloads_analytics.values,
-            name: dgettext("dashboard_cache", "Cache downloads"),
-            value_formatter: "fn:formatBytes"
-          }
-
-        "cache_hit_rate" ->
-          %{
-            dates: hit_rate_analytics.dates,
-            values: hit_rate_analytics.values,
-            name: dgettext("dashboard_cache", "Cache hit rate"),
-            value_formatter: "{value}%"
-          }
-      end
 
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
     |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(
-      :analytics_selected_widget,
-      analytics_selected_widget
+    |> assign(:analytics_selected_widget, analytics_selected_widget)
+    |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+    |> assign(:uri, uri)
+    |> assign_async(
+      [
+        :uploads_analytics,
+        :downloads_analytics,
+        :hit_rate_analytics,
+        :hit_rate_p99,
+        :hit_rate_p90,
+        :hit_rate_p50,
+        :analytics_chart_data
+      ],
+      fn ->
+        [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
+          Analytics.combined_cache_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           uploads_analytics: uploads_analytics,
+           downloads_analytics: downloads_analytics,
+           hit_rate_analytics: hit_rate_analytics,
+           hit_rate_p99: hit_rate_p99,
+           hit_rate_p90: hit_rate_p90,
+           hit_rate_p50: hit_rate_p50,
+           analytics_chart_data:
+             build_analytics_chart_data(
+               analytics_selected_widget,
+               uploads_analytics,
+               downloads_analytics,
+               hit_rate_analytics
+             )
+         }}
+      end
     )
-    |> assign(
-      :uploads_analytics,
-      uploads_analytics
-    )
-    |> assign(
-      :downloads_analytics,
-      downloads_analytics
-    )
-    |> assign(
-      :hit_rate_analytics,
-      hit_rate_analytics
-    )
-    |> assign(
-      :hit_rate_p99,
-      hit_rate_p99
-    )
-    |> assign(
-      :hit_rate_p90,
-      hit_rate_p90
-    )
-    |> assign(
-      :hit_rate_p50,
-      hit_rate_p50
-    )
-    |> assign(
-      :selected_hit_rate_type,
-      params["hit-rate-type"] || "avg"
-    )
-    |> assign(
-      :analytics_chart_data,
-      analytics_chart_data
-    )
-    |> assign(
-      :uri,
-      uri
-    )
+  end
+
+  defp build_analytics_chart_data(analytics_selected_widget, uploads_analytics, downloads_analytics, hit_rate_analytics) do
+    analytics_chart_data(analytics_selected_widget, uploads_analytics, downloads_analytics, hit_rate_analytics)
+  end
+
+  defp analytics_chart_data("cache_uploads", uploads_analytics, _downloads_analytics, _hit_rate_analytics) do
+    %{
+      dates: uploads_analytics.dates,
+      values: uploads_analytics.values,
+      name: dgettext("dashboard_cache", "Cache uploads"),
+      value_formatter: "fn:formatBytes"
+    }
+  end
+
+  defp analytics_chart_data("cache_downloads", _uploads_analytics, downloads_analytics, _hit_rate_analytics) do
+    %{
+      dates: downloads_analytics.dates,
+      values: downloads_analytics.values,
+      name: dgettext("dashboard_cache", "Cache downloads"),
+      value_formatter: "fn:formatBytes"
+    }
+  end
+
+  defp analytics_chart_data(_cache_hit_rate, _uploads_analytics, _downloads_analytics, hit_rate_analytics) do
+    %{
+      dates: hit_rate_analytics.dates,
+      values: hit_rate_analytics.values,
+      name: dgettext("dashboard_cache", "Cache hit rate"),
+      value_formatter: "{value}%"
+    }
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_cache", "since yesterday")
