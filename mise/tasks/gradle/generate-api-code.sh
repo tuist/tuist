@@ -4,35 +4,43 @@
 set -euo pipefail
 
 SPEC_FILE="$MISE_PROJECT_ROOT/cli/Sources/TuistServer/OpenAPI/server.yml"
-OUTPUT_DIR="/tmp/tuist-gradle-api"
 TARGET_DIR="$MISE_PROJECT_ROOT/gradle/src/main/kotlin/dev/tuist/gradle/api"
+TMPDIR=$(mktemp -d)
 
-rm -rf "$OUTPUT_DIR"
+trap "rm -rf $TMPDIR" EXIT
 
-mise x npm:@openapitools/openapi-generator-cli@2.30.1 -- openapi-generator-cli generate \
+GENERATOR="mise x npm:@openapitools/openapi-generator-cli@2.30.1 --"
+GENERATOR_VERSION="7.12.0"
+
+$GENERATOR openapi-generator-cli version-manager set "$GENERATOR_VERSION"
+
+# Generate all models referenced by the Authentication API.
+# We use the full model set (--global-property models) because filtered
+# model lists don't work reliably with inline schema name mappings.
+$GENERATOR openapi-generator-cli generate \
   -i "$SPEC_FILE" \
   -g kotlin \
-  -o "$OUTPUT_DIR" \
+  -o "$TMPDIR" \
   --api-package dev.tuist.gradle.api \
   --model-package dev.tuist.gradle.api.model \
   --additional-properties=library=jvm-retrofit2,serializationLibrary=gson,enumPropertyNaming=original,useCoroutines=false \
-  --global-property "apis=Authentication,Cache" \
-  --global-property "models" \
-  --global-property "supportingFiles=false"
+  --inline-schema-name-mappings "refreshToken_request=RefreshTokenBody" \
+  --global-property apis=Authentication \
+  --global-property models \
+  --global-property supportingFiles=false
 
-rm -rf "$TARGET_DIR"
+MODEL_SRC="$TMPDIR/src/main/kotlin/dev/tuist/gradle/api/model"
+
+# Copy only the models we need
 mkdir -p "$TARGET_DIR/model"
+cp "$MODEL_SRC/AuthenticationTokens.kt" "$TARGET_DIR/model/"
+cp "$MODEL_SRC/RefreshTokenBody.kt" "$TARGET_DIR/model/"
+cp "$MODEL_SRC/CacheEndpoints.kt" "$TARGET_DIR/model/"
 
-# Copy generated API interfaces
-if [ -d "$OUTPUT_DIR/src/main/kotlin/dev/tuist/gradle/api" ]; then
-    find "$OUTPUT_DIR/src/main/kotlin/dev/tuist/gradle/api" -maxdepth 1 -name "*.kt" -exec cp {} "$TARGET_DIR/" \;
-fi
-
-# Copy generated model classes
-if [ -d "$OUTPUT_DIR/src/main/kotlin/dev/tuist/gradle/api/model" ]; then
-    cp "$OUTPUT_DIR/src/main/kotlin/dev/tuist/gradle/api/model/"*.kt "$TARGET_DIR/model/" 2>/dev/null || true
-fi
-
-rm -rf "$OUTPUT_DIR"
-
-echo "Generated API code in $TARGET_DIR"
+echo ""
+echo "Updated model files in $TARGET_DIR/model/"
+echo ""
+echo "NOTE: The API interfaces (AuthenticationApi.kt, CacheApi.kt) are"
+echo "hand-maintained because the generator produces invalid Kotlin for"
+echo "this spec. If the OpenAPI spec changes the request/response shapes"
+echo "for refreshToken or getCacheEndpoints, update those files manually."
