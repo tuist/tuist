@@ -27,29 +27,33 @@ open class TokenProvider(
 
     private fun resolveToken(): Pair<String, Long?> {
         val credentials = CredentialStore.read(serverURL)
-        if (credentials != null) {
-            val accessToken = credentials.accessToken
-            if (!JwtParser.isExpired(accessToken)) {
-                return Pair(accessToken, JwtParser.getExpirationMs(accessToken))
-            }
+            ?: throw NotAuthenticatedException()
 
-            val refreshToken = credentials.refreshToken
-            if (!refreshToken.isNullOrBlank()) {
-                try {
-                    val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
-                    CredentialStore.write(
-                        serverURL,
-                        Credentials(newTokens.accessToken, newTokens.refreshToken)
-                    )
-                    return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
-                } catch (_: Exception) {
-                    // Fall through
-                }
-            }
+        val accessToken = credentials.accessToken
+        if (!JwtParser.isExpired(accessToken)) {
+            return Pair(accessToken, JwtParser.getExpirationMs(accessToken))
         }
 
-        throw RuntimeException(
-            "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable."
-        )
+        val refreshToken = credentials.refreshToken
+        if (refreshToken.isNullOrBlank()) {
+            throw NotAuthenticatedException()
+        }
+
+        try {
+            val newTokens = refreshAuthTokenService.refreshTokens(serverURL, refreshToken)
+            CredentialStore.write(
+                serverURL,
+                Credentials(newTokens.accessToken, newTokens.refreshToken)
+            )
+            return Pair(newTokens.accessToken, JwtParser.getExpirationMs(newTokens.accessToken))
+        } catch (e: java.net.ConnectException) {
+            throw e
+        } catch (_: Exception) {
+            throw NotAuthenticatedException()
+        }
     }
+
+    class NotAuthenticatedException : RuntimeException(
+        "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable."
+    )
 }
