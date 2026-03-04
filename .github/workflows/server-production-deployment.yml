@@ -85,6 +85,8 @@ jobs:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
+        env:
+          GITHUB_API_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
