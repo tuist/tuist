@@ -22,7 +22,7 @@ openapi-generator-cli generate \
   --api-package dev.tuist.gradle.api \
   --model-package dev.tuist.gradle.api.model \
   --additional-properties=library=jvm-retrofit2,serializationLibrary=gson,enumPropertyNaming=original,useCoroutines=false \
-  --global-property "apis=Authentication,OidcAuthentication,Cache" \
+  --global-property "apis=Authentication,Cache" \
   --global-property "models" \
   --global-property "supportingFiles=false"
 
