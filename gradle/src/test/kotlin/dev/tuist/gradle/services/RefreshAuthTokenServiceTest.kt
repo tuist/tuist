@@ -38,7 +38,7 @@ class RefreshAuthTokenServiceTest {
         mockServer.enqueue(MockResponse().setBody(responseBody).setResponseCode(200))
 
         val service = createService()
-        val result = service.refreshTokens(mockServer.url("/").toString(), "old-refresh-token")
+        val result = service.refreshTokens(mockServer.url("/").toUri(), "old-refresh-token")
 
         assertEquals("new-access", result.accessToken)
         assertEquals("new-refresh", result.refreshToken)
@@ -57,7 +57,7 @@ class RefreshAuthTokenServiceTest {
         mockServer.enqueue(MockResponse().setBody(responseBody).setResponseCode(200))
 
         val service = createService()
-        service.refreshTokens(mockServer.url("/").toString(), "token")
+        service.refreshTokens(mockServer.url("/").toUri(), "token")
 
         val request = mockServer.takeRequest()
         assertNull(request.getHeader("Authorization"))
@@ -69,7 +69,7 @@ class RefreshAuthTokenServiceTest {
 
         val service = createService()
         val error = assertThrows<RefreshAuthTokenServiceError> {
-            service.refreshTokens(mockServer.url("/").toString(), "bad-token")
+            service.refreshTokens(mockServer.url("/").toUri(), "bad-token")
         }
         assertEquals("Invalid refresh token", error.message)
     }
@@ -80,7 +80,7 @@ class RefreshAuthTokenServiceTest {
 
         val service = createService()
         assertThrows<Exception> {
-            service.refreshTokens(mockServer.url("/").toString(), "token")
+            service.refreshTokens(mockServer.url("/").toUri(), "token")
         }
     }
 }

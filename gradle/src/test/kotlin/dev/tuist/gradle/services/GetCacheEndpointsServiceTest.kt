@@ -39,13 +39,13 @@ class GetCacheEndpointsServiceTest {
         val responseBody = Gson().toJson(CacheEndpoints(listOf("https://cache1.tuist.dev", "https://cache2.tuist.dev")))
         mockServer.enqueue(MockResponse().setBody(responseBody).setResponseCode(200))
 
-        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toString()) {
+        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toUri()) {
             override fun getToken(forceRefresh: Boolean): String = "test-auth-token"
         }
 
         val service = createService()
         val result = service.getCacheEndpoints(
-            mockServer.url("/").toString(),
+            mockServer.url("/").toUri(),
             "my-account",
             tokenProvider
         )
@@ -65,13 +65,13 @@ class GetCacheEndpointsServiceTest {
         val responseBody = Gson().toJson(CacheEndpoints(listOf("https://cache.tuist.dev")))
         mockServer.enqueue(MockResponse().setBody(responseBody).setResponseCode(200))
 
-        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toString()) {
+        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toUri()) {
             override fun getToken(forceRefresh: Boolean): String = "my-bearer-token"
         }
 
         val service = createService()
         service.getCacheEndpoints(
-            mockServer.url("/").toString(),
+            mockServer.url("/").toUri(),
             "account",
             tokenProvider
         )
@@ -84,14 +84,14 @@ class GetCacheEndpointsServiceTest {
     fun `getCacheEndpoints throws with server error message on 401`() {
         mockServer.enqueue(MockResponse().setResponseCode(401).setBody("Authentication required"))
 
-        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toString()) {
+        val tokenProvider = object : TuistTokenProvider(mockServer.url("/").toUri()) {
             override fun getToken(forceRefresh: Boolean): String = "expired-token"
         }
 
         val service = createService()
         val error = assertThrows<GetCacheEndpointsServiceError> {
             service.getCacheEndpoints(
-                mockServer.url("/").toString(),
+                mockServer.url("/").toUri(),
                 "account",
                 tokenProvider
             )
@@ -101,16 +101,14 @@ class GetCacheEndpointsServiceTest {
 
     @Test
     fun `getCacheEndpoints throws on network error`() {
-        mockServer.shutdown()
-
-        val tokenProvider = object : TuistTokenProvider("http://localhost:1") {
+        val tokenProvider = object : TuistTokenProvider(java.net.URI.create("http://localhost:1")) {
             override fun getToken(forceRefresh: Boolean): String = "token"
         }
 
         val service = createService()
         assertThrows<Exception> {
             service.getCacheEndpoints(
-                "http://localhost:1",
+                java.net.URI.create("http://localhost:1"),
                 "account",
                 tokenProvider
             )

@@ -54,8 +54,8 @@ class NativeConfigurationProvider(
     private val projectDir: java.io.File
 ) : ConfigurationProvider {
 
-    private val resolvedServerUrl: String by lazy {
-        TuistServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir)
+    private val resolvedServerUrl: java.net.URI by lazy {
+        java.net.URI.create(TuistServerUrlResolver.resolve(extensionUrl = serverUrl, projectDir = projectDir))
     }
 
     private val resolvedProject: String by lazy {
@@ -99,7 +99,7 @@ class NativeConfigurationProvider(
         val endpoint = try {
             TuistCacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
         } catch (_: Exception) {
-            resolvedServerUrl
+            resolvedServerUrl.toString()
         }
         cachedCacheEndpoint = endpoint
         return endpoint

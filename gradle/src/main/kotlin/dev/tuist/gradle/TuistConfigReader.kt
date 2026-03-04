@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.gradle.api.logging.Logging
 import java.io.File
+import java.net.URI
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -58,7 +59,7 @@ object TuistCacheEndpointResolver {
     private var cachedEndpoint: String? = null
 
     fun resolve(
-        serverURL: String,
+        serverURL: URI,
         accountHandle: String,
         tokenProvider: TuistTokenProvider
     ): String {
@@ -78,7 +79,7 @@ object TuistCacheEndpointResolver {
         }
 
         val result = when {
-            endpoints.isNullOrEmpty() -> serverURL
+            endpoints.isNullOrEmpty() -> serverURL.toString()
             endpoints.size == 1 -> endpoints[0]
             else -> pickFastestEndpoint(endpoints) ?: endpoints[0]
         }

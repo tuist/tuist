@@ -4,15 +4,16 @@ import dev.tuist.gradle.ServerClient
 import dev.tuist.gradle.TuistTokenProvider
 import dev.tuist.gradle.api.CacheApi
 import retrofit2.Retrofit
+import java.net.URI
 
 class GetCacheEndpointsServiceError(message: String) : RuntimeException(message)
 
 class GetCacheEndpointsService(
-    private val retrofitProvider: (String, TuistTokenProvider) -> Retrofit =
+    private val retrofitProvider: (URI, TuistTokenProvider) -> Retrofit =
         { url, tokenProvider -> ServerClient.authenticated(url, tokenProvider) }
 ) {
     fun getCacheEndpoints(
-        serverURL: String,
+        serverURL: URI,
         accountHandle: String,
         tokenProvider: TuistTokenProvider
     ): List<String> {

@@ -50,8 +50,8 @@ object TuistCredentialStore {
     val credentialsDir: File
         get() = File(System.getProperty("user.home"), ".config/tuist/credentials")
 
-    fun read(serverURL: String): TuistCredentials? {
-        val hostname = try { URI.create(serverURL).host } catch (_: Exception) { null } ?: return null
+    fun read(serverURL: URI): TuistCredentials? {
+        val hostname = serverURL.host ?: return null
         val credFile = File(credentialsDir, "$hostname.json")
         if (!credFile.exists()) return null
         return try {
@@ -61,8 +61,8 @@ object TuistCredentialStore {
         }
     }
 
-    fun write(serverURL: String, credentials: TuistCredentials) {
-        val hostname = try { URI.create(serverURL).host } catch (_: Exception) { null } ?: return
+    fun write(serverURL: URI, credentials: TuistCredentials) {
+        val hostname = serverURL.host ?: return
         credentialsDir.mkdirs()
         val credFile = File(credentialsDir, "$hostname.json")
         val tempFile = File(credFile.parentFile, "${credFile.name}.tmp")
@@ -76,7 +76,7 @@ object TuistCredentialStore {
 }
 
 open class TuistTokenProvider(
-    private val serverURL: String,
+    private val serverURL: URI,
     internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService()
 ) {
     @Volatile
@@ -136,7 +136,7 @@ open class TuistTokenProvider(
     private fun withFileLock(action: () -> String): String {
         val lockDir = File(System.getProperty("user.home"), ".tuist/state/auth-locks")
         lockDir.mkdirs()
-        val sanitizedUrl = serverURL.replace(Regex("[/: ]"), "_")
+        val sanitizedUrl = serverURL.toString().replace(Regex("[/: ]"), "_")
         val lockFile = File(lockDir, "token_$sanitizedUrl.lock")
 
         if (lockFile.exists() && System.currentTimeMillis() - lockFile.lastModified() > 10_000) {
@@ -166,7 +166,6 @@ open class TuistTokenProvider(
                 throw RuntimeException("Timed out waiting for auth lock")
             }
 
-            // Re-read credentials after acquiring lock (another process may have refreshed)
             val freshCredentials = TuistCredentialStore.read(serverURL)
             if (freshCredentials != null && !JwtUtils.isExpired(freshCredentials.accessToken)) {
                 cachedToken = freshCredentials.accessToken
