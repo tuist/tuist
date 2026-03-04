@@ -155,17 +155,38 @@ defmodule TuistWeb.TestRunLiveTest do
       RunsFixtures.optimize_test_case_runs()
 
       # When
+      # Then - attachments are scoped inside their repetition wrappers
       {:ok, _lv, html} =
         live(
           conn,
           ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
         )
 
-      # Then
-      assert html =~ "attempt1_screenshot.png"
-      assert html =~ "attempt2_screenshot.png"
-      assert html =~ "First Run"
-      assert html =~ "Retry 1"
+      {:ok, document} = Floki.parse_document(html)
+
+      repetition_wrappers =
+        document
+        |> Floki.find("[data-part=repetition-wrapper]")
+
+      assert length(repetition_wrappers) >= 2
+
+      # Find each wrapper by its repetition name and verify the correct attachment is inside
+      first_run_wrapper =
+        Enum.find(repetition_wrappers, fn w -> Floki.raw_html(w) =~ "First Run" end)
+
+      retry_wrapper =
+        Enum.find(repetition_wrappers, fn w -> Floki.raw_html(w) =~ "Retry 1" end)
+
+      assert first_run_wrapper, "Expected a repetition wrapper for 'First Run'"
+      assert retry_wrapper, "Expected a repetition wrapper for 'Retry 1'"
+
+      first_run_html = Floki.raw_html(first_run_wrapper)
+      retry_html = Floki.raw_html(retry_wrapper)
+
+      assert first_run_html =~ "attempt1_screenshot.png"
+      refute first_run_html =~ "attempt2_screenshot.png"
+      assert retry_html =~ "attempt2_screenshot.png"
+      refute retry_html =~ "attempt1_screenshot.png"
     end
 
     test "shows attachment file names in the failures tab", %{
