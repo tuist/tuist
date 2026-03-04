@@ -67,41 +67,26 @@ class CachedValueStore<T>(
         val lockFile = lockFilePath!!
         lockFile.parentFile.mkdirs()
 
-        if (lockFile.exists() && System.currentTimeMillis() - lockFile.lastModified() > 10_000) {
-            lockFile.delete()
-        }
-
         val channel = FileChannel.open(
             lockFile.toPath(),
             StandardOpenOption.CREATE,
             StandardOpenOption.WRITE
         )
-        var fileLock: FileLock? = null
-        val deadline = System.currentTimeMillis() + 15_000
 
         try {
-            while (System.currentTimeMillis() < deadline) {
-                fileLock = try {
-                    channel.tryLock()
-                } catch (_: Exception) {
-                    null
+            val fileLock = channel.lock()
+
+            try {
+                val diskValue = readFromDisk?.invoke()
+                if (diskValue != null && !isExpired(diskValue)) {
+                    return diskValue
                 }
-                if (fileLock != null) break
-                Thread.sleep(500)
-            }
 
-            if (fileLock == null) {
-                throw RuntimeException("Timed out waiting for file lock")
+                return action()
+            } finally {
+                fileLock.release()
             }
-
-            val diskValue = readFromDisk?.invoke()
-            if (diskValue != null && !isExpired(diskValue)) {
-                return diskValue
-            }
-
-            return action()
         } finally {
-            fileLock?.release()
             channel.close()
         }
     }
