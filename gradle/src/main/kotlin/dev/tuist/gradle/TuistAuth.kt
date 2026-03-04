@@ -8,39 +8,6 @@ import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
 import java.nio.file.StandardOpenOption
 
-object JwtUtils {
-    fun decodePayload(jwt: String): Map<String, Any>? {
-        return try {
-            val parts = jwt.split(".")
-            if (parts.size != 3) return null
-            val payload = parts[1]
-            val padded = when (payload.length % 4) {
-                2 -> "$payload=="
-                3 -> "${payload}="
-                else -> payload
-            }
-            val decoded = java.util.Base64.getUrlDecoder().decode(padded)
-            val json = String(decoded, Charsets.UTF_8)
-            @Suppress("UNCHECKED_CAST")
-            Gson().fromJson(json, Map::class.java) as? Map<String, Any>
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    fun isExpired(jwt: String, bufferSeconds: Int = 30): Boolean {
-        val payload = decodePayload(jwt) ?: return true
-        val exp = (payload["exp"] as? Number)?.toLong() ?: return true
-        val now = System.currentTimeMillis() / 1000
-        return now >= (exp - bufferSeconds)
-    }
-
-    fun getType(jwt: String): String? {
-        val payload = decodePayload(jwt) ?: return null
-        return payload["type"] as? String
-    }
-}
-
 data class Credentials(
     val accessToken: String,
     val refreshToken: String? = null
@@ -87,14 +54,14 @@ open class TokenProvider(
 
         if (!forceRefresh) {
             cachedToken?.let { token ->
-                if (!JwtUtils.isExpired(token)) return token
+                if (!JwtParser.isExpired(token)) return token
             }
         }
 
         synchronized(lock) {
             if (!forceRefresh) {
                 cachedToken?.let { token ->
-                    if (!JwtUtils.isExpired(token)) return token
+                    if (!JwtParser.isExpired(token)) return token
                 }
             }
 
@@ -105,7 +72,7 @@ open class TokenProvider(
     private fun resolveToken(forceRefresh: Boolean): String {
         val credentials = CredentialStore.read(serverURL)
         if (credentials != null) {
-            if (!forceRefresh && !JwtUtils.isExpired(credentials.accessToken)) {
+            if (!forceRefresh && !JwtParser.isExpired(credentials.accessToken)) {
                 cachedToken = credentials.accessToken
                 return credentials.accessToken
             }
@@ -165,7 +132,7 @@ open class TokenProvider(
             }
 
             val freshCredentials = CredentialStore.read(serverURL)
-            if (freshCredentials != null && !JwtUtils.isExpired(freshCredentials.accessToken)) {
+            if (freshCredentials != null && !JwtParser.isExpired(freshCredentials.accessToken)) {
                 cachedToken = freshCredentials.accessToken
                 return freshCredentials.accessToken
             }

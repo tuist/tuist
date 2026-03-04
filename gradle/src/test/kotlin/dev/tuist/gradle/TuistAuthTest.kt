@@ -11,7 +11,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class JwtUtilsTest {
+class JwtParserTest {
 
     private fun createJwt(claims: Map<String, Any>): String {
         val header = Base64.getUrlEncoder().withoutPadding()
@@ -26,60 +26,60 @@ class JwtUtilsTest {
     @Test
     fun `decodePayload returns claims from valid JWT`() {
         val jwt = createJwt(mapOf("sub" to "user123", "exp" to 9999999999L))
-        val payload = JwtUtils.decodePayload(jwt)
+        val payload = JwtParser.decodePayload(jwt)
         assertNotNull(payload)
         assertEquals("user123", payload["sub"])
     }
 
     @Test
     fun `decodePayload returns null for invalid JWT`() {
-        assertNull(JwtUtils.decodePayload("not-a-jwt"))
-        assertNull(JwtUtils.decodePayload("a.b"))
-        assertNull(JwtUtils.decodePayload(""))
+        assertNull(JwtParser.decodePayload("not-a-jwt"))
+        assertNull(JwtParser.decodePayload("a.b"))
+        assertNull(JwtParser.decodePayload(""))
     }
 
     @Test
     fun `isExpired returns false for token with future exp`() {
         val futureExp = System.currentTimeMillis() / 1000 + 3600
         val jwt = createJwt(mapOf("exp" to futureExp))
-        assertFalse(JwtUtils.isExpired(jwt))
+        assertFalse(JwtParser.isExpired(jwt))
     }
 
     @Test
     fun `isExpired returns true for token with past exp`() {
         val pastExp = System.currentTimeMillis() / 1000 - 3600
         val jwt = createJwt(mapOf("exp" to pastExp))
-        assertTrue(JwtUtils.isExpired(jwt))
+        assertTrue(JwtParser.isExpired(jwt))
     }
 
     @Test
     fun `isExpired returns true within buffer window`() {
         val nearFutureExp = System.currentTimeMillis() / 1000 + 10
         val jwt = createJwt(mapOf("exp" to nearFutureExp))
-        assertTrue(JwtUtils.isExpired(jwt, bufferSeconds = 30))
+        assertTrue(JwtParser.isExpired(jwt, bufferSeconds = 30))
     }
 
     @Test
     fun `isExpired returns true for token without exp claim`() {
         val jwt = createJwt(mapOf("sub" to "user"))
-        assertTrue(JwtUtils.isExpired(jwt))
+        assertTrue(JwtParser.isExpired(jwt))
     }
 
     @Test
     fun `isExpired returns true for invalid JWT`() {
-        assertTrue(JwtUtils.isExpired("invalid"))
+        assertTrue(JwtParser.isExpired("invalid"))
     }
 
     @Test
     fun `getType returns type claim`() {
         val jwt = createJwt(mapOf("type" to "account", "exp" to 9999999999L))
-        assertEquals("account", JwtUtils.getType(jwt))
+        assertEquals("account", JwtParser.getType(jwt))
     }
 
     @Test
     fun `getType returns null when no type claim`() {
         val jwt = createJwt(mapOf("exp" to 9999999999L))
-        assertNull(JwtUtils.getType(jwt))
+        assertNull(JwtParser.getType(jwt))
     }
 }
 
