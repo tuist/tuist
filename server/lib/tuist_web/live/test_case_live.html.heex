@@ -123,7 +123,7 @@
       replace={true}
     />
     <.tab_menu_horizontal_item
-      :if={@flaky_runs_grouped.ok? and Enum.any?(@flaky_runs_grouped.result)}
+      :if={@test_case_detail.is_flaky or (@flaky_runs_grouped.ok? and Enum.any?(@flaky_runs_grouped.result))}
       label={dgettext("dashboard_tests", "Flaky Runs")}
       selected={@selected_tab == "flaky-runs"}
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
