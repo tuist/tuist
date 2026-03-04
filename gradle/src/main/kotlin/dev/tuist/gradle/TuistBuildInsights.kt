@@ -304,7 +304,7 @@ abstract class TuistBuildInsightsService :
     private fun sendReport() {
         val projectValue = parameters.project.orNull
 
-        val configProvider = NativeConfigurationProvider(
+        val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = java.io.File(System.getProperty("user.dir"))

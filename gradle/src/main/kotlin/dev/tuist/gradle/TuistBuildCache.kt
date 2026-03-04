@@ -29,7 +29,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .type("Tuist")
             .config("project", configuration.project ?: "(from tuist.toml)")
 
-        val configurationProvider = NativeConfigurationProvider(
+        val configurationProvider = DefaultConfigurationProvider(
             project = configuration.project,
             serverUrl = configuration.url ?: "https://tuist.dev",
             projectDir = java.io.File(System.getProperty("user.dir"))
@@ -48,7 +48,7 @@ interface ConfigurationProvider {
     fun getConfiguration(forceRefresh: Boolean = false): CacheConfiguration
 }
 
-class NativeConfigurationProvider(
+class DefaultConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
     private val projectDir: java.io.File

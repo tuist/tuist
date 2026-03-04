@@ -101,14 +101,14 @@ class ServerUrlResolverTest {
     }
 }
 
-class NativeConfigurationProviderTest {
+class DefaultConfigurationProviderTest {
 
     @TempDir
     lateinit var tempDir: File
 
     @Test
     fun `splits project into account and project handles`() {
-        val provider = NativeConfigurationProvider(
+        val provider = DefaultConfigurationProvider(
             project = "my-account/my-project",
             serverUrl = "https://tuist.dev",
             projectDir = tempDir

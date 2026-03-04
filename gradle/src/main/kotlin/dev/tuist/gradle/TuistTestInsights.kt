@@ -338,7 +338,7 @@ abstract class TuistTestInsightsService :
     private fun sendReport() {
         val projectValue = parameters.project.orNull
 
-        val configProvider = NativeConfigurationProvider(
+        val configProvider = DefaultConfigurationProvider(
             project = projectValue,
             serverUrl = parameters.url.get(),
             projectDir = java.io.File(System.getProperty("user.dir"))
@@ -429,7 +429,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
         val quarantineService = if (quarantineEnabled) {
-            val configProvider = NativeConfigurationProvider(
+            val configProvider = DefaultConfigurationProvider(
                 project = config.project,
                 serverUrl = config.url,
                 projectDir = java.io.File(System.getProperty("user.dir"))
