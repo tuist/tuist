@@ -11,7 +11,7 @@
 指令，您需要在 CI 環境中安裝此工具。
 
 驗證為可選項目，但若需使用伺服器端功能（如
-<LocalizedLink href="/guides/features/cache">快取</LocalizedLink>）則必須進行驗證。
+<LocalizedLink href="/guides/features/cache">快取</LocalizedLink>），則必須進行驗證。
 
 以下各節將提供在不同 CI 平台上執行此操作的範例。
 
