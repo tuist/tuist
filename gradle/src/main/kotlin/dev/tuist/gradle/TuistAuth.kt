@@ -1,10 +1,8 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
-import dev.tuist.gradle.services.ExchangeOIDCTokenService
 import dev.tuist.gradle.services.RefreshAuthTokenService
 import java.io.File
-import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.channels.FileChannel
 import java.nio.channels.FileLock
@@ -79,8 +77,7 @@ object TuistCredentialStore {
 
 open class TuistTokenProvider(
     private val serverURL: String,
-    internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService(),
-    internal var exchangeOIDCTokenService: ExchangeOIDCTokenService = ExchangeOIDCTokenService()
+    internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService()
 ) {
     @Volatile
     private var cachedToken: String? = null
@@ -128,63 +125,14 @@ open class TuistTokenProvider(
                         return newTokens.accessToken
                     }
                 } catch (_: Exception) {
-                    // Fall through to OIDC
+                    // Fall through
                 }
             }
-        }
-
-        val oidcToken = tryOidcExchange()
-        if (oidcToken != null) {
-            cachedToken = oidcToken
-            return oidcToken
         }
 
         throw RuntimeException(
             "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable."
         )
-    }
-
-    private fun tryOidcExchange(): String? {
-        val ciToken = fetchCIOIDCToken() ?: return null
-        return exchangeOIDCTokenService.exchangeOIDCToken(serverURL, ciToken)
-    }
-
-    private fun fetchCIOIDCToken(): String? {
-        // GitHub Actions
-        val ghRequestUrl = System.getenv("ACTIONS_ID_TOKEN_REQUEST_URL")
-        val ghRequestToken = System.getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
-        if (!ghRequestUrl.isNullOrBlank() && !ghRequestToken.isNullOrBlank()) {
-            return fetchGitHubActionsOIDCToken(ghRequestUrl, ghRequestToken)
-        }
-
-        // CircleCI
-        System.getenv("CIRCLE_OIDC_TOKEN_V2")?.takeIf { it.isNotBlank() }?.let { return it }
-        System.getenv("CIRCLE_OIDC_TOKEN")?.takeIf { it.isNotBlank() }?.let { return it }
-
-        // Bitrise
-        System.getenv("BITRISE_OIDC_ID_TOKEN")?.takeIf { it.isNotBlank() }?.let { return it }
-        System.getenv("BITRISE_IDENTITY_TOKEN")?.takeIf { it.isNotBlank() }?.let { return it }
-
-        return null
-    }
-
-    private fun fetchGitHubActionsOIDCToken(requestUrl: String, requestToken: String): String? {
-        return try {
-            val url = URI.create("$requestUrl&audience=tuist").toURL()
-            val connection = url.openConnection() as HttpURLConnection
-            connection.setRequestProperty("Authorization", "Bearer $requestToken")
-            connection.setRequestProperty("Accept", "application/json; api-version=2.0")
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
-            if (connection.responseCode == 200) {
-                val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
-                @Suppress("UNCHECKED_CAST")
-                val response = Gson().fromJson(responseJson, Map::class.java) as? Map<String, Any>
-                response?.get("value") as? String
-            } else null
-        } catch (_: Exception) {
-            null
-        }
     }
 
     private fun withFileLock(action: () -> String): String {
