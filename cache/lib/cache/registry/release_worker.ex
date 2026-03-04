@@ -239,49 +239,68 @@ defmodule Cache.Registry.ReleaseWorker do
   defp resolve_symlinks(directory) do
     case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
-        output
-        |> String.split("\n", trim: true)
-        |> resolve_symlink_entries()
+        symlink_paths = String.split(output, "\n", trim: true)
+        {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
+
+        with :ok <- resolve_non_directory_symlinks(non_directory_symlinks) do
+          resolve_directory_symlinks(directory_symlinks)
+        end
 
       {output, status} ->
         {:error, {:find_symlinks_failed, status, output}}
     end
   end
 
-  defp resolve_symlink_entries([]), do: :ok
+  defp classify_symlinks(symlink_paths) do
+    Enum.split_with(symlink_paths, fn path ->
+      match?({:ok, %File.Stat{type: :directory}}, File.stat(path))
+    end)
+  end
 
-  defp resolve_symlink_entries([symlink_path | rest]) do
+  defp resolve_non_directory_symlinks([]), do: :ok
+
+  defp resolve_non_directory_symlinks([symlink_path | rest]) do
     case File.stat(symlink_path) do
       {:ok, %File.Stat{type: :regular}} ->
         content = File.read!(symlink_path)
         File.rm!(symlink_path)
         File.write!(symlink_path, content)
-        resolve_symlink_entries(rest)
-
-      {:ok, %File.Stat{type: :directory}} ->
-        resolve_directory_symlink(symlink_path)
-        resolve_symlink_entries(rest)
 
       _ ->
         File.rm(symlink_path)
-        resolve_symlink_entries(rest)
     end
+
+    resolve_non_directory_symlinks(rest)
   end
 
-  defp resolve_directory_symlink(symlink_path) do
+  defp resolve_directory_symlinks(directory_symlinks) do
+    {cyclic, non_cyclic} =
+      Enum.split_with(directory_symlinks, fn path ->
+        case File.read_link(path) do
+          {:ok, target} ->
+            resolved = resolve_symlink_target(path, target)
+            symlink_creates_cycle?(Path.expand(path), resolved)
+
+          _ ->
+            false
+        end
+      end)
+
+    Enum.each(cyclic, &remove_cyclic_directory_symlink/1)
+    Enum.each(non_cyclic, &resolve_non_cyclic_directory_symlink/1)
+  end
+
+  defp remove_cyclic_directory_symlink(symlink_path) do
+    {:ok, target} = File.read_link(symlink_path)
+    File.rm!(symlink_path)
+    Logger.info("Removed recursive directory symlink #{symlink_path} -> #{target}")
+  end
+
+  defp resolve_non_cyclic_directory_symlink(symlink_path) do
     {:ok, target} = File.read_link(symlink_path)
     resolved_target = resolve_symlink_target(symlink_path, target)
-    expanded_symlink = Path.expand(symlink_path)
-
     File.rm!(symlink_path)
-
-    if symlink_creates_cycle?(expanded_symlink, resolved_target) do
-      Logger.info("Removed recursive directory symlink #{symlink_path} -> #{target}")
-    else
-      File.cp_r!(resolved_target, symlink_path, dereference_symlinks: true)
-    end
-
-    :ok
+    File.cp_r!(resolved_target, symlink_path)
   end
 
   defp symlink_creates_cycle?(symlink_path, resolved_target) do
