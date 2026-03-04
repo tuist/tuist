@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "9759dec3758e",
+  "session_id": "e2a2c957-c8a7-48c5-b260-b7ec0dde7b3b",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-04T15:52:54.596759Z",
+  "branch": "fix/mcp-sse-hang",
+  "checkpoints_count": 24,
+  "files_touched": [
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
+    "server/lib/tuist_web/plugs/mcp_json_response_plug.ex"
+  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "7fbccf56-c08d-4d0b-93c7-4656e477a8e8",
+  "token_usage": {
+    "input_tokens": 226,
+    "cache_creation_tokens": 219594,
+    "cache_read_tokens": 19222692,
+    "output_tokens": 69980,
+    "api_call_count": 167
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-04T15:52:54.05539Z",
+    "agent_lines": 0,
+    "human_added": 1597545,
+    "human_modified": 162,
+    "human_removed": 0,
+    "total_committed": 1597545,
+    "agent_percentage": 0
+  }
+}

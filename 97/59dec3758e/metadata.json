@@ -3,7 +3,7 @@
   "checkpoint_id": "9759dec3758e",
   "strategy": "manual-commit",
   "branch": "fix/mcp-sse-hang",
-  "checkpoints_count": 5,
+  "checkpoints_count": 29,
   "files_touched": [
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
@@ -14,7 +14,8 @@
     "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
-    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
+    "server/lib/tuist_web/plugs/mcp_json_response_plug.ex"
   ],
   "sessions": [
     {
@@ -23,13 +24,20 @@
       "context": "/97/59dec3758e/0/context.md",
       "content_hash": "/97/59dec3758e/0/content_hash.txt",
       "prompt": "/97/59dec3758e/0/prompt.txt"
+    },
+    {
+      "metadata": "/97/59dec3758e/1/metadata.json",
+      "transcript": "/97/59dec3758e/1/full.jsonl",
+      "context": "/97/59dec3758e/1/context.md",
+      "content_hash": "/97/59dec3758e/1/content_hash.txt",
+      "prompt": "/97/59dec3758e/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 48,
-    "cache_creation_tokens": 84537,
-    "cache_read_tokens": 1691648,
-    "output_tokens": 4011,
-    "api_call_count": 38
+    "input_tokens": 274,
+    "cache_creation_tokens": 304131,
+    "cache_read_tokens": 20914340,
+    "output_tokens": 73991,
+    "api_call_count": 205
   }
 }
