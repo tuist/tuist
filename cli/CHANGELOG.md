@@ -1,13 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.154.5<!-- RELEASE NOTES START -->
+## What's Changed in 4.155.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* group test attachments by repetition by [@fortmarek](https://github.com/fortmarek) in [#9714](https://github.com/tuist/tuist/pull/9714)
 ### 🐛 Bug Fixes
 
 * propagate module map flags to configuration-level setting overrides by [@pepicrft](https://github.com/pepicrft) in [#9692](https://github.com/tuist/tuist/pull/9692)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.4...4.154.5
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.4...4.155.0
 
 ## What's Changed in 4.154.4<!-- RELEASE NOTES START -->
 
