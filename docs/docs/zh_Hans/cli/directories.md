@@ -76,7 +76,7 @@ tuist cache
 
 **用途：**
 - **日志**: 日志文件 (`logs/{uuid}.log`)
-- **锁** ：认证锁文件（`{handle}.sock` ）
+- **锁文件**: 认证锁文件 (`{handle}.sock`)
 
 **示例：**
 ```bash
