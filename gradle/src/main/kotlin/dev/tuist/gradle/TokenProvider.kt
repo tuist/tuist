@@ -3,25 +3,30 @@ package dev.tuist.gradle
 import dev.tuist.gradle.services.RefreshAuthTokenService
 import java.io.File
 import java.net.URI
-import java.nio.channels.FileChannel
-import java.nio.channels.FileLock
-import java.nio.file.StandardOpenOption
 
 open class TokenProvider(
     private val serverURL: URI,
     internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService()
 ) {
-    private val tokenCache = CachedValueStore<String>(
-        isExpired = { JwtParser.isExpired(it) }
-    )
+    private val tokenCache: CachedValueStore<String> by lazy {
+        val sanitizedUrl = serverURL.toString().replace(Regex("[/: ]"), "_")
+        CachedValueStore(
+            isExpired = { JwtParser.isExpired(it) },
+            lockFilePath = File(
+                File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
+                "token_$sanitizedUrl.lock"
+            ),
+            readFromDisk = {
+                CredentialStore.read(serverURL)?.accessToken
+            }
+        )
+    }
 
     open fun getToken(forceRefresh: Boolean = false): String {
         val envToken = System.getenv("TUIST_TOKEN")
         if (!envToken.isNullOrBlank()) return envToken
 
-        return tokenCache.getValue(forceRefresh) {
-            withFileLock { resolveToken() }
-        }
+        return tokenCache.getValue(forceRefresh) { resolveToken() }
     }
 
     private fun resolveToken(): String {
@@ -45,50 +50,5 @@ open class TokenProvider(
         throw RuntimeException(
             "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable."
         )
-    }
-
-    private fun withFileLock(action: () -> String): String {
-        val lockDir = File(System.getProperty("user.home"), ".tuist/state/auth-locks")
-        lockDir.mkdirs()
-        val sanitizedUrl = serverURL.toString().replace(Regex("[/: ]"), "_")
-        val lockFile = File(lockDir, "token_$sanitizedUrl.lock")
-
-        if (lockFile.exists() && System.currentTimeMillis() - lockFile.lastModified() > 10_000) {
-            lockFile.delete()
-        }
-
-        val channel = FileChannel.open(
-            lockFile.toPath(),
-            StandardOpenOption.CREATE,
-            StandardOpenOption.WRITE
-        )
-        var fileLock: FileLock? = null
-        val deadline = System.currentTimeMillis() + 15_000
-
-        try {
-            while (System.currentTimeMillis() < deadline) {
-                fileLock = try {
-                    channel.tryLock()
-                } catch (_: Exception) {
-                    null
-                }
-                if (fileLock != null) break
-                Thread.sleep(500)
-            }
-
-            if (fileLock == null) {
-                throw RuntimeException("Timed out waiting for auth lock")
-            }
-
-            val freshCredentials = CredentialStore.read(serverURL)
-            if (freshCredentials != null && !JwtParser.isExpired(freshCredentials.accessToken)) {
-                return freshCredentials.accessToken
-            }
-
-            return action()
-        } finally {
-            fileLock?.release()
-            channel.close()
-        }
     }
 }
