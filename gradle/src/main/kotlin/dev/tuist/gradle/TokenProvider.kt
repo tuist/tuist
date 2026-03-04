@@ -11,29 +11,16 @@ open class TokenProvider(
     private val serverURL: URI,
     internal var refreshAuthTokenService: RefreshAuthTokenService = RefreshAuthTokenService()
 ) {
-    @Volatile
-    private var cachedToken: String? = null
-    private val lock = Any()
+    private val tokenCache = CachedValueStore<String>(
+        isExpired = { JwtParser.isExpired(it) }
+    )
 
     open fun getToken(forceRefresh: Boolean = false): String {
         val envToken = System.getenv("TUIST_TOKEN")
         if (!envToken.isNullOrBlank()) return envToken
 
-        if (!forceRefresh) {
-            cachedToken?.let { token ->
-                if (!JwtParser.isExpired(token)) return token
-            }
-        }
-
-        val tokenBeforeLock = cachedToken
-
-        synchronized(lock) {
-            val currentToken = cachedToken
-            if (currentToken != null && currentToken != tokenBeforeLock && !JwtParser.isExpired(currentToken)) {
-                return currentToken
-            }
-
-            return withFileLock { resolveToken() }
+        return tokenCache.getValue(forceRefresh) {
+            withFileLock { resolveToken() }
         }
     }
 
@@ -48,7 +35,6 @@ open class TokenProvider(
                         serverURL,
                         Credentials(newTokens.accessToken, newTokens.refreshToken)
                     )
-                    cachedToken = newTokens.accessToken
                     return newTokens.accessToken
                 } catch (_: Exception) {
                     // Fall through
@@ -96,7 +82,6 @@ open class TokenProvider(
 
             val freshCredentials = CredentialStore.read(serverURL)
             if (freshCredentials != null && !JwtParser.isExpired(freshCredentials.accessToken)) {
-                cachedToken = freshCredentials.accessToken
                 return freshCredentials.accessToken
             }
 
