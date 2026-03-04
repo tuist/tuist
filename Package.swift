@@ -1669,6 +1669,7 @@ let package = Package(
         .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
         .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
         .package(id: "apple.swift-algorithms", from: "1.2.1"),
+        .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]
