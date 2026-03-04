@@ -21,8 +21,10 @@ class GetCacheEndpointsService(
         if (response.isSuccessful) {
             return response.body()?.endpoints
                 ?: throw GetCacheEndpointsServiceError("Cache endpoints response was empty.")
+        } else {
+            val errorMessage = response.errorBody()?.string()
+                ?: "Fetching cache endpoints failed with status ${response.code()}."
+            throw GetCacheEndpointsServiceError(errorMessage)
         }
-        val errorMessage = response.errorBody()?.string() ?: "Fetching cache endpoints failed with status ${response.code()}."
-        throw GetCacheEndpointsServiceError(errorMessage)
     }
 }

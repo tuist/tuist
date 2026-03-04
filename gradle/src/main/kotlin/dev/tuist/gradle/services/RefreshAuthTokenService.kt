@@ -17,8 +17,10 @@ class RefreshAuthTokenService(
         if (response.isSuccessful) {
             return response.body()
                 ?: throw RefreshAuthTokenServiceError("Token refresh returned an empty response.")
+        } else {
+            val errorMessage = response.errorBody()?.string()
+                ?: "Token refresh failed with status ${response.code()}."
+            throw RefreshAuthTokenServiceError(errorMessage)
         }
-        val errorMessage = response.errorBody()?.string() ?: "Token refresh failed with status ${response.code()}."
-        throw RefreshAuthTokenServiceError(errorMessage)
     }
 }
