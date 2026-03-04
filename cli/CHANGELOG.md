@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* bump Rosalind to 0.7.22 and swift-protobuf to 1.35.1 by [@fortmarek](https://github.com/fortmarek) in [#9701](https://github.com/tuist/tuist/pull/9701)
 * fix build categorization for Xcode 26+ compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9689](https://github.com/tuist/tuist/pull/9689)
 * bump XCLogParser to 0.2.46 and improve activity log error messages by [@fortmarek](https://github.com/fortmarek) in [#9691](https://github.com/tuist/tuist/pull/9691)
 
@@ -141,12 +142,20 @@ All notable changes to this project will be documented in this file.
 
 ## What's Changed in 4.146.1<!-- RELEASE NOTES START -->
 
+### 🐛 Bug Fixes
+
+* fix cache building unnecessary Catalyst scheme for external dependencies by [@fortmarek](https://github.com/fortmarek) in [#9476](https://github.com/tuist/tuist/pull/9476)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.146.0...4.146.1
+
+## What's Changed in 4.146.0<!-- RELEASE NOTES START -->
+
 ### ⛰️  Features
 
 * add foreign build system dependencies by [@fortmarek](https://github.com/fortmarek) in [#9400](https://github.com/tuist/tuist/pull/9400)
 ### 🐛 Bug Fixes
 
-* fix cache building unnecessary Catalyst scheme for external dependencies by [@fortmarek](https://github.com/fortmarek) in [#9476](https://github.com/tuist/tuist/pull/9476)
+* restore TuistSimulator to macOS-only block in Package.swift by [@fortmarek](https://github.com/fortmarek) in [#9468](https://github.com/tuist/tuist/pull/9468)
 * increase inspect build activity log timeout and make it configurable by [@fortmarek](https://github.com/fortmarek) in [#9465](https://github.com/tuist/tuist/pull/9465)
 * fix CLI release (static linking, Musl imports, Bundle(for:)) by [@fortmarek](https://github.com/fortmarek) in [#9459](https://github.com/tuist/tuist/pull/9459)
 * use canImport(Musl) for Static Linux SDK compatibility by [@fortmarek](https://github.com/fortmarek) in [#9457](https://github.com/tuist/tuist/pull/9457)
@@ -155,7 +164,7 @@ All notable changes to this project will be documented in this file.
 * only cache dependency checkouts in Linux CI jobs by [@fortmarek](https://github.com/fortmarek) in [#9447](https://github.com/tuist/tuist/pull/9447)
 * add missing tree-shake after focus targets in automation mapper chain by [@pepicrft](https://github.com/pepicrft) in [#9443](https://github.com/tuist/tuist/pull/9443)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.145.0...4.146.0
 
 ## What's Changed in 4.145.0<!-- RELEASE NOTES START -->
 
@@ -408,6 +417,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * add authentication failure error for cache by [@cschmatzler](https://github.com/cschmatzler) in [#9280](https://github.com/tuist/tuist/pull/9280)
+* update FileSystem to fix intermittent crash on startup by [@pepicrft](https://github.com/pepicrft) in [#9276](https://github.com/tuist/tuist/pull/9276)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.132.0...4.132.1
 
@@ -416,21 +426,42 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * add registryEnabled generation option by [@pepicrft](https://github.com/pepicrft) in [#9258](https://github.com/tuist/tuist/pull/9258)
-* add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.131.2...4.132.0
+
+## What's Changed in 4.131.2<!-- RELEASE NOTES START -->
+
 ### 🐛 Bug Fixes
 
+* revert swift-protobuf to GitHub URL to fix manifest issue by [@pepicrft](https://github.com/pepicrft) in [#9267](https://github.com/tuist/tuist/pull/9267)
 * set default cache concurrency limit to 100 by [@fortmarek](https://github.com/fortmarek) in [#9235](https://github.com/tuist/tuist/pull/9235)
 * support BITRISE_IDENTITY_TOKEN env var for Bitrise OIDC auth by [@pepicrft](https://github.com/pepicrft) in [#9257](https://github.com/tuist/tuist/pull/9257)
 * embed static XCFrameworks to support resources by [@pepicrft](https://github.com/pepicrft) in [#9240](https://github.com/tuist/tuist/pull/9240)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.131.1...4.131.2
+
+## What's Changed in 4.131.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
 * restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.132.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.131.0...4.131.1
+
+## What's Changed in 4.131.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.131.0
 
 ## What's Changed in 4.130.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
 * ensure consistent mapper order between automation and cache pipelines by [@fortmarek](https://github.com/fortmarek) in [#9228](https://github.com/tuist/tuist/pull/9228)
+* use patched swift-openapi-urlsession to fix crash by [@fortmarek](https://github.com/fortmarek) in [#9229](https://github.com/tuist/tuist/pull/9229)
 * filter out dependencies with unsatisfied trait conditions by [@pepicrft](https://github.com/pepicrft) in [#9219](https://github.com/tuist/tuist/pull/9219)
 * fix bundle accessor for Obj-C external static frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9210](https://github.com/tuist/tuist/pull/9210)
 ### 📚 Documentation
@@ -524,6 +555,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * disable Swift debug serialization to prevent LLDB warnings by [@pepicrft](https://github.com/pepicrft) in [#9116](https://github.com/tuist/tuist/pull/9116)
+* update XcodeGraph to 1.30.10 to fix CLI resource bundles by [@pepicrft](https://github.com/pepicrft) in [#9115](https://github.com/tuist/tuist/pull/9115)
 * fix flaky DumpServiceIntegrationTests for package manifests by [@pepicrft](https://github.com/pepicrft) in [#9113](https://github.com/tuist/tuist/pull/9113)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.124.0...4.124.1
@@ -640,15 +672,22 @@ All notable changes to this project will be documented in this file.
 
 ## What's Changed in 4.116.2<!-- RELEASE NOTES START -->
 
+### 🐛 Bug Fixes
+
+* require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.116.1...4.116.2
+
+## What's Changed in 4.116.1<!-- RELEASE NOTES START -->
+
 ### ⛰️  Features
 
 * compute binary id as part of tuist share by [@fortmarek](https://github.com/fortmarek) in [#8912](https://github.com/tuist/tuist/pull/8912)
 ### 🐛 Bug Fixes
 
-* require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
 * add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.1
 
 ## What's Changed in 4.115.1<!-- RELEASE NOTES START -->
 
@@ -674,12 +713,19 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * OIDC support Bitrise and CircleCI by [@fortmarek](https://github.com/fortmarek) in [#8878](https://github.com/tuist/tuist/pull/8878)
-* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
 ### 🐛 Bug Fixes
 
 * parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.114.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.113.0...4.114.0
+
+## What's Changed in 4.113.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.113.0
 
 ## What's Changed in 4.112.0<!-- RELEASE NOTES START -->
 
@@ -769,10 +815,18 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * duplicated XCFrameworks in embed phase by [@fortmarek](https://github.com/fortmarek) in [#8736](https://github.com/tuist/tuist/pull/8736)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.3...4.107.1
+
+## What's Changed in 4.106.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* pin swift-collections below 1.3.0 by [@fortmarek](https://github.com/fortmarek) in [#8730](https://github.com/tuist/tuist/pull/8730)
 * skip warning Swift flags when hashing by [@fortmarek](https://github.com/fortmarek) in [#8728](https://github.com/tuist/tuist/pull/8728)
 * prefer products with matching casing by [@fortmarek](https://github.com/fortmarek) in [#8717](https://github.com/tuist/tuist/pull/8717)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.107.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.106.3
 
 ## What's Changed in 4.106.1<!-- RELEASE NOTES START -->
 
@@ -1310,6 +1364,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * adjust NIOFileSystem references by [@fortmarek](https://github.com/fortmarek) in [#8273](https://github.com/tuist/tuist/pull/8273)
+* handle warnings from the underlying assetutil info when inspecting bundles by [@fortmarek](https://github.com/fortmarek) in [#8268](https://github.com/tuist/tuist/pull/8268)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.78.1...4.78.2
 
@@ -1385,6 +1440,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Add support for configuring the cache request concurrency limit by [@pepicrft](https://github.com/pepicrft) in [#8203](https://github.com/tuist/tuist/pull/8203)
+### 🐛 Bug Fixes
+
+* tuist cache failing due to the new BuildOperationMetrics attachment type by [@fortmarek](https://github.com/fortmarek) in [#8201](https://github.com/tuist/tuist/pull/8201)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.72.0...4.73.0
 
@@ -1632,6 +1690,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * support hashing transitive `.xcconfig` files by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7961](https://github.com/tuist/tuist/pull/7961)
+* add support for XcodeKit SDK by [@navtoj](https://github.com/navtoj) in [#7993](https://github.com/tuist/tuist/pull/7993)
 ### 🐛 Bug Fixes
 
 * use Xcode default for which architectures are built by [@fortmarek](https://github.com/fortmarek) in [#8007](https://github.com/tuist/tuist/pull/8007)
@@ -1739,6 +1798,6 @@ All notable changes to this project will be documented in this file.
 ## New Contributors
 * [@ns-vasilev](https://github.com/ns-vasilev) made their first contribution in [#7660](https://github.com/tuist/tuist/pull/7660)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.55.5...4.55.7
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.55.6...4.55.7
 
 <!-- generated by git-cliff -->
