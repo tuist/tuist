@@ -15,10 +15,7 @@ open class TokenProvider(
             lockFilePath = File(
                 File(System.getProperty("user.home"), ".tuist/state/auth-locks"),
                 "token_$sanitizedUrl.lock"
-            ),
-            readFromDisk = {
-                CredentialStore.read(serverURL)?.accessToken
-            }
+            )
         )
     }
 
@@ -32,6 +29,11 @@ open class TokenProvider(
     private fun resolveToken(): String {
         val credentials = CredentialStore.read(serverURL)
         if (credentials != null) {
+            val accessToken = credentials.accessToken
+            if (!JwtParser.isExpired(accessToken)) {
+                return accessToken
+            }
+
             val refreshToken = credentials.refreshToken
             if (!refreshToken.isNullOrBlank()) {
                 try {

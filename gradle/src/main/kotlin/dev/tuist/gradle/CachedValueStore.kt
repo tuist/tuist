@@ -8,8 +8,7 @@ import java.util.concurrent.CompletableFuture
 
 class CachedValueStore<T>(
     private val isExpired: (T) -> Boolean,
-    private val lockFilePath: File? = null,
-    private val readFromDisk: (() -> T?)? = null
+    private val lockFilePath: File? = null
 ) {
     @Volatile
     private var cached: T? = null
@@ -77,10 +76,8 @@ class CachedValueStore<T>(
             val fileLock = channel.lock()
 
             try {
-                val diskValue = readFromDisk?.invoke()
-                if (diskValue != null && !isExpired(diskValue)) {
-                    return diskValue
-                }
+                // Double-check in-memory cache after acquiring lock
+                cached?.let { if (!isExpired(it)) return it }
 
                 return action()
             } finally {
