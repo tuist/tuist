@@ -69,14 +69,7 @@ object CredentialStore {
     fun write(serverURL: URI, credentials: Credentials) {
         val hostname = serverURL.host ?: return
         credentialsDir.mkdirs()
-        val credFile = File(credentialsDir, "$hostname.json")
-        val tempFile = File(credFile.parentFile, "${credFile.name}.tmp")
-        try {
-            tempFile.writeText(Gson().toJson(credentials))
-            tempFile.renameTo(credFile)
-        } catch (_: Exception) {
-            tempFile.delete()
-        }
+        File(credentialsDir, "$hostname.json").writeText(Gson().toJson(credentials))
     }
 }
 
