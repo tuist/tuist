@@ -3,7 +3,6 @@ package dev.tuist.gradle
 import dev.tuist.gradle.services.GetCacheEndpointsService
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.gradle.api.logging.Logging
 import java.io.File
 import java.net.URI
 import java.util.concurrent.CountDownLatch
@@ -15,12 +14,12 @@ object ServerUrlResolver {
     private const val DEFAULT_URL = "https://tuist.dev"
 
     fun resolve(extensionUrl: String?, projectDir: File?): String {
+        val envUrl = System.getenv("TUIST_URL")
+        if (!envUrl.isNullOrBlank()) return envUrl
+
         if (!extensionUrl.isNullOrBlank() && extensionUrl != DEFAULT_URL) {
             return extensionUrl
         }
-
-        val envUrl = System.getenv("TUIST_URL")
-        if (!envUrl.isNullOrBlank()) return envUrl
 
         if (projectDir != null) {
             TomlParser.parse(File(projectDir, "tuist.toml"))?.url?.takeIf { it.isNotBlank() }?.let { return it }
@@ -31,10 +30,6 @@ object ServerUrlResolver {
 }
 
 object CacheEndpointResolver {
-    private val logger = Logging.getLogger(CacheEndpointResolver::class.java)
-
-    @Volatile
-    private var cachedEndpoint: String? = null
 
     fun resolve(
         serverURL: URI,
@@ -43,11 +38,8 @@ object CacheEndpointResolver {
         envProvider: (String) -> String? = { System.getenv(it) },
         getCacheEndpointsService: GetCacheEndpointsService = GetCacheEndpointsService()
     ): String {
-        cachedEndpoint?.let { return it }
-
         val envEndpoint = envProvider("TUIST_CACHE_ENDPOINT")
         if (!envEndpoint.isNullOrBlank()) {
-            cachedEndpoint = envEndpoint
             return envEndpoint
         }
 
@@ -57,15 +49,12 @@ object CacheEndpointResolver {
             throw RuntimeException("No cache endpoints available.")
         }
 
-        val result = if (endpoints.size == 1) {
+        return if (endpoints.size == 1) {
             endpoints[0]
         } else {
             pickFastestEndpoint(endpoints)
                 ?: throw RuntimeException("None of the cache endpoints are reachable.")
         }
-
-        cachedEndpoint = result
-        return result
     }
 
     private fun pickFastestEndpoint(endpoints: List<String>): String? {
@@ -117,7 +106,4 @@ object CacheEndpointResolver {
         }
     }
 
-    internal fun resetCache() {
-        cachedEndpoint = null
-    }
 }

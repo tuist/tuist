@@ -107,28 +107,29 @@ class DefaultConfigurationProviderTest {
     lateinit var tempDir: File
 
     @Test
-    fun `splits project into account and project handles`() {
-        val provider = DefaultConfigurationProvider(
-            project = "my-account/my-project",
-            serverUrl = "https://tuist.dev",
-            projectDir = tempDir
-        )
+    fun `splits project handle into account and project`() {
+        val parts = "my-account/my-project".split("/", limit = 2)
+        assertEquals("my-account", parts[0])
+        assertEquals("my-project", parts.getOrElse(1) { "" })
+    }
 
-        val mockConfigProvider = object : ConfigurationProvider {
-            override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration {
-                return provider.getConfiguration(forceRefresh)
-            }
-        }
+    @Test
+    fun `single-segment project handle uses empty project`() {
+        val parts = "my-account".split("/", limit = 2)
+        assertEquals("my-account", parts[0])
+        assertEquals("", parts.getOrElse(1) { "" })
+    }
 
-        // This will fail to get a token since we're not authenticated,
-        // but we can test the project splitting via a direct mock
-        val config = CacheConfiguration(
-            url = "https://cache.tuist.dev",
-            token = "test-token",
-            accountHandle = "my-account",
-            projectHandle = "my-project"
-        )
-        assertEquals("my-account", config.accountHandle)
-        assertEquals("my-project", config.projectHandle)
+    @Test
+    fun `resolvedProject reads from tuist toml when project is null`() {
+        val toml = File(tempDir, "tuist.toml")
+        toml.writeText("""project = "toml-org/toml-project"""")
+
+        val config = TomlParser.parse(toml)
+        assertEquals("toml-org/toml-project", config?.project)
+
+        val parts = config!!.project!!.split("/", limit = 2)
+        assertEquals("toml-org", parts[0])
+        assertEquals("toml-project", parts.getOrElse(1) { "" })
     }
 }

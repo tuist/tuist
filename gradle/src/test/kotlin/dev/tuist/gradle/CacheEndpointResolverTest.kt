@@ -3,8 +3,6 @@ package dev.tuist.gradle
 import dev.tuist.gradle.services.GetCacheEndpointsService
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.net.URI
 import kotlin.test.assertEquals
@@ -20,15 +18,6 @@ class CacheEndpointResolverTest {
         envProvider = { "stub-token" },
         tokenCacheFactory = { CachedValueStore() }) {}
 
-    @BeforeEach
-    fun setUp() {
-        CacheEndpointResolver.resetCache()
-    }
-
-    @AfterEach
-    fun tearDown() {
-        CacheEndpointResolver.resetCache()
-    }
 
     private fun stubService(endpoints: List<String>): GetCacheEndpointsService {
         return object : GetCacheEndpointsService() {
@@ -98,7 +87,7 @@ class CacheEndpointResolverTest {
     }
 
     @Test
-    fun `cached endpoint is returned on subsequent calls`() {
+    fun `each call invokes the service (no static caching)`() {
         var callCount = 0
         val countingService = object : GetCacheEndpointsService() {
             override fun getCacheEndpoints(
@@ -116,6 +105,6 @@ class CacheEndpointResolverTest {
         CacheEndpointResolver.resolve(serverURL, accountHandle, stubTokenProvider, envProvider, countingService)
         CacheEndpointResolver.resolve(serverURL, accountHandle, stubTokenProvider, envProvider, countingService)
 
-        assertEquals(1, callCount)
+        assertEquals(2, callCount)
     }
 }

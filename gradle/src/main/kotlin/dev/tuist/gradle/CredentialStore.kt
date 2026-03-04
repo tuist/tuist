@@ -1,11 +1,14 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import java.io.File
 import java.net.URI
 
 data class Credentials(
+    @SerializedName("access_token")
     val accessToken: String,
+    @SerializedName("refresh_token")
     val refreshToken: String? = null
 )
 

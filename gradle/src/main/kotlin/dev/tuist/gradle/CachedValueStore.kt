@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture
 class CachedValueStore<T>(
     private val lockFilePath: File? = null
 ) {
-    private data class CacheEntry<T>(
+    private class CacheEntry<T>(
         val value: T,
         val expiresAtMs: Long?
     ) {

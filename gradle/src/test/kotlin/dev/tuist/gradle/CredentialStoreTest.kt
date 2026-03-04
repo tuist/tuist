@@ -77,18 +77,18 @@ class CredentialStoreTest {
     }
 
     @Test
-    fun `credentials serialize with camelCase field names`() {
+    fun `credentials serialize with snake_case field names`() {
         val credentials = Credentials("access", "refresh")
         val json = Gson().toJson(credentials)
-        assertTrue(json.contains("\"accessToken\""))
-        assertTrue(json.contains("\"refreshToken\""))
-        assertFalse(json.contains("\"access_token\""))
-        assertFalse(json.contains("\"refresh_token\""))
+        assertTrue(json.contains("\"access_token\""))
+        assertTrue(json.contains("\"refresh_token\""))
+        assertFalse(json.contains("\"accessToken\""))
+        assertFalse(json.contains("\"refreshToken\""))
     }
 
     @Test
-    fun `credentials deserialize from camelCase JSON`() {
-        val json = """{"accessToken":"mytoken","refreshToken":"myrefresh"}"""
+    fun `credentials deserialize from snake_case JSON`() {
+        val json = """{"access_token":"mytoken","refresh_token":"myrefresh"}"""
         val creds = Gson().fromJson(json, Credentials::class.java)
         assertEquals("mytoken", creds.accessToken)
         assertEquals("myrefresh", creds.refreshToken)
@@ -96,7 +96,7 @@ class CredentialStoreTest {
 
     @Test
     fun `credentials with null refreshToken`() {
-        val json = """{"accessToken":"mytoken"}"""
+        val json = """{"access_token":"mytoken"}"""
         val creds = Gson().fromJson(json, Credentials::class.java)
         assertEquals("mytoken", creds.accessToken)
         assertNull(creds.refreshToken)
