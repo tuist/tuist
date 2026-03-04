@@ -19,6 +19,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("org.tomlj:tomlj:1.1.1")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
@@ -38,6 +39,8 @@ tasks.shadowJar {
     relocate("retrofit2", "dev.tuist.shadow.retrofit2")
     relocate("okio", "dev.tuist.shadow.okio")
     relocate("com.google.gson", "dev.tuist.shadow.gson")
+    relocate("org.tomlj", "dev.tuist.shadow.tomlj")
+    relocate("org.antlr", "dev.tuist.shadow.antlr")
     minimize()
 }
 

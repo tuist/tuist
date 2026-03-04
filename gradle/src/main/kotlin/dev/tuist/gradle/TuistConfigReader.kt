@@ -10,27 +10,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-data class TomlConfig(val project: String?, val url: String?)
-
-object TomlParser {
-    fun parse(file: File): TomlConfig? {
-        if (!file.exists()) return null
-        return try {
-            val content = file.readText()
-            TomlConfig(
-                project = extractStringValue(content, "project"),
-                url = extractStringValue(content, "url")
-            )
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun extractStringValue(content: String, key: String): String? {
-        val regex = Regex("""^\s*$key\s*=\s*"([^"]*)"\s*$""", RegexOption.MULTILINE)
-        return regex.find(content)?.groupValues?.get(1)
-    }
-}
 
 object ServerUrlResolver {
     private const val DEFAULT_URL = "https://tuist.dev"
