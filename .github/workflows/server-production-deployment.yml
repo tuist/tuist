@@ -85,14 +85,6 @@ jobs:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
       - uses: jdx/mise-action@v2
-        with:
-          install: false
-      - name: Install tuist from GitHub CDN
-        run: |
-          TUIST_VERSION=$(grep '^    tuist' mise.toml | sed 's/.*"\(.*\)".*/\1/')
-          curl -LSs "https://github.com/tuist/tuist/releases/download/${TUIST_VERSION}/tuist.zip" -o /tmp/tuist.zip
-          sudo unzip -o /tmp/tuist.zip -d /usr/local/bin
-          rm /tmp/tuist.zip
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist cache
