@@ -1,9 +1,11 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "9759dec3758e",
+  "session_id": "9f962bc8-a4a8-403a-af25-9b473645b39f",
   "strategy": "manual-commit",
+  "created_at": "2026-03-04T15:53:56.998946Z",
   "branch": "fix/mcp-sse-hang",
-  "checkpoints_count": 39,
+  "checkpoints_count": 10,
   "files_touched": [
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
@@ -19,34 +21,22 @@
     "server/lib/tuist_web/plugs/mcp_plug.ex",
     "server/lib/tuist_web/router.ex"
   ],
-  "sessions": [
-    {
-      "metadata": "/97/59dec3758e/0/metadata.json",
-      "transcript": "/97/59dec3758e/0/full.jsonl",
-      "context": "/97/59dec3758e/0/context.md",
-      "content_hash": "/97/59dec3758e/0/content_hash.txt",
-      "prompt": "/97/59dec3758e/0/prompt.txt"
-    },
-    {
-      "metadata": "/97/59dec3758e/1/metadata.json",
-      "transcript": "/97/59dec3758e/1/full.jsonl",
-      "context": "/97/59dec3758e/1/context.md",
-      "content_hash": "/97/59dec3758e/1/content_hash.txt",
-      "prompt": "/97/59dec3758e/1/prompt.txt"
-    },
-    {
-      "metadata": "/97/59dec3758e/2/metadata.json",
-      "transcript": "/97/59dec3758e/2/full.jsonl",
-      "context": "/97/59dec3758e/2/context.md",
-      "content_hash": "/97/59dec3758e/2/content_hash.txt",
-      "prompt": "/97/59dec3758e/2/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "6f41ec8e-ff48-49fd-9726-3831d66d4999",
   "token_usage": {
-    "input_tokens": 439,
-    "cache_creation_tokens": 564694,
-    "cache_read_tokens": 34118908,
-    "output_tokens": 104610,
-    "api_call_count": 346
+    "input_tokens": 165,
+    "cache_creation_tokens": 260563,
+    "cache_read_tokens": 13204568,
+    "output_tokens": 30619,
+    "api_call_count": 141
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-04T15:53:56.902577Z",
+    "agent_lines": 0,
+    "human_added": 665612,
+    "human_modified": 399,
+    "human_removed": 0,
+    "total_committed": 665612,
+    "agent_percentage": 0
   }
 }
