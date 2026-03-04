@@ -563,6 +563,25 @@
         gap: var(--noora-spacing-3);
       }
 
+      & [data-part="repetition-attachment-group"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+
+        & [data-part="repetition-attachment-header"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+          padding: var(--noora-spacing-3) var(--noora-spacing-4);
+
+          & [data-part="repetition-attachment-label"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+          }
+        }
+      }
+
       & .test-failure-card [data-part="icon"] {
         background-color: var(--noora-icon-neutral-background);
 

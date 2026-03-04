@@ -585,7 +585,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath)
+                filePath: .value(screenshotFilePath),
+                repetitionNumber: .any
             )
             .willReturn("attachment-1")
 
@@ -595,7 +596,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath)
+                filePath: .value(crashFilePath),
+                repetitionNumber: .any
             )
             .willReturn("attachment-2")
 
@@ -623,7 +625,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath)
+                filePath: .value(screenshotFilePath),
+                repetitionNumber: .any
             )
             .called(1)
 
@@ -633,7 +636,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath)
+                filePath: .value(crashFilePath),
+                repetitionNumber: .any
             )
             .called(1)
 
@@ -748,7 +752,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .any,
                 fileName: .any,
-                filePath: .any
+                filePath: .any,
+                repetitionNumber: .any
             )
             .called(0)
 
