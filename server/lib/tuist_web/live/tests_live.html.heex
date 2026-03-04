@@ -111,43 +111,50 @@
         title={dgettext("dashboard_tests", "Test runs")}
         legend_color="primary"
         description={dgettext("dashboard_tests", "The total number of test runs.")}
-        value={@test_runs_analytics.count}
+        value={if @test_runs_analytics.ok?, do: @test_runs_analytics.result.count}
+        loading={!@test_runs_analytics.ok?}
         id="widget-test-runs"
         phx_click="select_widget"
         phx_value_widget="test_run_count"
         selected={@analytics_selected_widget == "test_run_count"}
-        trend_value={@test_runs_analytics.trend}
+        trend_value={if @test_runs_analytics.ok?, do: @test_runs_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@test_runs_analytics.count == 0}
+        empty={@test_runs_analytics.ok? && @test_runs_analytics.result.count == 0}
       />
       <.widget
         title={dgettext("dashboard_tests", "Flaky test runs")}
         legend_color="flaky"
         description={dgettext("dashboard_tests", "The number of test runs with flaky tests.")}
-        value={@flaky_test_runs_analytics.count}
+        value={if @flaky_test_runs_analytics.ok?, do: @flaky_test_runs_analytics.result.count}
+        loading={!@flaky_test_runs_analytics.ok?}
         id="widget-flaky-test-runs"
         phx_click="select_widget"
         phx_value_widget="flaky_test_run_count"
         selected={@analytics_selected_widget == "flaky_test_run_count"}
-        trend_value={@flaky_test_runs_analytics.trend}
+        trend_value={
+          if @flaky_test_runs_analytics.ok?, do: @flaky_test_runs_analytics.result.trend
+        }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@flaky_test_runs_analytics.count == 0}
+        empty={@flaky_test_runs_analytics.ok? && @flaky_test_runs_analytics.result.count == 0}
       />
       <.widget
         title={dgettext("dashboard_tests", "Failed test runs")}
         legend_color="destructive"
         description={dgettext("dashboard_tests", "The number of test runs that failed.")}
-        value={@failed_test_runs_analytics.count}
+        value={if @failed_test_runs_analytics.ok?, do: @failed_test_runs_analytics.result.count}
+        loading={!@failed_test_runs_analytics.ok?}
         id="widget-failed-test-runs"
         phx_click="select_widget"
         phx_value_widget="failed_test_run_count"
         selected={@analytics_selected_widget == "failed_test_run_count"}
-        trend_value={@failed_test_runs_analytics.trend}
+        trend_value={
+          if @failed_test_runs_analytics.ok?, do: @failed_test_runs_analytics.result.trend
+        }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@failed_test_runs_analytics.count == 0}
+        empty={@failed_test_runs_analytics.ok? && @failed_test_runs_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
         id="widget-test-run-duration"
@@ -174,48 +181,66 @@
           )
         }
         value={
-          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            case @selected_duration_type do
-              "p99" -> @test_runs_duration_analytics.p99
-              "p90" -> @test_runs_duration_analytics.p90
-              "p50" -> @test_runs_duration_analytics.p50
-              _ -> @test_runs_duration_analytics.total_average_duration
-            end
-          )
+          if @test_runs_duration_analytics.ok? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              case @selected_duration_type do
+                "p99" -> @test_runs_duration_analytics.result.p99
+                "p90" -> @test_runs_duration_analytics.result.p90
+                "p50" -> @test_runs_duration_analytics.result.p50
+                _ -> @test_runs_duration_analytics.result.total_average_duration
+              end
+            )
+          end
         }
         metrics={
-          %{
-            avg:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.total_average_duration
-              ),
-            p99:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p99
-              ),
-            p90:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p90
-              ),
-            p50:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p50
-              )
-          }
+          if @test_runs_duration_analytics.ok? do
+            %{
+              avg:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.total_average_duration
+                ),
+              p99:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p99
+                ),
+              p90:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p90
+                ),
+              p50:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p50
+                )
+            }
+          end
         }
         selected_type={@selected_duration_type}
         event_name="select_duration_type"
         phx_click="select_widget"
         phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
-        trend_value={@test_runs_duration_analytics.trend}
+        trend_value={
+          if @test_runs_duration_analytics.ok?, do: @test_runs_duration_analytics.result.trend
+        }
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@test_runs_duration_analytics.total_average_duration == 0}
+        empty={
+          @test_runs_duration_analytics.ok? &&
+            @test_runs_duration_analytics.result.total_average_duration == 0
+        }
       />
     </div>
+    <.card_section :if={!@test_runs_analytics.ok?} data-part="analytics-card-chart-section">
+      <div data-part="legends">
+        <.skeleton_legend />
+      </div>
+      <.skeleton_chart />
+    </.card_section>
     <.card_section
-      :if={@test_runs_duration_analytics.total_average_duration != 0}
+      :if={
+        @test_runs_analytics.ok? &&
+          @test_runs_duration_analytics.result.total_average_duration != 0
+      }
       data-part="analytics-card-chart-section"
     >
       <.chart
@@ -253,8 +278,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @test_runs_duration_analytics.dates |> List.first(),
-                  @test_runs_duration_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -284,8 +309,8 @@
             color: "var:noora-chart-secondary",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Average"),
@@ -297,8 +322,8 @@
             color: "var:noora-chart-p99",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.p99_values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.p99_values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "p99"),
@@ -310,8 +335,8 @@
             color: "var:noora-chart-p90",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.p90_values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.p90_values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "p90"),
@@ -323,8 +348,8 @@
             color: "var:noora-chart-p50",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.p50_values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.p50_values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "p50"),
@@ -354,8 +379,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @test_runs_analytics.dates |> List.first(),
-                  @test_runs_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -387,8 +412,8 @@
             color: "var:noora-chart-primary",
             data:
               Enum.zip(
-                @test_runs_analytics.dates,
-                @test_runs_analytics.values
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Test runs"),
@@ -418,8 +443,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @flaky_test_runs_analytics.dates |> List.first(),
-                  @flaky_test_runs_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -451,8 +476,8 @@
             color: "var:noora-chart-flaky",
             data:
               Enum.zip(
-                @flaky_test_runs_analytics.dates,
-                @flaky_test_runs_analytics.values
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Flaky test runs"),
@@ -482,8 +507,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @failed_test_runs_analytics.dates |> List.first(),
-                  @failed_test_runs_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -515,8 +540,8 @@
             color: "var:noora-chart-destructive",
             data:
               Enum.zip(
-                @failed_test_runs_analytics.dates,
-                @failed_test_runs_analytics.values
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Failed test runs"),
@@ -529,7 +554,10 @@
       />
     </.card_section>
     <.empty_card_section
-      :if={@test_runs_duration_analytics.total_average_duration == 0}
+      :if={
+        @test_runs_analytics.ok? &&
+          @test_runs_duration_analytics.result.total_average_duration == 0
+      }
       title={dgettext("dashboard_tests", "No data yet")}
     >
       <:image>
@@ -629,7 +657,15 @@
       </.date_picker>
     </:actions>
     <.card_section
-      :if={@selective_testing_analytics.hit_rate != 0.0}
+      :if={!@selective_testing_analytics.ok?}
+      data-part="selective-testing-chart-section"
+    >
+      <.skeleton_chart />
+    </.card_section>
+    <.card_section
+      :if={
+        @selective_testing_analytics.ok? && @selective_testing_analytics.result.hit_rate != 0.0
+      }
       data-part="selective-testing-chart-section"
     >
       <div data-part="legends">
@@ -638,7 +674,7 @@
           value={
             dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
               selective_test_effectiveness:
-                (@selective_testing_analytics.hit_rate * 100)
+                (@selective_testing_analytics.result.hit_rate * 100)
                 |> Decimal.from_float()
                 |> Decimal.round(1)
             )
@@ -681,8 +717,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @selective_testing_analytics.dates |> hd(),
-                  @selective_testing_analytics.dates |> List.last()
+                  @selective_testing_analytics.result.dates |> hd(),
+                  @selective_testing_analytics.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -708,8 +744,8 @@
             color: "var:noora-chart-primary",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -724,8 +760,8 @@
             color: "var:noora-chart-p99",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.p99_values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.p99_values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -740,8 +776,8 @@
             color: "var:noora-chart-p90",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.p90_values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.p90_values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -756,8 +792,8 @@
             color: "var:noora-chart-p50",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.p50_values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.p50_values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -774,7 +810,9 @@
       />
     </.card_section>
     <.empty_card_section
-      :if={@selective_testing_analytics.hit_rate == 0.0}
+      :if={
+        @selective_testing_analytics.ok? && @selective_testing_analytics.result.hit_rate == 0.0
+      }
       title={dgettext("dashboard_tests", "Selective testing: no data yet")}
       get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
     >
@@ -796,20 +834,26 @@
         label={dgettext("dashboard_tests", "View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
-        disabled={Enum.empty?(@recent_test_runs)}
+        disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
-    <.card_section :if={not Enum.empty?(@recent_test_runs)} data-part="recent-test-runs-section">
+    <.card_section :if={!@recent_test_runs.ok?} data-part="recent-test-runs-section">
+      <.skeleton_chart />
+    </.card_section>
+    <.card_section
+      :if={@recent_test_runs.ok? && not Enum.empty?(@recent_test_runs.result)}
+      data-part="recent-test-runs-section"
+    >
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.legend
             title={dgettext("dashboard_tests", "Passed runs")}
-            value={@passed_test_runs_count}
+            value={@passed_test_runs_count.result}
             style="primary"
           />
           <.legend
             title={dgettext("dashboard_tests", "Failed runs")}
-            value={@failed_test_runs_count}
+            value={@failed_test_runs_count.result}
             style="destructive"
           />
         </div>
@@ -831,7 +875,7 @@
               },
               xAxis: %{
                 axisLabel: %{show: false},
-                data: @recent_test_runs_chart_data |> Enum.map(& &1.date)
+                data: @recent_test_runs_chart_data.result |> Enum.map(& &1.date)
               },
               yAxis: %{
                 splitLine: %{
@@ -851,7 +895,7 @@
           }
           series={[
             %{
-              data: @recent_test_runs_chart_data,
+              data: @recent_test_runs_chart_data.result,
               name: "Test Run",
               type: "bar"
             }
@@ -864,7 +908,7 @@
       </div>
       <.table
         id="recent-test-runs-table"
-        rows={@recent_test_runs |> Enum.reverse() |> Enum.take(7)}
+        rows={@recent_test_runs.result |> Enum.reverse() |> Enum.take(7)}
         row_navigate={
           fn test_run ->
             url(
@@ -922,7 +966,7 @@
       </.table>
     </.card_section>
     <.empty_card_section
-      :if={Enum.empty?(@recent_test_runs)}
+      :if={@recent_test_runs.ok? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_tests", "No data yet")}
       get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
     >
@@ -935,11 +979,18 @@
 
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
     <div
-      :if={not Enum.empty?(@slowest_test_cases) or not Enum.empty?(@most_flaky_test_cases)}
+      :if={
+        !@slowest_test_cases.ok? or !@most_flaky_test_cases.ok? or
+          (@slowest_test_cases.ok? and not Enum.empty?(@slowest_test_cases.result)) or
+          (@most_flaky_test_cases.ok? and not Enum.empty?(@most_flaky_test_cases.result))
+      }
       data-part="test-cases-sections"
     >
+      <.card_section :if={!@slowest_test_cases.ok?} data-part="slowest-test-cases-section">
+        <.skeleton_chart />
+      </.card_section>
       <.card_section
-        :if={not Enum.empty?(@slowest_test_cases)}
+        :if={@slowest_test_cases.ok? and not Enum.empty?(@slowest_test_cases.result)}
         data-part="slowest-test-cases-section"
       >
         <div data-part="header">
@@ -954,7 +1005,7 @@
           />
         </div>
         <div data-part="slowest-test-cases-list">
-          <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
+          <div :for={test_case <- Enum.take(@slowest_test_cases.result, 4)} class="test-case-card">
             <div data-part="header">
               <div data-part="icon">
                 <.clock_hour_4 />
@@ -976,14 +1027,25 @@
               </span>
             </div>
           </div>
-          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+          <div
+            :if={Enum.count(@slowest_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
           </div>
-          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
+          <div
+            :if={Enum.count(@slowest_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
           </div>
         </div>
       </.card_section>
+      <.card_section :if={!@most_flaky_test_cases.ok?} data-part="most-flaky-test-cases-section">
+        <.skeleton_chart />
+      </.card_section>
       <.card_section
-        :if={not Enum.empty?(@most_flaky_test_cases)}
+        :if={@most_flaky_test_cases.ok? and not Enum.empty?(@most_flaky_test_cases.result)}
         data-part="most-flaky-test-cases-section"
       >
         <div data-part="header">
@@ -999,7 +1061,7 @@
         </div>
         <div data-part="most-flaky-test-cases-list">
           <div
-            :for={test_case <- Enum.take(@most_flaky_test_cases, 4)}
+            :for={test_case <- Enum.take(@most_flaky_test_cases.result, 4)}
             class="flaky-test-case-card"
           >
             <div data-part="header">
@@ -1023,15 +1085,26 @@
               />
             </div>
           </div>
-          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="two">
+          <div
+            :if={Enum.count(@most_flaky_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
           </div>
-          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="one">
+          <div
+            :if={Enum.count(@most_flaky_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
           </div>
         </div>
       </.card_section>
     </div>
     <.empty_card_section
-      :if={Enum.empty?(@slowest_test_cases) and Enum.empty?(@most_flaky_test_cases)}
+      :if={
+        @slowest_test_cases.ok? and Enum.empty?(@slowest_test_cases.result) and
+          @most_flaky_test_cases.ok? and Enum.empty?(@most_flaky_test_cases.result)
+      }
       title={dgettext("dashboard_tests", "No test cases yet")}
       get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
     >
