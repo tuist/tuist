@@ -59,7 +59,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
-                mappedSettingsDictionary = Self.applyModuleMapFlags(
+                mappedSettingsDictionary = applyModuleMapFlags(
                     to: mappedSettingsDictionary,
                     targetID: targetID,
                     targetToDependenciesMetadata: targetToDependenciesMetadata
@@ -73,7 +73,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
                 let updatedConfigurations: [BuildConfiguration: Configuration?] = Dictionary(
                     uniqueKeysWithValues: targetSettings.configurations.map { buildConfig, configuration in
-                        let configSettings = Self.applyModuleMapFlags(
+                        let configSettings = applyModuleMapFlags(
                             to: configuration?.settings ?? [:],
                             targetID: targetID,
                             targetToDependenciesMetadata: targetToDependenciesMetadata,
@@ -194,7 +194,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         targetToDependenciesMetadata[targetID] = dependenciesMetadata
     }
 
-    private static func applyModuleMapFlags(
+    // We apply module map flags to both the base settings and per-configuration overrides.
+    // Base settings alone are not enough because Xcode resolves configuration-level keys
+    // independently: if a configuration already defines e.g. OTHER_SWIFT_FLAGS, it shadows
+    // the base value entirely, so the module map flags would be lost. When updating
+    // configuration settings we pass onlyExistingKeys: true so we only patch keys the
+    // configuration explicitly overrides, avoiding unnecessary duplication.
+    private func applyModuleMapFlags(
         to settings: SettingsDictionary,
         targetID: TargetID,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
@@ -202,34 +208,34 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     ) -> SettingsDictionary {
         var settings = settings
 
-        if !onlyExistingKeys || settings[otherSwiftFlagsSetting] != nil,
-           let updated = updatedOtherSwiftFlags(
+        if !onlyExistingKeys || settings[Self.otherSwiftFlagsSetting] != nil,
+           let updated = Self.updatedOtherSwiftFlags(
                targetID: targetID,
-               oldOtherSwiftFlags: settings[otherSwiftFlagsSetting],
+               oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
                targetToDependenciesMetadata: targetToDependenciesMetadata
            )
         {
-            settings[otherSwiftFlagsSetting] = updated
+            settings[Self.otherSwiftFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[otherCFlagsSetting] != nil,
-           let updated = updatedOtherCFlags(
+        if !onlyExistingKeys || settings[Self.otherCFlagsSetting] != nil,
+           let updated = Self.updatedOtherCFlags(
                targetID: targetID,
-               oldOtherCFlags: settings[otherCFlagsSetting],
+               oldOtherCFlags: settings[Self.otherCFlagsSetting],
                targetToDependenciesMetadata: targetToDependenciesMetadata
            )
         {
-            settings[otherCFlagsSetting] = updated
+            settings[Self.otherCFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[headerSearchPaths] != nil,
-           let updated = updatedHeaderSearchPaths(
+        if !onlyExistingKeys || settings[Self.headerSearchPaths] != nil,
+           let updated = Self.updatedHeaderSearchPaths(
                targetID: targetID,
-               oldHeaderSearchPaths: settings[headerSearchPaths],
+               oldHeaderSearchPaths: settings[Self.headerSearchPaths],
                targetToDependenciesMetadata: targetToDependenciesMetadata
            )
         {
-            settings[headerSearchPaths] = updated
+            settings[Self.headerSearchPaths] = updated
         }
 
         return settings
