@@ -99,8 +99,10 @@ object CacheEndpointResolver {
     }
 
     private fun measureLatency(endpointUrl: String, client: OkHttpClient): Long {
+        val baseUri = URI.create(endpointUrl)
+        val upUri = URI(baseUri.scheme, baseUri.authority, baseUri.path.trimEnd('/') + "/up", null, null)
         val request = Request.Builder()
-            .url("${endpointUrl.trimEnd('/')}/up")
+            .url(upUri.toURL())
             .get()
             .build()
         val start = System.nanoTime()
