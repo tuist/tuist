@@ -827,6 +827,7 @@ defmodule TuistWeb.Router do
 
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
+      live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
       live "/settings/qa", QASettingsLive
     end

@@ -20,6 +20,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "installation" ->
         handle_installation(conn, params)
 
+      "check_run" ->
+        handle_check_run(conn, params)
+
       _ ->
         conn
         |> put_status(:ok)
@@ -121,6 +124,37 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp handle_installation(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_check_run(conn, %{
+         "action" => "requested_action",
+         "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"},
+         "requested_action" => %{"identifier" => "accept_bundle_size"},
+         "installation" => %{"id" => installation_id},
+         "repository" => %{"full_name" => repository_full_name}
+       }) do
+    installation_id = to_string(installation_id)
+
+    VCS.update_check_run(%{
+      repository_full_handle: repository_full_name,
+      check_run_id: check_run_id,
+      installation_id: installation_id,
+      conclusion: "success",
+      output: %{
+        title: "Bundle size increase accepted",
+        summary: "The bundle size increase was manually accepted."
+      }
+    })
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_check_run(conn, _params) do
     conn
     |> put_status(:ok)
     |> json(%{status: "ok"})

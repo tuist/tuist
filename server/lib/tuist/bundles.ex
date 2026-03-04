@@ -7,6 +7,7 @@ defmodule Tuist.Bundles do
 
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleThreshold
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -469,6 +470,73 @@ defmodule Tuist.Bundles do
 
   def delete_bundle!(%Bundle{} = bundle) do
     Repo.delete!(bundle)
+  end
+
+  def get_project_bundle_thresholds(%Project{} = project) do
+    Repo.all(from(bt in BundleThreshold, where: bt.project_id == ^project.id, order_by: [asc: bt.inserted_at]))
+  end
+
+  def get_bundle_threshold(id) do
+    case Repo.get(BundleThreshold, id) do
+      nil -> {:error, :not_found}
+      threshold -> {:ok, threshold}
+    end
+  end
+
+  def create_bundle_threshold(attrs) do
+    %BundleThreshold{id: UUIDv7.generate()}
+    |> BundleThreshold.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_bundle_threshold(%BundleThreshold{} = threshold, attrs) do
+    threshold
+    |> BundleThreshold.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_bundle_threshold(%BundleThreshold{} = threshold) do
+    Repo.delete(threshold)
+  end
+
+  def evaluate_thresholds(%Project{} = project, %Bundle{} = bundle) do
+    thresholds = get_project_bundle_thresholds(project)
+
+    Enum.reduce_while(thresholds, :ok, fn threshold, :ok ->
+      if threshold.bundle_name && threshold.bundle_name != bundle.name do
+        {:cont, :ok}
+      else
+        baseline =
+          last_project_bundle(project,
+            git_branch: threshold.baseline_branch,
+            name: bundle.name,
+            fallback: false
+          )
+
+        if is_nil(baseline) do
+          {:cont, :ok}
+        else
+          {current_size, baseline_size} =
+            case threshold.metric do
+              :install_size -> {bundle.install_size, baseline.install_size}
+              :download_size -> {bundle.download_size, baseline.download_size}
+            end
+
+          if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
+            {:cont, :ok}
+          else
+            deviation = (current_size - baseline_size) / baseline_size * 100
+
+            if deviation > threshold.deviation_percentage do
+              {:halt,
+               {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}}
+            else
+              {:cont, :ok}
+            end
+          end
+        end
+      end
+    end)
   end
 
   defp flatten_artifacts(

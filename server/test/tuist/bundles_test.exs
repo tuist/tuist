@@ -1053,4 +1053,229 @@ defmodule Tuist.BundlesTest do
       assert result == false
     end
   end
+
+  describe "create_bundle_threshold/1" do
+    test "creates a threshold" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, threshold} =
+        Bundles.create_bundle_threshold(%{
+          project_id: project.id,
+          name: "Size check",
+          metric: :install_size,
+          deviation_percentage: 5.0,
+          baseline_branch: "main"
+        })
+
+      assert threshold.name == "Size check"
+      assert threshold.metric == :install_size
+      assert threshold.deviation_percentage == 5.0
+      assert threshold.baseline_branch == "main"
+      assert is_nil(threshold.bundle_name)
+    end
+
+    test "creates a threshold with bundle_name" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, threshold} =
+        Bundles.create_bundle_threshold(%{
+          project_id: project.id,
+          name: "App check",
+          metric: :download_size,
+          deviation_percentage: 10.0,
+          baseline_branch: "main",
+          bundle_name: "MyApp"
+        })
+
+      assert threshold.bundle_name == "MyApp"
+    end
+  end
+
+  describe "get_project_bundle_thresholds/1" do
+    test "returns thresholds for a project" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_threshold_fixture(project: project, name: "T1")
+      BundlesFixtures.bundle_threshold_fixture(project: project, name: "T2")
+
+      thresholds = Bundles.get_project_bundle_thresholds(project)
+
+      assert length(thresholds) == 2
+      assert Enum.map(thresholds, & &1.name) == ["T1", "T2"]
+    end
+
+    test "does not return thresholds from other projects" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_threshold_fixture(project: other_project, name: "Other")
+
+      thresholds = Bundles.get_project_bundle_thresholds(project)
+
+      assert thresholds == []
+    end
+  end
+
+  describe "update_bundle_threshold/2" do
+    test "updates a threshold" do
+      project = ProjectsFixtures.project_fixture()
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project)
+
+      {:ok, updated} = Bundles.update_bundle_threshold(threshold, %{name: "Updated", deviation_percentage: 15.0})
+
+      assert updated.name == "Updated"
+      assert updated.deviation_percentage == 15.0
+    end
+  end
+
+  describe "delete_bundle_threshold/1" do
+    test "deletes a threshold" do
+      project = ProjectsFixtures.project_fixture()
+      threshold = BundlesFixtures.bundle_threshold_fixture(project: project)
+
+      {:ok, _} = Bundles.delete_bundle_threshold(threshold)
+
+      assert {:error, :not_found} == Bundles.get_bundle_threshold(threshold.id)
+    end
+  end
+
+  describe "evaluate_thresholds/2" do
+    test "returns :ok when no thresholds exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 2048,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+    end
+
+    test "returns :ok when within threshold" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_threshold_fixture(project: project, deviation_percentage: 10.0)
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1050,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+    end
+
+    test "returns violated when threshold exceeded" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        name: "Strict",
+        deviation_percentage: 5.0
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1200,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert {:violated, threshold, info} = Bundles.evaluate_thresholds(project, bundle)
+      assert threshold.name == "Strict"
+      assert info.current_size == 1200
+      assert info.baseline_size == 1000
+      assert info.deviation == 20.0
+    end
+
+    test "skips threshold when bundle_name doesn't match" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        deviation_percentage: 1.0,
+        bundle_name: "OtherApp"
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        name: "App",
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          name: "App",
+          install_size: 2000,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+    end
+
+    test "returns :ok when no baseline bundle exists" do
+      project = ProjectsFixtures.project_fixture()
+      BundlesFixtures.bundle_threshold_fixture(project: project)
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 2000,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+    end
+
+    test "evaluates download_size metric" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        metric: :download_size,
+        deviation_percentage: 5.0
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        download_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          download_size: 1200,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert {:violated, _threshold, info} = Bundles.evaluate_thresholds(project, bundle)
+      assert info.current_size == 1200
+      assert info.baseline_size == 1000
+    end
+  end
 end

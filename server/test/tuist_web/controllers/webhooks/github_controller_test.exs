@@ -687,4 +687,61 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
   end
+
+  describe "handle/2 check_run events" do
+    test "updates check run to success on accept action", %{conn: conn} do
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :update_check_run, fn params ->
+        assert params.check_run_id == 42
+        assert params.conclusion == "success"
+        assert params.installation_id == "12345"
+        assert params.repository_full_handle == "org/repo"
+        assert params.output.title == "Bundle size increase accepted"
+        {:ok, %{"id" => 42}}
+      end)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "requested_action",
+          "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"},
+          "requested_action" => %{"identifier" => "accept_bundle_size"},
+          "installation" => %{"id" => 12_345},
+          "repository" => %{"full_name" => "org/repo"}
+        })
+
+      assert result.status == 200
+    end
+
+    test "ignores check_run events for other check names", %{conn: conn} do
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      reject(VCS, :update_check_run, 1)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "requested_action",
+          "check_run" => %{"id" => 42, "name" => "other-check"},
+          "requested_action" => %{"identifier" => "accept_bundle_size"},
+          "installation" => %{"id" => 12_345},
+          "repository" => %{"full_name" => "org/repo"}
+        })
+
+      assert result.status == 200
+    end
+
+    test "ignores check_run events for other actions", %{conn: conn} do
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      reject(VCS, :update_check_run, 1)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "completed",
+          "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"}
+        })
+
+      assert result.status == 200
+    end
+  end
 end
