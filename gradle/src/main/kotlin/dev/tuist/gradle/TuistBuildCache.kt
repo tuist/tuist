@@ -105,11 +105,7 @@ class DefaultConfigurationProvider(
     }
 
     private fun resolveCacheEndpoint(accountHandle: String): Pair<String, Long?> {
-        val endpoint = try {
-            CacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
-        } catch (_: Exception) {
-            resolvedServerUrl.toString()
-        }
+        val endpoint = CacheEndpointResolver.resolve(resolvedServerUrl, accountHandle, tokenProvider)
         val expiresAtMs = System.currentTimeMillis() + CACHE_ENDPOINT_TTL_MS
         return Pair(endpoint, expiresAtMs)
     }
