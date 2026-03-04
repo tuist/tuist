@@ -53,7 +53,8 @@ defmodule TuistWeb.XcodeBuildsLive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
-    socket = assign(socket, :analytics_selected_widget, widget)
+    uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
+    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
 
     if socket.assigns.builds_duration_analytics.ok? do
       chart_data =

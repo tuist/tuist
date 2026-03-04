@@ -246,8 +246,8 @@
           <.skeleton_box width="180px" height="16px" border_radius="8px" />
         </div>
       </.card_section>
-      <.card_section data-part="qa-runs-section">
-        <div :if={@qa_runs.ok? && not Enum.empty?(@qa_runs.result)} data-part="qa-runs-table">
+      <.card_section :if={@qa_runs.ok?} data-part="qa-runs-section">
+        <div :if={not Enum.empty?(@qa_runs.result)} data-part="qa-runs-table">
           <.table
             id="qa-runs-table"
             rows={@qa_runs.result}

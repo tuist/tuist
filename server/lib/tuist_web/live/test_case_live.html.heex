@@ -193,7 +193,7 @@
         </div>
         <div data-part="widgets">
           <.widget
-            :if={@flakiness_rate.ok? && @flakiness_rate.result && @flakiness_rate.result > 0}
+            :if={!@flakiness_rate.ok? || (@flakiness_rate.result && @flakiness_rate.result > 0)}
             loading={!@flakiness_rate.ok?}
             title={dgettext("dashboard_tests", "Flakiness rate")}
             description={

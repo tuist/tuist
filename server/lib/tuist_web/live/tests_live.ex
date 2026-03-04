@@ -64,9 +64,12 @@ defmodule TuistWeb.TestsLive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
+    uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
+
     socket =
       socket
       |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
       |> maybe_assign_analytics_chart_data(widget, socket.assigns.selected_duration_type)
 
     {:noreply, socket}

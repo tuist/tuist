@@ -81,8 +81,8 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:209
-#: lib/tuist_web/live/qa_live.ex:218
+#: lib/tuist_web/live/qa_live.ex:210
+#: lib/tuist_web/live/qa_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -98,7 +98,7 @@ msgstr ""
 msgid "App description"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:185
+#: lib/tuist_web/live/qa_live.ex:186
 #: lib/tuist_web/live/qa_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "App issues found"
@@ -132,7 +132,7 @@ msgstr ""
 msgid "Average Tokens per Run"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:197
+#: lib/tuist_web/live/qa_live.ex:198
 #: lib/tuist_web/live/qa_live.html.heex:123
 #, elixir-autogen, elixir-format
 msgid "Avg. QA duration"
@@ -475,7 +475,7 @@ msgstr ""
 msgid "QA duration"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:177
+#: lib/tuist_web/live/qa_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "QA run count"
 msgstr ""
@@ -648,17 +648,17 @@ msgstr[1] ""
 msgid "logs"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:207
+#: lib/tuist_web/live/qa_live.ex:208
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:204
+#: lib/tuist_web/live/qa_live.ex:205
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:205
+#: lib/tuist_web/live/qa_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -698,12 +698,12 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:206
+#: lib/tuist_web/live/qa_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:203
+#: lib/tuist_web/live/qa_live.ex:204
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
