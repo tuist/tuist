@@ -7,15 +7,9 @@ SPEC_FILE="$MISE_PROJECT_ROOT/cli/Sources/TuistServer/OpenAPI/server.yml"
 OUTPUT_DIR="/tmp/tuist-gradle-api"
 TARGET_DIR="$MISE_PROJECT_ROOT/gradle/src/main/kotlin/dev/tuist/gradle/api"
 
-if ! command -v openapi-generator-cli &> /dev/null; then
-    echo "Error: openapi-generator-cli is not installed."
-    echo "Install it with: brew install openapi-generator"
-    exit 1
-fi
-
 rm -rf "$OUTPUT_DIR"
 
-openapi-generator-cli generate \
+mise x npm:@openapitools/openapi-generator-cli@2.30.1 -- openapi-generator-cli generate \
   -i "$SPEC_FILE" \
   -g kotlin \
   -o "$OUTPUT_DIR" \
