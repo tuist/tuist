@@ -10,6 +10,9 @@ import org.gradle.caching.configuration.AbstractBuildCache
 import java.net.HttpURLConnection
 import java.net.URI
 
+/**
+ * Build cache configuration type for Tuist.
+ */
 open class TuistBuildCache : AbstractBuildCache() {
     var project: String? = null
 
@@ -19,6 +22,9 @@ open class TuistBuildCache : AbstractBuildCache() {
     var allowInsecureProtocol: Boolean = false
 }
 
+/**
+ * Factory that creates TuistBuildCacheService instances.
+ */
 class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> {
 
     override fun createBuildCacheService(
@@ -44,10 +50,16 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
     }
 }
 
+/**
+ * Provides cache configuration including auth token and endpoint.
+ */
 interface ConfigurationProvider {
     fun getConfiguration(forceRefresh: Boolean = false): CacheConfiguration
 }
 
+/**
+ * Default configuration provider that resolves auth and cache endpoints natively.
+ */
 class DefaultConfigurationProvider(
     private val project: String?,
     private val serverUrl: String,
@@ -106,6 +118,12 @@ class DefaultConfigurationProvider(
     }
 }
 
+/**
+ * Custom BuildCacheService that handles authentication and automatic token refresh.
+ *
+ * When a 401 Unauthorized response is received, this service automatically
+ * refreshes the configuration and retries the request.
+ */
 class TuistBuildCacheService(
     private val httpClient: TuistHttpClient,
     private val isPushEnabled: Boolean
@@ -175,6 +193,9 @@ class TuistBuildCacheService(
     }
 }
 
+/**
+ * Data class representing the cache configuration.
+ */
 data class CacheConfiguration(
     val url: String,
     val token: String,

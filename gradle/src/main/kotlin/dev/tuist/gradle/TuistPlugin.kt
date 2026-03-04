@@ -6,6 +6,9 @@ import org.gradle.api.initialization.Settings
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
 
+/**
+ * Shared configuration passed from the settings plugin to project-level feature plugins.
+ */
 data class TuistGradleConfig(
     val url: String,
     val project: String?,
@@ -22,6 +25,9 @@ data class TuistGradleConfig(
     }
 }
 
+/**
+ * Main Tuist Gradle Settings Plugin.
+ */
 class TuistPlugin : Plugin<Settings> {
 
     private val logger: Logger = Logging.getLogger(TuistPlugin::class.java)
@@ -97,35 +103,62 @@ class TuistPlugin : Plugin<Settings> {
     }
 }
 
+/**
+ * Main extension for configuring Tuist integration.
+ */
 open class TuistExtension {
+    /** The project identifier in format "account/project". */
     var project: String = ""
 
     @Deprecated("No longer used. The plugin resolves auth natively without the Tuist CLI.")
     var executablePath: String? = null
 
+    /** The base URL that points to the Tuist server. Defaults to https://tuist.dev. */
     var url: String = "https://tuist.dev"
 
+    /**
+     * Whether to upload build insights in the background. When null (default),
+     * the upload runs in the background for local builds and in the foreground on CI.
+     */
     var uploadInBackground: Boolean? = null
 
+    /** Build cache configuration. */
     val buildCache: BuildCacheExtension = BuildCacheExtension()
 
+    /** Configure build cache settings. */
     fun buildCache(action: Action<BuildCacheExtension>) {
         action.execute(buildCache)
     }
 
+    /** Test quarantine configuration. */
     val testQuarantine: TestQuarantineExtension = TestQuarantineExtension()
 
+    /** Configure test quarantine settings. */
     fun testQuarantine(action: Action<TestQuarantineExtension>) {
         action.execute(testQuarantine)
     }
 }
 
+/**
+ * Configuration for Tuist build cache feature.
+ */
 open class BuildCacheExtension {
+    /** Whether the build cache feature is enabled. Defaults to true. */
     var enabled: Boolean = true
+    /** Whether to push build outputs to the remote cache. Defaults to true. */
     var push: Boolean = true
+    /** Whether to allow insecure HTTP connections. Defaults to false. */
     var allowInsecureProtocol: Boolean = false
 }
 
+/**
+ * Configuration for test quarantine feature.
+ * When enabled, quarantined (flaky) tests are automatically excluded from test runs.
+ */
 open class TestQuarantineExtension {
+    /**
+     * Whether test quarantine is enabled. When null (default), quarantine is
+     * automatically enabled on CI and disabled for local builds.
+     */
     var enabled: Boolean? = null
 }
