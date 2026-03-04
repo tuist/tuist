@@ -51,6 +51,36 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsControllerTest do
       assert response["expires_at"]
     end
 
+    test "creates attachment with repetition_number", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run = RunsFixtures.test_case_run_fixture(project_id: project.id)
+
+      stub(Storage, :generate_upload_url, fn _key, _account, _opts ->
+        "https://s3.example.com/upload?signed=true"
+      end)
+
+      # When
+      conn =
+        post(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/attachments",
+          %{
+            test_case_run_id: test_case_run.id,
+            file_name: "screenshot.png",
+            repetition_number: 2
+          }
+        )
+
+      # Then
+      response = json_response(conn, :created)
+      assert response["id"]
+      assert response["upload_url"] == "https://s3.example.com/upload?signed=true"
+    end
+
     test "returns 404 when test case run belongs to a different project", %{
       conn: conn,
       user: user,

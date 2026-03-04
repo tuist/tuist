@@ -99,6 +99,75 @@ defmodule TuistWeb.TestRunLiveTest do
   end
 
   describe "attachments in failures" do
+    test "groups attachments by repetition in the failures tab", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "testFlaky", status: "failure", duration: 500}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 1,
+        name: "First Run",
+        status: "failure"
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 2,
+        name: "Retry 1",
+        status: "failure"
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "attempt1_screenshot.png",
+        repetition_number: 1
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "attempt2_screenshot.png",
+        repetition_number: 2
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, _lv, html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+        )
+
+      # Then
+      assert html =~ "attempt1_screenshot.png"
+      assert html =~ "attempt2_screenshot.png"
+      assert html =~ "First Run"
+      assert html =~ "Retry 1"
+    end
+
     test "shows attachment file names in the failures tab", %{
       conn: conn,
       organization: organization,
