@@ -900,6 +900,9 @@ msgstr "Archivo de texto"
 msgid "Log File"
 msgstr "Archivo de registro"
 
+msgid "Other"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "Conjunto de pruebas"

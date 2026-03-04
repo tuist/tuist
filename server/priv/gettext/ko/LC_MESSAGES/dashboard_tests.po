@@ -681,6 +681,9 @@ msgstr "텍스트 파일"
 msgid "Log File"
 msgstr "로그 파일"
 
+msgid "Other"
+msgstr ""
+
 #~ msgid "Test suite"
 #~ msgstr "테스트 suite"
 

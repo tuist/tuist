@@ -890,6 +890,9 @@ msgstr "ملف نصي"
 msgid "Log File"
 msgstr "ملف السجل"
 
+msgid "Other"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Test suite"
 #~ msgstr "مجموعة الاختبارات"
