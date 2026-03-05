@@ -467,6 +467,11 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         var targetsCategory = [String: XCActivityBuildCategory]()
         for (target, filesCompiledCount) in targetsCompiledCount {
+            // If the number of steps not fetched from cache in 0, it was an incremental or a noop build. We currently default to
+            // incremental.
+            // If the number of steps not fetched from cache is equal to the number of all steps in the target, it was a clean
+            // build.
+            // If anything in between, it was an incremental build.
             let targetFilesCount = buildSteps.filter { targetIdentifiers[$0.identifier] == target }
                 .count
             switch filesCompiledCount {
