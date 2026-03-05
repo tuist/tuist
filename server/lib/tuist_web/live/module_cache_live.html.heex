@@ -115,7 +115,8 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? do
+          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+               @hit_rate_p50.ok? do
             dgettext("dashboard_cache", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -130,7 +131,8 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? do
+          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+               @hit_rate_p50.ok? do
             %{
               avg:
                 dgettext("dashboard_cache", "%{hit_rate}%",
@@ -169,7 +171,8 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? do
+          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+               @hit_rate_p50.ok? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend

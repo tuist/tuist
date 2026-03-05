@@ -591,7 +591,7 @@
     </.card_section>
     <.empty_card_section
       :if={
-        @test_runs_analytics.ok? &&
+        @test_runs_analytics.ok? && @test_runs_duration_analytics.ok? &&
           @test_runs_duration_analytics.result.total_average_duration == 0
       }
       title={dgettext("dashboard_tests", "No data yet")}
