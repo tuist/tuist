@@ -5,6 +5,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
   alias Tuist.Authorization
   alias Tuist.Bundles
+  alias Tuist.Projects
   alias Tuist.Repo
 
   @impl true
@@ -15,7 +16,7 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     end
 
     project = Repo.preload(selected_project, vcs_connection: :github_app_installation)
-    has_github_connection = project.vcs_connection != nil && project.vcs_connection.github_app_installation != nil
+    has_github_connection = Projects.has_github_connection?(project)
 
     socket =
       socket

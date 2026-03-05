@@ -48,17 +48,24 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
   defp has_github_connection?(project) do
     Environment.github_app_configured?() &&
-      project.vcs_connection != nil &&
-      project.vcs_connection.github_app_installation != nil
+      Projects.has_github_connection?(project)
   end
 
-  defp post_check_run(project, bundle, git_commit_sha, result) do
-    vcs = project.vcs_connection
-    installation_id = vcs.github_app_installation.installation_id
-    repo_handle = vcs.repository_full_handle
-
+  defp post_check_run(
+         %{
+           vcs_connection: %{
+             github_app_installation: %{installation_id: installation_id},
+             repository_full_handle: repo_handle
+           },
+           account: %{name: account_name},
+           name: project_name
+         },
+         bundle,
+         git_commit_sha,
+         result
+       ) do
     bundle_url =
-      "#{Environment.app_url()}/#{project.account.name}/#{project.name}/bundles/#{bundle.id}"
+      "#{Environment.app_url()}/#{account_name}/#{project_name}/bundles/#{bundle.id}"
 
     {conclusion, output} = build_check_run_output(result, bundle_url)
 

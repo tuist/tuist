@@ -1399,4 +1399,42 @@ defmodule Tuist.ProjectsTest do
       assert got == {:error, :not_found}
     end
   end
+
+  describe "has_github_connection?/1" do
+    test "returns true when project has VCS connection with GitHub app installation" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      assert Projects.has_github_connection?(project)
+    end
+
+    test "returns false when project has no VCS connection" do
+      project = ProjectsFixtures.project_fixture()
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      refute Projects.has_github_connection?(project)
+    end
+
+    test "returns false when VCS connection has no GitHub app installation" do
+      project = ProjectsFixtures.project_fixture()
+
+      Projects.create_vcs_connection(%{
+        project_id: project.id,
+        provider: :github,
+        repository_full_handle: "org/repo",
+        github_app_installation_id: nil
+      })
+
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      refute Projects.has_github_connection?(project)
+    end
+  end
 end
