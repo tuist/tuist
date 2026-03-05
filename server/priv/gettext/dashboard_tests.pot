@@ -45,8 +45,8 @@ msgstr ""
 #: lib/tuist_web/live/flaky_tests_live.html.heex:11
 #: lib/tuist_web/live/test_cases_live.ex:306
 #: lib/tuist_web/live/test_runs_live.ex:325
-#: lib/tuist_web/live/tests_live.ex:344
-#: lib/tuist_web/live/tests_live.ex:351
+#: lib/tuist_web/live/tests_live.ex:339
+#: lib/tuist_web/live/tests_live.ex:346
 #: lib/tuist_web/live/tests_live.html.heex:11
 #: lib/tuist_web/live/tests_live.html.heex:34
 #: lib/tuist_web/live/tests_live.html.heex:620
@@ -160,7 +160,7 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.ex:107
 #: lib/tuist_web/live/test_cases_live.ex:308
 #: lib/tuist_web/live/test_runs_live.ex:327
-#: lib/tuist_web/live/tests_live.ex:346
+#: lib/tuist_web/live/tests_live.ex:341
 #: lib/tuist_web/live/tests_live.html.heex:50
 #: lib/tuist_web/live/tests_live.html.heex:636
 #, elixir-autogen, elixir-format
@@ -607,7 +607,7 @@ msgstr ""
 #: lib/tuist_web/live/test_cases_live.ex:307
 #: lib/tuist_web/live/test_run_live.html.heex:1435
 #: lib/tuist_web/live/test_runs_live.ex:326
-#: lib/tuist_web/live/tests_live.ex:345
+#: lib/tuist_web/live/tests_live.ex:340
 #: lib/tuist_web/live/tests_live.html.heex:42
 #: lib/tuist_web/live/tests_live.html.heex:628
 #, elixir-autogen, elixir-format
@@ -1397,35 +1397,35 @@ msgstr ""
 
 #: lib/tuist_web/live/test_cases_live.ex:304
 #: lib/tuist_web/live/test_runs_live.ex:323
-#: lib/tuist_web/live/tests_live.ex:342
+#: lib/tuist_web/live/tests_live.ex:337
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/test_cases_live.ex:303
 #: lib/tuist_web/live/test_runs_live.ex:322
-#: lib/tuist_web/live/tests_live.ex:341
+#: lib/tuist_web/live/tests_live.ex:336
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
 #: lib/tuist_web/live/test_cases_live.ex:301
 #: lib/tuist_web/live/test_runs_live.ex:320
-#: lib/tuist_web/live/tests_live.ex:339
+#: lib/tuist_web/live/tests_live.ex:334
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/test_cases_live.ex:302
 #: lib/tuist_web/live/test_runs_live.ex:321
-#: lib/tuist_web/live/tests_live.ex:340
+#: lib/tuist_web/live/tests_live.ex:335
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
 #: lib/tuist_web/live/test_cases_live.ex:300
 #: lib/tuist_web/live/test_runs_live.ex:319
-#: lib/tuist_web/live/tests_live.ex:338
+#: lib/tuist_web/live/tests_live.ex:333
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""

@@ -90,20 +90,15 @@ defmodule TuistWeb.TestsLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_event(
-        "select_selective_testing_duration_type",
-        %{"type" => type},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/tests?#{Query.put(uri.query, "selective-testing-duration-type", type)}",
-        replace: true
-      )
+  def handle_event("select_selective_testing_duration_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "selective-testing-duration-type", type)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:selective_testing_duration_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   def handle_event(
