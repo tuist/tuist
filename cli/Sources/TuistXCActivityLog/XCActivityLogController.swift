@@ -421,6 +421,25 @@ public struct XCActivityLogController: XCActivityLogControlling {
         targets: [TargetWithStep],
         totalProjectTargetCount: Int
     ) -> XCActivityBuildCategory {
+        // When Xcode's compilation cache (CAS) is active (Xcode 26+), traditional compilation
+        // steps don't appear in the log, making the per-step fetchedFromCache heuristic unreliable.
+        // Instead, we look at CAS step types: "query key" steps indicate active compilation while
+        // "materialize key" steps indicate cache retrieval. A build with zero query key steps is
+        // fully served from cache and therefore incremental.
+        let hasCompilationCache = steps.contains { step in
+            step.title.contains("Swift caching") || step.title.contains("Clang caching")
+        }
+        if hasCompilationCache {
+            let queryKeyCount = steps.filter { $0.title.contains("caching query key") }.count
+            if queryKeyCount == 0 {
+                return .incremental
+            }
+            if totalProjectTargetCount > targets.count {
+                return .incremental
+            }
+            return .clean
+        }
+
         let detailSteps = steps.filter {
             $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation
         }
@@ -448,11 +467,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         var targetsCategory = [String: XCActivityBuildCategory]()
         for (target, filesCompiledCount) in targetsCompiledCount {
-            // If the number of steps not fetched from cache in 0, it was an incremental or a noop build. We currently default to
-            // incremental.
-            // If the number of steps not fetched from cache is equal to the number of all steps in the target, it was a clean
-            // build.
-            // If anything in between, it was an incremental build.
             let targetFilesCount = buildSteps.filter { targetIdentifiers[$0.identifier] == target }
                 .count
             switch filesCompiledCount {
@@ -465,22 +479,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
         }
 
-        // When Xcode's compilation cache is active (Xcode 26+), only targets with actual
-        // work appear in the log. Unchanged targets are completely absent. Use the total
-        // project target count from the dependency graph as the denominator instead, so
-        // that absent (fully cached) targets count toward the incremental side.
-        let hasCompilationCache = steps.contains { step in
-            step.title.contains("Swift caching") || step.title.contains("Clang caching")
-        }
-        let totalTargets: Int
-        if hasCompilationCache, totalProjectTargetCount > targets.count {
-            totalTargets = totalProjectTargetCount
-        } else {
-            totalTargets = targets.count
-        }
-
-        // If at least 50% of the targets are clean, we categorise the build as clean.
-        if targetsCategory.values.filter({ $0 == .clean }).count > totalTargets / 2 {
+        if targetsCategory.values.filter({ $0 == .clean }).count > targets.count / 2 {
             return .clean
         } else {
             return .incremental
@@ -564,12 +563,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
     }
 
-    private static let dependencyGraphTargetRegex = /Target '(?<name>[^']+)' in project/
+    private static let dependencyGraphTargetRegex = try! Regex(#"Target '(?<name>[^']+)' in project"#)
 
     private func targetNamesFromDependencyGraph(from text: String, into targetNames: inout Set<String>) {
         guard text.contains("Target dependency graph") else { return }
         for match in text.matches(of: Self.dependencyGraphTargetRegex) {
-            targetNames.insert(String(match.output.name))
+            if let name = match["name"]?.substring {
+                targetNames.insert(String(name))
+            }
         }
     }
 
