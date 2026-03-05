@@ -390,16 +390,24 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options)
+    project_id = project.id
 
     socket
     |> assign(:active_filters, filters)
-    |> assign(:test_cases, test_cases)
-    |> assign(:test_cases_meta, test_cases_meta)
     |> assign(:test_cases_page, page)
     |> assign(:test_cases_sort_by, sort_by)
     |> assign(:test_cases_sort_order, sort_order)
     |> assign(:test_cases_filter, search)
+    # TODO: remove artificial delay — added to simulate prod latency (~700ms)
+    |> assign_async(
+      :test_cases_page_data,
+      fn ->
+        Process.sleep(700)
+        {test_cases, test_cases_meta} = Tests.list_test_cases(project_id, options)
+        {:ok, %{test_cases_page_data: %{test_cases: test_cases, meta: test_cases_meta}}}
+      end,
+      reset: true
+    )
   end
 
   defp parse_page(nil), do: 1

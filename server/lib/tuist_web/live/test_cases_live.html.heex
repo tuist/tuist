@@ -432,7 +432,7 @@
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
     <.card_section data-part="test-cases-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
+        <.form for={%{}} phx-change="search-test-cases" phx-debounce="500">
           <.text_input
             type="search"
             id="search-test-cases"
@@ -490,10 +490,24 @@
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
-      <div :if={not Enum.empty?(@test_cases)} data-part="test-cases-table">
+      <div :if={!@test_cases_page_data.ok?} data-part="test-cases-table-skeleton">
+        <div :for={_ <- 1..5} data-part="skeleton-row">
+          <.skeleton_box width="60%" height="16px" />
+          <.skeleton_box width="80px" height="16px" />
+          <.skeleton_box width="60px" height="16px" />
+          <.skeleton_box width="90px" height="16px" />
+        </div>
+      </div>
+
+      <div
+        :if={
+          @test_cases_page_data.ok? and not Enum.empty?(@test_cases_page_data.result.test_cases)
+        }
+        data-part="test-cases-table"
+      >
         <.table
           id="test-cases-table"
-          rows={@test_cases}
+          rows={@test_cases_page_data.result.test_cases}
           row_navigate={
             fn test_case ->
               url(
@@ -601,9 +615,9 @@
           </:col>
         </.table>
         <.pagination_group
-          :if={@test_cases_meta.total_pages > 1}
+          :if={@test_cases_page_data.result.meta.total_pages > 1}
           current_page={@test_cases_page}
-          number_of_pages={@test_cases_meta.total_pages}
+          number_of_pages={@test_cases_page_data.result.meta.total_pages}
           page_patch={
             fn page ->
               "?#{Query.put(@uri.query, "page", page)}"
@@ -612,7 +626,10 @@
         />
       </div>
 
-      <div :if={Enum.empty?(@test_cases)} data-part="empty-test-cases">
+      <div
+        :if={@test_cases_page_data.ok? and Enum.empty?(@test_cases_page_data.result.test_cases)}
+        data-part="empty-test-cases"
+      >
         <.empty_card_section
           title={dgettext("dashboard_tests", "No data yet")}
           get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
