@@ -120,7 +120,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert claims["scopes"] == ["mcp"]
     end
 
-    test "sets empty scopes when no scope is provided", %{user: user} do
+    test "sets default user scopes when no scope is provided", %{user: user} do
       token = %Token{
         sub: Integer.to_string(user.id),
         client_id: "test-client-id",
@@ -130,7 +130,46 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       jwt_token = TokenGenerator.generate(:access_token, token)
 
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
-      assert claims["scopes"] == []
+      assert claims["scopes"] == [
+               "project:cache:read",
+               "project:cache:write",
+               "project:previews:read",
+               "project:previews:write",
+               "project:bundles:read",
+               "project:bundles:write",
+               "project:tests:read",
+               "project:tests:write",
+               "project:builds:read",
+               "project:builds:write",
+               "project:runs:read",
+               "project:runs:write"
+             ]
+    end
+
+    test "sets default user scopes when scope is nil", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: nil
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      assert claims["scopes"] == [
+               "project:cache:read",
+               "project:cache:write",
+               "project:previews:read",
+               "project:previews:write",
+               "project:bundles:read",
+               "project:bundles:write",
+               "project:tests:read",
+               "project:tests:write",
+               "project:builds:read",
+               "project:builds:write",
+               "project:runs:read",
+               "project:runs:write"
+             ]
     end
 
     test "resolves to AuthenticatedAccount with correct fields", %{user: user} do
