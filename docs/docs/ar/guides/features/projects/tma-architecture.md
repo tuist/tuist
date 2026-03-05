@@ -177,7 +177,7 @@ func productType() -> Product {
 
 - [بناء µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
 - [البرمجة الموجهة
-  للإطار](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
+  للأطر](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
 - [رحلة إلى الأطر و
   Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
 - [الاستفادة من الأطر لتسريع عملية التطوير على نظام iOS - الجزء
