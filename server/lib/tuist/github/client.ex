@@ -252,18 +252,6 @@ defmodule Tuist.GitHub.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
-  def list_check_runs_for_ref(%{
-        repository_full_handle: repository_full_handle,
-        ref: ref,
-        check_name: check_name,
-        installation_id: installation_id
-      }) do
-    url =
-      "https://api.github.com/repos/#{repository_full_handle}/commits/#{ref}/check-runs?check_name=#{URI.encode(check_name)}"
-
-    github_request(&Req.get/1, url: url, installation_id: installation_id)
-  end
-
   def create_check_run(%{repository_full_handle: repository_full_handle, installation_id: installation_id} = params) do
     url = "https://api.github.com/repos/#{repository_full_handle}/check-runs"
 

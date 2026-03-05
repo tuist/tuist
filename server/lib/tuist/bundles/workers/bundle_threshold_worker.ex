@@ -62,17 +62,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
 
     {conclusion, output} = build_check_run_output(result, bundle_url)
 
-    existing_check_run =
-      case Client.list_check_runs_for_ref(%{
-             repository_full_handle: repo_handle,
-             ref: git_commit_sha,
-             check_name: @check_name,
-             installation_id: installation_id
-           }) do
-        {:ok, %{"check_runs" => [existing | _]}} -> existing
-        _ -> nil
-      end
-
     params = %{
       repository_full_handle: repo_handle,
       installation_id: installation_id,
@@ -84,39 +73,20 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
       details_url: bundle_url
     }
 
-    actions =
+    params =
       if conclusion == "action_required" do
-        [
+        Map.put(params, :actions, [
           %{
             label: "Accept",
             description: "Accept the bundle size increase",
             identifier: "accept_bundle_size"
           }
-        ]
+        ])
       else
-        nil
+        params
       end
 
-    result =
-      if existing_check_run do
-        update_params = %{
-          repository_full_handle: repo_handle,
-          check_run_id: existing_check_run["id"],
-          installation_id: installation_id,
-          status: "completed",
-          conclusion: conclusion,
-          output: output,
-          actions: actions
-        }
-
-        Client.update_check_run(update_params)
-      else
-        params = if actions, do: Map.put(params, :actions, actions), else: params
-
-        Client.create_check_run(params)
-      end
-
-    case result do
+    case Client.create_check_run(params) do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end

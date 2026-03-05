@@ -146,12 +146,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       stub(Environment, :github_app_configured?, fn -> true end)
       stub(Environment, :app_url, fn -> "https://tuist.dev" end)
 
-      expect(Client, :list_check_runs_for_ref, fn params ->
-        assert params.ref == "abc123"
-        assert params.check_name == "tuist/bundle-size"
-        {:ok, %{"check_runs" => []}}
-      end)
-
       expect(Client, :create_check_run, fn params ->
         assert params.conclusion == "success"
         assert params.output.title == "Bundle size check passed"
@@ -205,10 +199,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       stub(Environment, :github_app_configured?, fn -> true end)
       stub(Environment, :app_url, fn -> "https://tuist.dev" end)
 
-      expect(Client, :list_check_runs_for_ref, fn _params ->
-        {:ok, %{"check_runs" => []}}
-      end)
-
       expect(Client, :create_check_run, fn params ->
         assert params.conclusion == "action_required"
         assert params.output.title == "Bundle size threshold exceeded"
@@ -230,61 +220,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       assert :ok == BundleThresholdWorker.perform(job)
     end
 
-    test "updates existing check run instead of creating a new one" do
-      project =
-        ProjectsFixtures.project_fixture(
-          vcs_connection: [
-            repository_full_handle: "org/repo",
-            provider: :github
-          ]
-        )
-
-      BundlesFixtures.bundle_threshold_fixture(
-        project: project,
-        deviation_percentage: 50.0
-      )
-
-      BundlesFixtures.bundle_fixture(
-        project: project,
-        install_size: 1000,
-        git_branch: "main",
-        inserted_at: ~U[2024-01-01 00:00:00Z]
-      )
-
-      bundle =
-        BundlesFixtures.bundle_fixture(
-          project: project,
-          install_size: 1050,
-          git_branch: "feature",
-          git_commit_sha: "abc123",
-          git_ref: "refs/pull/1/merge",
-          inserted_at: ~U[2024-01-02 00:00:00Z]
-        )
-
-      stub(Environment, :github_app_configured?, fn -> true end)
-      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
-
-      expect(Client, :list_check_runs_for_ref, fn _params ->
-        {:ok, %{"check_runs" => [%{"id" => 42}]}}
-      end)
-
-      expect(Client, :update_check_run, fn params ->
-        assert params.check_run_id == 42
-        assert params.conclusion == "success"
-        {:ok, %{"id" => 42}}
-      end)
-
-      job = %Oban.Job{
-        id: 1,
-        args: %{
-          "bundle_id" => bundle.id,
-          "project_id" => project.id,
-          "git_commit_sha" => "abc123"
-        }
-      }
-
-      assert :ok == BundleThresholdWorker.perform(job)
-    end
     test "reports violation when first threshold passes but second violates" do
       project =
         ProjectsFixtures.project_fixture(
@@ -325,10 +260,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
 
       stub(Environment, :github_app_configured?, fn -> true end)
       stub(Environment, :app_url, fn -> "https://tuist.dev" end)
-
-      expect(Client, :list_check_runs_for_ref, fn _params ->
-        {:ok, %{"check_runs" => []}}
-      end)
 
       expect(Client, :create_check_run, fn params ->
         assert params.conclusion == "action_required"
