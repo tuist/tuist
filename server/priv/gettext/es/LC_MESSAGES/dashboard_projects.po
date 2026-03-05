@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-27 15:57+0000\n"
+"PO-Revision-Date: 2026-03-05 16:25+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/es/>\n"
@@ -496,7 +496,7 @@ msgstr "Reciba notificaciones cuando las métricas retrocedan."
 
 #, fuzzy
 msgid "Metric"
-msgstr "Métricas"
+msgstr "Métrica"
 
 #, fuzzy
 msgid "Test duration"
