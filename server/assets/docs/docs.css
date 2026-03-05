@@ -1,30 +1,32 @@
 @import "../app/css/fonts.css";
 @import "noora/noora.css";
+@import "../shared/css/prose.css";
+@import "../shared/css/code-window.css";
+@import "../shared/css/code-group.css";
 @import "./css/layouts/root.css";
 @import "./css/components/nav.css";
 @import "./css/components/page_layout.css";
 @import "./css/components/toc.css";
+@import "./css/components/admonition.css";
+@import "./css/components/overview.css";
 
 :root {
   color-scheme: light;
+  --docs-nav-height: 73px;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 body {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  margin-top: 0;
-  margin-right: 0;
-  margin-bottom: 0;
-  margin-left: 0;
+  margin: 0;
   background: oklch(98.5% 0.004 264.5);
-  padding: 0px;
-  overflow-x: hidden;
+  padding: 0;
   font-family: var(--noora-font-body);
-
-  & > div[data-part="content"] {
-    background: var(--noora-surface-background-primary);
-  }
 }
 
 h1,

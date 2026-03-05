@@ -10,7 +10,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 # A virtual platform team for developers who ship
 
-**Tuist helps teams scale app development and ship faster** -- transforming the complexity of large codebases into a smooth, productive experience that grows with your team.
+**Tuist helps teams scale app development and ship faster**; transforming the complexity of large codebases into a smooth, productive experience that grows with your team.
 
 <br/>
 

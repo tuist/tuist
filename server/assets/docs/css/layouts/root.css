@@ -1,15 +1,16 @@
 /* Left sidebar navigation */
 [data-part="sidebar"] {
   display: flex;
-  flex-direction: column;
-  gap: var(--noora-spacing-7);
   position: sticky;
-  top: 0;
+  top: var(--docs-nav-height);
+  flex-direction: column;
+  align-self: start;
   justify-self: start;
-  width: 220px;
-  max-height: 100vh;
-  overflow-y: auto;
+  gap: var(--noora-spacing-7);
   padding: var(--noora-spacing-7) var(--noora-spacing-4);
+  width: 220px;
+  max-height: calc(100vh - var(--docs-nav-height));
+  overflow-y: auto;
 }
 
 /* Section group (line divider + content divider + items) */
@@ -18,17 +19,18 @@
   flex-direction: column;
 }
 
-/* Content divider: icon + semibold label */
+/* Line divider between sections */
+[data-part="nav-section"] .noora-line-divider {
+  margin-bottom: var(--noora-spacing-7);
+}
+
+/* Content divider: icon + label */
 [data-part="content-divider"] {
-  --noora-content-divider-label: light-dark(
-    var(--noora-neutral-light-700),
-    var(--noora-neutral-dark-500)
-  );
   display: flex;
   align-items: center;
-  gap: var(--noora-spacing-2);
+  gap: var(--noora-spacing-1);
   padding: var(--noora-spacing-2) var(--noora-spacing-4);
-  color: var(--noora-content-divider-label);
+  color: var(--noora-surface-label-primary);
 
   & svg {
     width: var(--noora-icon-size-large);
@@ -36,22 +38,23 @@
   }
 
   & span {
-    font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
   }
 }
 
 /* Navigation links (wrapping tab_menu_vertical) */
 [data-part="nav-link"] {
-  text-decoration: none;
   user-select: none;
+  text-decoration: none;
 }
 
 /* Compact tab_menu_vertical inside sidebar */
 [data-part="sidebar"] .noora-tab-menu-vertical {
-  padding: var(--noora-spacing-3) var(--noora-spacing-4);
   border-radius: var(--noora-radius-medium);
+  padding: var(--noora-spacing-3) var(--noora-spacing-4);
 
   & [data-part="label"] {
+    flex: 1;
     font: var(--noora-font-body-medium);
   }
 }
@@ -59,8 +62,8 @@
 /* Collapsible trigger */
 [data-part="sidebar"] [data-part="trigger"] {
   cursor: pointer;
-  text-decoration: unset;
   user-select: none;
+  text-decoration: unset;
 
   & [data-part="indicator"] {
     color: var(--noora-surface-label-secondary);
@@ -93,18 +96,18 @@
 [data-part="sidebar"] [data-part="root"][data-state="open"] [data-part="content"] {
   display: flex;
   flex-direction: column;
-  margin-top: var(--noora-spacing-7);
-  margin-left: 14px;
+  gap: var(--noora-spacing-2);
+  margin-top: var(--noora-spacing-3);
+  margin-left: 17px;
   border-left: 1.5px solid var(--noora-surface-border-primary);
-  padding-left: var(--noora-spacing-7);
+  padding-left: var(--noora-spacing-5);
 }
 
 /* Main content area */
-[data-part="content"] {
-  min-width: 0;
+[data-part="layout"] > [data-part="content"] {
   padding: var(--noora-spacing-7) 0;
+  min-width: 0;
 }
-
 
 /* Responsive */
 @media (max-width: 1280px) {

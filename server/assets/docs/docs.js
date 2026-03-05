@@ -14,13 +14,12 @@ const DocsActivePage = {
     this._updateSidebar();
   },
   _updateSidebar() {
-    const sidebar = document.getElementById("docs-sidebar");
-    if (!sidebar) return;
     const currentSlug = this.el.dataset.currentSlug;
 
-    sidebar
-      .querySelectorAll("a[data-part='docs-nav-link'], a[data-part='trigger']")
-      .forEach((link) => {
+    // Update sidebar active item
+    const sidebar = document.getElementById("docs-sidebar");
+    if (sidebar) {
+      sidebar.querySelectorAll("a[data-part='nav-link'], a[data-part='trigger']").forEach((link) => {
         const tabMenu = link.querySelector(".noora-tab-menu-vertical");
         if (!tabMenu) return;
         const href = link.getAttribute("href");
@@ -31,11 +30,23 @@ const DocsActivePage = {
         }
       });
 
-    sidebar
-      .querySelectorAll(".noora-tab-menu-vertical[data-part='trigger']")
-      .forEach((el) => {
+      sidebar.querySelectorAll(".noora-tab-menu-vertical[data-part='trigger']").forEach((el) => {
         el.removeAttribute("data-selected");
       });
+    }
+
+    // Update nav tab selection
+    const navTabs = document.getElementById("docs-nav-tabs");
+    if (navTabs) {
+      const activeTab = this.el.dataset.currentTab;
+      navTabs.querySelectorAll(".noora-button-group-item").forEach((tab) => {
+        if (tab.dataset.tab === activeTab) {
+          tab.setAttribute("data-selected", "");
+        } else {
+          tab.removeAttribute("data-selected");
+        }
+      });
+    }
   },
 };
 

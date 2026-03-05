@@ -23,7 +23,7 @@ defmodule TuistWeb.Router do
     plug :put_content_security_policy,
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://developer.apple.com https://tuist.dev https://videos.tuist.dev",
       media_src:
         "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
       style_src:
@@ -314,7 +314,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     live_session :docs do
-      live "/en", DocsLive, :show, metadata: %{type: :docs}
+      live "/en", DocsOverviewLive, :show, metadata: %{type: :docs}
       live "/en/*path", DocsLive, :show, metadata: %{type: :docs}
     end
 

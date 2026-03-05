@@ -29,10 +29,28 @@
     <nav id="docs-nav">
       <div data-part="header">
         <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
-        <.button_group size="large">
-          <.button_group_item label={dgettext("docs", "Guides")} />
-          <.button_group_item label={dgettext("docs", "References")} />
-          <.button_group_item label={dgettext("docs", "Resources")} />
+        <.button_group size="large" id="docs-nav-tabs">
+          <.button_group_item
+            label={dgettext("docs", "Guides")}
+            navigate="/docs/en"
+            data-tab="guides"
+            data-selected={
+              !String.starts_with?(@current_path, "/docs/en/references") &&
+                !String.starts_with?(@current_path, "/docs/en/contributors")
+            }
+          />
+          <.button_group_item
+            label={dgettext("docs", "References")}
+            navigate="/docs/en/references/tuist-toml"
+            data-tab="references"
+            data-selected={String.starts_with?(@current_path, "/docs/en/references")}
+          />
+          <.button_group_item
+            label={dgettext("docs", "Resources")}
+            navigate="/docs/en/contributors/code"
+            data-tab="resources"
+            data-selected={String.starts_with?(@current_path, "/docs/en/contributors")}
+          />
         </.button_group>
       </div>
       <div data-part="cta">
