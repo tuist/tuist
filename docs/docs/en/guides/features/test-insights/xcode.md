@@ -57,7 +57,7 @@ Auto-generated schemes automatically include the `tuist inspect test` post-actio
 <!-- -->
 :::
 >
-> If you are not interested in tracking test insights in your auto-generated schemes, disable them using the <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink> generation option.
+> If you are not interested in tracking test insights in your auto-generated schemes, disable them using the [testInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) generation option.
 
 If you are using generated projects with custom schemes, you can set up post-actions for test insights:
 

@@ -173,7 +173,8 @@ public struct InspectResultBundleService: InspectResultBundleServicing {
                     serverURL: serverURL,
                     testCaseRunId: testCaseRunId,
                     fileName: attachment.fileName,
-                    filePath: attachment.filePath
+                    filePath: attachment.filePath,
+                    repetitionNumber: attachment.repetitionNumber
                 )
                 if let crashReport = testCase.crashReport,
                    crashReport.filePath == attachment.filePath

@@ -152,7 +152,7 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin extension allows custom executable path`() {
+    fun `plugin extension allows deprecated executable path without failing`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
@@ -160,6 +160,7 @@ class TuistPluginTest {
 
             tuist {
                 project = "test-account/test-project"
+                @Suppress("DEPRECATION")
                 executablePath = "/usr/local/bin/tuist"
 
                 buildCache {

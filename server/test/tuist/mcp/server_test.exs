@@ -2,7 +2,7 @@ defmodule Tuist.MCP.ServerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Hermes.Server.Frame
+  alias Anubis.Server.Frame
   alias Tuist.MCP.Server
   alias Tuist.Projects
   alias Tuist.Tests

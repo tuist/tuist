@@ -1,5 +1,5 @@
 {
-  "originHash" : "5d75c916805f1901624d929c035fcf87235194ee02d6bb47987d1f6cf41644ce",
+  "originHash" : "f513ebb5daa61b63bbd487b878ad68f09f0e8ea16d91bd5f3873f63064d1266d",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -536,6 +536,22 @@
       "location" : "",
       "state" : {
         "version" : "6.6.2"
+      }
+    },
+    {
+      "identity" : "swiftlang.swift-docc-plugin",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.4.6"
+      }
+    },
+    {
+      "identity" : "swiftlang.swift-docc-symbolkit",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "1.0.0"
       }
     },
     {

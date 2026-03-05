@@ -218,6 +218,14 @@ defmodule Tuist.Projects do
     |> maybe_filter_recent(opts)
   end
 
+  def list_accessible_projects(%AuthenticatedAccount{account: %{user_id: user_id} = account, all_projects: true}, opts)
+      when not is_nil(user_id) do
+    case Accounts.get_user_by_id(user_id) do
+      nil -> list_accessible_projects(account, opts)
+      user -> list_accessible_projects(user, opts)
+    end
+  end
+
   def list_accessible_projects(%AuthenticatedAccount{account: account}, opts) do
     list_accessible_projects(account, opts)
   end

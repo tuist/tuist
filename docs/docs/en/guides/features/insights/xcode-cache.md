@@ -76,7 +76,7 @@ Auto-generated schemes automatically include the `tuist inspect build` post-acti
 <!-- -->
 :::
 >
-> If you do not want to track build insights in generated schemes, disable it using <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>.
+> If you do not want to track build insights in generated schemes, disable it using [buildInsightsDisabled](https://projectdescription.tuist.dev/documentation/projectdescription/tuist).
 
 If you are using generated projects with custom schemes, add post-actions:
 

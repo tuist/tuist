@@ -44,19 +44,6 @@ defmodule TuistWeb.BuildsLive do
     end
   end
 
-  def handle_info(:update_configuration_insights, %{assigns: %{selected_project: project}} = socket) do
-    if Project.gradle_project?(project) do
-      {:noreply,
-       assign(
-         socket,
-         :configuration_insights_analytics,
-         socket.assigns.next_configuration_insights_analytics
-       )}
-    else
-      {:noreply, TuistWeb.XcodeBuildsLive.handle_info_update_configuration_insights(socket)}
-    end
-  end
-
   def handle_info({:build_created, _build}, socket) do
     {:noreply, TuistWeb.XcodeBuildsLive.handle_info_build_created(socket)}
   end
@@ -77,36 +64,26 @@ defmodule TuistWeb.BuildsLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "select_build_duration_type",
-        %{"type" => type},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "build-duration-type", type)}",
-        replace: true
-      )
+  def handle_event("select_build_duration_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "build-duration-type", type)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:selected_build_duration_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   def handle_event(

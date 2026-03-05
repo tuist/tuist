@@ -104,7 +104,15 @@ defmodule TuistWeb.BundlesLive do
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
       |> assign(:show_branch_dropdown, Bundles.has_bundles_in_project_default_branch?(project))
       |> assign(:has_any_bundles, Bundles.has_bundles_in_project?(project))
-      |> assign_bundle_size_analytics()
+      |> assign_async(:bundle_size_analytics, fn ->
+        fetch_bundle_size_analytics_data(
+          project,
+          bundle_size_selected_widget,
+          bundle_size_branch,
+          bundles_type,
+          params
+        )
+      end)
       |> assign_bundles(params)
     }
   end
@@ -209,17 +217,7 @@ defmodule TuistWeb.BundlesLive do
     size_filters ++ platform_filters ++ other_filters
   end
 
-  defp assign_bundle_size_analytics(
-         %{
-           assigns: %{
-             selected_project: project,
-             bundle_size_selected_widget: bundle_size_selected_widget,
-             bundle_size_branch: bundle_size_branch,
-             bundles_type: bundles_type,
-             current_params: params
-           }
-         } = socket
-       ) do
+  defp fetch_bundle_size_analytics_data(project, bundle_size_selected_widget, bundle_size_branch, bundles_type, params) do
     git_branch =
       cond do
         bundle_size_branch == "any" -> nil
@@ -245,25 +243,15 @@ defmodule TuistWeb.BundlesLive do
         "download-size" ->
           project
           |> Bundles.bundle_download_size_analytics(opts)
-          |> Enum.map(
-            &[
-              &1.date,
-              &1.bundle_download_size
-            ]
-          )
+          |> Enum.map(&[&1.date, &1.bundle_download_size])
 
         _ ->
           project
           |> Bundles.project_bundle_install_size_analytics(opts)
-          |> Enum.map(
-            &[
-              &1.date,
-              &1.bundle_install_size
-            ]
-          )
+          |> Enum.map(&[&1.date, &1.bundle_install_size])
       end
 
-    assign(socket, :bundle_size_analytics, bundle_size_analytics)
+    {:ok, %{bundle_size_analytics: bundle_size_analytics}}
   end
 
   defp bundle_size_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")

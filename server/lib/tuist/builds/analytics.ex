@@ -8,7 +8,6 @@ defmodule Tuist.Builds.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
-  alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
 
   def build_duration_analytics_by_category(project_id, category, opts \\ []) do
@@ -863,20 +862,6 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
-  def combined_builds_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> build_duration_analytics(project_id, opts) end,
-      fn -> build_percentile_durations(project_id, 0.99, opts) end,
-      fn -> build_percentile_durations(project_id, 0.9, opts) end,
-      fn -> build_percentile_durations(project_id, 0.5, opts) end,
-      fn -> build_analytics(project_id, opts) end,
-      fn -> build_analytics(project_id, Keyword.put(opts, :status, "failure")) end,
-      fn -> build_success_rate_analytics(project_id, opts) end
-    ]
-
-    Tasks.parallel_tasks(queries)
-  end
-
   @doc """
   Gets CAS upload analytics for a project over a time period.
 
@@ -1353,25 +1338,6 @@ defmodule Tuist.Builds.Analytics do
         cacheable_task_remote_hits: remote_hits || 0
       }
     end)
-  end
-
-  @doc """
-  Runs all cache analytics queries in parallel for a project.
-
-  Returns a list of analytics maps:
-  [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50]
-  """
-  def combined_cache_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> cas_uploads_analytics(project_id, opts) end,
-      fn -> cas_downloads_analytics(project_id, opts) end,
-      fn -> build_cache_hit_rate_analytics(project_id, opts) end,
-      fn -> build_cache_hit_rate_percentile(project_id, 0.99, opts) end,
-      fn -> build_cache_hit_rate_percentile(project_id, 0.9, opts) end,
-      fn -> build_cache_hit_rate_percentile(project_id, 0.5, opts) end
-    ]
-
-    Tasks.parallel_tasks(queries)
   end
 
   @doc """

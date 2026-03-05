@@ -69,6 +69,14 @@
     padding: var(--noora-spacing-5);
   }
 
+  & [data-part="test-runs-chart"] {
+    & > [data-part="label"] {
+      padding-left: var(--noora-spacing-7);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+    }
+  }
+
   & [data-part="builds-card-sections"] {
     display: flex;
     position: relative;

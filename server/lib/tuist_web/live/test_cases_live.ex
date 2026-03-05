@@ -5,6 +5,7 @@ defmodule TuistWeb.TestCasesLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
 
@@ -121,40 +122,63 @@ defmodule TuistWeb.TestCasesLive do
      |> push_event("close-popover", %{all: true})}
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    {:noreply,
+     if socket.assigns.analytics_chart_data.ok? do
+       chart_data =
+         analytics_chart_data(
+           widget,
+           socket.assigns.selected_duration_type,
+           socket.assigns.test_case_runs_analytics.result,
+           socket.assigns.failed_test_case_runs_analytics.result,
+           socket.assigns.test_case_runs_duration_analytics.result
+         )
+
+       assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
+     else
+       socket
+     end}
   end
 
-  def handle_event(
-        "select_duration_type",
-        %{"type" => type},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
+  def handle_event("select_duration_type", %{"type" => type}, socket) do
     query =
-      uri.query
+      socket.assigns.uri.query
       |> Query.put("duration-type", type)
       |> Query.put("analytics-selected-widget", "test_case_run_duration")
 
-    socket =
-      push_patch(
-        socket,
-        to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query}",
-        replace: true
-      )
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:selected_duration_type, type)
+      |> assign(:analytics_selected_widget, "test_case_run_duration")
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    {:noreply,
+     if socket.assigns.analytics_chart_data.ok? do
+       chart_data =
+         analytics_chart_data(
+           "test_case_run_duration",
+           type,
+           socket.assigns.test_case_runs_analytics.result,
+           socket.assigns.failed_test_case_runs_analytics.result,
+           socket.assigns.test_case_runs_duration_analytics.result
+         )
+
+       assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
+     else
+       socket
+     end}
   end
 
   def handle_event(
@@ -230,19 +254,59 @@ defmodule TuistWeb.TestCasesLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [test_case_runs_analytics, failed_test_case_runs_analytics, test_case_runs_duration_analytics] =
-      Task.await_many(
-        [
-          Task.async(fn -> Analytics.test_case_run_analytics(project.id, opts) end),
-          Task.async(fn -> Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
-          Task.async(fn -> Analytics.test_case_run_duration_analytics(project.id, opts) end)
-        ],
-        30_000
-      )
-
     analytics_selected_widget = params["analytics-selected-widget"] || "test_case_run_count"
 
-    analytics_chart_data =
+    socket
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
+    |> assign(:analytics_environment, analytics_environment)
+    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+    |> assign(:analytics_selected_widget, analytics_selected_widget)
+    |> assign(:selected_duration_type, selected_duration_type)
+    |> assign(:uri, uri)
+    |> assign_async(
+      [
+        :test_case_runs_analytics,
+        :failed_test_case_runs_analytics,
+        :test_case_runs_duration_analytics,
+        :analytics_chart_data
+      ],
+      fn ->
+        test_case_runs_analytics = Analytics.test_case_run_analytics(project.id, opts)
+
+        failed_test_case_runs_analytics =
+          Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+        test_case_runs_duration_analytics =
+          Analytics.test_case_run_duration_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           test_case_runs_analytics: test_case_runs_analytics,
+           failed_test_case_runs_analytics: failed_test_case_runs_analytics,
+           test_case_runs_duration_analytics: test_case_runs_duration_analytics,
+           analytics_chart_data:
+             analytics_chart_data(
+               analytics_selected_widget,
+               selected_duration_type,
+               test_case_runs_analytics,
+               failed_test_case_runs_analytics,
+               test_case_runs_duration_analytics
+             )
+         }}
+      end
+    )
+  end
+
+  defp analytics_chart_data(
+         analytics_selected_widget,
+         selected_duration_type,
+         test_case_runs_analytics,
+         failed_test_case_runs_analytics,
+         test_case_runs_duration_analytics
+       ) do
+    chart_data =
       case analytics_selected_widget do
         "test_case_run_count" ->
           %{
@@ -284,19 +348,11 @@ defmodule TuistWeb.TestCasesLive do
           }
       end
 
-    socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_duration_type, selected_duration_type)
-    |> assign(:test_case_runs_analytics, test_case_runs_analytics)
-    |> assign(:failed_test_case_runs_analytics, failed_test_case_runs_analytics)
-    |> assign(:test_case_runs_duration_analytics, test_case_runs_duration_analytics)
-    |> assign(:analytics_chart_data, analytics_chart_data)
-    |> assign(:uri, uri)
+    Map.put(
+      chart_data,
+      :grid_left,
+      if(Enum.max(chart_data.values, fn -> 0 end) >= 1_000_000, do: "0.8%", else: "0.4%")
+    )
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")

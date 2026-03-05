@@ -23,7 +23,7 @@ dependencyResolutionManagement {
 rootProject.name = "Tuist"
 
 plugins {
-    id("dev.tuist") version "0.2.5"
+    id("dev.tuist") version "0.3.0"
 }
 
 buildCache {

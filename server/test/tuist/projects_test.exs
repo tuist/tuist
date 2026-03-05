@@ -238,6 +238,36 @@ defmodule Tuist.ProjectsTest do
                )
     end
 
+    test "get all project accounts for an authenticated account with all_projects includes org projects" do
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      organization = AccountsFixtures.organization_fixture()
+      org_account = Accounts.get_account_from_organization(organization)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      personal_project =
+        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account])
+
+      org_project =
+        ProjectsFixtures.project_fixture(account_id: org_account.id, preload: [:account])
+
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: user_account,
+          scopes: [],
+          all_projects: true
+        })
+
+      got_handles = got |> Enum.map(& &1.handle) |> Enum.sort()
+
+      assert got_handles ==
+               Enum.sort([
+                 "#{user_account.name}/#{personal_project.name}",
+                 "#{org_account.name}/#{org_project.name}"
+               ])
+    end
+
     test "get all project accounts for a project subject" do
       project = ProjectsFixtures.project_fixture()
 

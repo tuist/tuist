@@ -90,9 +90,6 @@ jobs:
       - name: Generate CLI docs
         working-directory: docs
         run: mise run generate-cli-docs
-      - name: Generate manifest docs
-        working-directory: docs
-        run: mise run generate-manifests-docs
       - name: Upload generated docs
         uses: actions/upload-artifact@v4
         with:
@@ -180,3 +177,44 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
           op run -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
+
+  build-deploy-project-description:
+    name: Build and deploy ProjectDescription docs
+    runs-on: ubuntu-latest
+    container:
+      image: swift:6.2
+    timeout-minutes: 30
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore SPM cache
+        id: spm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: linux-docc-${{ hashFiles('Package.resolved') }}
+          restore-keys: linux-docc-
+      - name: Build DocC documentation
+        run: |
+          swift package --replace-scm-with-registry \
+            --allow-writing-to-directory .build/documentation \
+            generate-documentation \
+            --product ProjectDescription \
+            --disable-indexing \
+            --output-path .build/documentation \
+            --transform-for-static-hosting \
+            --hosting-base-path ""
+          echo "/ /documentation/projectdescription/project 301" > .build/documentation/_redirects
+      - name: Save SPM cache
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.spm-cache.outputs.cache-primary-key }}
+      - uses: jdx/mise-action@v2
+      - name: Deploy to Cloudflare Pages
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
+        run: |
+          op run -- npx wrangler pages deploy --commit-hash ${{ github.sha }} --branch main --project-name tuist-projectdescription .build/documentation

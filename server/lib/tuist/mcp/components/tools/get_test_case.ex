@@ -3,9 +3,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   Get detailed information about a test case including reliability and flakiness metrics.
   """
 
-  use Hermes.Server.Component, type: :tool
+  use Anubis.Server.Component, type: :tool
 
-  alias Hermes.Server.Response
+  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.Tests
   alias Tuist.Tests.Analytics

@@ -190,11 +190,6 @@ function redirectToEnglishForGeneratedDocs(req, res) {
     return true;
   }
 
-  if (rest.startsWith("/references/project-description/")) {
-    redirect(`/en${rest}`);
-    return true;
-  }
-
   return false;
 }
 
@@ -382,12 +377,13 @@ export default withMermaid(
       const cliLocaleRedirects = nonEnglishLocales
         .map((locale) => `/${locale}/cli/* /en/cli/:splat 301`)
         .join("\n");
-      const projectDescriptionLocaleRedirects = nonEnglishLocales
-        .map(
+      const projectDescriptionRedirects = [
+        ...allLocales.map(
           (locale) =>
-            `/${locale}/references/project-description/* /en/references/project-description/:splat 301`,
-        )
-        .join("\n");
+            `/${locale}/references/project-description/* https://projectdescription.tuist.dev/documentation/projectdescription 301`,
+        ),
+        `/reference/project-description/* https://projectdescription.tuist.dev/documentation/projectdescription 301`,
+      ].join("\n");
       const redirects = `
 / /en/ 301
 /index /en/index 301
@@ -454,12 +450,10 @@ export default withMermaid(
 /cloud/hashing /guides/develop/projects/hashing 301
 /cloud/on-premise /guides/dashboard/on-premise/install 301
 /cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
-/reference/project-description/* /references/project-description/:splat 301
 /reference/examples/* /references/examples/generated-projects/:splat 301
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
-/:locale/references/project-description/structs/config /en/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
 /:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
@@ -505,7 +499,7 @@ export default withMermaid(
 /:locale/tutorials/xcode/gather-insights /:locale/tutorials/xcode/create-a-generated-project 301
 /:locale/cli/logging /:locale/cli/debugging 301
 ${cliLocaleRedirects}
-${projectDescriptionLocaleRedirects}
+${projectDescriptionRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}

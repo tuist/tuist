@@ -504,8 +504,8 @@ struct InspectResultBundleServiceTests {
             failures: [],
             crashReport: crashReport,
             attachments: [
-                TestAttachment(filePath: screenshotFilePath, fileName: "screenshot.png"),
-                TestAttachment(filePath: crashFilePath, fileName: "crash.ips"),
+                TestAttachment(filePath: screenshotFilePath, fileName: "screenshot.png", repetitionNumber: 2),
+                TestAttachment(filePath: crashFilePath, fileName: "crash.ips", repetitionNumber: 2),
             ]
         )
 
@@ -585,7 +585,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath)
+                filePath: .value(screenshotFilePath),
+                repetitionNumber: .value(2)
             )
             .willReturn("attachment-1")
 
@@ -595,7 +596,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath)
+                filePath: .value(crashFilePath),
+                repetitionNumber: .value(2)
             )
             .willReturn("attachment-2")
 
@@ -623,7 +625,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("screenshot.png"),
-                filePath: .value(screenshotFilePath)
+                filePath: .value(screenshotFilePath),
+                repetitionNumber: .value(2)
             )
             .called(1)
 
@@ -633,7 +636,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .value("test-case-run-1"),
                 fileName: .value("crash.ips"),
-                filePath: .value(crashFilePath)
+                filePath: .value(crashFilePath),
+                repetitionNumber: .value(2)
             )
             .called(1)
 
@@ -748,7 +752,8 @@ struct InspectResultBundleServiceTests {
                 serverURL: .any,
                 testCaseRunId: .any,
                 fileName: .any,
-                filePath: .any
+                filePath: .any,
+                repetitionNumber: .any
             )
             .called(0)
 

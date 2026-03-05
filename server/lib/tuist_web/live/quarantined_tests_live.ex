@@ -5,6 +5,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.TestLabels
 
   alias Noora.Filter
@@ -230,12 +231,12 @@ defmodule TuistWeb.QuarantinedTestsLive do
 
     opts = [start_datetime: start_datetime, end_datetime: end_datetime]
 
-    quarantined_analytics = Analytics.quarantined_tests_analytics(project.id, opts)
-
     socket
-    |> assign(:quarantined_analytics, quarantined_analytics)
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
+    |> assign_async(:quarantined_analytics, fn ->
+      {:ok, %{quarantined_analytics: Analytics.quarantined_tests_analytics(project.id, opts)}}
+    end)
   end
 
   defp sort_icon("asc"), do: "square_rounded_arrow_up"
