@@ -50,6 +50,18 @@ msgid "Any"
 msgstr "Любой"
 
 #, fuzzy
+msgid "Apply"
+msgstr "Применить"
+
+#, fuzzy
+msgid "Attachments"
+msgstr "Вложения"
+
+#, fuzzy
+msgid "Automatically by Tuist"
+msgstr "Автоматически с помощью Tuist"
+
+#, fuzzy
 msgid "Average"
 msgstr "Среднее"
 
@@ -94,6 +106,10 @@ msgid "Branch"
 msgstr "Ветвь"
 
 #, fuzzy
+msgid "Build: %{name}"
+msgstr "Сборка: %{name}"
+
+#, fuzzy
 msgid "Build: %{scheme}"
 msgstr "Сборка: %{scheme}"
 
@@ -104,6 +120,10 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "Отменить"
 
 #, fuzzy
 msgid "Caught error"
@@ -122,6 +142,10 @@ msgid "Caught error: %{message}"
 msgstr "Обнаружена ошибка: %{message}"
 
 #, fuzzy
+msgid "Class"
+msgstr "Класс"
+
+#, fuzzy
 msgid "Command"
 msgstr "Команды"
 
@@ -134,6 +158,14 @@ msgid "Commit"
 msgstr "Сохранить"
 
 #, fuzzy
+msgid "Crash Report"
+msgstr "Отчет о сбоях"
+
+#, fuzzy
+msgid "Custom"
+msgstr "Индивидуальный"
+
+#, fuzzy
 msgid "Download result"
 msgstr "Скачать результат"
 
@@ -144,6 +176,18 @@ msgstr "Продолжительность"
 #, fuzzy
 msgid "Environment:"
 msgstr "Среда:"
+
+#, fuzzy
+msgid "Event"
+msgstr "Событие"
+
+#, fuzzy
+msgid "Events will appear here when the test case status changes."
+msgstr "События появятся здесь, когда статус тестового случая изменится."
+
+#, fuzzy
+msgid "Exception"
+msgstr "Исключение"
 
 #, fuzzy
 msgid "Expectation failed"
@@ -209,8 +253,44 @@ msgid "Failures"
 msgstr "Неудачи"
 
 #, fuzzy
+msgid "File"
+msgstr "Файл"
+
+#, fuzzy
 msgid "Filter"
 msgstr "Фильтр"
+
+#, fuzzy
+msgid "First run of this test"
+msgstr "Первый запуск этого теста"
+
+#, fuzzy
+msgid "Flakiness rate"
+msgstr "Коэффициент нестабильности"
+
+#, fuzzy
+msgid "Flaky"
+msgstr "Нестабильный"
+
+#, fuzzy
+msgid "Flaky Runs"
+msgstr "Нестабильная работа"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "Нестабильные тесты"
+
+#, fuzzy
+msgid "Flaky runs"
+msgstr "Нестабильная работа"
+
+#, fuzzy
+msgid "Flaky test cases"
+msgstr "Нестабильные тестовые случаи"
+
+#, fuzzy
+msgid "Flaky test runs"
+msgstr "Нестабильные тестовые запуски"
 
 #, fuzzy
 msgid "Hash"
@@ -219,6 +299,10 @@ msgstr "Хеш"
 #, fuzzy
 msgid "Hit"
 msgstr "Нажмите"
+
+#, fuzzy
+msgid "Image"
+msgstr "Изображение"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -237,12 +321,36 @@ msgid "Issue recorded: %{message}"
 msgstr "Зарегистрированная проблема: %{message}"
 
 #, fuzzy
+msgid "Last 12 months"
+msgstr "Последние 12 месяцев"
+
+#, fuzzy
+msgid "Last 24 hours"
+msgstr "Последние 24 часа"
+
+#, fuzzy
+msgid "Last 30 days"
+msgstr "Последние 30 дней"
+
+#, fuzzy
+msgid "Last 7 days"
+msgstr "Последние 7 дней"
+
+#, fuzzy
 msgid "Last Status"
 msgstr "Последнее состояние"
 
 #, fuzzy
+msgid "Last flaky run"
+msgstr "Последний нестабильный запуск"
+
+#, fuzzy
 msgid "Last ran at"
 msgstr "Последнее выполнение"
+
+#, fuzzy
+msgid "Last run"
+msgstr "Последний запуск"
 
 #, fuzzy
 msgid "Last run duration"
@@ -253,12 +361,44 @@ msgid "Last status"
 msgstr "Последний статус"
 
 #, fuzzy
+msgid "Load more"
+msgstr "Показать ещё"
+
+#, fuzzy
+msgid "Loading..."
+msgstr "Загрузка..."
+
+#, fuzzy
 msgid "Local"
 msgstr "Локальный"
 
 #, fuzzy
+msgid "Log File"
+msgstr "Файл журнала"
+
+#, fuzzy
 msgid "Mac device"
 msgstr "Устройство Mac"
+
+#, fuzzy
+msgid "Manually by @%{name}"
+msgstr "Вручную с помощью @%{name}"
+
+#, fuzzy
+msgid "Mark as flaky"
+msgstr "Пометить как нестабильный"
+
+#, fuzzy
+msgid "Marked as flaky"
+msgstr "Помечено как нестабильное"
+
+#, fuzzy
+msgid "Marked as quarantined"
+msgstr "Помечено как изолированное"
+
+#, fuzzy
+msgid "Marked as unquarantined"
+msgstr "Помечено как не подлежащее карантину"
 
 #, fuzzy
 msgid "Missed"
@@ -269,8 +409,20 @@ msgid "Module"
 msgstr "Модуль"
 
 #, fuzzy
+msgid "Module Cache"
+msgstr "Кэш модулей"
+
+#, fuzzy
 msgid "Modules"
 msgstr "Модули"
+
+#, fuzzy
+msgid "Most occurring flaky tests"
+msgstr "Наиболее часто встречающиеся нестабильные тесты"
+
+#, fuzzy
+msgid "New"
+msgstr "Новое"
 
 #, fuzzy
 msgid "No data"
@@ -285,8 +437,20 @@ msgid "No failures detected"
 msgstr "Не обнаружено ошибок"
 
 #, fuzzy
+msgid "No flaky tests"
+msgstr "Без нестабильных тестов"
+
+#, fuzzy
+msgid "No history available"
+msgstr "История недоступна"
+
+#, fuzzy
 msgid "No modules found"
 msgstr "Модули не найдены"
+
+#, fuzzy
+msgid "No quarantined tests"
+msgstr "Нет тестов в карантине"
 
 #, fuzzy
 msgid "No test case runs found"
@@ -313,12 +477,20 @@ msgid "Number of test cases that failed."
 msgstr "Количество неудачных тестовых случаев."
 
 #, fuzzy
+msgid "Number of test cases that passed after retry."
+msgstr "Количество тестовых случаев, прошедших после повторной попытки."
+
+#, fuzzy
 msgid "Number of times this test case has failed."
 msgstr "Количество неудачных попыток прохождения этого тестового случая."
 
 #, fuzzy
 msgid "Optimization Summary"
 msgstr "Резюме оптимизации"
+
+#, fuzzy
+msgid "Other"
+msgstr "Прочее"
 
 #, fuzzy
 msgid "Overview"
@@ -331,6 +503,35 @@ msgstr "Пройден"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Пройденные прогоны"
+
+#, fuzzy
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr ""
+"Процент тестовых прогонов, которые были нестабильными за последние 30 дней."
+
+#, fuzzy
+msgid "Project"
+msgstr "Проект"
+
+#, fuzzy
+msgid "Quarantine"
+msgstr "Карантин"
+
+#, fuzzy
+msgid "Quarantined"
+msgstr "Карантин"
+
+#, fuzzy
+msgid "Quarantined Tests"
+msgstr "Тесты в карантине"
+
+#, fuzzy
+msgid "Quarantined by"
+msgstr "Помещено в карантин"
+
+#, fuzzy
+msgid "Quarantined tests"
+msgstr "Тесты в карантине"
 
 #, fuzzy
 msgid "Ran at"
@@ -349,8 +550,16 @@ msgid "Remote"
 msgstr "Удаленный"
 
 #, fuzzy
+msgid "Run Details"
+msgstr "Детали запуска"
+
+#, fuzzy
 msgid "Scheme"
 msgstr "Схема"
+
+#, fuzzy
+msgid "Scheme:"
+msgstr "Схема:"
 
 #, fuzzy
 msgid "Search..."
@@ -393,6 +602,10 @@ msgid "Selective testing: no data yet"
 msgstr "Выборочное тестирование: данных пока нет"
 
 #, fuzzy
+msgid "Signal"
+msgstr "Сигнал"
+
+#, fuzzy
 msgid "Skipped"
 msgstr "Пропущено"
 
@@ -407,6 +620,10 @@ msgstr "Сортировать по:"
 #, fuzzy
 msgid "Status"
 msgstr "Статус"
+
+#, fuzzy
+msgid "Subtype"
+msgstr "Подтип"
 
 #, fuzzy
 msgid ""
@@ -433,12 +650,28 @@ msgid "Test Case Runs"
 msgstr "Запуск тестовых случаев"
 
 #, fuzzy
+msgid "Test Case: %{name}"
+msgstr "Тестовый случай: %{name}"
+
+#, fuzzy
 msgid "Test Cases"
 msgstr "Тестовые сценарии"
 
 #, fuzzy
+msgid "Test Class"
+msgstr "Тестовый класс"
+
+#, fuzzy
+msgid "Test Classes"
+msgstr "Тестовые классы"
+
+#, fuzzy
 msgid "Test Details"
 msgstr "Детали теста"
+
+#, fuzzy
+msgid "Test History"
+msgstr "История тестирования"
 
 #, fuzzy
 msgid "Test Modules"
@@ -457,6 +690,10 @@ msgid "Test Runs"
 msgstr "Тестовые запуски"
 
 #, fuzzy
+msgid "Test Suite"
+msgstr "Набор тестов"
+
+#, fuzzy
 msgid "Test Suites"
 msgstr "Наборы тестов"
 
@@ -466,6 +703,10 @@ msgstr "Тестовый случай"
 
 #, fuzzy
 msgid "Test case not found."
+msgstr "Тестовый случай не найден."
+
+#, fuzzy
+msgid "Test case run not found."
 msgstr "Тестовый случай не найден."
 
 #, fuzzy
@@ -483,6 +724,10 @@ msgstr ""
 #, fuzzy
 msgid "Test cases"
 msgstr "Тестовые случаи"
+
+#, fuzzy
+msgid "Test history"
+msgstr "История тестирования"
 
 #, fuzzy
 msgid "Test reliability"
@@ -515,6 +760,10 @@ msgid "Tests"
 msgstr "Тесты"
 
 #, fuzzy
+msgid "Text File"
+msgstr "Текстовый файл"
+
+#, fuzzy
 msgid "The average test run duration with individual percentile intervals."
 msgstr ""
 "Средняя продолжительность теста с индивидуальными процентильными интервалами."
@@ -522,6 +771,10 @@ msgstr ""
 #, fuzzy
 msgid "The number of test runs that failed."
 msgstr "Количество неудачных прогонов теста."
+
+#, fuzzy
+msgid "The number of test runs with flaky tests."
+msgstr "Количество прогонов тестов с нестабильными результатами."
 
 #, fuzzy
 msgid "The total number of test runs."
@@ -554,6 +807,10 @@ msgid "Try updating your search"
 msgstr "Попробуйте обновить поиск"
 
 #, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
+#, fuzzy
 msgid "Tuist version"
 msgstr "Версия Tuist"
 
@@ -564,6 +821,18 @@ msgstr "Неизвестный"
 #, fuzzy
 msgid "Unknown error"
 msgstr "Неизвестная ошибка"
+
+#, fuzzy
+msgid "Unmark as flaky"
+msgstr "Снять пометку «нестабильный»"
+
+#, fuzzy
+msgid "Unmarked as flaky"
+msgstr "Отмечено как нестабильное"
+
+#, fuzzy
+msgid "Unquarantine"
+msgstr "Снять карантин"
 
 #, fuzzy
 msgid "View more"
@@ -614,6 +883,10 @@ msgid "since last month"
 msgstr "с прошлого месяца"
 
 #, fuzzy
+msgid "since last period"
+msgstr "с последней точкой"
+
+#, fuzzy
 msgid "since last week"
 msgstr "с прошлой недели"
 
@@ -622,285 +895,12 @@ msgid "since last year"
 msgstr "с прошлого года"
 
 #, fuzzy
-msgid "•"
-msgstr "•"
-
-#, fuzzy
-msgid "Apply"
-msgstr "Применить"
-
-#, fuzzy
-msgid "Cancel"
-msgstr "Отменить"
-
-#, fuzzy
-msgid "Custom"
-msgstr "Индивидуальный"
-
-#, fuzzy
-msgid "Last 12 months"
-msgstr "Последние 12 месяцев"
-
-#, fuzzy
-msgid "Last 24 hours"
-msgstr "Последние 24 часа"
-
-#, fuzzy
-msgid "Last 30 days"
-msgstr "Последние 30 дней"
-
-#, fuzzy
-msgid "Last 7 days"
-msgstr "Последние 7 дней"
-
-#, fuzzy
-msgid "since last period"
-msgstr "с последней точкой"
-
-#, fuzzy
 msgid "since yesterday"
 msgstr "с вчерашнего дня"
 
 #, fuzzy
-msgid "Flakiness rate"
-msgstr "Коэффициент нестабильности"
-
-#, fuzzy
-msgid "Flaky"
-msgstr "Нестабильный"
-
-#, fuzzy
-msgid "Flaky Runs"
-msgstr "Нестабильная работа"
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "Нестабильные тесты"
-
-#, fuzzy
-msgid "Flaky runs"
-msgstr "Нестабильная работа"
-
-#, fuzzy
-msgid "Flaky test cases"
-msgstr "Нестабильные тестовые случаи"
-
-#, fuzzy
-msgid "Flaky test runs"
-msgstr "Нестабильные тестовые запуски"
-
-#, fuzzy
-msgid "Last flaky run"
-msgstr "Последний нестабильный запуск"
-
-#, fuzzy
-msgid "Mark as flaky"
-msgstr "Пометить как нестабильный"
-
-#, fuzzy
-msgid "Most occurring flaky tests"
-msgstr "Наиболее часто встречающиеся нестабильные тесты"
-
-#, fuzzy
-msgid "No flaky tests"
-msgstr "Без нестабильных тестов"
-
-#, fuzzy
-msgid "Number of test cases that passed after retry."
-msgstr "Количество тестовых случаев, прошедших после повторной попытки."
-
-#, fuzzy
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr ""
-"Процент тестовых прогонов, которые были нестабильными за последние 30 дней."
-
-#, fuzzy
-msgid "The number of test runs with flaky tests."
-msgstr "Количество прогонов тестов с нестабильными результатами."
-
-#, fuzzy
-msgid "Unmark as flaky"
-msgstr "Снять пометку «нестабильный»"
-
-#, fuzzy
-msgid "New"
-msgstr "Новое"
-
-#, fuzzy
-msgid "Quarantine"
-msgstr "Карантин"
-
-#, fuzzy
-msgid "Quarantined"
-msgstr "Карантин"
-
-#, fuzzy
-msgid "Unquarantine"
-msgstr "Снять карантин"
-
-#, fuzzy
-msgid "Module Cache"
-msgstr "Кэш модулей"
-
-#, fuzzy
-msgid "Automatically by Tuist"
-msgstr "Автоматически с помощью Tuist"
-
-#, fuzzy
-msgid "Event"
-msgstr "Событие"
-
-#, fuzzy
-msgid "Events will appear here when the test case status changes."
-msgstr "События появятся здесь, когда статус тестового случая изменится."
-
-#, fuzzy
-msgid "First run of this test"
-msgstr "Первый запуск этого теста"
-
-#, fuzzy
-msgid "Load more"
-msgstr "Показать ещё"
-
-#, fuzzy
-msgid "Manually by @%{name}"
-msgstr "Вручную с помощью @%{name}"
-
-#, fuzzy
-msgid "Marked as flaky"
-msgstr "Помечено как нестабильное"
-
-#, fuzzy
-msgid "Marked as quarantined"
-msgstr "Помечено как изолированное"
-
-#, fuzzy
-msgid "Marked as unquarantined"
-msgstr "Помечено как не подлежащее карантину"
-
-#, fuzzy
-msgid "No history available"
-msgstr "История недоступна"
-
-#, fuzzy
-msgid "Test History"
-msgstr "История тестирования"
-
-#, fuzzy
-msgid "Test history"
-msgstr "История тестирования"
-
-#, fuzzy
-msgid "Unmarked as flaky"
-msgstr "Отмечено как нестабильное"
-
-#, fuzzy
-msgid "Last run"
-msgstr "Последний запуск"
-
-#, fuzzy
-msgid "No quarantined tests"
-msgstr "Нет тестов в карантине"
-
-#, fuzzy
-msgid "Quarantined Tests"
-msgstr "Тесты в карантине"
-
-#, fuzzy
-msgid "Quarantined by"
-msgstr "Помещено в карантин"
-
-#, fuzzy
-msgid "Quarantined tests"
-msgstr "Тесты в карантине"
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-#, fuzzy
-msgid "Build: %{name}"
-msgstr "Сборка: %{name}"
-
-#, fuzzy
-msgid "Class"
-msgstr "Класс"
-
-#, fuzzy
-msgid "Crash Report"
-msgstr "Отчет о сбоях"
-
-#, fuzzy
-msgid "Exception"
-msgstr "Исключение"
-
-#, fuzzy
-msgid "Project"
-msgstr "Проект"
-
-#, fuzzy
-msgid "Signal"
-msgstr "Сигнал"
-
-#, fuzzy
-msgid "Subtype"
-msgstr "Подтип"
-
-#, fuzzy
-msgid "Test Class"
-msgstr "Тестовый класс"
-
-#, fuzzy
-msgid "Test Classes"
-msgstr "Тестовые классы"
-
-#, fuzzy
-msgid "Test Suite"
-msgstr "Набор тестов"
-
-#, fuzzy
-msgid "Scheme:"
-msgstr "Схема:"
-
-#, fuzzy
-msgid "Run Details"
-msgstr "Детали запуска"
-
-#, fuzzy
-msgid "Test case run not found."
-msgstr "Тестовый случай не найден."
-
-#, fuzzy
-msgid "Test Case: %{name}"
-msgstr "Тестовый случай: %{name}"
-
-#, fuzzy
-msgid "Attachments"
-msgstr "Вложения"
-
-#, fuzzy
-msgid "File"
-msgstr "Файл"
-
-#, fuzzy
-msgid "Image"
-msgstr "Изображение"
-
-#, fuzzy
-msgid "Loading..."
-msgstr "Загрузка..."
-
-#, fuzzy
-msgid "Text File"
-msgstr "Текстовый файл"
-
-#, fuzzy
-msgid "Log File"
-msgstr "Файл журнала"
-
-#, fuzzy
-msgid "Other"
-msgstr "Прочее"
+msgid "•"
+msgstr "•"
 
 #, fuzzy
 #~ msgid "Test suite"

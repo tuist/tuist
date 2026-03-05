@@ -50,6 +50,18 @@ msgid "Any"
 msgstr "Jakiekolwiek"
 
 #, fuzzy
+msgid "Apply"
+msgstr "Zastosuj"
+
+#, fuzzy
+msgid "Attachments"
+msgstr "Załączniki"
+
+#, fuzzy
+msgid "Automatically by Tuist"
+msgstr "Automatycznie przez Tuist"
+
+#, fuzzy
 msgid "Average"
 msgstr "Średnia"
 
@@ -93,6 +105,10 @@ msgid "Branch"
 msgstr "Oddział"
 
 #, fuzzy
+msgid "Build: %{name}"
+msgstr "Budowa: %{name}"
+
+#, fuzzy
 msgid "Build: %{scheme}"
 msgstr "Budowa: %{scheme}"
 
@@ -103,6 +119,10 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "Anuluj"
 
 #, fuzzy
 msgid "Caught error"
@@ -121,6 +141,10 @@ msgid "Caught error: %{message}"
 msgstr "Wykryto błąd: %{message}"
 
 #, fuzzy
+msgid "Class"
+msgstr "Klasa"
+
+#, fuzzy
 msgid "Command"
 msgstr "Polecenia"
 
@@ -133,6 +157,14 @@ msgid "Commit"
 msgstr "Zatwierdź"
 
 #, fuzzy
+msgid "Crash Report"
+msgstr "Raport o awarii"
+
+#, fuzzy
+msgid "Custom"
+msgstr "Niestandardowe"
+
+#, fuzzy
 msgid "Download result"
 msgstr "Pobierz wynik"
 
@@ -143,6 +175,19 @@ msgstr "Czas trwania"
 #, fuzzy
 msgid "Environment:"
 msgstr "Środowisko:"
+
+#, fuzzy
+msgid "Event"
+msgstr "Wydarzenie"
+
+#, fuzzy
+msgid "Events will appear here when the test case status changes."
+msgstr ""
+"Wydarzenia pojawią się tutaj, gdy status przypadku testowego ulegnie zmianie."
+
+#, fuzzy
+msgid "Exception"
+msgstr "Wyjątek"
 
 #, fuzzy
 msgid "Expectation failed"
@@ -207,8 +252,44 @@ msgid "Failures"
 msgstr "Błędy"
 
 #, fuzzy
+msgid "File"
+msgstr "Plik"
+
+#, fuzzy
 msgid "Filter"
 msgstr "Filtr"
+
+#, fuzzy
+msgid "First run of this test"
+msgstr "Pierwsze uruchomienie tego testu"
+
+#, fuzzy
+msgid "Flakiness rate"
+msgstr "Wskaźnik niestabilności"
+
+#, fuzzy
+msgid "Flaky"
+msgstr "Flaky"
+
+#, fuzzy
+msgid "Flaky Runs"
+msgstr "Nieregularne działania"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "Niesprawne testy"
+
+#, fuzzy
+msgid "Flaky runs"
+msgstr "Nieregularne działania"
+
+#, fuzzy
+msgid "Flaky test cases"
+msgstr "Niesprawne przypadki testowe"
+
+#, fuzzy
+msgid "Flaky test runs"
+msgstr "Nierówne przebiegi testów"
 
 #, fuzzy
 msgid "Hash"
@@ -217,6 +298,10 @@ msgstr "Hash"
 #, fuzzy
 msgid "Hit"
 msgstr "Hit"
+
+#, fuzzy
+msgid "Image"
+msgstr "Obraz"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -235,12 +320,36 @@ msgid "Issue recorded: %{message}"
 msgstr "Zgłoszona usterka: %{message}"
 
 #, fuzzy
+msgid "Last 12 months"
+msgstr "Ostatnie 12 miesięcy"
+
+#, fuzzy
+msgid "Last 24 hours"
+msgstr "Ostatnie 24 godziny"
+
+#, fuzzy
+msgid "Last 30 days"
+msgstr "Ostatnie 30 dni"
+
+#, fuzzy
+msgid "Last 7 days"
+msgstr "Ostatnie 7 dni"
+
+#, fuzzy
 msgid "Last Status"
 msgstr "Ostatni status"
 
 #, fuzzy
+msgid "Last flaky run"
+msgstr "Ostatni niestabilny przebieg"
+
+#, fuzzy
 msgid "Last ran at"
 msgstr "Ostatnio uruchomiono o godz."
+
+#, fuzzy
+msgid "Last run"
+msgstr "Ostatnie uruchomienie"
 
 #, fuzzy
 msgid "Last run duration"
@@ -251,12 +360,44 @@ msgid "Last status"
 msgstr "Ostatni status"
 
 #, fuzzy
+msgid "Load more"
+msgstr "Załaduj więcej"
+
+#, fuzzy
+msgid "Loading..."
+msgstr "Ładowanie..."
+
+#, fuzzy
 msgid "Local"
 msgstr "Lokalne"
 
 #, fuzzy
+msgid "Log File"
+msgstr "Plik dziennika"
+
+#, fuzzy
 msgid "Mac device"
 msgstr "Urządzenie Mac"
+
+#, fuzzy
+msgid "Manually by @%{name}"
+msgstr "Ręcznie przez @%{name}"
+
+#, fuzzy
+msgid "Mark as flaky"
+msgstr "Oznacz jako niestabilne"
+
+#, fuzzy
+msgid "Marked as flaky"
+msgstr "Oznaczone jako niestabilne"
+
+#, fuzzy
+msgid "Marked as quarantined"
+msgstr "Oznaczone jako poddane kwarantannie"
+
+#, fuzzy
+msgid "Marked as unquarantined"
+msgstr "Oznaczone jako niepoddane kwarantannie"
 
 #, fuzzy
 msgid "Missed"
@@ -267,8 +408,20 @@ msgid "Module"
 msgstr "Moduł"
 
 #, fuzzy
+msgid "Module Cache"
+msgstr "Buforowanie modułu"
+
+#, fuzzy
 msgid "Modules"
 msgstr "Moduły"
+
+#, fuzzy
+msgid "Most occurring flaky tests"
+msgstr "Najczęściej występujące niestabilne testy"
+
+#, fuzzy
+msgid "New"
+msgstr "Nowy"
 
 #, fuzzy
 msgid "No data"
@@ -283,8 +436,20 @@ msgid "No failures detected"
 msgstr "Nie wykryto żadnych błędów."
 
 #, fuzzy
+msgid "No flaky tests"
+msgstr "Żadnych niepewnych testów"
+
+#, fuzzy
+msgid "No history available"
+msgstr "Brak dostępnej historii"
+
+#, fuzzy
 msgid "No modules found"
 msgstr "Nie znaleziono żadnych modułów."
+
+#, fuzzy
+msgid "No quarantined tests"
+msgstr "Brak testów poddanych kwarantannie"
 
 #, fuzzy
 msgid "No test case runs found"
@@ -311,12 +476,21 @@ msgid "Number of test cases that failed."
 msgstr "Liczba nieudanych przypadków testowych."
 
 #, fuzzy
+msgid "Number of test cases that passed after retry."
+msgstr ""
+"Liczba przypadków testowych, które przeszły pomyślnie po ponownej próbie."
+
+#, fuzzy
 msgid "Number of times this test case has failed."
 msgstr "Liczba niepowodzeń tego testu."
 
 #, fuzzy
 msgid "Optimization Summary"
 msgstr "Podsumowanie optymalizacji"
+
+#, fuzzy
+msgid "Other"
+msgstr "Inne"
 
 #, fuzzy
 msgid "Overview"
@@ -329,6 +503,34 @@ msgstr "Zaliczone"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Przebiegłe próby"
+
+#, fuzzy
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "Odsetek niepewnych przebiegów testowych w ciągu ostatnich 30 dni."
+
+#, fuzzy
+msgid "Project"
+msgstr "Projekt"
+
+#, fuzzy
+msgid "Quarantine"
+msgstr "Kwarantanna"
+
+#, fuzzy
+msgid "Quarantined"
+msgstr "Kwarantanna"
+
+#, fuzzy
+msgid "Quarantined Tests"
+msgstr "Testy poddane kwarantannie"
+
+#, fuzzy
+msgid "Quarantined by"
+msgstr "Poddane kwarantannie przez"
+
+#, fuzzy
+msgid "Quarantined tests"
+msgstr "Testy poddane kwarantannie"
 
 #, fuzzy
 msgid "Ran at"
@@ -347,8 +549,16 @@ msgid "Remote"
 msgstr "Zdalny"
 
 #, fuzzy
+msgid "Run Details"
+msgstr "Szczegóły zadania"
+
+#, fuzzy
 msgid "Scheme"
 msgstr "Schemat"
+
+#, fuzzy
+msgid "Scheme:"
+msgstr "Schemat:"
 
 #, fuzzy
 msgid "Search..."
@@ -391,6 +601,10 @@ msgid "Selective testing: no data yet"
 msgstr "Testowanie wybiórcze: brak danych"
 
 #, fuzzy
+msgid "Signal"
+msgstr "Sygnał"
+
+#, fuzzy
 msgid "Skipped"
 msgstr "Pominięto"
 
@@ -405,6 +619,10 @@ msgstr "Sortuj według:"
 #, fuzzy
 msgid "Status"
 msgstr "Status"
+
+#, fuzzy
+msgid "Subtype"
+msgstr "Podtyp"
 
 #, fuzzy
 msgid ""
@@ -431,12 +649,28 @@ msgid "Test Case Runs"
 msgstr "Przebieg testów"
 
 #, fuzzy
+msgid "Test Case: %{name}"
+msgstr "Przykład testowy: %{name}"
+
+#, fuzzy
 msgid "Test Cases"
 msgstr "Przykłady testowe"
 
 #, fuzzy
+msgid "Test Class"
+msgstr "Klasa testowa"
+
+#, fuzzy
+msgid "Test Classes"
+msgstr "Klasy testowe"
+
+#, fuzzy
 msgid "Test Details"
 msgstr "Szczegóły testu"
+
+#, fuzzy
+msgid "Test History"
+msgstr "Historia testów"
 
 #, fuzzy
 msgid "Test Modules"
@@ -455,6 +689,10 @@ msgid "Test Runs"
 msgstr "Testy"
 
 #, fuzzy
+msgid "Test Suite"
+msgstr "Zestaw testów"
+
+#, fuzzy
 msgid "Test Suites"
 msgstr "Zestawy testowe"
 
@@ -464,6 +702,10 @@ msgstr "Przykład testowy"
 
 #, fuzzy
 msgid "Test case not found."
+msgstr "Nie znaleziono przypadku testowego."
+
+#, fuzzy
+msgid "Test case run not found."
 msgstr "Nie znaleziono przypadku testowego."
 
 #, fuzzy
@@ -481,6 +723,10 @@ msgstr ""
 #, fuzzy
 msgid "Test cases"
 msgstr "Przykłady testowe"
+
+#, fuzzy
+msgid "Test history"
+msgstr "Historia testów"
 
 #, fuzzy
 msgid "Test reliability"
@@ -513,12 +759,20 @@ msgid "Tests"
 msgstr "Testy"
 
 #, fuzzy
+msgid "Text File"
+msgstr "Plik tekstowy"
+
+#, fuzzy
 msgid "The average test run duration with individual percentile intervals."
 msgstr "Średni czas trwania testu z indywidualnymi przedziałami procentowymi."
 
 #, fuzzy
 msgid "The number of test runs that failed."
 msgstr "Liczba nieudanych przebiegów testowych."
+
+#, fuzzy
+msgid "The number of test runs with flaky tests."
+msgstr "Liczba przebiegów testowych z niestabilnymi testami."
 
 #, fuzzy
 msgid "The total number of test runs."
@@ -551,6 +805,10 @@ msgid "Try updating your search"
 msgstr "Spróbuj zaktualizować wyszukiwanie."
 
 #, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
+#, fuzzy
 msgid "Tuist version"
 msgstr "Wersja Tuist"
 
@@ -561,6 +819,18 @@ msgstr "Nieznane"
 #, fuzzy
 msgid "Unknown error"
 msgstr "Nieznany błąd"
+
+#, fuzzy
+msgid "Unmark as flaky"
+msgstr "Odznacz jako niestabilne"
+
+#, fuzzy
+msgid "Unmarked as flaky"
+msgstr "Oznaczone jako niestabilne"
+
+#, fuzzy
+msgid "Unquarantine"
+msgstr "Wycofaj z kwarantanny"
 
 #, fuzzy
 msgid "View more"
@@ -611,6 +881,10 @@ msgid "since last month"
 msgstr "od zeszłego miesiąca"
 
 #, fuzzy
+msgid "since last period"
+msgstr "od ostatniego kropki"
+
+#, fuzzy
 msgid "since last week"
 msgstr "od zeszłego tygodnia"
 
@@ -619,286 +893,12 @@ msgid "since last year"
 msgstr "od zeszłego roku"
 
 #, fuzzy
-msgid "•"
-msgstr "•"
-
-#, fuzzy
-msgid "Apply"
-msgstr "Zastosuj"
-
-#, fuzzy
-msgid "Cancel"
-msgstr "Anuluj"
-
-#, fuzzy
-msgid "Custom"
-msgstr "Niestandardowe"
-
-#, fuzzy
-msgid "Last 12 months"
-msgstr "Ostatnie 12 miesięcy"
-
-#, fuzzy
-msgid "Last 24 hours"
-msgstr "Ostatnie 24 godziny"
-
-#, fuzzy
-msgid "Last 30 days"
-msgstr "Ostatnie 30 dni"
-
-#, fuzzy
-msgid "Last 7 days"
-msgstr "Ostatnie 7 dni"
-
-#, fuzzy
-msgid "since last period"
-msgstr "od ostatniego kropki"
-
-#, fuzzy
 msgid "since yesterday"
 msgstr "od wczoraj"
 
 #, fuzzy
-msgid "Flakiness rate"
-msgstr "Wskaźnik niestabilności"
-
-#, fuzzy
-msgid "Flaky"
-msgstr "Flaky"
-
-#, fuzzy
-msgid "Flaky Runs"
-msgstr "Nieregularne działania"
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "Niesprawne testy"
-
-#, fuzzy
-msgid "Flaky runs"
-msgstr "Nieregularne działania"
-
-#, fuzzy
-msgid "Flaky test cases"
-msgstr "Niesprawne przypadki testowe"
-
-#, fuzzy
-msgid "Flaky test runs"
-msgstr "Nierówne przebiegi testów"
-
-#, fuzzy
-msgid "Last flaky run"
-msgstr "Ostatni niestabilny przebieg"
-
-#, fuzzy
-msgid "Mark as flaky"
-msgstr "Oznacz jako niestabilne"
-
-#, fuzzy
-msgid "Most occurring flaky tests"
-msgstr "Najczęściej występujące niestabilne testy"
-
-#, fuzzy
-msgid "No flaky tests"
-msgstr "Żadnych niepewnych testów"
-
-#, fuzzy
-msgid "Number of test cases that passed after retry."
-msgstr ""
-"Liczba przypadków testowych, które przeszły pomyślnie po ponownej próbie."
-
-#, fuzzy
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "Odsetek niepewnych przebiegów testowych w ciągu ostatnich 30 dni."
-
-#, fuzzy
-msgid "The number of test runs with flaky tests."
-msgstr "Liczba przebiegów testowych z niestabilnymi testami."
-
-#, fuzzy
-msgid "Unmark as flaky"
-msgstr "Odznacz jako niestabilne"
-
-#, fuzzy
-msgid "New"
-msgstr "Nowy"
-
-#, fuzzy
-msgid "Quarantine"
-msgstr "Kwarantanna"
-
-#, fuzzy
-msgid "Quarantined"
-msgstr "Kwarantanna"
-
-#, fuzzy
-msgid "Unquarantine"
-msgstr "Wycofaj z kwarantanny"
-
-#, fuzzy
-msgid "Module Cache"
-msgstr "Buforowanie modułu"
-
-#, fuzzy
-msgid "Automatically by Tuist"
-msgstr "Automatycznie przez Tuist"
-
-#, fuzzy
-msgid "Event"
-msgstr "Wydarzenie"
-
-#, fuzzy
-msgid "Events will appear here when the test case status changes."
-msgstr ""
-"Wydarzenia pojawią się tutaj, gdy status przypadku testowego ulegnie zmianie."
-
-#, fuzzy
-msgid "First run of this test"
-msgstr "Pierwsze uruchomienie tego testu"
-
-#, fuzzy
-msgid "Load more"
-msgstr "Załaduj więcej"
-
-#, fuzzy
-msgid "Manually by @%{name}"
-msgstr "Ręcznie przez @%{name}"
-
-#, fuzzy
-msgid "Marked as flaky"
-msgstr "Oznaczone jako niestabilne"
-
-#, fuzzy
-msgid "Marked as quarantined"
-msgstr "Oznaczone jako poddane kwarantannie"
-
-#, fuzzy
-msgid "Marked as unquarantined"
-msgstr "Oznaczone jako niepoddane kwarantannie"
-
-#, fuzzy
-msgid "No history available"
-msgstr "Brak dostępnej historii"
-
-#, fuzzy
-msgid "Test History"
-msgstr "Historia testów"
-
-#, fuzzy
-msgid "Test history"
-msgstr "Historia testów"
-
-#, fuzzy
-msgid "Unmarked as flaky"
-msgstr "Oznaczone jako niestabilne"
-
-#, fuzzy
-msgid "Last run"
-msgstr "Ostatnie uruchomienie"
-
-#, fuzzy
-msgid "No quarantined tests"
-msgstr "Brak testów poddanych kwarantannie"
-
-#, fuzzy
-msgid "Quarantined Tests"
-msgstr "Testy poddane kwarantannie"
-
-#, fuzzy
-msgid "Quarantined by"
-msgstr "Poddane kwarantannie przez"
-
-#, fuzzy
-msgid "Quarantined tests"
-msgstr "Testy poddane kwarantannie"
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-#, fuzzy
-msgid "Build: %{name}"
-msgstr "Budowa: %{name}"
-
-#, fuzzy
-msgid "Class"
-msgstr "Klasa"
-
-#, fuzzy
-msgid "Crash Report"
-msgstr "Raport o awarii"
-
-#, fuzzy
-msgid "Exception"
-msgstr "Wyjątek"
-
-#, fuzzy
-msgid "Project"
-msgstr "Projekt"
-
-#, fuzzy
-msgid "Signal"
-msgstr "Sygnał"
-
-#, fuzzy
-msgid "Subtype"
-msgstr "Podtyp"
-
-#, fuzzy
-msgid "Test Class"
-msgstr "Klasa testowa"
-
-#, fuzzy
-msgid "Test Classes"
-msgstr "Klasy testowe"
-
-#, fuzzy
-msgid "Test Suite"
-msgstr "Zestaw testów"
-
-#, fuzzy
-msgid "Scheme:"
-msgstr "Schemat:"
-
-#, fuzzy
-msgid "Run Details"
-msgstr "Szczegóły zadania"
-
-#, fuzzy
-msgid "Test case run not found."
-msgstr "Nie znaleziono przypadku testowego."
-
-#, fuzzy
-msgid "Test Case: %{name}"
-msgstr "Przykład testowy: %{name}"
-
-#, fuzzy
-msgid "Attachments"
-msgstr "Załączniki"
-
-#, fuzzy
-msgid "File"
-msgstr "Plik"
-
-#, fuzzy
-msgid "Image"
-msgstr "Obraz"
-
-#, fuzzy
-msgid "Loading..."
-msgstr "Ładowanie..."
-
-#, fuzzy
-msgid "Text File"
-msgstr "Plik tekstowy"
-
-#, fuzzy
-msgid "Log File"
-msgstr "Plik dziennika"
-
-#, fuzzy
-msgid "Other"
-msgstr "Inne"
+msgid "•"
+msgstr "•"
 
 #, fuzzy
 #~ msgid "Test suite"

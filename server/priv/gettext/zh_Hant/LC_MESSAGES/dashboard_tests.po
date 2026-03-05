@@ -49,6 +49,18 @@ msgid "Any"
 msgstr "任何"
 
 #, fuzzy
+msgid "Apply"
+msgstr "套用"
+
+#, fuzzy
+msgid "Attachments"
+msgstr "附件"
+
+#, fuzzy
+msgid "Automatically by Tuist"
+msgstr "由 Tuist 自動生成"
+
+#, fuzzy
 msgid "Average"
 msgstr "平均"
 
@@ -90,6 +102,10 @@ msgid "Branch"
 msgstr "分支"
 
 #, fuzzy
+msgid "Build: %{name}"
+msgstr "建置：%{name}"
+
+#, fuzzy
 msgid "Build: %{scheme}"
 msgstr "建置：%{scheme}"
 
@@ -100,6 +116,10 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "取消"
 
 #, fuzzy
 msgid "Caught error"
@@ -118,6 +138,10 @@ msgid "Caught error: %{message}"
 msgstr "偵測到錯誤：%{message}"
 
 #, fuzzy
+msgid "Class"
+msgstr "類別"
+
+#, fuzzy
 msgid "Command"
 msgstr "指令"
 
@@ -130,6 +154,14 @@ msgid "Commit"
 msgstr "提交"
 
 #, fuzzy
+msgid "Crash Report"
+msgstr "崩潰報告"
+
+#, fuzzy
+msgid "Custom"
+msgstr "客製化"
+
+#, fuzzy
 msgid "Download result"
 msgstr "下載結果"
 
@@ -140,6 +172,18 @@ msgstr "持續時間"
 #, fuzzy
 msgid "Environment:"
 msgstr "環境："
+
+#, fuzzy
+msgid "Event"
+msgstr "事件"
+
+#, fuzzy
+msgid "Events will appear here when the test case status changes."
+msgstr "當測試案例狀態變更時，事件將顯示於此處。"
+
+#, fuzzy
+msgid "Exception"
+msgstr "例外情況"
 
 #, fuzzy
 msgid "Expectation failed"
@@ -201,8 +245,44 @@ msgid "Failures"
 msgstr "失敗"
 
 #, fuzzy
+msgid "File"
+msgstr "檔案"
+
+#, fuzzy
 msgid "Filter"
 msgstr "過濾器"
+
+#, fuzzy
+msgid "First run of this test"
+msgstr "首次執行此測試"
+
+#, fuzzy
+msgid "Flakiness rate"
+msgstr "不穩定率"
+
+#, fuzzy
+msgid "Flaky"
+msgstr "Flaky"
+
+#, fuzzy
+msgid "Flaky Runs"
+msgstr "不穩定運行"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "不穩定測試"
+
+#, fuzzy
+msgid "Flaky runs"
+msgstr "不穩定運行"
+
+#, fuzzy
+msgid "Flaky test cases"
+msgstr "不穩定的測試案例"
+
+#, fuzzy
+msgid "Flaky test runs"
+msgstr "不穩定的測試執行"
 
 #, fuzzy
 msgid "Hash"
@@ -211,6 +291,10 @@ msgstr "Hash"
 #, fuzzy
 msgid "Hit"
 msgstr "擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊"
+
+#, fuzzy
+msgid "Image"
+msgstr "圖片"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -229,12 +313,36 @@ msgid "Issue recorded: %{message}"
 msgstr "問題記錄：%{message}"
 
 #, fuzzy
+msgid "Last 12 months"
+msgstr "過去十二個月"
+
+#, fuzzy
+msgid "Last 24 hours"
+msgstr "過去24小時"
+
+#, fuzzy
+msgid "Last 30 days"
+msgstr "過去30天"
+
+#, fuzzy
+msgid "Last 7 days"
+msgstr "過去7天"
+
+#, fuzzy
 msgid "Last Status"
 msgstr "最後狀態"
 
 #, fuzzy
+msgid "Last flaky run"
+msgstr "最後一次不穩定運行"
+
+#, fuzzy
 msgid "Last ran at"
 msgstr "最後執行於"
+
+#, fuzzy
+msgid "Last run"
+msgstr "最後執行"
 
 #, fuzzy
 msgid "Last run duration"
@@ -245,12 +353,44 @@ msgid "Last status"
 msgstr "最後狀態"
 
 #, fuzzy
+msgid "Load more"
+msgstr "載入更多"
+
+#, fuzzy
+msgid "Loading..."
+msgstr "載入中..."
+
+#, fuzzy
 msgid "Local"
 msgstr "本地化"
 
 #, fuzzy
+msgid "Log File"
+msgstr "日誌檔案"
+
+#, fuzzy
 msgid "Mac device"
 msgstr "Mac裝置"
+
+#, fuzzy
+msgid "Manually by @%{name}"
+msgstr "手動由 @%{name} 處理"
+
+#, fuzzy
+msgid "Mark as flaky"
+msgstr "標記為不穩定"
+
+#, fuzzy
+msgid "Marked as flaky"
+msgstr "標記為不穩定"
+
+#, fuzzy
+msgid "Marked as quarantined"
+msgstr "標記為隔離狀態"
+
+#, fuzzy
+msgid "Marked as unquarantined"
+msgstr "標記為解除隔離"
 
 #, fuzzy
 msgid "Missed"
@@ -261,8 +401,20 @@ msgid "Module"
 msgstr "模組"
 
 #, fuzzy
+msgid "Module Cache"
+msgstr "模組快取"
+
+#, fuzzy
 msgid "Modules"
 msgstr "模組"
+
+#, fuzzy
+msgid "Most occurring flaky tests"
+msgstr "最常出現的測試異常"
+
+#, fuzzy
+msgid "New"
+msgstr "新"
 
 #, fuzzy
 msgid "No data"
@@ -277,8 +429,20 @@ msgid "No failures detected"
 msgstr "未偵測到任何錯誤"
 
 #, fuzzy
+msgid "No flaky tests"
+msgstr "無不穩定的測試"
+
+#, fuzzy
+msgid "No history available"
+msgstr "無可用歷史紀錄"
+
+#, fuzzy
 msgid "No modules found"
 msgstr "未找到任何模組"
+
+#, fuzzy
+msgid "No quarantined tests"
+msgstr "無隔離測試"
 
 #, fuzzy
 msgid "No test case runs found"
@@ -305,12 +469,20 @@ msgid "Number of test cases that failed."
 msgstr "失敗的測試案例數量。"
 
 #, fuzzy
+msgid "Number of test cases that passed after retry."
+msgstr "重試後通過的測試案例數量。"
+
+#, fuzzy
 msgid "Number of times this test case has failed."
 msgstr "此測試案例失敗的次數。"
 
 #, fuzzy
 msgid "Optimization Summary"
 msgstr "優化摘要"
+
+#, fuzzy
+msgid "Other"
+msgstr "其他"
 
 #, fuzzy
 msgid "Overview"
@@ -323,6 +495,34 @@ msgstr "通過"
 #, fuzzy
 msgid "Passed runs"
 msgstr "通過的執行次數"
+
+#, fuzzy
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "過去30天內出現不穩定測試執行次數的百分比。"
+
+#, fuzzy
+msgid "Project"
+msgstr "專案"
+
+#, fuzzy
+msgid "Quarantine"
+msgstr "隔離區"
+
+#, fuzzy
+msgid "Quarantined"
+msgstr "隔離區"
+
+#, fuzzy
+msgid "Quarantined Tests"
+msgstr "隔離測試"
+
+#, fuzzy
+msgid "Quarantined by"
+msgstr "由隔離區"
+
+#, fuzzy
+msgid "Quarantined tests"
+msgstr "隔離測試"
 
 #, fuzzy
 msgid "Ran at"
@@ -341,8 +541,16 @@ msgid "Remote"
 msgstr "遠端"
 
 #, fuzzy
+msgid "Run Details"
+msgstr "執行詳情"
+
+#, fuzzy
 msgid "Scheme"
 msgstr "方案"
+
+#, fuzzy
+msgid "Scheme:"
+msgstr "方案："
 
 #, fuzzy
 msgid "Search..."
@@ -381,6 +589,10 @@ msgid "Selective testing: no data yet"
 msgstr "選擇性測試：尚無數據"
 
 #, fuzzy
+msgid "Signal"
+msgstr "Signal"
+
+#, fuzzy
 msgid "Skipped"
 msgstr "跳過"
 
@@ -395,6 +607,10 @@ msgstr "排序依據："
 #, fuzzy
 msgid "Status"
 msgstr "狀態"
+
+#, fuzzy
+msgid "Subtype"
+msgstr "子類型"
 
 #, fuzzy
 msgid ""
@@ -421,12 +637,28 @@ msgid "Test Case Runs"
 msgstr "測試案例執行"
 
 #, fuzzy
+msgid "Test Case: %{name}"
+msgstr "測試案例：%{name}"
+
+#, fuzzy
 msgid "Test Cases"
 msgstr "測試案例"
 
 #, fuzzy
+msgid "Test Class"
+msgstr "測試類別"
+
+#, fuzzy
+msgid "Test Classes"
+msgstr "測試類別"
+
+#, fuzzy
 msgid "Test Details"
 msgstr "測試詳情"
+
+#, fuzzy
+msgid "Test History"
+msgstr "測試歷史"
 
 #, fuzzy
 msgid "Test Modules"
@@ -445,6 +677,10 @@ msgid "Test Runs"
 msgstr "測試執行"
 
 #, fuzzy
+msgid "Test Suite"
+msgstr "測試套件"
+
+#, fuzzy
 msgid "Test Suites"
 msgstr "測試套件"
 
@@ -455,6 +691,10 @@ msgstr "測試案例"
 #, fuzzy
 msgid "Test case not found."
 msgstr "測試案例未找到。"
+
+#, fuzzy
+msgid "Test case run not found."
+msgstr "測試案例執行未找到。"
 
 #, fuzzy
 msgid "Test case runs"
@@ -469,6 +709,10 @@ msgstr "測試案例執行次數代表特定期間內所有獨立測試案例的
 #, fuzzy
 msgid "Test cases"
 msgstr "測試案例"
+
+#, fuzzy
+msgid "Test history"
+msgstr "測試歷史"
 
 #, fuzzy
 msgid "Test reliability"
@@ -500,12 +744,20 @@ msgid "Tests"
 msgstr "測試"
 
 #, fuzzy
+msgid "Text File"
+msgstr "文字檔案"
+
+#, fuzzy
 msgid "The average test run duration with individual percentile intervals."
 msgstr "平均測試執行時間及其各百分位區間。"
 
 #, fuzzy
 msgid "The number of test runs that failed."
 msgstr "失敗的測試執行次數。"
+
+#, fuzzy
+msgid "The number of test runs with flaky tests."
+msgstr "包含不穩定測試的測試執行次數。"
 
 #, fuzzy
 msgid "The total number of test runs."
@@ -536,6 +788,10 @@ msgid "Try updating your search"
 msgstr "嘗試更新您的搜尋"
 
 #, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
+#, fuzzy
 msgid "Tuist version"
 msgstr "Tuist 版本"
 
@@ -546,6 +802,18 @@ msgstr "未知"
 #, fuzzy
 msgid "Unknown error"
 msgstr "未知錯誤"
+
+#, fuzzy
+msgid "Unmark as flaky"
+msgstr "取消標記為不穩定"
+
+#, fuzzy
+msgid "Unmarked as flaky"
+msgstr "取消標記為不穩定"
+
+#, fuzzy
+msgid "Unquarantine"
+msgstr "解除隔離"
 
 #, fuzzy
 msgid "View more"
@@ -596,6 +864,10 @@ msgid "since last month"
 msgstr "自上個月以來"
 
 #, fuzzy
+msgid "since last period"
+msgstr "自上次句點以來"
+
+#, fuzzy
 msgid "since last week"
 msgstr "自上週以來"
 
@@ -604,284 +876,12 @@ msgid "since last year"
 msgstr "自去年以來"
 
 #, fuzzy
-msgid "•"
-msgstr "•"
-
-#, fuzzy
-msgid "Apply"
-msgstr "套用"
-
-#, fuzzy
-msgid "Cancel"
-msgstr "取消"
-
-#, fuzzy
-msgid "Custom"
-msgstr "客製化"
-
-#, fuzzy
-msgid "Last 12 months"
-msgstr "過去十二個月"
-
-#, fuzzy
-msgid "Last 24 hours"
-msgstr "過去24小時"
-
-#, fuzzy
-msgid "Last 30 days"
-msgstr "過去30天"
-
-#, fuzzy
-msgid "Last 7 days"
-msgstr "過去7天"
-
-#, fuzzy
-msgid "since last period"
-msgstr "自上次句點以來"
-
-#, fuzzy
 msgid "since yesterday"
 msgstr "自昨日起"
 
 #, fuzzy
-msgid "Flakiness rate"
-msgstr "不穩定率"
-
-#, fuzzy
-msgid "Flaky"
-msgstr "Flaky"
-
-#, fuzzy
-msgid "Flaky Runs"
-msgstr "不穩定運行"
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "不穩定測試"
-
-#, fuzzy
-msgid "Flaky runs"
-msgstr "不穩定運行"
-
-#, fuzzy
-msgid "Flaky test cases"
-msgstr "不穩定的測試案例"
-
-#, fuzzy
-msgid "Flaky test runs"
-msgstr "不穩定的測試執行"
-
-#, fuzzy
-msgid "Last flaky run"
-msgstr "最後一次不穩定運行"
-
-#, fuzzy
-msgid "Mark as flaky"
-msgstr "標記為不穩定"
-
-#, fuzzy
-msgid "Most occurring flaky tests"
-msgstr "最常出現的測試異常"
-
-#, fuzzy
-msgid "No flaky tests"
-msgstr "無不穩定的測試"
-
-#, fuzzy
-msgid "Number of test cases that passed after retry."
-msgstr "重試後通過的測試案例數量。"
-
-#, fuzzy
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "過去30天內出現不穩定測試執行次數的百分比。"
-
-#, fuzzy
-msgid "The number of test runs with flaky tests."
-msgstr "包含不穩定測試的測試執行次數。"
-
-#, fuzzy
-msgid "Unmark as flaky"
-msgstr "取消標記為不穩定"
-
-#, fuzzy
-msgid "New"
-msgstr "新"
-
-#, fuzzy
-msgid "Quarantine"
-msgstr "隔離區"
-
-#, fuzzy
-msgid "Quarantined"
-msgstr "隔離區"
-
-#, fuzzy
-msgid "Unquarantine"
-msgstr "解除隔離"
-
-#, fuzzy
-msgid "Module Cache"
-msgstr "模組快取"
-
-#, fuzzy
-msgid "Automatically by Tuist"
-msgstr "由 Tuist 自動生成"
-
-#, fuzzy
-msgid "Event"
-msgstr "事件"
-
-#, fuzzy
-msgid "Events will appear here when the test case status changes."
-msgstr "當測試案例狀態變更時，事件將顯示於此處。"
-
-#, fuzzy
-msgid "First run of this test"
-msgstr "首次執行此測試"
-
-#, fuzzy
-msgid "Load more"
-msgstr "載入更多"
-
-#, fuzzy
-msgid "Manually by @%{name}"
-msgstr "手動由 @%{name} 處理"
-
-#, fuzzy
-msgid "Marked as flaky"
-msgstr "標記為不穩定"
-
-#, fuzzy
-msgid "Marked as quarantined"
-msgstr "標記為隔離狀態"
-
-#, fuzzy
-msgid "Marked as unquarantined"
-msgstr "標記為解除隔離"
-
-#, fuzzy
-msgid "No history available"
-msgstr "無可用歷史紀錄"
-
-#, fuzzy
-msgid "Test History"
-msgstr "測試歷史"
-
-#, fuzzy
-msgid "Test history"
-msgstr "測試歷史"
-
-#, fuzzy
-msgid "Unmarked as flaky"
-msgstr "取消標記為不穩定"
-
-#, fuzzy
-msgid "Last run"
-msgstr "最後執行"
-
-#, fuzzy
-msgid "No quarantined tests"
-msgstr "無隔離測試"
-
-#, fuzzy
-msgid "Quarantined Tests"
-msgstr "隔離測試"
-
-#, fuzzy
-msgid "Quarantined by"
-msgstr "由隔離區"
-
-#, fuzzy
-msgid "Quarantined tests"
-msgstr "隔離測試"
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-#, fuzzy
-msgid "Build: %{name}"
-msgstr "建置：%{name}"
-
-#, fuzzy
-msgid "Class"
-msgstr "類別"
-
-#, fuzzy
-msgid "Crash Report"
-msgstr "崩潰報告"
-
-#, fuzzy
-msgid "Exception"
-msgstr "例外情況"
-
-#, fuzzy
-msgid "Project"
-msgstr "專案"
-
-#, fuzzy
-msgid "Signal"
-msgstr "Signal"
-
-#, fuzzy
-msgid "Subtype"
-msgstr "子類型"
-
-#, fuzzy
-msgid "Test Class"
-msgstr "測試類別"
-
-#, fuzzy
-msgid "Test Classes"
-msgstr "測試類別"
-
-#, fuzzy
-msgid "Test Suite"
-msgstr "測試套件"
-
-#, fuzzy
-msgid "Scheme:"
-msgstr "方案："
-
-#, fuzzy
-msgid "Run Details"
-msgstr "執行詳情"
-
-#, fuzzy
-msgid "Test case run not found."
-msgstr "測試案例執行未找到。"
-
-#, fuzzy
-msgid "Test Case: %{name}"
-msgstr "測試案例：%{name}"
-
-#, fuzzy
-msgid "Attachments"
-msgstr "附件"
-
-#, fuzzy
-msgid "File"
-msgstr "檔案"
-
-#, fuzzy
-msgid "Image"
-msgstr "圖片"
-
-#, fuzzy
-msgid "Loading..."
-msgstr "載入中..."
-
-#, fuzzy
-msgid "Text File"
-msgstr "文字檔案"
-
-#, fuzzy
-msgid "Log File"
-msgstr "日誌檔案"
-
-#, fuzzy
-msgid "Other"
-msgstr "其他"
+msgid "•"
+msgstr "•"
 
 #, fuzzy
 #~ msgid "Test suite"

@@ -49,6 +49,18 @@ msgid "Any"
 msgstr "Herhangi bir"
 
 #, fuzzy
+msgid "Apply"
+msgstr "Uygula"
+
+#, fuzzy
+msgid "Attachments"
+msgstr "Ekler"
+
+#, fuzzy
+msgid "Automatically by Tuist"
+msgstr "Tuist tarafından otomatik olarak"
+
+#, fuzzy
 msgid "Average"
 msgstr "Ortalama"
 
@@ -91,6 +103,10 @@ msgid "Branch"
 msgstr "Dal"
 
 #, fuzzy
+msgid "Build: %{name}"
+msgstr "Derleme: %{name}"
+
+#, fuzzy
 msgid "Build: %{scheme}"
 msgstr "Oluşturma: %{scheme}"
 
@@ -101,6 +117,10 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Çalıştır"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "İptal"
 
 #, fuzzy
 msgid "Caught error"
@@ -119,6 +139,10 @@ msgid "Caught error: %{message}"
 msgstr "Hata yakalandı: %{message}"
 
 #, fuzzy
+msgid "Class"
+msgstr "Sınıf"
+
+#, fuzzy
 msgid "Command"
 msgstr "Komutlar"
 
@@ -131,6 +155,14 @@ msgid "Commit"
 msgstr "Kaydet"
 
 #, fuzzy
+msgid "Crash Report"
+msgstr "Çökme Raporu"
+
+#, fuzzy
+msgid "Custom"
+msgstr "Özel"
+
+#, fuzzy
 msgid "Download result"
 msgstr "Sonucu indirin"
 
@@ -141,6 +173,18 @@ msgstr "Süre"
 #, fuzzy
 msgid "Environment:"
 msgstr "Ortam:"
+
+#, fuzzy
+msgid "Event"
+msgstr "Etkinlik"
+
+#, fuzzy
+msgid "Events will appear here when the test case status changes."
+msgstr "Test durumu değiştiğinde olaylar burada görünecektir."
+
+#, fuzzy
+msgid "Exception"
+msgstr "İstisna"
 
 #, fuzzy
 msgid "Expectation failed"
@@ -205,8 +249,44 @@ msgid "Failures"
 msgstr "Hatalar"
 
 #, fuzzy
+msgid "File"
+msgstr "Dosya"
+
+#, fuzzy
 msgid "Filter"
 msgstr "Filtre"
+
+#, fuzzy
+msgid "First run of this test"
+msgstr "Bu testin ilk çalıştırılması"
+
+#, fuzzy
+msgid "Flakiness rate"
+msgstr "Kararsızlık oranı"
+
+#, fuzzy
+msgid "Flaky"
+msgstr "Flaky"
+
+#, fuzzy
+msgid "Flaky Runs"
+msgstr "Düzensiz Çalışmalar"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "Kararsız Testler"
+
+#, fuzzy
+msgid "Flaky runs"
+msgstr "Düzensiz çalışır"
+
+#, fuzzy
+msgid "Flaky test cases"
+msgstr "Kararsız test durumları"
+
+#, fuzzy
+msgid "Flaky test runs"
+msgstr "Kararsız test çalıştırmaları"
 
 #, fuzzy
 msgid "Hash"
@@ -215,6 +295,10 @@ msgstr "Hash"
 #, fuzzy
 msgid "Hit"
 msgstr "Hit"
+
+#, fuzzy
+msgid "Image"
+msgstr "Resim"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -233,12 +317,36 @@ msgid "Issue recorded: %{message}"
 msgstr "Sorun kaydedildi: %{message}"
 
 #, fuzzy
+msgid "Last 12 months"
+msgstr "Son 12 ay"
+
+#, fuzzy
+msgid "Last 24 hours"
+msgstr "Son 24 saat"
+
+#, fuzzy
+msgid "Last 30 days"
+msgstr "Son 30 gün"
+
+#, fuzzy
+msgid "Last 7 days"
+msgstr "Son 7 gün"
+
+#, fuzzy
 msgid "Last Status"
 msgstr "Son Durum"
 
 #, fuzzy
+msgid "Last flaky run"
+msgstr "Son kararsız çalıştırma"
+
+#, fuzzy
 msgid "Last ran at"
 msgstr "Son çalıştırma tarihi"
+
+#, fuzzy
+msgid "Last run"
+msgstr "Son çalıştırma"
 
 #, fuzzy
 msgid "Last run duration"
@@ -249,12 +357,44 @@ msgid "Last status"
 msgstr "Son durum"
 
 #, fuzzy
+msgid "Load more"
+msgstr "Daha fazla yükle"
+
+#, fuzzy
+msgid "Loading..."
+msgstr "Yükleniyor..."
+
+#, fuzzy
 msgid "Local"
 msgstr "Yerel"
 
 #, fuzzy
+msgid "Log File"
+msgstr "Günlük Dosyası"
+
+#, fuzzy
 msgid "Mac device"
 msgstr "Mac cihaz"
+
+#, fuzzy
+msgid "Manually by @%{name}"
+msgstr "@%{name} tarafından manuel olarak"
+
+#, fuzzy
+msgid "Mark as flaky"
+msgstr "Kararsız olarak işaretleyin"
+
+#, fuzzy
+msgid "Marked as flaky"
+msgstr "Kararsız olarak işaretlendi"
+
+#, fuzzy
+msgid "Marked as quarantined"
+msgstr "Karantina olarak işaretlendi"
+
+#, fuzzy
+msgid "Marked as unquarantined"
+msgstr "Karantinadan çıkarılmış olarak işaretlendi"
 
 #, fuzzy
 msgid "Missed"
@@ -265,8 +405,20 @@ msgid "Module"
 msgstr "Modül"
 
 #, fuzzy
+msgid "Module Cache"
+msgstr "Modül önbelleği"
+
+#, fuzzy
 msgid "Modules"
 msgstr "Modüller"
+
+#, fuzzy
+msgid "Most occurring flaky tests"
+msgstr "En sık görülen hatalı testler"
+
+#, fuzzy
+msgid "New"
+msgstr "Yeni"
 
 #, fuzzy
 msgid "No data"
@@ -281,8 +433,20 @@ msgid "No failures detected"
 msgstr "Hata tespit edilmedi"
 
 #, fuzzy
+msgid "No flaky tests"
+msgstr "Güvenilmez testler yapmayın"
+
+#, fuzzy
+msgid "No history available"
+msgstr "Geçmiş mevcut değil"
+
+#, fuzzy
 msgid "No modules found"
 msgstr "Modül bulunamadı"
+
+#, fuzzy
+msgid "No quarantined tests"
+msgstr "Karantinaya alınmış test yok"
 
 #, fuzzy
 msgid "No test case runs found"
@@ -309,12 +473,20 @@ msgid "Number of test cases that failed."
 msgstr "Başarısız olan test vakalarının sayısı."
 
 #, fuzzy
+msgid "Number of test cases that passed after retry."
+msgstr "Yeniden denemeden sonra geçen test vakalarının sayısı."
+
+#, fuzzy
 msgid "Number of times this test case has failed."
 msgstr "Bu test senaryosunun başarısız olduğu sayı."
 
 #, fuzzy
 msgid "Optimization Summary"
 msgstr "Optimizasyon Özeti"
+
+#, fuzzy
+msgid "Other"
+msgstr "Diğer"
 
 #, fuzzy
 msgid "Overview"
@@ -327,6 +499,34 @@ msgstr "Geçti"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Geçen denemeler"
+
+#, fuzzy
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "Son 30 gün içinde hatalı çalışan testlerin yüzdesi."
+
+#, fuzzy
+msgid "Project"
+msgstr "Proje"
+
+#, fuzzy
+msgid "Quarantine"
+msgstr "Karantina"
+
+#, fuzzy
+msgid "Quarantined"
+msgstr "Karantinaya alınmış"
+
+#, fuzzy
+msgid "Quarantined Tests"
+msgstr "Karantinaya Alınan Testler"
+
+#, fuzzy
+msgid "Quarantined by"
+msgstr "Karantinaya alınanlar"
+
+#, fuzzy
+msgid "Quarantined tests"
+msgstr "Karantinaya alınan testler"
 
 #, fuzzy
 msgid "Ran at"
@@ -345,8 +545,16 @@ msgid "Remote"
 msgstr "Uzaktan"
 
 #, fuzzy
+msgid "Run Details"
+msgstr "Çalıştırma Ayrıntıları"
+
+#, fuzzy
 msgid "Scheme"
 msgstr "Şema"
+
+#, fuzzy
+msgid "Scheme:"
+msgstr "Şema:"
 
 #, fuzzy
 msgid "Search..."
@@ -389,6 +597,10 @@ msgid "Selective testing: no data yet"
 msgstr "Seçmeli test: henüz veri yok"
 
 #, fuzzy
+msgid "Signal"
+msgstr "Sinyal"
+
+#, fuzzy
 msgid "Skipped"
 msgstr "Atlandı"
 
@@ -403,6 +615,10 @@ msgstr "Sıralama:"
 #, fuzzy
 msgid "Status"
 msgstr "Durum"
+
+#, fuzzy
+msgid "Subtype"
+msgstr "Alt tür"
 
 #, fuzzy
 msgid ""
@@ -429,12 +645,28 @@ msgid "Test Case Runs"
 msgstr "Test Durumu Çalıştırmaları"
 
 #, fuzzy
+msgid "Test Case: %{name}"
+msgstr "Test Örneği: %{name}"
+
+#, fuzzy
 msgid "Test Cases"
 msgstr "Test Durumları"
 
 #, fuzzy
+msgid "Test Class"
+msgstr "Test Sınıfı"
+
+#, fuzzy
+msgid "Test Classes"
+msgstr "Test Sınıfları"
+
+#, fuzzy
 msgid "Test Details"
 msgstr "Test Detayları"
+
+#, fuzzy
+msgid "Test History"
+msgstr "Test Geçmişi"
 
 #, fuzzy
 msgid "Test Modules"
@@ -453,6 +685,10 @@ msgid "Test Runs"
 msgstr "Test Çalıştırmaları"
 
 #, fuzzy
+msgid "Test Suite"
+msgstr "Test Seti"
+
+#, fuzzy
 msgid "Test Suites"
 msgstr "Test Süitleri"
 
@@ -463,6 +699,10 @@ msgstr "Test örneği"
 #, fuzzy
 msgid "Test case not found."
 msgstr "Test örneği bulunamadı."
+
+#, fuzzy
+msgid "Test case run not found."
+msgstr "Test durumu çalıştırması bulunamadı."
 
 #, fuzzy
 msgid "Test case runs"
@@ -479,6 +719,10 @@ msgstr ""
 #, fuzzy
 msgid "Test cases"
 msgstr "Test örnekleri"
+
+#, fuzzy
+msgid "Test history"
+msgstr "Test geçmişi"
 
 #, fuzzy
 msgid "Test reliability"
@@ -511,12 +755,20 @@ msgid "Tests"
 msgstr "Testler"
 
 #, fuzzy
+msgid "Text File"
+msgstr "Metin Dosyası"
+
+#, fuzzy
 msgid "The average test run duration with individual percentile intervals."
 msgstr "Bireysel yüzdelik aralıklarla ortalama test süresi."
 
 #, fuzzy
 msgid "The number of test runs that failed."
 msgstr "Başarısız olan test çalıştırma sayısı."
+
+#, fuzzy
+msgid "The number of test runs with flaky tests."
+msgstr "Kararsız testlerle yapılan test çalıştırma sayısı."
 
 #, fuzzy
 msgid "The total number of test runs."
@@ -548,6 +800,10 @@ msgid "Try updating your search"
 msgstr "Aramanızı güncellemeyi deneyin."
 
 #, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
+#, fuzzy
 msgid "Tuist version"
 msgstr "Tuist sürümü"
 
@@ -558,6 +814,18 @@ msgstr "Bilinmiyor"
 #, fuzzy
 msgid "Unknown error"
 msgstr "Bilinmeyen hata"
+
+#, fuzzy
+msgid "Unmark as flaky"
+msgstr "Kararsız olarak işaretlemeyi kaldır"
+
+#, fuzzy
+msgid "Unmarked as flaky"
+msgstr "Kararsız olarak işaretlenmemiş"
+
+#, fuzzy
+msgid "Unquarantine"
+msgstr "Karantinadan Çıkar"
 
 #, fuzzy
 msgid "View more"
@@ -608,6 +876,10 @@ msgid "since last month"
 msgstr "geçen aydan beri"
 
 #, fuzzy
+msgid "since last period"
+msgstr "son nokta"
+
+#, fuzzy
 msgid "since last week"
 msgstr "geçen haftadan beri"
 
@@ -616,284 +888,12 @@ msgid "since last year"
 msgstr "geçen yıldan beri"
 
 #, fuzzy
-msgid "•"
-msgstr "•"
-
-#, fuzzy
-msgid "Apply"
-msgstr "Uygula"
-
-#, fuzzy
-msgid "Cancel"
-msgstr "İptal"
-
-#, fuzzy
-msgid "Custom"
-msgstr "Özel"
-
-#, fuzzy
-msgid "Last 12 months"
-msgstr "Son 12 ay"
-
-#, fuzzy
-msgid "Last 24 hours"
-msgstr "Son 24 saat"
-
-#, fuzzy
-msgid "Last 30 days"
-msgstr "Son 30 gün"
-
-#, fuzzy
-msgid "Last 7 days"
-msgstr "Son 7 gün"
-
-#, fuzzy
-msgid "since last period"
-msgstr "son nokta"
-
-#, fuzzy
 msgid "since yesterday"
 msgstr "dünden beri"
 
 #, fuzzy
-msgid "Flakiness rate"
-msgstr "Kararsızlık oranı"
-
-#, fuzzy
-msgid "Flaky"
-msgstr "Flaky"
-
-#, fuzzy
-msgid "Flaky Runs"
-msgstr "Düzensiz Çalışmalar"
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "Kararsız Testler"
-
-#, fuzzy
-msgid "Flaky runs"
-msgstr "Düzensiz çalışır"
-
-#, fuzzy
-msgid "Flaky test cases"
-msgstr "Kararsız test durumları"
-
-#, fuzzy
-msgid "Flaky test runs"
-msgstr "Kararsız test çalıştırmaları"
-
-#, fuzzy
-msgid "Last flaky run"
-msgstr "Son kararsız çalıştırma"
-
-#, fuzzy
-msgid "Mark as flaky"
-msgstr "Kararsız olarak işaretleyin"
-
-#, fuzzy
-msgid "Most occurring flaky tests"
-msgstr "En sık görülen hatalı testler"
-
-#, fuzzy
-msgid "No flaky tests"
-msgstr "Güvenilmez testler yapmayın"
-
-#, fuzzy
-msgid "Number of test cases that passed after retry."
-msgstr "Yeniden denemeden sonra geçen test vakalarının sayısı."
-
-#, fuzzy
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "Son 30 gün içinde hatalı çalışan testlerin yüzdesi."
-
-#, fuzzy
-msgid "The number of test runs with flaky tests."
-msgstr "Kararsız testlerle yapılan test çalıştırma sayısı."
-
-#, fuzzy
-msgid "Unmark as flaky"
-msgstr "Kararsız olarak işaretlemeyi kaldır"
-
-#, fuzzy
-msgid "New"
-msgstr "Yeni"
-
-#, fuzzy
-msgid "Quarantine"
-msgstr "Karantina"
-
-#, fuzzy
-msgid "Quarantined"
-msgstr "Karantinaya alınmış"
-
-#, fuzzy
-msgid "Unquarantine"
-msgstr "Karantinadan Çıkar"
-
-#, fuzzy
-msgid "Module Cache"
-msgstr "Modül önbelleği"
-
-#, fuzzy
-msgid "Automatically by Tuist"
-msgstr "Tuist tarafından otomatik olarak"
-
-#, fuzzy
-msgid "Event"
-msgstr "Etkinlik"
-
-#, fuzzy
-msgid "Events will appear here when the test case status changes."
-msgstr "Test durumu değiştiğinde olaylar burada görünecektir."
-
-#, fuzzy
-msgid "First run of this test"
-msgstr "Bu testin ilk çalıştırılması"
-
-#, fuzzy
-msgid "Load more"
-msgstr "Daha fazla yükle"
-
-#, fuzzy
-msgid "Manually by @%{name}"
-msgstr "@%{name} tarafından manuel olarak"
-
-#, fuzzy
-msgid "Marked as flaky"
-msgstr "Kararsız olarak işaretlendi"
-
-#, fuzzy
-msgid "Marked as quarantined"
-msgstr "Karantina olarak işaretlendi"
-
-#, fuzzy
-msgid "Marked as unquarantined"
-msgstr "Karantinadan çıkarılmış olarak işaretlendi"
-
-#, fuzzy
-msgid "No history available"
-msgstr "Geçmiş mevcut değil"
-
-#, fuzzy
-msgid "Test History"
-msgstr "Test Geçmişi"
-
-#, fuzzy
-msgid "Test history"
-msgstr "Test geçmişi"
-
-#, fuzzy
-msgid "Unmarked as flaky"
-msgstr "Kararsız olarak işaretlenmemiş"
-
-#, fuzzy
-msgid "Last run"
-msgstr "Son çalıştırma"
-
-#, fuzzy
-msgid "No quarantined tests"
-msgstr "Karantinaya alınmış test yok"
-
-#, fuzzy
-msgid "Quarantined Tests"
-msgstr "Karantinaya Alınan Testler"
-
-#, fuzzy
-msgid "Quarantined by"
-msgstr "Karantinaya alınanlar"
-
-#, fuzzy
-msgid "Quarantined tests"
-msgstr "Karantinaya alınan testler"
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-#, fuzzy
-msgid "Build: %{name}"
-msgstr "Derleme: %{name}"
-
-#, fuzzy
-msgid "Class"
-msgstr "Sınıf"
-
-#, fuzzy
-msgid "Crash Report"
-msgstr "Çökme Raporu"
-
-#, fuzzy
-msgid "Exception"
-msgstr "İstisna"
-
-#, fuzzy
-msgid "Project"
-msgstr "Proje"
-
-#, fuzzy
-msgid "Signal"
-msgstr "Sinyal"
-
-#, fuzzy
-msgid "Subtype"
-msgstr "Alt tür"
-
-#, fuzzy
-msgid "Test Class"
-msgstr "Test Sınıfı"
-
-#, fuzzy
-msgid "Test Classes"
-msgstr "Test Sınıfları"
-
-#, fuzzy
-msgid "Test Suite"
-msgstr "Test Seti"
-
-#, fuzzy
-msgid "Scheme:"
-msgstr "Şema:"
-
-#, fuzzy
-msgid "Run Details"
-msgstr "Çalıştırma Ayrıntıları"
-
-#, fuzzy
-msgid "Test case run not found."
-msgstr "Test durumu çalıştırması bulunamadı."
-
-#, fuzzy
-msgid "Test Case: %{name}"
-msgstr "Test Örneği: %{name}"
-
-#, fuzzy
-msgid "Attachments"
-msgstr "Ekler"
-
-#, fuzzy
-msgid "File"
-msgstr "Dosya"
-
-#, fuzzy
-msgid "Image"
-msgstr "Resim"
-
-#, fuzzy
-msgid "Loading..."
-msgstr "Yükleniyor..."
-
-#, fuzzy
-msgid "Text File"
-msgstr "Metin Dosyası"
-
-#, fuzzy
-msgid "Log File"
-msgstr "Günlük Dosyası"
-
-#, fuzzy
-msgid "Other"
-msgstr "Diğer"
+msgid "•"
+msgstr "•"
 
 #, fuzzy
 #~ msgid "Test suite"
