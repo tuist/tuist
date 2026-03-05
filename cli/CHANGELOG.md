@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.155.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* correctly detect incremental builds with Xcode compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9725](https://github.com/tuist/tuist/pull/9725)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.0...4.155.1
+
 ## What's Changed in 4.155.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
@@ -8,6 +16,7 @@ All notable changes to this project will be documented in this file.
 * group test attachments by repetition by [@fortmarek](https://github.com/fortmarek) in [#9714](https://github.com/tuist/tuist/pull/9714)
 ### 🐛 Bug Fixes
 
+* bump Rosalind to 0.7.22 and restore dependency versions by [@fortmarek](https://github.com/fortmarek) in [#9720](https://github.com/tuist/tuist/pull/9720)
 * propagate module map flags to configuration-level setting overrides by [@pepicrft](https://github.com/pepicrft) in [#9692](https://github.com/tuist/tuist/pull/9692)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.154.4...4.155.0
