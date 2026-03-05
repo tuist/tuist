@@ -130,6 +130,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       jwt_token = TokenGenerator.generate(:access_token, token)
 
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+
       assert claims["scopes"] == [
                "project:cache:read",
                "project:cache:write",
@@ -156,6 +157,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       jwt_token = TokenGenerator.generate(:access_token, token)
 
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+
       assert claims["scopes"] == [
                "project:cache:read",
                "project:cache:write",
