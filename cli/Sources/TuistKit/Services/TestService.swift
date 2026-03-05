@@ -625,6 +625,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
         }
 
+        let testedTargetNames = testActionTargets.map(\.name).sorted()
+        if !testedTargetNames.isEmpty {
+            Logger.current
+                .notice(
+                    "Testing the following targets: \(testedTargetNames.joined(separator: ", "))"
+                )
+        }
+
         return true
     }
 
