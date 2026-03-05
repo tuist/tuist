@@ -6,27 +6,39 @@ defmodule Tuist.Docs.Sidebar do
 
   defmodule Item do
     @moduledoc false
-    defstruct [:label, :slug, items: []]
+    defstruct [:label, :slug, :icon, items: []]
   end
 
   defmodule Group do
     @moduledoc false
-    defstruct [:label, items: []]
+    defstruct [:label, weight: :semibold, items: []]
   end
 
   def tree do
-    guides_tree() ++ contributors_tree() ++ references_tree()
+    guides_tree() ++ resources_tree() ++ references_tree()
   end
+
+  def tab_for_slug(slug) do
+    cond do
+      String.starts_with?(slug, "/en/references") -> :references
+      String.starts_with?(slug, "/en/contributors") -> :resources
+      true -> :guides
+    end
+  end
+
+  def tree_for_tab(:guides), do: guides_tree()
+  def tree_for_tab(:references), do: references_tree()
+  def tree_for_tab(:resources), do: resources_tree()
 
   def item_active?(%Item{slug: slug}, current_slug) when is_binary(slug), do: slug == current_slug
 
   def item_active?(%Item{}, _current_slug), do: false
 
   def item_or_children_active?(%Item{slug: slug, items: items}, current_slug) do
-    slug == current_slug or Enum.any?(items, &item_or_children_active?(&1, current_slug))
+    slug == current_slug or Enum.any?(items, &item_active?(&1, current_slug))
   end
 
-  defp guides_tree do
+  def guides_tree do
     [
       %Group{
         label: "Guides",
@@ -50,7 +62,71 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
-        label: "Features",
+        label: "Builds",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Cache",
+            slug: "/en/guides/features/cache",
+            items: [
+              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "xcode"},
+              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "xcode"},
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "gradle"}
+            ]
+          },
+          %Item{
+            label: "Build insights",
+            slug: "/en/guides/features/insights",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/insights/xcode-cache", icon: "xcode"},
+              %Item{label: "Gradle", slug: "/en/guides/features/insights/gradle-cache", icon: "gradle"}
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Tests",
+        weight: :medium,
+        items: [
+          %Item{label: "Selective testing", slug: "/en/guides/features/selective-testing"},
+          %Item{
+            label: "Test insights",
+            slug: "/en/guides/features/test-insights",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "xcode"},
+              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "gradle"}
+            ]
+          },
+          %Item{
+            label: "Flaky tests",
+            slug: "/en/guides/features/test-insights/flaky-tests",
+            items: [
+              %Item{
+                label: "Xcode",
+                slug: "/en/guides/features/test-insights/flaky-tests/xcode",
+                icon: "xcode"
+              },
+              %Item{
+                label: "Gradle",
+                slug: "/en/guides/features/test-insights/flaky-tests/gradle",
+                icon: "gradle"
+              }
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Artifacts",
+        weight: :medium,
+        items: [
+          %Item{label: "Previews", slug: "/en/guides/features/previews"},
+          %Item{label: "QA", slug: "/en/guides/features/qa"},
+          %Item{label: "Bundle size", slug: "/en/guides/features/bundle-size"}
+        ]
+      },
+      %Group{
+        label: "Other features",
+        weight: :medium,
         items: [
           %Item{
             label: "Generated projects",
@@ -131,16 +207,6 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
-            label: "Cache",
-            slug: "/en/guides/features/cache",
-            items: [
-              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache"},
-              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache"},
-              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache"}
-            ]
-          },
-          %Item{label: "Selective testing", slug: "/en/guides/features/selective-testing"},
-          %Item{
             label: "Registry",
             slug: "/en/guides/features/registry",
             items: [
@@ -163,36 +229,6 @@ defmodule Tuist.Docs.Sidebar do
               }
             ]
           },
-          %Item{
-            label: "Insights",
-            slug: "/en/guides/features/insights",
-            items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/insights/xcode-cache"},
-              %Item{label: "Gradle", slug: "/en/guides/features/insights/gradle-cache"}
-            ]
-          },
-          %Item{
-            label: "Test insights",
-            slug: "/en/guides/features/test-insights",
-            items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode"},
-              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle"}
-            ]
-          },
-          %Item{
-            label: "Flaky tests",
-            slug: "/en/guides/features/test-insights/flaky-tests",
-            items: [
-              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/flaky-tests/xcode"},
-              %Item{
-                label: "Gradle",
-                slug: "/en/guides/features/test-insights/flaky-tests/gradle"
-              }
-            ]
-          },
-          %Item{label: "Bundle size", slug: "/en/guides/features/bundle-size"},
-          %Item{label: "QA", slug: "/en/guides/features/qa"},
-          %Item{label: "Previews", slug: "/en/guides/features/previews"},
           %Item{
             label: "Agentic coding",
             items: [
@@ -242,10 +278,10 @@ defmodule Tuist.Docs.Sidebar do
     ]
   end
 
-  defp contributors_tree do
+  def resources_tree do
     [
       %Group{
-        label: "Contributors",
+        label: "Resources",
         items: [
           %Item{
             label: "Code",
@@ -274,7 +310,7 @@ defmodule Tuist.Docs.Sidebar do
     ]
   end
 
-  defp references_tree do
+  def references_tree do
     [
       %Group{
         label: "References",

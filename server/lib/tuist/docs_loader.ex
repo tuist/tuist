@@ -10,7 +10,7 @@ defmodule Tuist.Docs.Loader do
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
-  @vitepress_container_regex ~r/^:::\s*(\w+)\s*\n(.*?)^:::\s*$/ms
+  @vitepress_container_regex ~r/^:::\s*(\w[\w-]*)([ \t]+[^\n]+)?\s*\n(.*?)^:::\s*$/ms
 
   def load_pages! do
     source_paths =
@@ -36,8 +36,10 @@ defmodule Tuist.Docs.Loader do
     %Page{
       slug: slug,
       title: get_attr(attrs, "title") || title_from_markdown(markdown) || slug,
+      title_template: get_attr(attrs, "titleTemplate"),
       description: get_attr(attrs, "description"),
       body: html,
+      markdown: markdown,
       source_path: relative_path,
       headings: headings
     }
@@ -87,7 +89,12 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
+  @copy_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" /><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" /></svg>)
+  @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
+
   defp render_markdown(markdown) do
+    custom_ids = extract_custom_heading_ids(markdown)
+
     markdown
     |> String.replace(@script_setup_regex, "")
     |> localize_link_components()
@@ -103,8 +110,83 @@ defmodule Tuist.Docs.Loader do
         alerts: true
       ],
       render: [unsafe: true],
-      syntax_highlight: [formatter: {:html_inline, theme: "onedark"}]
+      syntax_highlight: [formatter: {:html_inline, theme: "github_light"}]
     )
+    |> wrap_code_blocks()
+    |> wrap_tables()
+    |> convert_github_alerts()
+    |> rewrite_image_paths()
+    |> replace_heading_ids(custom_ids)
+    |> add_heading_anchors()
+  end
+
+  @github_alert_type_to_status %{
+    "note" => "information",
+    "tip" => "success",
+    "important" => "information",
+    "warning" => "warning",
+    "caution" => "error"
+  }
+
+  @github_alert_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*(.*?)\s*<\/div>/s
+
+  defp convert_github_alerts(html) do
+    Regex.replace(@github_alert_regex, html, fn _, type, title, content ->
+      status = Map.get(@github_alert_type_to_status, type, "information")
+      icon = admonition_icon(status)
+
+      ~s(<div class="noora-alert" data-type="secondary" data-status="#{status}" data-size="large">) <>
+        ~s(<div data-part="icon">#{icon}</div>) <>
+        ~s(<div data-part="column">) <>
+        ~s(<span data-part="title">#{title}</span>) <>
+        ~s(<div data-part="description">#{content}</div>) <>
+        ~s(</div>) <>
+        ~s(</div>)
+    end)
+  end
+
+  defp rewrite_image_paths(html) do
+    String.replace(html, ~s(src="/images/), ~s(src="/docs/images/))
+  end
+
+  @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
+
+  defp add_heading_anchors(html) do
+    Regex.replace(@heading_anchor_regex, html, fn _, open_tag, anchor, text, close_tag ->
+      href = ~r/href="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
+      id = ~r/id="([^"]*)"/ |> Regex.run(anchor, capture: :all_but_first) |> List.first()
+      plain_text = strip_links_from_html(text)
+
+      ~s(#{open_tag}<a class="heading-anchor" id="#{id}" href="#{href}">) <>
+        ~s(<span data-part="heading-text">#{plain_text}</span>) <>
+        ~s(<span data-part="hash">#</span>) <>
+        ~s(</a>#{close_tag})
+    end)
+  end
+
+  defp strip_links_from_html(html) do
+    Regex.replace(~r/<a[^>]*>(.*?)<\/a>/s, html, "\\1")
+  end
+
+  defp wrap_code_blocks(html) do
+    Regex.replace(@code_block_regex, html, fn _, language, code ->
+      language = if language == "", do: "", else: language
+
+      ~s(<div class="code-window">) <>
+        ~s(<div data-part="bar">) <>
+        ~s(<div data-part="language">#{language}</div>) <>
+        ~s(<div data-part="copy">#{@copy_icon}</div>) <>
+        ~s(</div>) <>
+        ~s(<div data-part="code"><code>#{code}</code>) <>
+        ~s(</div>) <>
+        ~s(</div>)
+    end)
+  end
+
+  defp wrap_tables(html) do
+    html
+    |> String.replace("<table>", ~s(<div class="noora-table"><table>))
+    |> String.replace("</table>", "</table></div>")
   end
 
   defp localize_link_components(markdown) do
@@ -117,9 +199,127 @@ defmodule Tuist.Docs.Loader do
     Regex.replace(@custom_heading_id_regex, markdown, "\\1")
   end
 
+  defp extract_custom_heading_ids(markdown) do
+    cleaned = String.replace(markdown, @script_setup_regex, "")
+
+    @custom_heading_id_regex
+    |> Regex.scan(cleaned)
+    |> Map.new(fn [_, heading_text, custom_id] ->
+      text =
+        heading_text
+        |> String.replace(~r/^[#]{1,6}\s+/, "")
+        |> strip_html()
+
+      auto_id =
+        text
+        |> String.downcase()
+        |> String.replace(~r/[^\w\s-]/u, "")
+        |> String.replace(~r/\s+/, "-")
+        |> String.trim("-")
+
+      {auto_id, custom_id}
+    end)
+  end
+
+  defp replace_heading_ids(html, custom_ids) when map_size(custom_ids) == 0, do: html
+
+  defp replace_heading_ids(html, custom_ids) do
+    Enum.reduce(custom_ids, html, fn {auto_id, custom_id}, acc ->
+      if auto_id == custom_id do
+        acc
+      else
+        acc
+        |> String.replace(~s(id="#{auto_id}"), ~s(id="#{custom_id}"))
+        |> String.replace(~s(href="##{auto_id}"), ~s(href="##{custom_id}"))
+      end
+    end)
+  end
+
+  @alert_circle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>)
+  @circle_check_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M9 12l2 2l4 -4" /></svg>)
+  @alert_triangle_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>)
+
+  @admonition_type_to_status %{
+    "info" => "information",
+    "tip" => "success",
+    "warning" => "warning",
+    "danger" => "error"
+  }
+
+  @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
+
   defp convert_vitepress_containers(markdown) do
-    Regex.replace(@vitepress_container_regex, markdown, fn _, type, content ->
-      ~s(<div class="docs-container docs-container--#{type}">\n\n#{String.trim(content)}\n\n</div>\n)
+    Regex.replace(@vitepress_container_regex, markdown, fn _, type, title, content ->
+      if type == "code-group" do
+        convert_code_group(content)
+      else
+        convert_admonition(type, title, content)
+      end
+    end)
+  end
+
+  defp convert_code_group(content) do
+    tabs = Regex.scan(@code_group_block_regex, content)
+
+    if tabs == [] do
+      String.trim(content)
+    else
+      tab_buttons =
+        tabs
+        |> Enum.with_index()
+        |> Enum.map_join("", fn {[_, _lang, label, _code], index} ->
+          selected = if index == 0, do: ~s( data-selected="true"), else: ""
+          ~s(<button data-part="tab" data-index="#{index}"#{selected}>#{label}</button>)
+        end)
+
+      tab_panels =
+        tabs
+        |> Enum.with_index()
+        |> Enum.map_join("", fn {[_, lang, _label, code], index} ->
+          hidden = if index == 0, do: "", else: ~s( data-hidden="true")
+
+          ~s(<div data-part="panel" data-index="#{index}"#{hidden}>) <>
+            ~s(\n\n```#{lang}\n#{code}```\n\n) <>
+            ~s(</div>)
+        end)
+
+      ~s(<div class="code-group">) <>
+        ~s(<div data-part="tabs">#{tab_buttons}</div>) <>
+        ~s(<div data-part="panels">#{tab_panels}</div>) <>
+        ~s(</div>\n)
+    end
+  end
+
+  defp convert_admonition(type, title, content) do
+    title = if title, do: String.trim(title)
+    status = Map.get(@admonition_type_to_status, type, "information")
+    icon = admonition_icon(status)
+    title_text = if title && title != "", do: capitalize_title(title), else: default_admonition_title(type)
+
+    ~s(<div class="noora-alert" data-type="secondary" data-status="#{status}" data-size="large">) <>
+      ~s(<div data-part="icon">#{icon}</div>) <>
+      ~s(<div data-part="column">) <>
+      ~s(<span data-part="title">#{title_text}</span>) <>
+      ~s(<div data-part="description">\n\n#{String.trim(content)}\n\n</div>) <>
+      ~s(</div>) <>
+      ~s(</div>\n)
+  end
+
+  defp admonition_icon("warning"), do: @alert_triangle_icon
+  defp admonition_icon("success"), do: @circle_check_icon
+  defp admonition_icon(_), do: @alert_circle_icon
+
+  defp default_admonition_title("info"), do: "Info"
+  defp default_admonition_title("tip"), do: "Tip"
+  defp default_admonition_title("warning"), do: "Warning"
+  defp default_admonition_title("danger"), do: "Danger"
+  defp default_admonition_title(type), do: String.capitalize(type)
+
+  defp capitalize_title(title) do
+    title
+    |> String.split(" ")
+    |> Enum.map_join(" ", fn word ->
+      word |> String.downcase() |> String.capitalize()
     end)
   end
 

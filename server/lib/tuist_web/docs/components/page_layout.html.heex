@@ -3,6 +3,7 @@
   data-part="page"
   phx-hook="DocsActivePage"
   data-current-slug={@current_slug}
+  data-current-tab={@tab}
 >
   <section data-part="layout">
     <nav
@@ -11,6 +12,13 @@
       aria-label="Documentation navigation"
       phx-update="ignore"
     >
+      <.link patch="/docs/en" data-part="nav-link">
+        <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/en"}>
+          <:icon_left>
+            <.icon name="smart_home" />
+          </:icon_left>
+        </.tab_menu_vertical>
+      </.link>
       <div :for={group <- @tree} data-part="nav-section">
         <.line_divider />
         <div data-part="content-divider">
