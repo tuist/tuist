@@ -87,6 +87,8 @@ window.addEventListener("phx:navigate", (info) => {
   }
 });
 
+// Replace the browser URL without triggering handle_params (which push_patch would do),
+// avoiding unnecessary assign_async re-fetches when switching widgets.
 window.addEventListener("phx:replace-url", (e) => {
   history.replaceState(history.state, "", e.detail.url);
 });

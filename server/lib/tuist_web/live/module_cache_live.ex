@@ -153,42 +153,34 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
-    |> assign_async(
-      [
-        :hit_rate_analytics,
-        :hit_rate_p99,
-        :hit_rate_p90,
-        :hit_rate_p50,
-        :hits_analytics,
-        :misses_analytics,
-        :analytics_chart_data
-      ],
-      fn ->
-        hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
-        hit_rate_p99 = Analytics.module_cache_hit_rate_percentile(project.id, 0.99, opts)
-        hit_rate_p90 = Analytics.module_cache_hit_rate_percentile(project.id, 0.9, opts)
-        hit_rate_p50 = Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)
-        hits_analytics = Analytics.module_cache_hits_analytics(opts)
-        misses_analytics = Analytics.module_cache_misses_analytics(opts)
+    |> assign_async([:hit_rate_analytics, :hits_analytics, :misses_analytics, :analytics_chart_data], fn ->
+      hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
+      hits_analytics = Analytics.module_cache_hits_analytics(opts)
+      misses_analytics = Analytics.module_cache_misses_analytics(opts)
 
-        {:ok,
-         %{
-           hit_rate_analytics: hit_rate_analytics,
-           hit_rate_p99: hit_rate_p99,
-           hit_rate_p90: hit_rate_p90,
-           hit_rate_p50: hit_rate_p50,
-           hits_analytics: hits_analytics,
-           misses_analytics: misses_analytics,
-           analytics_chart_data:
-             analytics_chart_data(
-               analytics_selected_widget,
-               hits_analytics,
-               misses_analytics,
-               hit_rate_analytics
-             )
-         }}
-      end
-    )
+      {:ok,
+       %{
+         hit_rate_analytics: hit_rate_analytics,
+         hits_analytics: hits_analytics,
+         misses_analytics: misses_analytics,
+         analytics_chart_data:
+           analytics_chart_data(
+             analytics_selected_widget,
+             hits_analytics,
+             misses_analytics,
+             hit_rate_analytics
+           )
+       }}
+    end)
+    |> assign_async(:hit_rate_p99, fn ->
+      {:ok, %{hit_rate_p99: Analytics.module_cache_hit_rate_percentile(project.id, 0.99, opts)}}
+    end)
+    |> assign_async(:hit_rate_p90, fn ->
+      {:ok, %{hit_rate_p90: Analytics.module_cache_hit_rate_percentile(project.id, 0.9, opts)}}
+    end)
+    |> assign_async(:hit_rate_p50, fn ->
+      {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
+    end)
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do

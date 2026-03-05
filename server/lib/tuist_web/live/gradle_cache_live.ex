@@ -152,31 +152,31 @@ defmodule TuistWeb.GradleCacheLive do
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:uri, uri)
-    |> assign_async(
-      [:hit_rate_analytics, :hit_rate_p99, :hit_rate_p90, :hit_rate_p50, :cache_events, :analytics_chart_data],
-      fn ->
-        hit_rate_analytics = Analytics.cache_hit_rate_analytics(project.id, opts)
-        hit_rate_p99 = Analytics.cache_hit_rate_percentile(project.id, 0.99, opts)
-        hit_rate_p90 = Analytics.cache_hit_rate_percentile(project.id, 0.9, opts)
-        hit_rate_p50 = Analytics.cache_hit_rate_percentile(project.id, 0.5, opts)
-        cache_events = Analytics.cache_event_analytics(project.id, opts)
+    |> assign_async([:hit_rate_analytics, :cache_events, :analytics_chart_data], fn ->
+      hit_rate_analytics = Analytics.cache_hit_rate_analytics(project.id, opts)
+      cache_events = Analytics.cache_event_analytics(project.id, opts)
 
-        {:ok,
-         %{
-           hit_rate_analytics: hit_rate_analytics,
-           hit_rate_p99: hit_rate_p99,
-           hit_rate_p90: hit_rate_p90,
-           hit_rate_p50: hit_rate_p50,
-           cache_events: cache_events,
-           analytics_chart_data:
-             analytics_chart_data(
-               analytics_selected_widget,
-               hit_rate_analytics,
-               cache_events
-             )
-         }}
-      end
-    )
+      {:ok,
+       %{
+         hit_rate_analytics: hit_rate_analytics,
+         cache_events: cache_events,
+         analytics_chart_data:
+           analytics_chart_data(
+             analytics_selected_widget,
+             hit_rate_analytics,
+             cache_events
+           )
+       }}
+    end)
+    |> assign_async(:hit_rate_p99, fn ->
+      {:ok, %{hit_rate_p99: Analytics.cache_hit_rate_percentile(project.id, 0.99, opts)}}
+    end)
+    |> assign_async(:hit_rate_p90, fn ->
+      {:ok, %{hit_rate_p90: Analytics.cache_hit_rate_percentile(project.id, 0.9, opts)}}
+    end)
+    |> assign_async(:hit_rate_p50, fn ->
+      {:ok, %{hit_rate_p50: Analytics.cache_hit_rate_percentile(project.id, 0.5, opts)}}
+    end)
   end
 
   defp analytics_chart_data("cache_uploads", _hit_rate_analytics, cache_events) do
