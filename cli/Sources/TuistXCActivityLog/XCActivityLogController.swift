@@ -568,16 +568,15 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
     }
 
+    // swiftlint:disable:next force_try
+    private static let dependencyGraphTargetRegex = try! Regex(#"Target '(?<name>[^']+)' in project"#)
+
     private func targetNamesFromDependencyGraph(from text: String, into targetNames: inout Set<String>) {
         guard text.contains("Target dependency graph") else { return }
-        var searchRange = text.startIndex ..< text.endIndex
-        let prefix = "Target '"
-        let suffix = "' in project"
-        while let prefixRange = text.range(of: prefix, range: searchRange) {
-            let nameStart = prefixRange.upperBound
-            guard let suffixRange = text.range(of: suffix, range: nameStart ..< text.endIndex) else { break }
-            targetNames.insert(String(text[nameStart ..< suffixRange.lowerBound]))
-            searchRange = suffixRange.upperBound ..< text.endIndex
+        for match in text.matches(of: Self.dependencyGraphTargetRegex) {
+            if let name = match["name"]?.substring {
+                targetNames.insert(String(name))
+            }
         }
     }
 
