@@ -432,7 +432,7 @@
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
     <.card_section data-part="test-cases-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-test-cases" phx-debounce="500">
+        <.form for={%{}} phx-change="search-test-cases" phx-debounce="200">
           <.text_input
             type="search"
             id="search-test-cases"
