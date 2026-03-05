@@ -45,6 +45,13 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
 
+    /// Targets that should use buildable folders instead of explicit file references.
+    /// When a target name is included in this set, its source files will be added as a
+    /// synchronized folder reference (buildable folder) instead of individual file references.
+    /// This eliminates the need to regenerate the project when files are added or removed.
+    /// **Note**: Requires Xcode 16 or later.
+    public var targetBuildableFolders: Set<String>
+
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
@@ -52,18 +59,21 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     ///     - baseSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     ///     - projectOptions: Custom project configurations to be used for projects generated from SwiftPackageManager.
+    ///     - targetBuildableFolders: Targets that should use buildable folders instead of explicit file references.
     public init(
         productTypes: [String: Product] = [:],
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: Settings] = [:],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        targetBuildableFolders: Set<String> = []
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.targetBuildableFolders = targetBuildableFolders
         dumpIfNeeded(self)
     }
 
@@ -77,7 +87,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     @available(
         *,
         deprecated,
-        renamed: "init(productTypes:productDestinations:baseSettings:targetSettings:projectOptions:)",
+        renamed: "init(productTypes:productDestinations:baseSettings:targetSettings:projectOptions:targetBuildableFolders:)",
         message: """
         Consider using the 'Settings' type for parameter 'targetSettings' instead of 'SettingsDictionary'.
         """
@@ -87,13 +97,15 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        targetBuildableFolders: Set<String> = []
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
+        self.targetBuildableFolders = targetBuildableFolders
         dumpIfNeeded(self)
     }
 }

@@ -330,7 +330,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageTraits: packageInfo.traits ?? [],
-                    enabledTraits: enabledTraits
+                    enabledTraits: enabledTraits,
+                    targetBuildableFolders: packageSettings.targetBuildableFolders
                 )
             }
 
@@ -431,7 +432,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageTraits: [PackageTrait],
-        enabledTraits: Set<String>
+        enabledTraits: Set<String>,
+        targetBuildableFolders: Set<String>
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -640,6 +642,21 @@ public struct PackageInfoMapper: PackageInfoMapping {
             enabledTraits: enabledTraits
         )
 
+        // Use buildable folders if the target is configured to do so
+        let useBuildableFolders = targetBuildableFolders.contains(target.name)
+        let buildableFolders: [ProjectDescription.BuildableFolder]
+        let finalSources: SourceFilesList?
+
+        if useBuildableFolders {
+            // Convert sources path to buildable folder
+            let relativePath = targetPath.relative(to: packageFolder)
+            buildableFolders = [.folder(.path(relativePath.pathString))]
+            finalSources = nil
+        } else {
+            buildableFolders = []
+            finalSources = sources
+        }
+
         return .target(
             name: sanitizedTargetName,
             destinations: destinations,
@@ -649,9 +666,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
-            sources: sources,
+            sources: finalSources,
             resources: resources,
-            buildableFolders: [],
+            buildableFolders: buildableFolders,
             headers: headers,
             dependencies: dependencies,
             settings: settings
