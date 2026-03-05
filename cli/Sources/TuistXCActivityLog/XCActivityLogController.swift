@@ -570,14 +570,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
     private func targetNamesFromDependencyGraph(from text: String, into targetNames: inout Set<String>) {
         guard text.contains("Target dependency graph") else { return }
-        var searchRange = text.startIndex..<text.endIndex
+        var searchRange = text.startIndex ..< text.endIndex
         let prefix = "Target '"
         let suffix = "' in project"
         while let prefixRange = text.range(of: prefix, range: searchRange) {
             let nameStart = prefixRange.upperBound
-            guard let suffixRange = text.range(of: suffix, range: nameStart..<text.endIndex) else { break }
-            targetNames.insert(String(text[nameStart..<suffixRange.lowerBound]))
-            searchRange = suffixRange.upperBound..<text.endIndex
+            guard let suffixRange = text.range(of: suffix, range: nameStart ..< text.endIndex) else { break }
+            targetNames.insert(String(text[nameStart ..< suffixRange.lowerBound]))
+            searchRange = suffixRange.upperBound ..< text.endIndex
         }
     }
 
