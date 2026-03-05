@@ -40,7 +40,14 @@ defmodule TuistWeb.Components.Skeleton do
     ~H"""
     <div
       class="noora-chart tuist-loading-skeleton"
-      style={@height && "height: #{@height}"}
+      style={
+        [
+          "width: 100%",
+          @height && "height: #{@height}"
+        ]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join("; ")
+      }
     >
       &nbsp;
     </div>

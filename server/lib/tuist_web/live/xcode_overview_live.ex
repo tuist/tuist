@@ -59,12 +59,11 @@ defmodule TuistWeb.XcodeOverviewLive do
       bundle_size_period: bundle_size_period,
       bundle_size_selected_app: bundle_size_selected_app
     )
-    |> assign_async([:binary_cache_hit_rate_analytics, :selective_testing_analytics], fn ->
-      {:ok,
-       %{
-         binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts),
-         selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)
-       }}
+    |> assign_async(:binary_cache_hit_rate_analytics, fn ->
+      {:ok, %{binary_cache_hit_rate_analytics: Cache.Analytics.cache_hit_rate_analytics(analytics_opts)}}
+    end)
+    |> assign_async(:selective_testing_analytics, fn ->
+      {:ok, %{selective_testing_analytics: BuildsAnalytics.selective_testing_analytics(analytics_opts)}}
     end)
     |> assign_async(:build_analytics, fn ->
       {:ok, %{build_analytics: BuildsAnalytics.build_duration_analytics(project.id, analytics_opts)}}
@@ -81,8 +80,11 @@ defmodule TuistWeb.XcodeOverviewLive do
     |> assign_async(:latest_app_previews, fn ->
       {:ok, %{latest_app_previews: AppBuilds.latest_previews_with_distinct_bundle_ids(project)}}
     end)
-    |> assign_async([:recent_build_runs, :passed_build_runs_count, :failed_build_runs_count], fn ->
-      fetch_build_runs_data(project.id)
+    |> assign_async(:recent_build_runs, fn ->
+      fetch_recent_build_runs_data(project.id)
+    end)
+    |> assign_async([:passed_build_runs_count, :failed_build_runs_count], fn ->
+      fetch_recent_build_status_counts(project.id)
     end)
     |> assign_async(:builds_duration_analytics, fn ->
       {:ok, %{builds_duration_analytics: BuildsAnalytics.build_duration_analytics(project.id, builds_opts)}}
@@ -131,7 +133,7 @@ defmodule TuistWeb.XcodeOverviewLive do
      }}
   end
 
-  defp fetch_build_runs_data(project_id) do
+  defp fetch_recent_build_runs_data(project_id) do
     {recent_build_runs, _meta} =
       Builds.list_build_runs(%{
         last: 30,
@@ -142,17 +144,14 @@ defmodule TuistWeb.XcodeOverviewLive do
         order_directions: [:asc]
       })
 
-    recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
+    {:ok, %{recent_build_runs: recent_build_runs_chart_data(recent_build_runs)}}
+  end
 
+  defp fetch_recent_build_status_counts(project_id) do
     %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
       Builds.recent_build_status_counts(project_id, limit: 30)
 
-    {:ok,
-     %{
-       recent_build_runs: recent_build_runs_chart_data,
-       passed_build_runs_count: passed_build_runs_count,
-       failed_build_runs_count: failed_build_runs_count
-     }}
+    {:ok, %{passed_build_runs_count: passed_build_runs_count, failed_build_runs_count: failed_build_runs_count}}
   end
 
   defp build_opts(project_id, {start_datetime, end_datetime}, environment) do

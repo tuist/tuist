@@ -426,6 +426,7 @@
     <.empty_card_section
       :if={
         @binary_cache_hit_rate_analytics.ok? &&
+          @selective_testing_analytics.ok? &&
           @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
       }
       title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
@@ -815,7 +816,12 @@
       </.date_picker>
     </:actions>
     <div data-part="builds-card-sections">
-      <.card_section :if={!@recent_build_runs.ok?}>
+      <.card_section :if={
+        !@recent_build_runs.ok? ||
+          (@recent_build_runs.ok? &&
+             not Enum.empty?(@recent_build_runs.result) &&
+             (!@passed_build_runs_count.ok? || !@failed_build_runs_count.ok?))
+      }>
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.skeleton_legend />
@@ -824,7 +830,12 @@
           <.skeleton_chart />
         </div>
       </.card_section>
-      <.card_section :if={@recent_build_runs.ok? && not Enum.empty?(@recent_build_runs.result)}>
+      <.card_section :if={
+        @recent_build_runs.ok? &&
+          @passed_build_runs_count.ok? &&
+          @failed_build_runs_count.ok? &&
+          not Enum.empty?(@recent_build_runs.result)
+      }>
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.legend
