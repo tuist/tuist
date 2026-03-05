@@ -33,7 +33,7 @@ defmodule Tuist.Bundles.BundleThresholdTest do
       assert changeset.valid?
     end
 
-    test "defaults name to Untitled when omitted" do
+    test "invalid without name" do
       changeset =
         BundleThreshold.changeset(%BundleThreshold{}, %{
           id: UUIDv7.generate(),
@@ -43,8 +43,8 @@ defmodule Tuist.Bundles.BundleThresholdTest do
           project_id: 1
         })
 
-      assert changeset.valid?
-      assert Ecto.Changeset.get_field(changeset, :name) == "Untitled"
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).name
     end
 
     test "invalid without metric" do

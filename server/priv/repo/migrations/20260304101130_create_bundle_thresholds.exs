@@ -4,7 +4,7 @@ defmodule Tuist.Repo.Migrations.CreateBundleThresholds do
   def change do
     create table(:bundle_thresholds, primary_key: false) do
       add :id, :uuid, primary_key: true, null: false
-      add :name, :string, null: false, default: "Untitled"
+      add :name, :string, null: false
       add :metric, :integer, null: false
       add :deviation_percentage, :float, null: false
       add :baseline_branch, :string, null: false

@@ -8,7 +8,7 @@ defmodule Tuist.Bundles.BundleThreshold do
   @primary_key {:id, UUIDv7, autogenerate: false}
   @foreign_key_type UUIDv7
   schema "bundle_thresholds" do
-    field :name, :string, default: "Untitled"
+    field :name, :string
 
     field :metric, Ecto.Enum,
       values: [
