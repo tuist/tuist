@@ -64,20 +64,15 @@ defmodule TuistWeb.BuildsLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "select_build_duration_type",
-        %{"type" => type},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "build-duration-type", type)}",
-        replace: true
-      )
+  def handle_event("select_build_duration_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "build-duration-type", type)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:selected_build_duration_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do

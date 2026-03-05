@@ -48,11 +48,24 @@ defmodule TuistWeb.GradleCacheLive do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
 
-    {:noreply,
-     socket
-     |> assign(:analytics_selected_widget, widget)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    if socket.assigns.hit_rate_analytics.ok? do
+      chart_data =
+        analytics_chart_data(
+          widget,
+          socket.assigns.hit_rate_analytics.result,
+          socket.assigns.cache_events.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event(
@@ -139,24 +152,34 @@ defmodule TuistWeb.GradleCacheLive do
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:uri, uri)
-    |> assign_async(:hit_rate_analytics, fn ->
-      {:ok, %{hit_rate_analytics: Analytics.cache_hit_rate_analytics(project.id, opts)}}
-    end)
-    |> assign_async(:hit_rate_p99, fn ->
-      {:ok, %{hit_rate_p99: Analytics.cache_hit_rate_percentile(project.id, 0.99, opts)}}
-    end)
-    |> assign_async(:hit_rate_p90, fn ->
-      {:ok, %{hit_rate_p90: Analytics.cache_hit_rate_percentile(project.id, 0.9, opts)}}
-    end)
-    |> assign_async(:hit_rate_p50, fn ->
-      {:ok, %{hit_rate_p50: Analytics.cache_hit_rate_percentile(project.id, 0.5, opts)}}
-    end)
-    |> assign_async(:cache_events, fn ->
-      {:ok, %{cache_events: Analytics.cache_event_analytics(project.id, opts)}}
-    end)
+    |> assign_async(
+      [:hit_rate_analytics, :hit_rate_p99, :hit_rate_p90, :hit_rate_p50, :cache_events, :analytics_chart_data],
+      fn ->
+        hit_rate_analytics = Analytics.cache_hit_rate_analytics(project.id, opts)
+        hit_rate_p99 = Analytics.cache_hit_rate_percentile(project.id, 0.99, opts)
+        hit_rate_p90 = Analytics.cache_hit_rate_percentile(project.id, 0.9, opts)
+        hit_rate_p50 = Analytics.cache_hit_rate_percentile(project.id, 0.5, opts)
+        cache_events = Analytics.cache_event_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           hit_rate_analytics: hit_rate_analytics,
+           hit_rate_p99: hit_rate_p99,
+           hit_rate_p90: hit_rate_p90,
+           hit_rate_p50: hit_rate_p50,
+           cache_events: cache_events,
+           analytics_chart_data:
+             analytics_chart_data(
+               analytics_selected_widget,
+               hit_rate_analytics,
+               cache_events
+             )
+         }}
+      end
+    )
   end
 
-  def analytics_chart_data("cache_uploads", _hit_rate_analytics, cache_events) do
+  defp analytics_chart_data("cache_uploads", _hit_rate_analytics, cache_events) do
     %{
       dates: cache_events.uploads.dates,
       values: cache_events.uploads.values,
@@ -165,7 +188,7 @@ defmodule TuistWeb.GradleCacheLive do
     }
   end
 
-  def analytics_chart_data("cache_downloads", _hit_rate_analytics, cache_events) do
+  defp analytics_chart_data("cache_downloads", _hit_rate_analytics, cache_events) do
     %{
       dates: cache_events.downloads.dates,
       values: cache_events.downloads.values,
@@ -174,7 +197,7 @@ defmodule TuistWeb.GradleCacheLive do
     }
   end
 
-  def analytics_chart_data(_cache_hit_rate, hit_rate_analytics, _cache_events) do
+  defp analytics_chart_data(_cache_hit_rate, hit_rate_analytics, _cache_events) do
     %{
       dates: hit_rate_analytics.dates,
       values: hit_rate_analytics.values,

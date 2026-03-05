@@ -46,11 +46,25 @@ defmodule TuistWeb.XcodeCacheLive do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
 
-    {:noreply,
-     socket
-     |> assign(:analytics_selected_widget, widget)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    if socket.assigns.uploads_analytics.ok? do
+      chart_data =
+        analytics_chart_data(
+          widget,
+          socket.assigns.uploads_analytics.result,
+          socket.assigns.downloads_analytics.result,
+          socket.assigns.hit_rate_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event(
@@ -124,14 +138,24 @@ defmodule TuistWeb.XcodeCacheLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
     |> assign(:uri, uri)
-    |> assign_async(:uploads_analytics, fn ->
-      {:ok, %{uploads_analytics: Analytics.cas_uploads_analytics(project.id, opts)}}
-    end)
-    |> assign_async(:downloads_analytics, fn ->
-      {:ok, %{downloads_analytics: Analytics.cas_downloads_analytics(project.id, opts)}}
-    end)
-    |> assign_async(:hit_rate_analytics, fn ->
-      {:ok, %{hit_rate_analytics: Analytics.build_cache_hit_rate_analytics(project.id, opts)}}
+    |> assign_async([:uploads_analytics, :downloads_analytics, :hit_rate_analytics, :analytics_chart_data], fn ->
+      uploads_analytics = Analytics.cas_uploads_analytics(project.id, opts)
+      downloads_analytics = Analytics.cas_downloads_analytics(project.id, opts)
+      hit_rate_analytics = Analytics.build_cache_hit_rate_analytics(project.id, opts)
+
+      {:ok,
+       %{
+         uploads_analytics: uploads_analytics,
+         downloads_analytics: downloads_analytics,
+         hit_rate_analytics: hit_rate_analytics,
+         analytics_chart_data:
+           analytics_chart_data(
+             analytics_selected_widget,
+             uploads_analytics,
+             downloads_analytics,
+             hit_rate_analytics
+           )
+       }}
     end)
     |> assign_async(:hit_rate_p99, fn ->
       {:ok, %{hit_rate_p99: Analytics.build_cache_hit_rate_percentile(project.id, 0.99, opts)}}
@@ -144,7 +168,7 @@ defmodule TuistWeb.XcodeCacheLive do
     end)
   end
 
-  def analytics_chart_data("cache_uploads", uploads_analytics, _downloads_analytics, _hit_rate_analytics) do
+  defp analytics_chart_data("cache_uploads", uploads_analytics, _downloads_analytics, _hit_rate_analytics) do
     %{
       dates: uploads_analytics.dates,
       values: uploads_analytics.values,
@@ -153,7 +177,7 @@ defmodule TuistWeb.XcodeCacheLive do
     }
   end
 
-  def analytics_chart_data("cache_downloads", _uploads_analytics, downloads_analytics, _hit_rate_analytics) do
+  defp analytics_chart_data("cache_downloads", _uploads_analytics, downloads_analytics, _hit_rate_analytics) do
     %{
       dates: downloads_analytics.dates,
       values: downloads_analytics.values,
@@ -162,7 +186,7 @@ defmodule TuistWeb.XcodeCacheLive do
     }
   end
 
-  def analytics_chart_data(_cache_hit_rate, _uploads_analytics, _downloads_analytics, hit_rate_analytics) do
+  defp analytics_chart_data(_cache_hit_rate, _uploads_analytics, _downloads_analytics, hit_rate_analytics) do
     %{
       dates: hit_rate_analytics.dates,
       values: hit_rate_analytics.values,

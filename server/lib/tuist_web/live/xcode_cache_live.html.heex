@@ -183,7 +183,7 @@
         empty={@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
       <.widget
-        loading={!@downloads_analytics.ok?}
+        loading={!@analytics_chart_data.ok?}
         title={dgettext("dashboard_cache", "Cache downloads")}
         legend_color="secondary"
         description={
@@ -206,7 +206,7 @@
         empty={@downloads_analytics.ok? && @downloads_analytics.result.total_size == 0}
       />
       <.widget
-        loading={!@uploads_analytics.ok?}
+        loading={!@analytics_chart_data.ok?}
         title={dgettext("dashboard_cache", "Cache uploads")}
         legend_color="p99"
         description={
@@ -233,8 +233,7 @@
       (@analytics_selected_widget == "cache_hit_rate" and
          (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
             !@hit_rate_p50.ok?)) or
-        (@analytics_selected_widget != "cache_hit_rate" and
-           (!@uploads_analytics.ok? or !@downloads_analytics.ok? or !@hit_rate_analytics.ok?))
+        (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?)
     }>
       <div data-part="analytics-chart">
         <.skeleton_chart />
@@ -369,18 +368,11 @@
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and
-        @uploads_analytics.ok? and @downloads_analytics.ok? and @hit_rate_analytics.ok? and
+        @analytics_chart_data.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
            @downloads_analytics.result.total_size != 0 or
            @uploads_analytics.result.total_size != 0)
     }>
-      <% chart =
-        TuistWeb.XcodeCacheLive.analytics_chart_data(
-          @analytics_selected_widget,
-          @uploads_analytics.result,
-          @downloads_analytics.result,
-          @hit_rate_analytics.result
-        ) %>
       <div data-part="analytics-chart">
         <.chart
           id="xcode-cache-analytics-chart"
@@ -401,8 +393,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    chart.dates |> List.first(),
-                    chart.dates |> List.last()
+                    @analytics_chart_data.result.dates |> List.first(),
+                    @analytics_chart_data.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -415,14 +407,14 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: chart.value_formatter
+                  formatter: @analytics_chart_data.result.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: chart.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: chart.value_formatter}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter}
                 end,
               legend: %{
                 show: false
@@ -433,11 +425,11 @@
             %{
               data:
                 Enum.zip(
-                  chart.dates,
-                  chart.values
+                  @analytics_chart_data.result.dates,
+                  @analytics_chart_data.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: chart.name,
+              name: @analytics_chart_data.result.name,
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -449,8 +441,7 @@
     </.card_section>
     <.empty_card_section
       :if={
-        (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
-          @downloads_analytics.ok? and @uploads_analytics.ok? and
+        (@uploads_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
           @downloads_analytics.result.total_size == 0 and
           @uploads_analytics.result.total_size == 0
       }

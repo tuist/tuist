@@ -143,8 +143,7 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if @hit_rate_analytics.ok? do
             dgettext("dashboard_gradle", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -159,8 +158,7 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if @hit_rate_analytics.ok? do
             %{
               avg:
                 dgettext("dashboard_gradle", "%{hit_rate}%",
@@ -199,8 +197,7 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if @hit_rate_analytics.ok? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend
@@ -259,23 +256,17 @@
         empty={@cache_events.ok? && @cache_events.result.uploads.total_size == 0}
       />
     </div>
-    <.card_section :if={
-      (@analytics_selected_widget == "cache_hit_rate" and
-         (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
-            !@hit_rate_p50.ok?)) or
-        (@analytics_selected_widget != "cache_hit_rate" and
-           (!@cache_events.ok? or !@hit_rate_analytics.ok?))
-    }>
+    <.card_section :if={!@hit_rate_analytics.ok?}>
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget == "cache_hit_rate" and
-        @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and @hit_rate_p50.ok? and
+        @hit_rate_analytics.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
-           (@cache_events.ok? and @cache_events.result.downloads.total_size != 0) or
-           (@cache_events.ok? and @cache_events.result.uploads.total_size != 0))
+           @cache_events.result.downloads.total_size != 0 or
+           @cache_events.result.uploads.total_size != 0)
     }>
       <div data-part="analytics-chart">
         <.chart
@@ -399,17 +390,11 @@
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and
-        @hit_rate_analytics.ok? and @cache_events.ok? and
+        @analytics_chart_data.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
            @cache_events.result.downloads.total_size != 0 or
            @cache_events.result.uploads.total_size != 0)
     }>
-      <% chart =
-        TuistWeb.GradleCacheLive.analytics_chart_data(
-          @analytics_selected_widget,
-          @hit_rate_analytics.result,
-          @cache_events.result
-        ) %>
       <div data-part="analytics-chart">
         <.chart
           id="gradle-analytics-chart"
@@ -430,8 +415,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    chart.dates |> List.first(),
-                    chart.dates |> List.last()
+                    @analytics_chart_data.result.dates |> List.first(),
+                    @analytics_chart_data.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -444,14 +429,14 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: chart.value_formatter
+                  formatter: @analytics_chart_data.result.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: chart.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: chart.value_formatter}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter}
                 end,
               legend: %{
                 show: false
@@ -462,11 +447,11 @@
             %{
               data:
                 Enum.zip(
-                  chart.dates,
-                  chart.values
+                  @analytics_chart_data.result.dates,
+                  @analytics_chart_data.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: chart.name,
+              name: @analytics_chart_data.result.name,
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -479,7 +464,6 @@
     <.empty_card_section
       :if={
         (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
-          @cache_events.ok? and
           @cache_events.result.downloads.total_size == 0 and
           @cache_events.result.uploads.total_size == 0
       }

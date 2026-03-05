@@ -126,11 +126,27 @@ defmodule TuistWeb.TestCasesLive do
     query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
     uri = URI.new!("?" <> query)
 
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
     {:noreply,
-     socket
-     |> assign(:analytics_selected_widget, widget)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+     if socket.assigns.analytics_chart_data.ok? do
+       chart_data =
+         analytics_chart_data(
+           widget,
+           socket.assigns.selected_duration_type,
+           socket.assigns.test_case_runs_analytics.result,
+           socket.assigns.failed_test_case_runs_analytics.result,
+           socket.assigns.test_case_runs_duration_analytics.result
+         )
+
+       assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
+     else
+       socket
+     end}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
@@ -141,12 +157,28 @@ defmodule TuistWeb.TestCasesLive do
 
     uri = URI.new!("?" <> query)
 
+    socket =
+      socket
+      |> assign(:selected_duration_type, type)
+      |> assign(:analytics_selected_widget, "test_case_run_duration")
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
     {:noreply,
-     socket
-     |> assign(:selected_duration_type, type)
-     |> assign(:analytics_selected_widget, "test_case_run_duration")
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+     if socket.assigns.analytics_chart_data.ok? do
+       chart_data =
+         analytics_chart_data(
+           "test_case_run_duration",
+           type,
+           socket.assigns.test_case_runs_analytics.result,
+           socket.assigns.failed_test_case_runs_analytics.result,
+           socket.assigns.test_case_runs_duration_analytics.result
+         )
+
+       assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
+     else
+       socket
+     end}
   end
 
   def handle_event(
@@ -233,68 +265,94 @@ defmodule TuistWeb.TestCasesLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
     |> assign(:uri, uri)
-    |> assign_async(:test_case_runs_analytics, fn ->
-      {:ok, %{test_case_runs_analytics: Analytics.test_case_run_analytics(project.id, opts)}}
-    end)
-    |> assign_async(:failed_test_case_runs_analytics, fn ->
-      {:ok,
-       %{
-         failed_test_case_runs_analytics:
-           Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
-       }}
-    end)
-    |> assign_async(:test_case_runs_duration_analytics, fn ->
-      {:ok, %{test_case_runs_duration_analytics: Analytics.test_case_run_duration_analytics(project.id, opts)}}
-    end)
+    |> assign_async(
+      [
+        :test_case_runs_analytics,
+        :failed_test_case_runs_analytics,
+        :test_case_runs_duration_analytics,
+        :analytics_chart_data
+      ],
+      fn ->
+        test_case_runs_analytics = Analytics.test_case_run_analytics(project.id, opts)
+
+        failed_test_case_runs_analytics =
+          Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+        test_case_runs_duration_analytics =
+          Analytics.test_case_run_duration_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           test_case_runs_analytics: test_case_runs_analytics,
+           failed_test_case_runs_analytics: failed_test_case_runs_analytics,
+           test_case_runs_duration_analytics: test_case_runs_duration_analytics,
+           analytics_chart_data:
+             analytics_chart_data(
+               analytics_selected_widget,
+               selected_duration_type,
+               test_case_runs_analytics,
+               failed_test_case_runs_analytics,
+               test_case_runs_duration_analytics
+             )
+         }}
+      end
+    )
   end
 
-  def analytics_chart_data(
-        analytics_selected_widget,
-        selected_duration_type,
-        test_case_runs_analytics,
-        failed_test_case_runs_analytics,
-        test_case_runs_duration_analytics
-      ) do
-    case analytics_selected_widget do
-      "test_case_run_count" ->
-        %{
-          dates: test_case_runs_analytics.dates,
-          values: test_case_runs_analytics.values,
-          name: dgettext("dashboard_tests", "Test case runs"),
-          value_formatter: "{value}"
-        }
+  defp analytics_chart_data(
+         analytics_selected_widget,
+         selected_duration_type,
+         test_case_runs_analytics,
+         failed_test_case_runs_analytics,
+         test_case_runs_duration_analytics
+       ) do
+    chart_data =
+      case analytics_selected_widget do
+        "test_case_run_count" ->
+          %{
+            dates: test_case_runs_analytics.dates,
+            values: test_case_runs_analytics.values,
+            name: dgettext("dashboard_tests", "Test case runs"),
+            value_formatter: "{value}"
+          }
 
-      "failed_test_case_run_count" ->
-        %{
-          dates: failed_test_case_runs_analytics.dates,
-          values: failed_test_case_runs_analytics.values,
-          name: dgettext("dashboard_tests", "Failed test case runs"),
-          value_formatter: "{value}"
-        }
+        "failed_test_case_run_count" ->
+          %{
+            dates: failed_test_case_runs_analytics.dates,
+            values: failed_test_case_runs_analytics.values,
+            name: dgettext("dashboard_tests", "Failed test case runs"),
+            value_formatter: "{value}"
+          }
 
-      "test_case_run_duration" ->
-        {values, name} =
-          case selected_duration_type do
-            "p99" ->
-              {test_case_runs_duration_analytics.p99_values, dgettext("dashboard_tests", "p99 test case run duration")}
+        "test_case_run_duration" ->
+          {values, name} =
+            case selected_duration_type do
+              "p99" ->
+                {test_case_runs_duration_analytics.p99_values, dgettext("dashboard_tests", "p99 test case run duration")}
 
-            "p90" ->
-              {test_case_runs_duration_analytics.p90_values, dgettext("dashboard_tests", "p90 test case run duration")}
+              "p90" ->
+                {test_case_runs_duration_analytics.p90_values, dgettext("dashboard_tests", "p90 test case run duration")}
 
-            "p50" ->
-              {test_case_runs_duration_analytics.p50_values, dgettext("dashboard_tests", "p50 test case run duration")}
+              "p50" ->
+                {test_case_runs_duration_analytics.p50_values, dgettext("dashboard_tests", "p50 test case run duration")}
 
-            _ ->
-              {test_case_runs_duration_analytics.values, dgettext("dashboard_tests", "Avg. test case run duration")}
-          end
+              _ ->
+                {test_case_runs_duration_analytics.values, dgettext("dashboard_tests", "Avg. test case run duration")}
+            end
 
-        %{
-          dates: test_case_runs_duration_analytics.dates,
-          values: values,
-          name: name,
-          value_formatter: "fn:formatMilliseconds"
-        }
-    end
+          %{
+            dates: test_case_runs_duration_analytics.dates,
+            values: values,
+            name: name,
+            value_formatter: "fn:formatMilliseconds"
+          }
+      end
+
+    Map.put(
+      chart_data,
+      :grid_left,
+      if(Enum.max(chart_data.values, fn -> 0 end) >= 1_000_000, do: "0.8%", else: "0.4%")
+    )
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")

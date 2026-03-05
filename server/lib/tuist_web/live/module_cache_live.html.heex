@@ -115,8 +115,7 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if @hit_rate_analytics.ok? do
             dgettext("dashboard_cache", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -131,8 +130,7 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if @hit_rate_analytics.ok? do
             %{
               avg:
                 dgettext("dashboard_cache", "%{hit_rate}%",
@@ -171,8 +169,7 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
-               @hit_rate_p50.ok? do
+          if @hit_rate_analytics.ok? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend
@@ -235,30 +232,17 @@
         empty={@misses_analytics.ok? && @misses_analytics.result.total_count == 0}
       />
     </div>
-    <.card_section :if={
-      (@analytics_selected_widget == "cache_hit_rate" and
-         (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
-            !@hit_rate_p50.ok?)) or
-        (@analytics_selected_widget != "cache_hit_rate" and
-           (!@hits_analytics.ok? or !@misses_analytics.ok? or !@hit_rate_analytics.ok?))
-    }>
+    <.card_section :if={!@hit_rate_analytics.ok?}>
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and
-        @hit_rate_analytics.ok? and @hits_analytics.ok? and @misses_analytics.ok? and
+        @hit_rate_analytics.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or @hits_analytics.result.total_count != 0 or
            @misses_analytics.result.total_count != 0)
     }>
-      <% chart =
-        TuistWeb.ModuleCacheLive.analytics_chart_data(
-          @analytics_selected_widget,
-          @hits_analytics.result,
-          @misses_analytics.result,
-          @hit_rate_analytics.result
-        ) %>
       <div data-part="analytics-chart">
         <.chart
           id="module-cache-analytics-chart"
@@ -279,8 +263,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    chart.dates |> List.first(),
-                    chart.dates |> List.last()
+                    @analytics_chart_data.result.dates |> List.first(),
+                    @analytics_chart_data.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -293,14 +277,14 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: chart.value_formatter
+                  formatter: @analytics_chart_data.result.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: chart.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: chart.value_formatter}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter}
                 end,
               legend: %{
                 show: false
@@ -311,11 +295,11 @@
             %{
               data:
                 Enum.zip(
-                  chart.dates,
-                  chart.values
+                  @analytics_chart_data.result.dates,
+                  @analytics_chart_data.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: chart.name,
+              name: @analytics_chart_data.result.name,
               type: "line",
               smooth: 0.1,
               symbol: "none"
@@ -327,7 +311,7 @@
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget == "cache_hit_rate" and
-        @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and @hit_rate_p50.ok? and
+        @hit_rate_analytics.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
            (@hits_analytics.ok? and @hits_analytics.result.total_count != 0) or
            (@misses_analytics.ok? and @misses_analytics.result.total_count != 0))
@@ -455,7 +439,6 @@
     <.empty_card_section
       :if={
         (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
-          @hits_analytics.ok? and @misses_analytics.ok? and
           @hits_analytics.result.total_count == 0 and @misses_analytics.result.total_count == 0
       }
       title={dgettext("dashboard_cache", "No data yet")}

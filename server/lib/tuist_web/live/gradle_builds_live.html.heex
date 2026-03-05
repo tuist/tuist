@@ -140,11 +140,8 @@
         trend_label={@analytics_trend_label}
         empty={@failed_builds_analytics.ok? && @failed_builds_analytics.result.count == 0}
       />
-      <% all_durations_loaded? =
-        @builds_duration_analytics.ok? and @builds_p99_durations.ok? and @builds_p90_durations.ok? and
-          @builds_p50_durations.ok? %>
       <.percentile_dropdown_widget
-        loading={!all_durations_loaded?}
+        loading={!@builds_duration_analytics.ok?}
         id="widget-build-duration"
         title={
           case @selected_build_duration_type do
@@ -169,7 +166,7 @@
           )
         }
         value={
-          if all_durations_loaded? do
+          if @builds_duration_analytics.ok? do
             Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               case @selected_build_duration_type do
                 "p99" -> @builds_p99_durations.result.total_percentile_duration
@@ -181,7 +178,7 @@
           end
         }
         metrics={
-          if all_durations_loaded? do
+          if @builds_duration_analytics.ok? do
             %{
               avg:
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
@@ -208,7 +205,7 @@
         phx_value_widget="build-duration"
         selected={@analytics_selected_widget == "build-duration"}
         trend_value={
-          if all_durations_loaded? do
+          if @builds_duration_analytics.ok? do
             case @selected_build_duration_type do
               "p99" -> @builds_p99_durations.result.trend
               "p90" -> @builds_p90_durations.result.trend
@@ -220,18 +217,14 @@
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
         empty={
-          all_durations_loaded? &&
+          @builds_duration_analytics.ok? &&
             @builds_duration_analytics.result.total_average_duration == 0
         }
       />
     </div>
     <.card_section :if={
-      (@analytics_selected_widget == "build-duration" and
-         (!@builds_duration_analytics.ok? or !@builds_p99_durations.ok? or
-            !@builds_p90_durations.ok? or !@builds_p50_durations.ok?)) or
-        (@analytics_selected_widget != "build-duration" and
-           (!@total_builds_analytics.ok? or !@failed_builds_analytics.ok? or
-              !@build_success_rate_analytics.ok?))
+      (@analytics_selected_widget == "build-duration" and !@builds_duration_analytics.ok?) or
+        (@analytics_selected_widget != "build-duration" and !@total_builds_analytics.ok?)
     }>
       <div data-part="analytics-chart">
         <.skeleton_chart />
@@ -240,8 +233,7 @@
     <.card_section
       :if={
         @analytics_selected_widget == "build-duration" and
-          @builds_duration_analytics.ok? and @builds_p99_durations.ok? and
-          @builds_p90_durations.ok? and @builds_p50_durations.ok? and
+          @builds_duration_analytics.ok? and
           @builds_duration_analytics.result.total_average_duration != 0
       }
       data-part="analytics-card-chart-section"
@@ -368,20 +360,9 @@
       />
     </.card_section>
     <.card_section
-      :if={
-        @analytics_selected_widget != "build-duration" and
-          @total_builds_analytics.ok? and @failed_builds_analytics.ok? and
-          @build_success_rate_analytics.ok?
-      }
+      :if={@analytics_selected_widget != "build-duration" and @analytics_chart_data.ok?}
       data-part="analytics-card-chart-section"
     >
-      <% chart =
-        TuistWeb.GradleBuildsLive.analytics_chart_data(
-          @analytics_selected_widget,
-          @total_builds_analytics.result,
-          @failed_builds_analytics.result,
-          @build_success_rate_analytics.result
-        ) %>
       <.chart
         id="gradle-builds-analytics-chart"
         type="line"
@@ -400,8 +381,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  chart.dates |> List.first(),
-                  chart.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -414,7 +395,7 @@
               },
               axisLabel: %{
                 color: "var:noora-surface-label-secondary",
-                formatter: chart.value_formatter
+                formatter: @analytics_chart_data.result.value_formatter
               }
             },
             legend: %{
@@ -422,9 +403,9 @@
             },
             tooltip:
               if @analytics_preset == "last-24-hours" do
-                %{valueFormat: chart.value_formatter, dateFormat: "hour"}
+                %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
               else
-                %{valueFormat: chart.value_formatter}
+                %{valueFormat: @analytics_chart_data.result.value_formatter}
               end
           }
         }
@@ -438,17 +419,17 @@
               ),
             data:
               Enum.zip(
-                chart.dates,
+                @analytics_chart_data.result.dates,
                 if @analytics_selected_widget == "build-success-rate" do
-                  chart.values
+                  @analytics_chart_data.result.values
                   |> Enum.map(&Decimal.from_float/1)
                   |> Enum.map(&Decimal.round(&1, 1))
                 else
-                  chart.values
+                  @analytics_chart_data.result.values
                 end
               )
               |> Enum.map(&Tuple.to_list/1),
-            name: chart.name,
+            name: @analytics_chart_data.result.name,
             type: "line",
             smooth: 0.1,
             symbol: "none"
