@@ -6,6 +6,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - render.yaml
 
 concurrency:
   group: server-render-preview-${{ github.head_ref }}
