@@ -46,7 +46,6 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
       String.starts_with?(bundle.git_ref, "refs/pull/")
   end
 
-
   defp post_check_run(
          %{
            vcs_connection: %{

@@ -3,6 +3,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
   use Mimic
 
   alias Tuist.Bundles
+  alias Tuist.Bundles.Workers.BundleThresholdWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BundlesFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -272,7 +273,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
       |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
 
       assert_enqueued(
-        worker: Tuist.Bundles.Workers.BundleThresholdWorker,
+        worker: BundleThresholdWorker,
         args: %{project_id: project.id, git_commit_sha: "abc123"}
       )
     end
@@ -299,7 +300,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
       |> put_req_header("content-type", "application/json")
       |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
 
-      refute_enqueued(worker: Tuist.Bundles.Workers.BundleThresholdWorker)
+      refute_enqueued(worker: BundleThresholdWorker)
     end
 
     test "does not enqueue BundleThresholdWorker when git_ref is nil", %{
@@ -325,7 +326,7 @@ defmodule TuistWeb.API.BundlesControllerTest do
       |> put_req_header("content-type", "application/json")
       |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
 
-      refute_enqueued(worker: Tuist.Bundles.Workers.BundleThresholdWorker)
+      refute_enqueued(worker: BundleThresholdWorker)
     end
   end
 
