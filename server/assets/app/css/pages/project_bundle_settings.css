@@ -108,6 +108,10 @@
     }
   }
 
+  & [data-part="github-connect-alert"] {
+    width: fit-content;
+  }
+
   & .noora-modal {
     & [data-part="content"] {
       max-width: 500px;
@@ -118,6 +122,16 @@
       flex-direction: column;
       gap: var(--noora-spacing-8);
       min-width: 420px;
+    }
+
+    & [data-part="alert-description"] {
+      padding: var(--noora-spacing-9) var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & [data-part="alert-form"] {
+      padding-bottom: var(--noora-spacing-9);
     }
   }
 

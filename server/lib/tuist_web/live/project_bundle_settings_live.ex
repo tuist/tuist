@@ -14,9 +14,13 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
+    project = Repo.preload(selected_project, vcs_connection: :github_app_installation)
+    has_github_connection = project.vcs_connection != nil && project.vcs_connection.github_app_installation != nil
+
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Bundles")} · #{selected_project.name} · Tuist")
+      |> assign(:has_github_connection, has_github_connection)
       |> assign_threshold_defaults(selected_project)
 
     {:ok, socket}
@@ -207,4 +211,30 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
 
   defp metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
   defp metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
+
+  defp threshold_description(metric, deviation, baseline_branch, bundle_name) do
+    size_label = metric_label(metric)
+
+    text =
+      if bundle_name == "" or is_nil(bundle_name) do
+        dgettext(
+          "dashboard_projects",
+          "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
+          size_label: size_label,
+          deviation: deviation,
+          baseline_branch: baseline_branch
+        )
+      else
+        dgettext(
+          "dashboard_projects",
+          "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>.",
+          size_label: size_label,
+          bundle_name: bundle_name,
+          deviation: deviation,
+          baseline_branch: baseline_branch
+        )
+      end
+
+    raw(text)
+  end
 end

@@ -245,6 +245,90 @@ defmodule TuistWeb.API.BundlesControllerTest do
     end
   end
 
+  describe "threshold check enqueuing on bundle creation" do
+    test "enqueues BundleThresholdWorker when bundle has git_commit_sha and git_ref", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle",
+          "install_size" => 1024,
+          "supported_platforms" => ["ios"],
+          "version" => "1.0.0",
+          "type" => "app",
+          "git_branch" => "feature",
+          "git_commit_sha" => "abc123",
+          "git_ref" => "refs/pull/1/merge",
+          "artifacts" => []
+        }
+      }
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      assert_enqueued(
+        worker: Tuist.Bundles.Workers.BundleThresholdWorker,
+        args: %{project_id: project.id, git_commit_sha: "abc123"}
+      )
+    end
+
+    test "does not enqueue BundleThresholdWorker when git_commit_sha is nil", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle",
+          "install_size" => 1024,
+          "supported_platforms" => ["ios"],
+          "version" => "1.0.0",
+          "type" => "app",
+          "artifacts" => []
+        }
+      }
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      refute_enqueued(worker: Tuist.Bundles.Workers.BundleThresholdWorker)
+    end
+
+    test "does not enqueue BundleThresholdWorker when git_ref is nil", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      bundle_params = %{
+        "bundle" => %{
+          "app_bundle_id" => "com.example.app",
+          "name" => "Test Bundle",
+          "install_size" => 1024,
+          "supported_platforms" => ["ios"],
+          "version" => "1.0.0",
+          "type" => "app",
+          "git_commit_sha" => "abc123",
+          "artifacts" => []
+        }
+      }
+
+      conn
+      |> Authentication.put_current_user(user)
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/projects/#{project.account.name}/#{project.name}/bundles", bundle_params)
+
+      refute_enqueued(worker: Tuist.Bundles.Workers.BundleThresholdWorker)
+    end
+  end
+
   describe "GET /api/projects/:account_handle/:project_handle/bundles" do
     test "returns a list of bundles sorted by inserted_at desc", %{
       conn: conn,

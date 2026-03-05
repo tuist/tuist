@@ -53,6 +53,30 @@
       </div>
     </div>
     <div data-part="content">
+      <.alert
+        :if={!@has_github_connection}
+        status="information"
+        type="secondary"
+        size="medium"
+        data-part="github-connect-alert"
+        title={
+          dgettext(
+            "dashboard_projects",
+            "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
+          )
+        }
+      >
+        <:action>
+          <.link_button
+            href={~p"/#{@selected_account.name}/integrations"}
+            target="_blank"
+            label={dgettext("dashboard_projects", "Connect GitHub")}
+            variant="secondary"
+          >
+            <:icon_right><.external_link /></:icon_right>
+          </.link_button>
+        </:action>
+      </.alert>
       <div data-part="alert-section">
         <div data-part="subsection-header">
           <h3 data-part="subsection-title">
@@ -69,11 +93,20 @@
                 label={dgettext("dashboard_projects", "Add threshold")}
                 variant="secondary"
                 size="medium"
+                disabled={!@has_github_connection}
                 phx-click="open_create_threshold_modal"
                 {attrs}
               />
             </:trigger>
             <.line_divider />
+            <p data-part="alert-description">
+              {threshold_description(
+                @create_form_metric,
+                @create_form_deviation,
+                @create_form_baseline_branch,
+                @create_form_bundle_name
+              )}
+            </p>
             <div data-part="alert-form">
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
@@ -141,14 +174,14 @@
               </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Bundle name (optional)")}
+                  {dgettext("dashboard_projects", "Name")}
                 </label>
                 <.text_input
                   type="basic"
                   id="create-threshold-bundle-name"
                   name="bundle_name"
                   value={@create_form_bundle_name}
-                  placeholder={dgettext("dashboard_projects", "All bundles")}
+                  placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
                   phx-keyup="update_create_form_bundle_name"
                   phx-debounce="300"
                 />
@@ -224,6 +257,14 @@
                     </.button>
                   </:trigger>
                   <.line_divider />
+                  <p data-part="alert-description">
+                    {threshold_description(
+                      form[:metric] || threshold.metric,
+                      form[:deviation] || threshold.deviation_percentage,
+                      form[:baseline_branch] || threshold.baseline_branch,
+                      form[:bundle_name] || threshold.bundle_name
+                    )}
+                  </p>
                   <div data-part="alert-form">
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
@@ -292,7 +333,7 @@
                     </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
-                        {dgettext("dashboard_projects", "Bundle name (optional)")}
+                        {dgettext("dashboard_projects", "Name")}
                       </label>
                       <.text_input
                         type="basic"

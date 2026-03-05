@@ -1277,5 +1277,57 @@ defmodule Tuist.BundlesTest do
       assert info.current_size == 1200
       assert info.baseline_size == 1000
     end
+
+    test "returns :ok when size decreased (negative deviation)" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        deviation_percentage: 5.0
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 1000,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 800,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+    end
+
+    test "returns :ok when baseline size is zero" do
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_threshold_fixture(
+        project: project,
+        deviation_percentage: 5.0
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        install_size: 0,
+        git_branch: "main",
+        inserted_at: ~U[2024-01-01 00:00:00Z]
+      )
+
+      bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          install_size: 1000,
+          git_branch: "feature",
+          inserted_at: ~U[2024-01-02 00:00:00Z]
+        )
+
+      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+    end
   end
 end
