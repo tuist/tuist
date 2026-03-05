@@ -254,8 +254,7 @@ defmodule Tuist.GitHub.Client do
 
   def create_check_run(%{repository_full_handle: repository_full_handle, installation_id: installation_id} = params) do
     url =
-      %URI{scheme: "https", host: "api.github.com", path: "/repos/#{repository_full_handle}/check-runs"}
-      |> URI.to_string()
+      URI.to_string(%URI{scheme: "https", host: "api.github.com", path: "/repos/#{repository_full_handle}/check-runs"})
 
     json =
       params
@@ -275,8 +274,11 @@ defmodule Tuist.GitHub.Client do
           params
       ) do
     url =
-      %URI{scheme: "https", host: "api.github.com", path: "/repos/#{repository_full_handle}/check-runs/#{check_run_id}"}
-      |> URI.to_string()
+      URI.to_string(%URI{
+        scheme: "https",
+        host: "api.github.com",
+        path: "/repos/#{repository_full_handle}/check-runs/#{check_run_id}"
+      })
 
     json =
       params
