@@ -89,7 +89,10 @@
     </:actions>
     <div data-part="widgets">
       <.percentile_dropdown_widget
-        loading={!@hit_rate_analytics.ok?}
+        loading={
+          !(@hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+              @hit_rate_p50.ok?)
+        }
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, @runs.ok? && Enum.empty?(@runs.result)} do
@@ -115,7 +118,8 @@
           )
         }
         value={
-          if @hit_rate_analytics.ok? do
+          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+               @hit_rate_p50.ok? do
             dgettext("dashboard_cache", "%{hit_rate}%",
               hit_rate:
                 case @selected_hit_rate_type do
@@ -130,7 +134,8 @@
           end
         }
         metrics={
-          if @hit_rate_analytics.ok? do
+          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+               @hit_rate_p50.ok? do
             %{
               avg:
                 dgettext("dashboard_cache", "%{hit_rate}%",
@@ -169,7 +174,8 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          if @hit_rate_analytics.ok? do
+          if @hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+               @hit_rate_p50.ok? do
             case @selected_hit_rate_type do
               "p99" -> @hit_rate_p99.result.trend
               "p90" -> @hit_rate_p90.result.trend
@@ -232,14 +238,19 @@
         empty={@misses_analytics.ok? && @misses_analytics.result.total_count == 0}
       />
     </div>
-    <.card_section :if={!@hit_rate_analytics.ok?}>
+    <.card_section :if={
+      (@analytics_selected_widget == "cache_hit_rate" and
+         (!@hit_rate_analytics.ok? or !@hit_rate_p99.ok? or !@hit_rate_p90.ok? or
+            !@hit_rate_p50.ok?)) or
+        (@analytics_selected_widget != "cache_hit_rate" and !@analytics_chart_data.ok?)
+    }>
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section :if={
       @analytics_selected_widget != "cache_hit_rate" and
-        @hit_rate_analytics.ok? and
+        @analytics_chart_data.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or @hits_analytics.result.total_count != 0 or
            @misses_analytics.result.total_count != 0)
     }>
@@ -312,6 +323,9 @@
     <.card_section :if={
       @analytics_selected_widget == "cache_hit_rate" and
         @hit_rate_analytics.ok? and
+        @hit_rate_p99.ok? and
+        @hit_rate_p90.ok? and
+        @hit_rate_p50.ok? and
         (@hit_rate_analytics.result.avg_hit_rate != 0 or
            (@hits_analytics.ok? and @hits_analytics.result.total_count != 0) or
            (@misses_analytics.ok? and @misses_analytics.result.total_count != 0))
