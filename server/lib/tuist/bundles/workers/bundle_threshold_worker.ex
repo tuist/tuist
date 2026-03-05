@@ -97,25 +97,29 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
         nil
       end
 
-    if existing_check_run do
-      update_params = %{
-        repository_full_handle: repo_handle,
-        check_run_id: existing_check_run["id"],
-        installation_id: installation_id,
-        status: "completed",
-        conclusion: conclusion,
-        output: output,
-        actions: actions
-      }
+    result =
+      if existing_check_run do
+        update_params = %{
+          repository_full_handle: repo_handle,
+          check_run_id: existing_check_run["id"],
+          installation_id: installation_id,
+          status: "completed",
+          conclusion: conclusion,
+          output: output,
+          actions: actions
+        }
 
-      Client.update_check_run(update_params)
-    else
-      params = if actions, do: Map.put(params, :actions, actions), else: params
+        Client.update_check_run(update_params)
+      else
+        params = if actions, do: Map.put(params, :actions, actions), else: params
 
-      Client.create_check_run(params)
+        Client.create_check_run(params)
+      end
+
+    case result do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
-
-    :ok
   end
 
   defp build_check_run_output(:ok, _bundle_url) do
