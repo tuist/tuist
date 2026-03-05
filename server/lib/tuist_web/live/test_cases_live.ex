@@ -390,8 +390,6 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    project_id = project.id
-
     socket
     |> assign(:active_filters, filters)
     |> assign(:test_cases_current_page, page)
@@ -401,7 +399,7 @@ defmodule TuistWeb.TestCasesLive do
     |> assign_async(
       :test_cases_page,
       fn ->
-        {test_cases, test_cases_meta} = Tests.list_test_cases(project_id, options)
+        {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options)
         {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
       end,
       reset: true
