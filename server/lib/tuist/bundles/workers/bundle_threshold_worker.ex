@@ -32,7 +32,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
       if Enum.empty?(thresholds) do
         :ok
       else
-        result = Bundles.evaluate_thresholds(project, bundle)
+        result = Bundles.evaluate_project_thresholds(project, bundle)
         post_check_run(project, bundle, git_commit_sha, result)
       end
     else

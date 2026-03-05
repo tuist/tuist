@@ -499,7 +499,7 @@ defmodule Tuist.Bundles do
     Repo.delete(threshold)
   end
 
-  def evaluate_thresholds(%Project{} = project, %Bundle{} = bundle) do
+  def evaluate_project_thresholds(%Project{} = project, %Bundle{} = bundle) do
     thresholds = get_project_bundle_thresholds(project)
 
     Enum.reduce_while(thresholds, :ok, fn threshold, :ok ->

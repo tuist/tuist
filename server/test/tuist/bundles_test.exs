@@ -1137,7 +1137,7 @@ defmodule Tuist.BundlesTest do
     end
   end
 
-  describe "evaluate_thresholds/2" do
+  describe "evaluate_project_thresholds/2" do
     test "returns :ok when no thresholds exist" do
       project = ProjectsFixtures.project_fixture()
 
@@ -1149,7 +1149,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
 
     test "returns :ok when within threshold" do
@@ -1171,7 +1171,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
 
     test "returns violated when threshold exceeded" do
@@ -1198,7 +1198,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert {:violated, threshold, info} = Bundles.evaluate_thresholds(project, bundle)
+      assert {:violated, threshold, info} = Bundles.evaluate_project_thresholds(project, bundle)
       assert threshold.name == "Strict"
       assert info.current_size == 1200
       assert info.baseline_size == 1000
@@ -1231,7 +1231,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
 
     test "returns :ok when no baseline bundle exists" do
@@ -1246,7 +1246,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
 
     test "evaluates download_size metric" do
@@ -1273,7 +1273,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert {:violated, _threshold, info} = Bundles.evaluate_thresholds(project, bundle)
+      assert {:violated, _threshold, info} = Bundles.evaluate_project_thresholds(project, bundle)
       assert info.current_size == 1200
       assert info.baseline_size == 1000
     end
@@ -1301,7 +1301,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
 
     test "returns :ok when baseline size is zero" do
@@ -1327,7 +1327,7 @@ defmodule Tuist.BundlesTest do
           inserted_at: ~U[2024-01-02 00:00:00Z]
         )
 
-      assert :ok == Bundles.evaluate_thresholds(project, bundle)
+      assert :ok == Bundles.evaluate_project_thresholds(project, bundle)
     end
   end
 end
