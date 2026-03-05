@@ -41,20 +41,6 @@
       gap: var(--noora-spacing-3);
     }
 
-    & [data-part="test-cases-table-skeleton"] {
-      display: flex;
-      flex-direction: column;
-      gap: var(--noora-spacing-6);
-      padding: var(--noora-spacing-5) 0;
-
-      & [data-part="skeleton-row"] {
-        display: flex;
-        align-items: center;
-        gap: var(--noora-spacing-6);
-        padding: var(--noora-spacing-4) 0;
-      }
-    }
-
     & [data-part="test-cases-table"] .noora-table {
       & th:nth-child(1),
       & td:nth-child(1) {

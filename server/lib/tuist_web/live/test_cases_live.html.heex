@@ -490,14 +490,12 @@
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
 
-      <div :if={!@test_cases_page_data.ok?} data-part="test-cases-table-skeleton">
-        <div :for={_ <- 1..5} data-part="skeleton-row">
-          <.skeleton_box width="60%" height="16px" />
-          <.skeleton_box width="80px" height="16px" />
-          <.skeleton_box width="60px" height="16px" />
-          <.skeleton_box width="90px" height="16px" />
-        </div>
-      </div>
+      <.skeleton_box
+        :if={!@test_cases_page_data.ok?}
+        width="100%"
+        height="300px"
+        border_radius="var(--noora-radius-large)"
+      />
 
       <div
         :if={
