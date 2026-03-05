@@ -1,8 +1,39 @@
 <aside data-part="toc" aria-label={dgettext("docs", "Table of contents")}>
-  <span data-part="title">{dgettext("docs", "On this page")}</span>
+  <div data-part="toc-actions">
+    <.button_dropdown
+      id="docs-copy-dropdown"
+      label={dgettext("docs", "Copy page")}
+      size="medium"
+      phx-click="copy-page-markdown"
+    >
+      <:icon_left><.copy /></:icon_left>
+      <.dropdown_item
+        label={dgettext("docs", "Copy as Markdown")}
+        value="copy-markdown"
+        size="small"
+        on_click="copy-page-markdown"
+      />
+    </.button_dropdown>
+  </div>
+  <div data-part="toc-header">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 6h11" /><path d="M12 12h8" /><path d="M15 18h5" /><path d="M5 6v.01" /><path d="M8 12v.01" /><path d="M11 18v.01" />
+    </svg>
+    <span>{dgettext("docs", "On this page")}</span>
+  </div>
   <ul data-part="list">
-    <li :for={heading <- @headings} data-part="item" data-level={heading.level}>
-      <a href={"##{heading.id}"}>{heading.text}</a>
+    <li :for={heading <- @headings} data-part="item">
+      <a href={"##{heading.id}"} data-level={heading.level}>{heading.text}</a>
     </li>
   </ul>
 </aside>

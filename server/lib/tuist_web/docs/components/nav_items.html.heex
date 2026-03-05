@@ -4,11 +4,21 @@
       <.tab_menu_vertical
         label={item.label}
         data-selected={Sidebar.item_active?(item, @current_slug)}
-      />
+      >
+        <:icon_left :if={item.icon}>
+          <img
+            src={item_icon_src(item.icon)}
+            alt={item.icon}
+            width="16"
+            height="16"
+            data-part="item-icon"
+          />
+        </:icon_left>
+      </.tab_menu_vertical>
     </.link>
   <% else %>
     <div
-      id={"docs-nav-#{slugify(item.label)}"}
+      id={"docs-nav-#{slugify(item.slug || item.label)}"}
       phx-hook="NooraCollapsible"
       data-open={Sidebar.item_or_children_active?(item, @current_slug)}
     >
@@ -19,6 +29,15 @@
               label={item.label}
               data-selected={Sidebar.item_active?(item, @current_slug)}
             >
+              <:icon_left :if={item.icon}>
+                <img
+                  src={item_icon_src(item.icon)}
+                  alt={item.icon}
+                  width="16"
+                  height="16"
+                  data-part="item-icon"
+                />
+              </:icon_left>
               <:icon_right>
                 <div data-part="indicator">
                   <div data-part="indicator-down"><.chevron_down /></div>
@@ -33,6 +52,15 @@
             data-part="trigger"
             data-selected={Sidebar.item_active?(item, @current_slug)}
           >
+            <:icon_left :if={item.icon}>
+              <img
+                src={item_icon_src(item.icon)}
+                alt={item.icon}
+                width="16"
+                height="16"
+                data-part="item-icon"
+              />
+            </:icon_left>
             <:icon_right>
               <div data-part="indicator">
                 <div data-part="indicator-down"><.chevron_down /></div>

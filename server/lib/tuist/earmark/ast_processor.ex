@@ -13,7 +13,7 @@ defmodule Tuist.Earmark.ASTProcessor do
       end
 
     {:replace,
-     {"div", [{"id", "marketing-window"}],
+     {"div", [{"class", "code-window"}],
       [
         {"div", [{"data-part", "bar"}],
          [
@@ -64,6 +64,8 @@ defmodule Tuist.Earmark.ASTProcessor do
         |> String.downcase()
         |> String.replace(~r/\s+/, "-")
 
+      stripped_children = strip_links(children)
+
       {:replace,
        {heading,
         attrs ++
@@ -72,7 +74,7 @@ defmodule Tuist.Earmark.ASTProcessor do
             {"tabindex", "-1"},
             {"class", "marketing__blog_post__body__content__heading"}
           ],
-        children ++
+        stripped_children ++
           [
             {"a",
              [
@@ -159,6 +161,14 @@ defmodule Tuist.Earmark.ASTProcessor do
 
   def process(node) do
     node
+  end
+
+  defp strip_links(children) when is_list(children) do
+    Enum.flat_map(children, fn
+      {"a", _, inner, _} -> strip_links(inner)
+      {tag, attrs, inner, meta} -> [{tag, attrs, strip_links(inner), meta}]
+      other -> [other]
+    end)
   end
 
   defp heading_text(children) do

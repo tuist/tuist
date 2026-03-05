@@ -27,10 +27,16 @@ defmodule TuistWeb.DocsLive do
             raise NotFoundError, dgettext("errors", "Page not found")
 
           page ->
+            head_title =
+              case page.title_template do
+                nil -> "#{page.title} · Docs · Tuist"
+                template -> String.replace(template, ":title", page.title)
+              end
+
             {:noreply,
              socket
              |> assign(:page, page)
-             |> assign(:head_title, "#{page.title} · Docs · Tuist")
+             |> assign(:head_title, head_title)
              |> assign(:head_description, page.description)}
         end
 
@@ -43,12 +49,21 @@ defmodule TuistWeb.DocsLive do
 
   def render(assigns) do
     ~H"""
-    <TuistWeb.Docs.Components.layout current_slug={@page.slug} headings={@page.headings}>
-      <article data-part="docs-body" data-prose>
+    <TuistWeb.Docs.Components.layout
+      current_slug={@page.slug}
+      tab={Tuist.Docs.Sidebar.tab_for_slug(@page.slug)}
+      headings={@page.headings}
+      markdown={@page.markdown}
+    >
+      <article id={"docs-body-#{@page.slug}"} data-part="docs-body" data-prose phx-hook="DocsContent">
         {raw(@page.body)}
       </article>
     </TuistWeb.Docs.Components.layout>
     """
+  end
+
+  def handle_event("copy-page-markdown", _params, socket) do
+    {:noreply, push_event(socket, "docs:copy-to-clipboard", %{text: socket.assigns.page.markdown})}
   end
 
   defp build_path(%{"path" => path_parts}), do: "/en/" <> Enum.join(path_parts, "/")

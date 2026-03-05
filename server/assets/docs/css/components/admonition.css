@@ -1,0 +1,20 @@
+[data-part="docs-body"] .noora-alert {
+  margin: var(--noora-spacing-5) 0;
+}
+
+[data-part="docs-body"] .noora-alert [data-part="description"] > * + * {
+  margin-top: var(--noora-spacing-5);
+}
+
+[data-part="docs-body"] .noora-alert [data-part="description"] > *:last-child {
+  margin-bottom: 0;
+}
+
+[data-part="docs-body"] .noora-alert [data-part="column"] {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-part="docs-body"] .noora-alert [data-part="description"] .code-window {
+  width: 100%;
+}

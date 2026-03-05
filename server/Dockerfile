@@ -89,6 +89,7 @@ FROM deps-builder AS builder
 
 COPY server/priv priv
 COPY skills/skills priv/static/skills
+COPY docs/docs/public/images priv/static/docs/images
 COPY server/assets assets
 
 COPY server/lib lib

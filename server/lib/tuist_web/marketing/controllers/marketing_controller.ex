@@ -491,7 +491,13 @@ defmodule TuistWeb.Marketing.MarketingController do
         Tuist.Environment.app_url(path: localized_path)
       end
 
-    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls
+    docs_urls =
+      Enum.map(
+        Tuist.Docs.slugs(),
+        &Tuist.Environment.app_url(path: "/docs#{&1}")
+      )
+
+    entries = localized_entries ++ page_urls ++ post_urls ++ newsletter_issue_urls ++ docs_urls
 
     conn
     |> assign(:entries, entries)

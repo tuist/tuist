@@ -1,10 +1,13 @@
 #docs-nav {
   display: flex;
+  position: sticky;
+  top: 0;
   flex-direction: row;
   justify-content: space-between;
-  padding: var(--noora-spacing-6) var(--noora-spacing-7);
-  background: var(--noora-surface-background-tertiary);
+  z-index: 10;
   border-bottom: 1px solid var(--noora-content-divider-line);
+  background: var(--noora-surface-background-tertiary);
+  padding: var(--noora-spacing-6) var(--noora-spacing-7);
 
   & > [data-part="header"] {
     display: flex;
@@ -20,15 +23,14 @@
   & > [data-part="cta"] {
     display: flex;
     flex-direction: row;
-    gap: var(--noora-spacing-6);
     align-items: center;
+    gap: var(--noora-spacing-6);
 
     & > [data-part="socials"] {
       display: flex;
       flex-direction: row;
-      gap: var(--noora-spacing-4);
       align-items: center;
+      gap: var(--noora-spacing-4);
     }
-
   }
 }

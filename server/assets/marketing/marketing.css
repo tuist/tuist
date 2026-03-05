@@ -27,8 +27,8 @@
 @import "css/layouts/components/banner.css";
 @import "css/layouts/components/window.css";
 @import "css/layouts/components/agent-prompt.css";
+@import "../shared/css/code-group.css";
 @import "css/layouts/components/prose-banner.css";
-@import "css/routes/docs.css";
 
 :root {
   color-scheme: light;
