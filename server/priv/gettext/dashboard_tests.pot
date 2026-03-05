@@ -44,6 +44,7 @@ msgstr ""
 #: lib/tuist_web/live/flaky_tests_live.ex:234
 #: lib/tuist_web/live/flaky_tests_live.html.heex:11
 #: lib/tuist_web/live/test_cases_live.ex:364
+#: lib/tuist_web/live/test_cases_live.html.heex:11
 #: lib/tuist_web/live/test_runs_live.ex:371
 #: lib/tuist_web/live/tests_live.ex:395
 #: lib/tuist_web/live/tests_live.ex:402
@@ -159,6 +160,7 @@ msgstr ""
 #: lib/tuist_web/live/flaky_tests_live.html.heex:27
 #: lib/tuist_web/live/test_case_live.ex:107
 #: lib/tuist_web/live/test_cases_live.ex:366
+#: lib/tuist_web/live/test_cases_live.html.heex:27
 #: lib/tuist_web/live/test_runs_live.ex:373
 #: lib/tuist_web/live/tests_live.ex:397
 #: lib/tuist_web/live/tests_live.html.heex:50
@@ -605,6 +607,7 @@ msgstr ""
 #: lib/tuist_web/live/flaky_tests_live.ex:235
 #: lib/tuist_web/live/flaky_tests_live.html.heex:19
 #: lib/tuist_web/live/test_cases_live.ex:365
+#: lib/tuist_web/live/test_cases_live.html.heex:19
 #: lib/tuist_web/live/test_run_live.html.heex:1435
 #: lib/tuist_web/live/test_runs_live.ex:372
 #: lib/tuist_web/live/tests_live.ex:396
