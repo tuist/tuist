@@ -37,8 +37,9 @@ GitHub 應用程式會發佈 Tuist 執行報告，其中包含拉取請求摘要
 
 ::: info GITHUB_REF
 <!-- -->
-` 若您使用自訂工作流程，且該流程並非在拉取請求提交時觸發（例如針對 GitHub 評論），則需確保變數 ```
-的 `GITHUB_REF` 參數設定為以下任一值：``refs/pull/<pr_number>/merge``` `或``refs/pull/<pr_number>/head````</pr_number></pr_number>
+` 若您使用自訂工作流程，且該流程並非在拉取請求提交時觸發（例如針對 GitHub 評論），則需確保變數 ``` 的 `GITHUB_REF`
+參數設定為以下任一值：`refs/pull/<pr_number>/merge`
+或`refs/pull/<pr_number>/head`</pr_number></pr_number>
 
 可執行相關指令，例如：`tuist share` ，並預先設定環境變數：`GITHUB_REF`
 ：<code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist
