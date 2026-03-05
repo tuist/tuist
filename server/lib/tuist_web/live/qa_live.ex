@@ -41,8 +41,14 @@ defmodule TuistWeb.QALive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
-    uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
+
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
 
     if socket.assigns.qa_runs_analytics.ok? do
       chart_data =

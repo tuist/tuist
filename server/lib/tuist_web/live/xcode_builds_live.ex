@@ -53,8 +53,14 @@ defmodule TuistWeb.XcodeBuildsLive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
-    uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
+
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

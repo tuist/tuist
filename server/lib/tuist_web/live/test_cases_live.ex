@@ -123,16 +123,30 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
-    uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
+    {:noreply,
+     socket
+     |> assign(:analytics_selected_widget, widget)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
+    query =
+      socket.assigns.uri.query
+      |> Query.put("duration-type", type)
+      |> Query.put("analytics-selected-widget", "test_case_run_duration")
+
+    uri = URI.new!("?" <> query)
+
     {:noreply,
      socket
      |> assign(:selected_duration_type, type)
-     |> assign(:analytics_selected_widget, "test_case_run_duration")}
+     |> assign(:analytics_selected_widget, "test_case_run_duration")
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})}
   end
 
   def handle_event(

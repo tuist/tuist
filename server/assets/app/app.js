@@ -87,6 +87,10 @@ window.addEventListener("phx:navigate", (info) => {
   }
 });
 
+window.addEventListener("phx:replace-url", (e) => {
+  history.replaceState(history.state, "", e.detail.url);
+});
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
