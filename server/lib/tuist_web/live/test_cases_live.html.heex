@@ -491,21 +491,19 @@
       </div>
 
       <.skeleton_box
-        :if={!@test_cases_page_data.ok?}
+        :if={!@test_cases_page.ok?}
         width="100%"
         height="300px"
         border_radius="var(--noora-radius-large)"
       />
 
       <div
-        :if={
-          @test_cases_page_data.ok? and not Enum.empty?(@test_cases_page_data.result.test_cases)
-        }
+        :if={@test_cases_page.ok? and not Enum.empty?(@test_cases_page.result.test_cases)}
         data-part="test-cases-table"
       >
         <.table
           id="test-cases-table"
-          rows={@test_cases_page_data.result.test_cases}
+          rows={@test_cases_page.result.test_cases}
           row_navigate={
             fn test_case ->
               url(
@@ -613,9 +611,9 @@
           </:col>
         </.table>
         <.pagination_group
-          :if={@test_cases_page_data.result.meta.total_pages > 1}
-          current_page={@test_cases_page}
-          number_of_pages={@test_cases_page_data.result.meta.total_pages}
+          :if={@test_cases_page.result.meta.total_pages > 1}
+          current_page={@test_cases_current_page}
+          number_of_pages={@test_cases_page.result.meta.total_pages}
           page_patch={
             fn page ->
               "?#{Query.put(@uri.query, "page", page)}"
@@ -625,7 +623,7 @@
       </div>
 
       <div
-        :if={@test_cases_page_data.ok? and Enum.empty?(@test_cases_page_data.result.test_cases)}
+        :if={@test_cases_page.ok? and Enum.empty?(@test_cases_page.result.test_cases)}
         data-part="empty-test-cases"
       >
         <.empty_card_section
