@@ -3,9 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
   List all projects accessible to the authenticated user.
   """
 
-  use Hermes.Server.Component, type: :tool
+  use Anubis.Server.Component, type: :tool
 
-  alias Hermes.Server.Response
+  alias Anubis.Server.Response
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
