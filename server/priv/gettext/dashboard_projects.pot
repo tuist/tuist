@@ -126,7 +126,7 @@ msgid "Bundle install size"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.html.heex:25
-#: lib/tuist_web/live/project_bundle_settings_live.ex:22
+#: lib/tuist_web/live/project_bundle_settings_live.ex:23
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:25
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:38
 #: lib/tuist_web/live/project_notifications_live.html.heex:25
@@ -263,7 +263,7 @@ msgstr ""
 msgid "General access"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:212
+#: lib/tuist_web/live/project_bundle_settings_live.ex:213
 #: lib/tuist_web/live/project_notifications_live.ex:716
 #: lib/tuist_web/live/xcode_overview_live.html.heex:662
 #, elixir-autogen, elixir-format
@@ -503,7 +503,7 @@ msgid "View more"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.ex:21
-#: lib/tuist_web/live/project_bundle_settings_live.ex:14
+#: lib/tuist_web/live/project_bundle_settings_live.ex:15
 #: lib/tuist_web/live/project_notifications_live.ex:24
 #: lib/tuist_web/live/project_settings_live.ex:15
 #, elixir-autogen, elixir-format
@@ -942,7 +942,7 @@ msgstr ""
 msgid "Bundle size"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:213
+#: lib/tuist_web/live/project_bundle_settings_live.ex:214
 #: lib/tuist_web/live/project_notifications_live.ex:717
 #, elixir-autogen, elixir-format
 msgid "Download size"
@@ -1038,12 +1038,12 @@ msgstr ""
 msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:220
+#: lib/tuist_web/live/project_bundle_settings_live.ex:221
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
 
-#: lib/tuist_web/live/project_bundle_settings_live.ex:228
+#: lib/tuist_web/live/project_bundle_settings_live.ex:229
 #, elixir-autogen, elixir-format
 msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
