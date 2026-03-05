@@ -16,12 +16,12 @@ defmodule TuistWeb.ProjectBundleSettingsLive do
     end
 
     project = Repo.preload(selected_project, vcs_connection: :github_app_installation)
-    has_github_connection = Projects.has_github_connection?(project)
+    has_vcs_connection = Projects.has_vcs_connection?(project)
 
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Bundles")} · #{selected_project.name} · Tuist")
-      |> assign(:has_github_connection, has_github_connection)
+      |> assign(:has_vcs_connection, has_vcs_connection)
       |> assign_threshold_defaults(selected_project)
 
     {:ok, socket}

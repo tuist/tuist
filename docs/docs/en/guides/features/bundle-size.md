@@ -102,7 +102,7 @@ Once your Tuist project is connected with your Git platform such as [GitHub](htt
 
 ## Size thresholds {#size-thresholds}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+::: warning INTEGRATION WITH GIT FORGE REQUIRED
 <!-- -->
 To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
 <!-- -->

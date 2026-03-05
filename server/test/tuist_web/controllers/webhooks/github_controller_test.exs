@@ -692,6 +692,11 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
     test "updates check run to success on accept action", %{conn: conn} do
       conn = put_req_header(conn, "x-github-event", "check_run")
 
+      expect(VCS, :get_github_app_installation_by_installation_id, fn installation_id ->
+        assert installation_id == "12345"
+        {:ok, %{installation_id: "12345"}}
+      end)
+
       expect(VCS, :update_check_run, fn params ->
         assert params.check_run_id == 42
         assert params.conclusion == "success"
@@ -707,6 +712,27 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
           "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"},
           "requested_action" => %{"identifier" => "accept_bundle_size"},
           "installation" => %{"id" => 12_345},
+          "repository" => %{"full_name" => "org/repo"}
+        })
+
+      assert result.status == 200
+    end
+
+    test "ignores check_run events for unknown installations", %{conn: conn} do
+      conn = put_req_header(conn, "x-github-event", "check_run")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn _installation_id ->
+        {:error, :not_found}
+      end)
+
+      reject(VCS, :update_check_run, 1)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "requested_action",
+          "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"},
+          "requested_action" => %{"identifier" => "accept_bundle_size"},
+          "installation" => %{"id" => 99_999},
           "repository" => %{"full_name" => "org/repo"}
         })
 

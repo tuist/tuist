@@ -138,16 +138,18 @@ defmodule TuistWeb.Webhooks.GitHubController do
        }) do
     installation_id = to_string(installation_id)
 
-    VCS.update_check_run(%{
-      repository_full_handle: repository_full_name,
-      check_run_id: check_run_id,
-      installation_id: installation_id,
-      conclusion: "success",
-      output: %{
-        title: "Bundle size increase accepted",
-        summary: "The bundle size increase was manually accepted."
-      }
-    })
+    with {:ok, _installation} <- VCS.get_github_app_installation_by_installation_id(installation_id) do
+      VCS.update_check_run(%{
+        repository_full_handle: repository_full_name,
+        check_run_id: check_run_id,
+        installation_id: installation_id,
+        conclusion: "success",
+        output: %{
+          title: "Bundle size increase accepted",
+          summary: "The bundle size increase was manually accepted."
+        }
+      })
+    end
 
     conn
     |> put_status(:ok)

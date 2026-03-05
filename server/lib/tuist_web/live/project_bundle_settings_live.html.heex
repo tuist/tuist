@@ -54,7 +54,7 @@
     </div>
     <div data-part="content">
       <.alert
-        :if={!@has_github_connection}
+        :if={!@has_vcs_connection}
         status="information"
         type="secondary"
         size="medium"
@@ -93,7 +93,7 @@
                 label={dgettext("dashboard_projects", "Add threshold")}
                 variant="secondary"
                 size="medium"
-                disabled={!@has_github_connection}
+                disabled={!@has_vcs_connection}
                 phx-click="open_create_threshold_modal"
                 {attrs}
               />

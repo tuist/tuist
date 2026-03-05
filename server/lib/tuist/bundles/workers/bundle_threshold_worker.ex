@@ -26,7 +26,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
          project = Projects.get_project_by_id(project_id),
          true <- project != nil,
          project = Repo.preload(project, [:account, vcs_connection: :github_app_installation]),
-         true <- Environment.github_app_configured?() && Projects.has_github_connection?(project) do
+         true <- Environment.github_app_configured?() && Projects.has_vcs_connection?(project) do
       thresholds = Bundles.get_project_bundle_thresholds(project)
 
       if Enum.empty?(thresholds) do
@@ -60,7 +60,7 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
          result
        ) do
     bundle_url =
-      "#{Environment.app_url()}/#{account_name}/#{project_name}/bundles/#{bundle.id}"
+      Environment.app_url(path: "/#{account_name}/#{project_name}/bundles/#{bundle.id}")
 
     {conclusion, output} = build_check_run_output(result, bundle_url)
 
