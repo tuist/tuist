@@ -11,9 +11,7 @@ defmodule Tuist.Repo.Migrations.CreateBundleThresholds do
       add :bundle_name, :string
       add :project_id, references(:projects, on_delete: :delete_all), null: false
 
-      timestamps(type: :utc_datetime)
+      timestamps(type: :timestamptz)
     end
-
-    create index(:bundle_thresholds, [:project_id])
   end
 end

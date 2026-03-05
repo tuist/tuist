@@ -503,40 +503,48 @@ defmodule Tuist.Bundles do
     thresholds = get_project_bundle_thresholds(project)
 
     Enum.reduce_while(thresholds, :ok, fn threshold, :ok ->
-      if threshold.bundle_name && threshold.bundle_name != bundle.name do
-        {:cont, :ok}
-      else
-        baseline =
-          last_project_bundle(project,
-            git_branch: threshold.baseline_branch,
-            name: bundle.name,
-            fallback: false
-          )
-
-        if is_nil(baseline) do
-          {:cont, :ok}
-        else
-          {current_size, baseline_size} =
-            case threshold.metric do
-              :install_size -> {bundle.install_size, baseline.install_size}
-              :download_size -> {bundle.download_size, baseline.download_size}
-            end
-
-          if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
-            {:cont, :ok}
-          else
-            deviation = (current_size - baseline_size) / baseline_size * 100
-
-            if deviation > threshold.deviation_percentage do
-              {:halt,
-               {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}}
-            else
-              {:cont, :ok}
-            end
-          end
-        end
+      case evaluate_single_threshold(project, bundle, threshold) do
+        :ok -> {:cont, :ok}
+        {:violated, _, _} = violation -> {:halt, violation}
       end
     end)
+  end
+
+  defp evaluate_single_threshold(project, bundle, threshold) do
+    if threshold.bundle_name && threshold.bundle_name != bundle.name do
+      :ok
+    else
+      baseline =
+        last_project_bundle(project,
+          git_branch: threshold.baseline_branch,
+          name: bundle.name,
+          fallback: false
+        )
+
+      check_threshold_deviation(threshold, bundle, baseline)
+    end
+  end
+
+  defp check_threshold_deviation(_threshold, _bundle, nil), do: :ok
+
+  defp check_threshold_deviation(threshold, bundle, baseline) do
+    {current_size, baseline_size} =
+      case threshold.metric do
+        :install_size -> {bundle.install_size, baseline.install_size}
+        :download_size -> {bundle.download_size, baseline.download_size}
+      end
+
+    if is_nil(current_size) || is_nil(baseline_size) || baseline_size == 0 do
+      :ok
+    else
+      deviation = (current_size - baseline_size) / baseline_size * 100
+
+      if deviation > threshold.deviation_percentage do
+        {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}
+      else
+        :ok
+      end
+    end
   end
 
   defp flatten_artifacts(
