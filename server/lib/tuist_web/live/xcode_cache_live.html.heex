@@ -87,7 +87,10 @@
     </:actions>
     <div data-part="widgets">
       <.percentile_dropdown_widget
-        loading={!@hit_rate_analytics.ok?}
+        loading={
+          !(@hit_rate_analytics.ok? and @hit_rate_p99.ok? and @hit_rate_p90.ok? and
+              @hit_rate_p50.ok?)
+        }
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@builds)} do
@@ -441,7 +444,7 @@
     </.card_section>
     <.empty_card_section
       :if={
-        (@uploads_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
+        (@hit_rate_analytics.ok? && @hit_rate_analytics.result.avg_hit_rate == 0) and
           @downloads_analytics.result.total_size == 0 and
           @uploads_analytics.result.total_size == 0
       }
