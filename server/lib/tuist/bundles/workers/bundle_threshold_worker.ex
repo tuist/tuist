@@ -24,17 +24,20 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     cancel_competing_jobs(job_id, args)
 
     with {:ok, bundle} <- Bundles.get_bundle(bundle_id),
-         true <- should_run?(bundle),
+         true <- should_run?(bundle) || log_skip(:should_run, bundle),
          project = Projects.get_project_by_id(project_id),
-         true <- project != nil,
+         true <- (project != nil) || log_skip(:project_not_found, project_id),
          project = Repo.preload(project, [:account, vcs_connection: :github_app_installation]),
-         true <- has_github_connection?(project) do
+         true <- has_github_connection?(project) || log_skip(:no_github_connection, project) do
       thresholds = Bundles.get_project_bundle_thresholds(project)
 
       if Enum.empty?(thresholds) do
+        Logger.info("BundleThresholdWorker: no thresholds configured for project #{project_id}")
         :ok
       else
+        Logger.info("BundleThresholdWorker: evaluating #{length(thresholds)} threshold(s) for bundle #{bundle_id}")
         result = Bundles.evaluate_thresholds(project, bundle)
+        Logger.info("BundleThresholdWorker: evaluation result: #{inspect(result)}")
         post_check_run(project, bundle, git_commit_sha, result)
       end
     else
@@ -86,30 +89,45 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
       details_url: bundle_url
     }
 
+    Logger.info("BundleThresholdWorker: posting check run to #{repo_handle} for #{git_commit_sha}, conclusion=#{conclusion}, existing=#{existing_check_run != nil}")
+
+    actions =
+      if conclusion == "action_required" do
+        [
+          %{
+            label: "Accept",
+            description: "Accept the bundle size increase",
+            identifier: "accept_bundle_size"
+          }
+        ]
+      else
+        nil
+      end
+
     if existing_check_run do
-      Client.update_check_run(%{
+      update_params = %{
         repository_full_handle: repo_handle,
         check_run_id: existing_check_run["id"],
         installation_id: installation_id,
         status: "completed",
         conclusion: conclusion,
-        output: output
-      })
-    else
-      params =
-        if conclusion == "action_required" do
-          Map.put(params, :actions, [
-            %{
-              label: "Accept",
-              description: "Accept the bundle size increase",
-              identifier: "accept_bundle_size"
-            }
-          ])
-        else
-          params
-        end
+        output: output,
+        actions: actions
+      }
 
-      Client.create_check_run(params)
+      Client.update_check_run(update_params)
+    else
+      params = if actions, do: Map.put(params, :actions, actions), else: params
+
+      case Client.create_check_run(params) do
+        {:ok, resp} ->
+          Logger.info("BundleThresholdWorker: created check run: #{inspect(resp["id"])}")
+          {:ok, resp}
+
+        {:error, error} ->
+          Logger.error("BundleThresholdWorker: failed to create check run: #{inspect(error)}")
+          {:error, error}
+      end
     end
 
     :ok
@@ -150,6 +168,11 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
        title: "Bundle size threshold exceeded",
        summary: String.trim(summary)
      }}
+  end
+
+  defp log_skip(reason, detail) do
+    Logger.info("BundleThresholdWorker: skipping, reason=#{reason}, detail=#{inspect(detail)}")
+    false
   end
 
   defp cancel_competing_jobs(current_job_id, args) do
