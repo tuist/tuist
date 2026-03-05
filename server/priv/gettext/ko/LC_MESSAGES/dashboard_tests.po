@@ -43,6 +43,15 @@ msgstr "분석"
 msgid "Any"
 msgstr "모두"
 
+msgid "Apply"
+msgstr "적용"
+
+msgid "Attachments"
+msgstr "첨부 파일"
+
+msgid "Automatically by Tuist"
+msgstr "Tuist에 의해 자동 생성됨"
+
 msgid "Average"
 msgstr "평균"
 
@@ -74,6 +83,9 @@ msgstr "평균 테스트 실행 시간"
 msgid "Branch"
 msgstr "Branch"
 
+msgid "Build: %{name}"
+msgstr "빌드: %{name}"
+
 msgid "Build: %{scheme}"
 msgstr "빌드: %{scheme}"
 
@@ -82,6 +94,9 @@ msgstr "CI"
 
 msgid "CI Run"
 msgstr "CI 실행"
+
+msgid "Cancel"
+msgstr "취소"
 
 msgid "Caught error"
 msgstr "오류 발견"
@@ -95,6 +110,9 @@ msgstr "%{location}에서 오류가 발생했습니다: %{message}"
 msgid "Caught error: %{message}"
 msgstr "오류 발생: %{message}"
 
+msgid "Class"
+msgstr "Class"
+
 msgid "Command"
 msgstr "명령"
 
@@ -104,6 +122,12 @@ msgstr "명령 수행 시간"
 msgid "Commit"
 msgstr "Commit"
 
+msgid "Crash Report"
+msgstr "비정상 종료 보고서"
+
+msgid "Custom"
+msgstr "맞춤형"
+
 msgid "Download result"
 msgstr "결과 다운로드"
 
@@ -112,6 +136,15 @@ msgstr "소요 시간"
 
 msgid "Environment:"
 msgstr "환경:"
+
+msgid "Event"
+msgstr "이벤트"
+
+msgid "Events will appear here when the test case status changes."
+msgstr "테스트 케이스 상태가 변경되면 이벤트가 여기에 표시됩니다."
+
+msgid "Exception"
+msgstr "예외"
 
 msgid "Expectation failed"
 msgstr "기대와 다름"
@@ -162,14 +195,44 @@ msgstr "실패한 테스트 실행 건수"
 msgid "Failures"
 msgstr "실패"
 
+msgid "File"
+msgstr "파일"
+
 msgid "Filter"
 msgstr "필터"
+
+msgid "First run of this test"
+msgstr "이 테스트의 첫 실행"
+
+msgid "Flakiness rate"
+msgstr "불안정 비율"
+
+msgid "Flaky"
+msgstr "불안정"
+
+msgid "Flaky Runs"
+msgstr "불안정 건수"
+
+msgid "Flaky Tests"
+msgstr "불안정한 테스트"
+
+msgid "Flaky runs"
+msgstr "불규칙 건수"
+
+msgid "Flaky test cases"
+msgstr "불안정한 테스트 케이스"
+
+msgid "Flaky test runs"
+msgstr "불안정한 테스트 실행"
 
 msgid "Hash"
 msgstr "해시"
 
 msgid "Hit"
 msgstr "히트"
+
+msgid "Image"
+msgstr "이미지"
 
 msgid "Issue recorded"
 msgstr "기록된 이슈"
@@ -183,11 +246,29 @@ msgstr "%{location} 에서 문제가 기록되었습니다: %{message}"
 msgid "Issue recorded: %{message}"
 msgstr "기록된 문제: %{메시지}"
 
+msgid "Last 12 months"
+msgstr "지난 12개월"
+
+msgid "Last 24 hours"
+msgstr "지난 24시간"
+
+msgid "Last 30 days"
+msgstr "지난 30일"
+
+msgid "Last 7 days"
+msgstr "지난 7일"
+
 msgid "Last Status"
 msgstr "최종 상태"
 
+msgid "Last flaky run"
+msgstr "최근 불안정 테스트 실행"
+
 msgid "Last ran at"
 msgstr "마지막 실행 시기"
+
+msgid "Last run"
+msgstr "마지막 실행"
 
 msgid "Last run duration"
 msgstr "마지막 소요 시간"
@@ -195,11 +276,35 @@ msgstr "마지막 소요 시간"
 msgid "Last status"
 msgstr "최종 상태"
 
+msgid "Load more"
+msgstr "더 불러오기"
+
+msgid "Loading..."
+msgstr "로딩 중..."
+
 msgid "Local"
 msgstr "로컬"
 
+msgid "Log File"
+msgstr "로그 파일"
+
 msgid "Mac device"
 msgstr "Mac 장치"
+
+msgid "Manually by @%{name}"
+msgstr "@%{name}가 수동으로"
+
+msgid "Mark as flaky"
+msgstr "불규칙으로 표시"
+
+msgid "Marked as flaky"
+msgstr "불규칙으로 표시"
+
+msgid "Marked as quarantined"
+msgstr "격리됨으로 표시됨"
+
+msgid "Marked as unquarantined"
+msgstr "격리 해제됨으로 표시됨"
 
 msgid "Missed"
 msgstr "누락됨"
@@ -207,8 +312,17 @@ msgstr "누락됨"
 msgid "Module"
 msgstr "모듈"
 
+msgid "Module Cache"
+msgstr "모듈 캐시"
+
 msgid "Modules"
 msgstr "모듈"
+
+msgid "Most occurring flaky tests"
+msgstr "가장 빈번하게 발생하는 불규칙 테스트"
+
+msgid "New"
+msgstr "신규"
 
 msgid "No data"
 msgstr "데이터 없음"
@@ -219,8 +333,17 @@ msgstr "아직 데이터 없음"
 msgid "No failures detected"
 msgstr "감지된 실패 없음"
 
+msgid "No flaky tests"
+msgstr "불규칙한 테스트 없음"
+
+msgid "No history available"
+msgstr "사용 가능한 기록이 없습니다"
+
 msgid "No modules found"
 msgstr "모듈을 찾을 수 없습니다"
+
+msgid "No quarantined tests"
+msgstr "격리된 테스트 없음"
 
 msgid "No test case runs found"
 msgstr "테스트 케이스 실행이 없습니다"
@@ -240,11 +363,18 @@ msgstr "테스트 스위트를 찾을 수 없습니다"
 msgid "Number of test cases that failed."
 msgstr "실패한 테스트 케이스 건수 입니다."
 
+msgid "Number of test cases that passed after retry."
+msgstr "재시도 후 통과한 테스트 케이스 건수 입니다."
+
 msgid "Number of times this test case has failed."
 msgstr "이 테스트 케이스가 실패한 횟수입니다."
 
 msgid "Optimization Summary"
 msgstr "최적화 요약"
+
+#, fuzzy
+msgid "Other"
+msgstr "기타"
 
 msgid "Overview"
 msgstr "전체 현황"
@@ -254,6 +384,27 @@ msgstr "통과됨"
 
 msgid "Passed runs"
 msgstr "성공 건수"
+
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "지난 30일 동안 불규칙 했던 테스트 실행 비율."
+
+msgid "Project"
+msgstr "프로젝트"
+
+msgid "Quarantine"
+msgstr "격리"
+
+msgid "Quarantined"
+msgstr "격리됨"
+
+msgid "Quarantined Tests"
+msgstr "격리된 테스트"
+
+msgid "Quarantined by"
+msgstr "다음 사람이 격리함"
+
+msgid "Quarantined tests"
+msgstr "격리된 테스트 내역"
 
 msgid "Ran at"
 msgstr "실행 시기"
@@ -267,8 +418,14 @@ msgstr "최근 테스트 실행 건수"
 msgid "Remote"
 msgstr "원격"
 
+msgid "Run Details"
+msgstr "실행 세부 정보"
+
 msgid "Scheme"
 msgstr "빌드 Scheme"
+
+msgid "Scheme:"
+msgstr "Scheme:"
 
 msgid "Search..."
 msgstr "검색..."
@@ -302,6 +459,9 @@ msgstr ""
 msgid "Selective testing: no data yet"
 msgstr "선택적 테스트: 아직 데이터 없음"
 
+msgid "Signal"
+msgstr "신호"
+
 msgid "Skipped"
 msgstr "생략됨"
 
@@ -313,6 +473,9 @@ msgstr "정렬 기준:"
 
 msgid "Status"
 msgstr "상태"
+
+msgid "Subtype"
+msgstr "하위 유형"
 
 msgid ""
 "Success rate based on runs from the %{branch} branch. Falls back to all "
@@ -333,11 +496,23 @@ msgstr "테스트 케이스"
 msgid "Test Case Runs"
 msgstr "실행한 테스트 케이스 목록"
 
+msgid "Test Case: %{name}"
+msgstr "테스트 케이스: %{name}"
+
 msgid "Test Cases"
 msgstr "테스트 목록"
 
+msgid "Test Class"
+msgstr "테스트 클래스"
+
+msgid "Test Classes"
+msgstr "테스트 클래스 목록"
+
 msgid "Test Details"
 msgstr "테스트 세부 정보"
+
+msgid "Test History"
+msgstr "테스트 기록"
 
 msgid "Test Modules"
 msgstr "테스트 모듈"
@@ -351,6 +526,9 @@ msgstr "테스트 실행 내역"
 msgid "Test Runs"
 msgstr "테스트 실행 내역"
 
+msgid "Test Suite"
+msgstr "테스트 Suite"
+
 msgid "Test Suites"
 msgstr "테스트 Suite"
 
@@ -359,6 +537,9 @@ msgstr "테스트 케이스"
 
 msgid "Test case not found."
 msgstr "테스트 케이스를 찾을 수 없습니다."
+
+msgid "Test case run not found."
+msgstr "테스트 케이스 실행을 찾을 수 없습니다."
 
 msgid "Test case runs"
 msgstr "테스트 케이스 실행 건수"
@@ -372,6 +553,9 @@ msgstr ""
 
 msgid "Test cases"
 msgstr "테스트 케이스"
+
+msgid "Test history"
+msgstr "테스트 기록"
 
 msgid "Test reliability"
 msgstr "신뢰성 테스트"
@@ -397,11 +581,17 @@ msgstr "테스트 실행 내역"
 msgid "Tests"
 msgstr "테스트 내역"
 
+msgid "Text File"
+msgstr "텍스트 파일"
+
 msgid "The average test run duration with individual percentile intervals."
 msgstr "개별 백분위 간격의 평균 테스트 실행 시간입니다."
 
 msgid "The number of test runs that failed."
 msgstr "실패한 테스트 실행 횟수입니다."
+
+msgid "The number of test runs with flaky tests."
+msgstr "불규칙한 테스트가 포함된 테스트 실행 횟수."
 
 msgid "The total number of test runs."
 msgstr "총 테스트 실행 횟수입니다."
@@ -424,6 +614,9 @@ msgstr "검색어를 변경해 보세요"
 msgid "Try updating your search"
 msgstr "검색을 업데이트해 보세요"
 
+msgid "Tuist"
+msgstr "Tuist"
+
 msgid "Tuist version"
 msgstr "Tuist 버전"
 
@@ -432,6 +625,15 @@ msgstr "알 수 없음"
 
 msgid "Unknown error"
 msgstr "알 수 없는 오류"
+
+msgid "Unmark as flaky"
+msgstr "불규칙 표시 해제"
+
+msgid "Unmarked as flaky"
+msgstr "불규칙 표시 해제"
+
+msgid "Unquarantine"
+msgstr "격리 해제"
 
 msgid "View more"
 msgstr "자세히 보기"
@@ -469,222 +671,20 @@ msgstr "99% 이상의 테스트 케이스 실행 시간"
 msgid "since last month"
 msgstr "지난달부터"
 
+msgid "since last period"
+msgstr "지난 기간 이후"
+
 msgid "since last week"
 msgstr "지난 주부터"
 
 msgid "since last year"
 msgstr "작년부터"
 
-msgid "•"
-msgstr "•"
-
-msgid "Apply"
-msgstr "적용"
-
-msgid "Cancel"
-msgstr "취소"
-
-msgid "Custom"
-msgstr "맞춤형"
-
-msgid "Last 12 months"
-msgstr "지난 12개월"
-
-msgid "Last 24 hours"
-msgstr "지난 24시간"
-
-msgid "Last 30 days"
-msgstr "지난 30일"
-
-msgid "Last 7 days"
-msgstr "지난 7일"
-
-msgid "since last period"
-msgstr "지난 기간 이후"
-
 msgid "since yesterday"
 msgstr "어제부터"
 
-msgid "Flakiness rate"
-msgstr "불안정 비율"
-
-msgid "Flaky"
-msgstr "불안정"
-
-msgid "Flaky Runs"
-msgstr "불안정 건수"
-
-msgid "Flaky Tests"
-msgstr "불안정한 테스트"
-
-msgid "Flaky runs"
-msgstr "불규칙 건수"
-
-msgid "Flaky test cases"
-msgstr "불안정한 테스트 케이스"
-
-msgid "Flaky test runs"
-msgstr "불안정한 테스트 실행"
-
-msgid "Last flaky run"
-msgstr "최근 불안정 테스트 실행"
-
-msgid "Mark as flaky"
-msgstr "불규칙으로 표시"
-
-msgid "Most occurring flaky tests"
-msgstr "가장 빈번하게 발생하는 불규칙 테스트"
-
-msgid "No flaky tests"
-msgstr "불규칙한 테스트 없음"
-
-msgid "Number of test cases that passed after retry."
-msgstr "재시도 후 통과한 테스트 케이스 건수 입니다."
-
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "지난 30일 동안 불규칙 했던 테스트 실행 비율."
-
-msgid "The number of test runs with flaky tests."
-msgstr "불규칙한 테스트가 포함된 테스트 실행 횟수."
-
-msgid "Unmark as flaky"
-msgstr "불규칙 표시 해제"
-
-msgid "New"
-msgstr "신규"
-
-msgid "Quarantine"
-msgstr "격리"
-
-msgid "Quarantined"
-msgstr "격리됨"
-
-msgid "Unquarantine"
-msgstr "격리 해제"
-
-msgid "Module Cache"
-msgstr "모듈 캐시"
-
-msgid "Automatically by Tuist"
-msgstr "Tuist에 의해 자동 생성됨"
-
-msgid "Event"
-msgstr "이벤트"
-
-msgid "Events will appear here when the test case status changes."
-msgstr "테스트 케이스 상태가 변경되면 이벤트가 여기에 표시됩니다."
-
-msgid "First run of this test"
-msgstr "이 테스트의 첫 실행"
-
-msgid "Load more"
-msgstr "더 불러오기"
-
-msgid "Manually by @%{name}"
-msgstr "@%{name}가 수동으로"
-
-msgid "Marked as flaky"
-msgstr "불규칙으로 표시"
-
-msgid "Marked as quarantined"
-msgstr "격리됨으로 표시됨"
-
-msgid "Marked as unquarantined"
-msgstr "격리 해제됨으로 표시됨"
-
-msgid "No history available"
-msgstr "사용 가능한 기록이 없습니다"
-
-msgid "Test History"
-msgstr "테스트 기록"
-
-msgid "Test history"
-msgstr "테스트 기록"
-
-msgid "Unmarked as flaky"
-msgstr "불규칙 표시 해제"
-
-msgid "Last run"
-msgstr "마지막 실행"
-
-msgid "No quarantined tests"
-msgstr "격리된 테스트 없음"
-
-msgid "Quarantined Tests"
-msgstr "격리된 테스트"
-
-msgid "Quarantined by"
-msgstr "다음 사람이 격리함"
-
-msgid "Quarantined tests"
-msgstr "격리된 테스트 내역"
-
-msgid "Tuist"
-msgstr "Tuist"
-
-msgid "Build: %{name}"
-msgstr "빌드: %{name}"
-
-msgid "Class"
-msgstr "Class"
-
-msgid "Crash Report"
-msgstr "비정상 종료 보고서"
-
-msgid "Exception"
-msgstr "예외"
-
-msgid "Project"
-msgstr "프로젝트"
-
-msgid "Signal"
-msgstr "신호"
-
-msgid "Subtype"
-msgstr "하위 유형"
-
-msgid "Test Class"
-msgstr "테스트 클래스"
-
-msgid "Test Classes"
-msgstr "테스트 클래스 목록"
-
-msgid "Test Suite"
-msgstr "테스트 Suite"
-
-msgid "Scheme:"
-msgstr "Scheme:"
-
-msgid "Run Details"
-msgstr "실행 세부 정보"
-
-msgid "Test case run not found."
-msgstr "테스트 케이스 실행을 찾을 수 없습니다."
-
-msgid "Test Case: %{name}"
-msgstr "테스트 케이스: %{name}"
-
-msgid "Attachments"
-msgstr "첨부 파일"
-
-msgid "File"
-msgstr "파일"
-
-msgid "Image"
-msgstr "이미지"
-
-msgid "Loading..."
-msgstr "로딩 중..."
-
-msgid "Text File"
-msgstr "텍스트 파일"
-
-msgid "Log File"
-msgstr "로그 파일"
-
-#, fuzzy
-msgid "Other"
-msgstr "기타"
+msgid "•"
+msgstr "•"
 
 #~ msgid "Test suite"
 #~ msgstr "테스트 suite"

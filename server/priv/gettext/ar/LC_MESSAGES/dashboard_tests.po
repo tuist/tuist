@@ -50,6 +50,18 @@ msgid "Any"
 msgstr "أي"
 
 #, fuzzy
+msgid "Apply"
+msgstr "تطبيق"
+
+#, fuzzy
+msgid "Attachments"
+msgstr "المرفقات"
+
+#, fuzzy
+msgid "Automatically by Tuist"
+msgstr "تلقائيًا بواسطة Tuist"
+
+#, fuzzy
 msgid "Average"
 msgstr "المتوسط"
 
@@ -91,6 +103,10 @@ msgid "Branch"
 msgstr "فرع"
 
 #, fuzzy
+msgid "Build: %{name}"
+msgstr "البناء: %{name}"
+
+#, fuzzy
 msgid "Build: %{scheme}"
 msgstr "بناء: %{scheme}"
 
@@ -101,6 +117,10 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "تشغيل CI"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "إلغاء"
 
 #, fuzzy
 msgid "Caught error"
@@ -119,6 +139,10 @@ msgid "Caught error: %{message}"
 msgstr "تم اكتشاف خطأ: %{message}"
 
 #, fuzzy
+msgid "Class"
+msgstr "الفصل"
+
+#, fuzzy
 msgid "Command"
 msgstr "الأوامر"
 
@@ -131,6 +155,14 @@ msgid "Commit"
 msgstr "التزام"
 
 #, fuzzy
+msgid "Crash Report"
+msgstr "تقرير الأعطال"
+
+#, fuzzy
+msgid "Custom"
+msgstr "مخصص"
+
+#, fuzzy
 msgid "Download result"
 msgstr "تنزيل النتيجة"
 
@@ -141,6 +173,18 @@ msgstr "المدة"
 #, fuzzy
 msgid "Environment:"
 msgstr "البيئة:"
+
+#, fuzzy
+msgid "Event"
+msgstr "حدث"
+
+#, fuzzy
+msgid "Events will appear here when the test case status changes."
+msgstr "ستظهر الأحداث هنا عندما تتغير حالة حالة الاختبار."
+
+#, fuzzy
+msgid "Exception"
+msgstr "استثناء"
 
 #, fuzzy
 msgid "Expectation failed"
@@ -204,8 +248,44 @@ msgid "Failures"
 msgstr "الأخطاء"
 
 #, fuzzy
+msgid "File"
+msgstr "ملف"
+
+#, fuzzy
 msgid "Filter"
 msgstr "تصفية"
+
+#, fuzzy
+msgid "First run of this test"
+msgstr "أول مرة يتم إجراء هذا الاختبار"
+
+#, fuzzy
+msgid "Flakiness rate"
+msgstr "معدل التقلب"
+
+#, fuzzy
+msgid "Flaky"
+msgstr "غير موثوق"
+
+#, fuzzy
+msgid "Flaky Runs"
+msgstr "تشغيلات متقطعة"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "اختبارات Flaky"
+
+#, fuzzy
+msgid "Flaky runs"
+msgstr "تشغيلات متقطعة"
+
+#, fuzzy
+msgid "Flaky test cases"
+msgstr "حالات الاختبار غير الموثوقة"
+
+#, fuzzy
+msgid "Flaky test runs"
+msgstr "تشغيل اختبارات غير منتظمة"
 
 #, fuzzy
 msgid "Hash"
@@ -214,6 +294,10 @@ msgstr "هاش"
 #, fuzzy
 msgid "Hit"
 msgstr "اضغط"
+
+#, fuzzy
+msgid "Image"
+msgstr "صورة"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -232,12 +316,36 @@ msgid "Issue recorded: %{message}"
 msgstr "المشكلة المسجلة: %{message}"
 
 #, fuzzy
+msgid "Last 12 months"
+msgstr "آخر 12 شهرًا"
+
+#, fuzzy
+msgid "Last 24 hours"
+msgstr "آخر 24 ساعة"
+
+#, fuzzy
+msgid "Last 30 days"
+msgstr "آخر 30 يومًا"
+
+#, fuzzy
+msgid "Last 7 days"
+msgstr "آخر 7 أيام"
+
+#, fuzzy
 msgid "Last Status"
 msgstr "الحالة الأخيرة"
 
 #, fuzzy
+msgid "Last flaky run"
+msgstr "آخر تشغيل غير مستقر"
+
+#, fuzzy
 msgid "Last ran at"
 msgstr "آخر مرة تم تشغيله في"
+
+#, fuzzy
+msgid "Last run"
+msgstr "آخر تشغيل"
 
 #, fuzzy
 msgid "Last run duration"
@@ -248,12 +356,44 @@ msgid "Last status"
 msgstr "الحالة الأخيرة"
 
 #, fuzzy
+msgid "Load more"
+msgstr "تحميل المزيد"
+
+#, fuzzy
+msgid "Loading..."
+msgstr "جاري التحميل..."
+
+#, fuzzy
 msgid "Local"
 msgstr "محلي"
 
 #, fuzzy
+msgid "Log File"
+msgstr "ملف السجل"
+
+#, fuzzy
 msgid "Mac device"
 msgstr "جهاز Mac"
+
+#, fuzzy
+msgid "Manually by @%{name}"
+msgstr "يدويًا بواسطة @%{name}"
+
+#, fuzzy
+msgid "Mark as flaky"
+msgstr "ضع علامة \"غير موثوق\""
+
+#, fuzzy
+msgid "Marked as flaky"
+msgstr "تم وضع علامة \"غير موثوق\""
+
+#, fuzzy
+msgid "Marked as quarantined"
+msgstr "تم وضع علامة \"في الحجر الصحي\""
+
+#, fuzzy
+msgid "Marked as unquarantined"
+msgstr "تم وضع علامة \"غير معزول\""
 
 #, fuzzy
 msgid "Missed"
@@ -264,8 +404,20 @@ msgid "Module"
 msgstr "الوحدة"
 
 #, fuzzy
+msgid "Module Cache"
+msgstr "ذاكرة التخزين المؤقت للوحدة"
+
+#, fuzzy
 msgid "Modules"
 msgstr "الوحدات النمطية"
+
+#, fuzzy
+msgid "Most occurring flaky tests"
+msgstr "الاختبارات غير الموثوقة الأكثر شيوعًا"
+
+#, fuzzy
+msgid "New"
+msgstr "جديد"
 
 #, fuzzy
 msgid "No data"
@@ -280,8 +432,20 @@ msgid "No failures detected"
 msgstr "لم يتم اكتشاف أي أخطاء"
 
 #, fuzzy
+msgid "No flaky tests"
+msgstr "لا تقم بإجراء اختبارات غير موثوقة"
+
+#, fuzzy
+msgid "No history available"
+msgstr "لا يوجد سجل متاح"
+
+#, fuzzy
 msgid "No modules found"
 msgstr "لم يتم العثور على أي وحدات"
+
+#, fuzzy
+msgid "No quarantined tests"
+msgstr "لا توجد اختبارات معزولة"
 
 #, fuzzy
 msgid "No test case runs found"
@@ -308,12 +472,20 @@ msgid "Number of test cases that failed."
 msgstr "عدد حالات الاختبار التي فشلت."
 
 #, fuzzy
+msgid "Number of test cases that passed after retry."
+msgstr "عدد حالات الاختبار التي نجحت بعد إعادة المحاولة."
+
+#, fuzzy
 msgid "Number of times this test case has failed."
 msgstr "عدد المرات التي فشل فيها هذا الاختبار."
 
 #, fuzzy
 msgid "Optimization Summary"
 msgstr "ملخص التحسين"
+
+#, fuzzy
+msgid "Other"
+msgstr "أخرى"
 
 #, fuzzy
 msgid "Overview"
@@ -326,6 +498,34 @@ msgstr "تمت الموافقة"
 #, fuzzy
 msgid "Passed runs"
 msgstr "المرات التي تم اجتيازها"
+
+#, fuzzy
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "النسبة المئوية للاختبارات التي كانت غير مستقرة في آخر 30 يومًا."
+
+#, fuzzy
+msgid "Project"
+msgstr "المشروع"
+
+#, fuzzy
+msgid "Quarantine"
+msgstr "الحجر الصحي"
+
+#, fuzzy
+msgid "Quarantined"
+msgstr "محجوز"
+
+#, fuzzy
+msgid "Quarantined Tests"
+msgstr "الاختبارات المعزولة"
+
+#, fuzzy
+msgid "Quarantined by"
+msgstr "تم عزلها بواسطة"
+
+#, fuzzy
+msgid "Quarantined tests"
+msgstr "الاختبارات المعزولة"
 
 #, fuzzy
 msgid "Ran at"
@@ -344,8 +544,16 @@ msgid "Remote"
 msgstr "عن بُعد"
 
 #, fuzzy
+msgid "Run Details"
+msgstr "تفاصيل التشغيل"
+
+#, fuzzy
 msgid "Scheme"
 msgstr "المخطط"
+
+#, fuzzy
+msgid "Scheme:"
+msgstr "المخطط:"
 
 #, fuzzy
 msgid "Search..."
@@ -388,6 +596,10 @@ msgid "Selective testing: no data yet"
 msgstr "اختبار انتقائي: لا توجد بيانات حتى الآن"
 
 #, fuzzy
+msgid "Signal"
+msgstr "إشارة"
+
+#, fuzzy
 msgid "Skipped"
 msgstr "تم تخطي"
 
@@ -402,6 +614,10 @@ msgstr "ترتيب حسب:"
 #, fuzzy
 msgid "Status"
 msgstr "الحالة"
+
+#, fuzzy
+msgid "Subtype"
+msgstr "النوع الفرعي"
 
 #, fuzzy
 msgid ""
@@ -428,12 +644,28 @@ msgid "Test Case Runs"
 msgstr "تشغيل حالات الاختبار"
 
 #, fuzzy
+msgid "Test Case: %{name}"
+msgstr "حالة الاختبار: %{name}"
+
+#, fuzzy
 msgid "Test Cases"
 msgstr "حالات الاختبار"
 
 #, fuzzy
+msgid "Test Class"
+msgstr "فصل الاختبار"
+
+#, fuzzy
+msgid "Test Classes"
+msgstr "فصول الاختبار"
+
+#, fuzzy
 msgid "Test Details"
 msgstr "تفاصيل الاختبار"
+
+#, fuzzy
+msgid "Test History"
+msgstr "سجل الاختبارات"
 
 #, fuzzy
 msgid "Test Modules"
@@ -452,6 +684,10 @@ msgid "Test Runs"
 msgstr "تجارب الاختبار"
 
 #, fuzzy
+msgid "Test Suite"
+msgstr "مجموعة الاختبارات"
+
+#, fuzzy
 msgid "Test Suites"
 msgstr "مجموعات الاختبارات"
 
@@ -462,6 +698,10 @@ msgstr "حالة اختبار"
 #, fuzzy
 msgid "Test case not found."
 msgstr "لم يتم العثور على حالة اختبار."
+
+#, fuzzy
+msgid "Test case run not found."
+msgstr "لم يتم العثور على حالة الاختبار."
 
 #, fuzzy
 msgid "Test case runs"
@@ -478,6 +718,10 @@ msgstr ""
 #, fuzzy
 msgid "Test cases"
 msgstr "حالات الاختبار"
+
+#, fuzzy
+msgid "Test history"
+msgstr "سجل الاختبارات"
 
 #, fuzzy
 msgid "Test reliability"
@@ -510,12 +754,20 @@ msgid "Tests"
 msgstr "الاختبارات"
 
 #, fuzzy
+msgid "Text File"
+msgstr "ملف نصي"
+
+#, fuzzy
 msgid "The average test run duration with individual percentile intervals."
 msgstr "متوسط مدة الاختبار مع فترات مئوية فردية."
 
 #, fuzzy
 msgid "The number of test runs that failed."
 msgstr "عدد مرات فشل الاختبار."
+
+#, fuzzy
+msgid "The number of test runs with flaky tests."
+msgstr "عدد مرات إجراء الاختبارات مع الاختبارات غير المستقرة."
 
 #, fuzzy
 msgid "The total number of test runs."
@@ -547,6 +799,10 @@ msgid "Try updating your search"
 msgstr "حاول تحديث بحثك"
 
 #, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
+#, fuzzy
 msgid "Tuist version"
 msgstr "إصدار Tuist"
 
@@ -557,6 +813,18 @@ msgstr "غير معروف"
 #, fuzzy
 msgid "Unknown error"
 msgstr "خطأ غير معروف"
+
+#, fuzzy
+msgid "Unmark as flaky"
+msgstr "إلغاء تحديد \"غير موثوق\""
+
+#, fuzzy
+msgid "Unmarked as flaky"
+msgstr "إلغاء وضع علامة \"غير موثوق\""
+
+#, fuzzy
+msgid "Unquarantine"
+msgstr "إلغاء الحجر الصحي"
 
 #, fuzzy
 msgid "View more"
@@ -607,6 +875,10 @@ msgid "since last month"
 msgstr "منذ الشهر الماضي"
 
 #, fuzzy
+msgid "since last period"
+msgstr "منذ النقطة الأخيرة"
+
+#, fuzzy
 msgid "since last week"
 msgstr "منذ الأسبوع الماضي"
 
@@ -615,284 +887,12 @@ msgid "since last year"
 msgstr "منذ العام الماضي"
 
 #, fuzzy
-msgid "•"
-msgstr "•"
-
-#, fuzzy
-msgid "Apply"
-msgstr "تطبيق"
-
-#, fuzzy
-msgid "Cancel"
-msgstr "إلغاء"
-
-#, fuzzy
-msgid "Custom"
-msgstr "مخصص"
-
-#, fuzzy
-msgid "Last 12 months"
-msgstr "آخر 12 شهرًا"
-
-#, fuzzy
-msgid "Last 24 hours"
-msgstr "آخر 24 ساعة"
-
-#, fuzzy
-msgid "Last 30 days"
-msgstr "آخر 30 يومًا"
-
-#, fuzzy
-msgid "Last 7 days"
-msgstr "آخر 7 أيام"
-
-#, fuzzy
-msgid "since last period"
-msgstr "منذ النقطة الأخيرة"
-
-#, fuzzy
 msgid "since yesterday"
 msgstr "منذ أمس"
 
 #, fuzzy
-msgid "Flakiness rate"
-msgstr "معدل التقلب"
-
-#, fuzzy
-msgid "Flaky"
-msgstr "غير موثوق"
-
-#, fuzzy
-msgid "Flaky Runs"
-msgstr "تشغيلات متقطعة"
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "اختبارات Flaky"
-
-#, fuzzy
-msgid "Flaky runs"
-msgstr "تشغيلات متقطعة"
-
-#, fuzzy
-msgid "Flaky test cases"
-msgstr "حالات الاختبار غير الموثوقة"
-
-#, fuzzy
-msgid "Flaky test runs"
-msgstr "تشغيل اختبارات غير منتظمة"
-
-#, fuzzy
-msgid "Last flaky run"
-msgstr "آخر تشغيل غير مستقر"
-
-#, fuzzy
-msgid "Mark as flaky"
-msgstr "ضع علامة \"غير موثوق\""
-
-#, fuzzy
-msgid "Most occurring flaky tests"
-msgstr "الاختبارات غير الموثوقة الأكثر شيوعًا"
-
-#, fuzzy
-msgid "No flaky tests"
-msgstr "لا تقم بإجراء اختبارات غير موثوقة"
-
-#, fuzzy
-msgid "Number of test cases that passed after retry."
-msgstr "عدد حالات الاختبار التي نجحت بعد إعادة المحاولة."
-
-#, fuzzy
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "النسبة المئوية للاختبارات التي كانت غير مستقرة في آخر 30 يومًا."
-
-#, fuzzy
-msgid "The number of test runs with flaky tests."
-msgstr "عدد مرات إجراء الاختبارات مع الاختبارات غير المستقرة."
-
-#, fuzzy
-msgid "Unmark as flaky"
-msgstr "إلغاء تحديد \"غير موثوق\""
-
-#, fuzzy
-msgid "New"
-msgstr "جديد"
-
-#, fuzzy
-msgid "Quarantine"
-msgstr "الحجر الصحي"
-
-#, fuzzy
-msgid "Quarantined"
-msgstr "محجوز"
-
-#, fuzzy
-msgid "Unquarantine"
-msgstr "إلغاء الحجر الصحي"
-
-#, fuzzy
-msgid "Module Cache"
-msgstr "ذاكرة التخزين المؤقت للوحدة"
-
-#, fuzzy
-msgid "Automatically by Tuist"
-msgstr "تلقائيًا بواسطة Tuist"
-
-#, fuzzy
-msgid "Event"
-msgstr "حدث"
-
-#, fuzzy
-msgid "Events will appear here when the test case status changes."
-msgstr "ستظهر الأحداث هنا عندما تتغير حالة حالة الاختبار."
-
-#, fuzzy
-msgid "First run of this test"
-msgstr "أول مرة يتم إجراء هذا الاختبار"
-
-#, fuzzy
-msgid "Load more"
-msgstr "تحميل المزيد"
-
-#, fuzzy
-msgid "Manually by @%{name}"
-msgstr "يدويًا بواسطة @%{name}"
-
-#, fuzzy
-msgid "Marked as flaky"
-msgstr "تم وضع علامة \"غير موثوق\""
-
-#, fuzzy
-msgid "Marked as quarantined"
-msgstr "تم وضع علامة \"في الحجر الصحي\""
-
-#, fuzzy
-msgid "Marked as unquarantined"
-msgstr "تم وضع علامة \"غير معزول\""
-
-#, fuzzy
-msgid "No history available"
-msgstr "لا يوجد سجل متاح"
-
-#, fuzzy
-msgid "Test History"
-msgstr "سجل الاختبارات"
-
-#, fuzzy
-msgid "Test history"
-msgstr "سجل الاختبارات"
-
-#, fuzzy
-msgid "Unmarked as flaky"
-msgstr "إلغاء وضع علامة \"غير موثوق\""
-
-#, fuzzy
-msgid "Last run"
-msgstr "آخر تشغيل"
-
-#, fuzzy
-msgid "No quarantined tests"
-msgstr "لا توجد اختبارات معزولة"
-
-#, fuzzy
-msgid "Quarantined Tests"
-msgstr "الاختبارات المعزولة"
-
-#, fuzzy
-msgid "Quarantined by"
-msgstr "تم عزلها بواسطة"
-
-#, fuzzy
-msgid "Quarantined tests"
-msgstr "الاختبارات المعزولة"
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-#, fuzzy
-msgid "Build: %{name}"
-msgstr "البناء: %{name}"
-
-#, fuzzy
-msgid "Class"
-msgstr "الفصل"
-
-#, fuzzy
-msgid "Crash Report"
-msgstr "تقرير الأعطال"
-
-#, fuzzy
-msgid "Exception"
-msgstr "استثناء"
-
-#, fuzzy
-msgid "Project"
-msgstr "المشروع"
-
-#, fuzzy
-msgid "Signal"
-msgstr "إشارة"
-
-#, fuzzy
-msgid "Subtype"
-msgstr "النوع الفرعي"
-
-#, fuzzy
-msgid "Test Class"
-msgstr "فصل الاختبار"
-
-#, fuzzy
-msgid "Test Classes"
-msgstr "فصول الاختبار"
-
-#, fuzzy
-msgid "Test Suite"
-msgstr "مجموعة الاختبارات"
-
-#, fuzzy
-msgid "Scheme:"
-msgstr "المخطط:"
-
-#, fuzzy
-msgid "Run Details"
-msgstr "تفاصيل التشغيل"
-
-#, fuzzy
-msgid "Test case run not found."
-msgstr "لم يتم العثور على حالة الاختبار."
-
-#, fuzzy
-msgid "Test Case: %{name}"
-msgstr "حالة الاختبار: %{name}"
-
-#, fuzzy
-msgid "Attachments"
-msgstr "المرفقات"
-
-#, fuzzy
-msgid "File"
-msgstr "ملف"
-
-#, fuzzy
-msgid "Image"
-msgstr "صورة"
-
-#, fuzzy
-msgid "Loading..."
-msgstr "جاري التحميل..."
-
-#, fuzzy
-msgid "Text File"
-msgstr "ملف نصي"
-
-#, fuzzy
-msgid "Log File"
-msgstr "ملف السجل"
-
-#, fuzzy
-msgid "Other"
-msgstr "أخرى"
+msgid "•"
+msgstr "•"
 
 #, fuzzy
 #~ msgid "Test suite"

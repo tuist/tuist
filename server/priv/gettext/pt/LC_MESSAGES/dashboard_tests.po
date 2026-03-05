@@ -43,6 +43,15 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
+msgid "Apply"
+msgstr ""
+
+msgid "Attachments"
+msgstr ""
+
+msgid "Automatically by Tuist"
+msgstr ""
+
 msgid "Average"
 msgstr ""
 
@@ -74,6 +83,9 @@ msgstr ""
 msgid "Branch"
 msgstr ""
 
+msgid "Build: %{name}"
+msgstr ""
+
 msgid "Build: %{scheme}"
 msgstr ""
 
@@ -82,6 +94,10 @@ msgstr ""
 
 msgid "CI Run"
 msgstr ""
+
+#, fuzzy
+msgid "Cancel"
+msgstr "Cancel"
 
 msgid "Caught error"
 msgstr ""
@@ -95,6 +111,9 @@ msgstr ""
 msgid "Caught error: %{message}"
 msgstr ""
 
+msgid "Class"
+msgstr ""
+
 #, fuzzy
 msgid "Command"
 msgstr "Commands"
@@ -105,6 +124,12 @@ msgstr ""
 msgid "Commit"
 msgstr ""
 
+msgid "Crash Report"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
 msgid "Download result"
 msgstr ""
 
@@ -112,6 +137,15 @@ msgid "Duration"
 msgstr ""
 
 msgid "Environment:"
+msgstr ""
+
+msgid "Event"
+msgstr ""
+
+msgid "Events will appear here when the test case status changes."
+msgstr ""
+
+msgid "Exception"
 msgstr ""
 
 msgid "Expectation failed"
@@ -158,13 +192,43 @@ msgstr ""
 msgid "Failures"
 msgstr ""
 
+msgid "File"
+msgstr ""
+
 msgid "Filter"
+msgstr ""
+
+msgid "First run of this test"
+msgstr ""
+
+msgid "Flakiness rate"
+msgstr ""
+
+msgid "Flaky"
+msgstr ""
+
+msgid "Flaky Runs"
+msgstr ""
+
+msgid "Flaky Tests"
+msgstr ""
+
+msgid "Flaky runs"
+msgstr ""
+
+msgid "Flaky test cases"
+msgstr ""
+
+msgid "Flaky test runs"
 msgstr ""
 
 msgid "Hash"
 msgstr ""
 
 msgid "Hit"
+msgstr ""
+
+msgid "Image"
 msgstr ""
 
 msgid "Issue recorded"
@@ -179,10 +243,28 @@ msgstr ""
 msgid "Issue recorded: %{message}"
 msgstr ""
 
+msgid "Last 12 months"
+msgstr ""
+
+msgid "Last 24 hours"
+msgstr ""
+
+msgid "Last 30 days"
+msgstr ""
+
+msgid "Last 7 days"
+msgstr ""
+
 msgid "Last Status"
 msgstr ""
 
+msgid "Last flaky run"
+msgstr ""
+
 msgid "Last ran at"
+msgstr ""
+
+msgid "Last run"
 msgstr ""
 
 msgid "Last run duration"
@@ -191,10 +273,34 @@ msgstr ""
 msgid "Last status"
 msgstr ""
 
+msgid "Load more"
+msgstr ""
+
+msgid "Loading..."
+msgstr ""
+
 msgid "Local"
 msgstr ""
 
+msgid "Log File"
+msgstr ""
+
 msgid "Mac device"
+msgstr ""
+
+msgid "Manually by @%{name}"
+msgstr ""
+
+msgid "Mark as flaky"
+msgstr ""
+
+msgid "Marked as flaky"
+msgstr ""
+
+msgid "Marked as quarantined"
+msgstr ""
+
+msgid "Marked as unquarantined"
 msgstr ""
 
 msgid "Missed"
@@ -203,7 +309,16 @@ msgstr ""
 msgid "Module"
 msgstr ""
 
+msgid "Module Cache"
+msgstr ""
+
 msgid "Modules"
+msgstr ""
+
+msgid "Most occurring flaky tests"
+msgstr ""
+
+msgid "New"
 msgstr ""
 
 msgid "No data"
@@ -215,7 +330,16 @@ msgstr ""
 msgid "No failures detected"
 msgstr ""
 
+msgid "No flaky tests"
+msgstr ""
+
+msgid "No history available"
+msgstr ""
+
 msgid "No modules found"
+msgstr ""
+
+msgid "No quarantined tests"
 msgstr ""
 
 msgid "No test case runs found"
@@ -236,10 +360,16 @@ msgstr ""
 msgid "Number of test cases that failed."
 msgstr ""
 
+msgid "Number of test cases that passed after retry."
+msgstr ""
+
 msgid "Number of times this test case has failed."
 msgstr ""
 
 msgid "Optimization Summary"
+msgstr ""
+
+msgid "Other"
 msgstr ""
 
 msgid "Overview"
@@ -249,6 +379,27 @@ msgid "Passed"
 msgstr ""
 
 msgid "Passed runs"
+msgstr ""
+
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr ""
+
+msgid "Project"
+msgstr ""
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
 msgstr ""
 
 msgid "Ran at"
@@ -263,7 +414,13 @@ msgstr ""
 msgid "Remote"
 msgstr ""
 
+msgid "Run Details"
+msgstr ""
+
 msgid "Scheme"
+msgstr ""
+
+msgid "Scheme:"
 msgstr ""
 
 #, fuzzy
@@ -297,6 +454,9 @@ msgstr ""
 msgid "Selective testing: no data yet"
 msgstr ""
 
+msgid "Signal"
+msgstr ""
+
 msgid "Skipped"
 msgstr ""
 
@@ -309,6 +469,9 @@ msgstr ""
 #, fuzzy
 msgid "Status"
 msgstr "Status"
+
+msgid "Subtype"
+msgstr ""
 
 msgid ""
 "Success rate based on runs from the %{branch} branch. Falls back to all "
@@ -327,10 +490,22 @@ msgstr ""
 msgid "Test Case Runs"
 msgstr ""
 
+msgid "Test Case: %{name}"
+msgstr ""
+
 msgid "Test Cases"
 msgstr ""
 
+msgid "Test Class"
+msgstr ""
+
+msgid "Test Classes"
+msgstr ""
+
 msgid "Test Details"
+msgstr ""
+
+msgid "Test History"
 msgstr ""
 
 msgid "Test Modules"
@@ -345,6 +520,9 @@ msgstr ""
 msgid "Test Runs"
 msgstr ""
 
+msgid "Test Suite"
+msgstr ""
+
 msgid "Test Suites"
 msgstr ""
 
@@ -352,6 +530,9 @@ msgid "Test case"
 msgstr ""
 
 msgid "Test case not found."
+msgstr ""
+
+msgid "Test case run not found."
 msgstr ""
 
 msgid "Test case runs"
@@ -363,6 +544,9 @@ msgid ""
 msgstr ""
 
 msgid "Test cases"
+msgstr ""
+
+msgid "Test history"
 msgstr ""
 
 msgid "Test reliability"
@@ -386,10 +570,16 @@ msgstr ""
 msgid "Tests"
 msgstr ""
 
+msgid "Text File"
+msgstr ""
+
 msgid "The average test run duration with individual percentile intervals."
 msgstr ""
 
 msgid "The number of test runs that failed."
+msgstr ""
+
+msgid "The number of test runs with flaky tests."
 msgstr ""
 
 msgid "The total number of test runs."
@@ -413,6 +603,10 @@ msgstr ""
 msgid "Try updating your search"
 msgstr ""
 
+#, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
 msgid "Tuist version"
 msgstr ""
 
@@ -420,6 +614,15 @@ msgid "Unknown"
 msgstr ""
 
 msgid "Unknown error"
+msgstr ""
+
+msgid "Unmark as flaky"
+msgstr ""
+
+msgid "Unmarked as flaky"
+msgstr ""
+
+msgid "Unquarantine"
 msgstr ""
 
 msgid "View more"
@@ -458,220 +661,17 @@ msgstr ""
 msgid "since last month"
 msgstr ""
 
+msgid "since last period"
+msgstr ""
+
 msgid "since last week"
 msgstr ""
 
 msgid "since last year"
 msgstr ""
 
-msgid "•"
-msgstr ""
-
-msgid "Apply"
-msgstr ""
-
-#, fuzzy
-msgid "Cancel"
-msgstr "Cancel"
-
-msgid "Custom"
-msgstr ""
-
-msgid "Last 12 months"
-msgstr ""
-
-msgid "Last 24 hours"
-msgstr ""
-
-msgid "Last 30 days"
-msgstr ""
-
-msgid "Last 7 days"
-msgstr ""
-
-msgid "since last period"
-msgstr ""
-
 msgid "since yesterday"
 msgstr ""
 
-msgid "Flakiness rate"
-msgstr ""
-
-msgid "Flaky"
-msgstr ""
-
-msgid "Flaky Runs"
-msgstr ""
-
-msgid "Flaky Tests"
-msgstr ""
-
-msgid "Flaky runs"
-msgstr ""
-
-msgid "Flaky test cases"
-msgstr ""
-
-msgid "Flaky test runs"
-msgstr ""
-
-msgid "Last flaky run"
-msgstr ""
-
-msgid "Mark as flaky"
-msgstr ""
-
-msgid "Most occurring flaky tests"
-msgstr ""
-
-msgid "No flaky tests"
-msgstr ""
-
-msgid "Number of test cases that passed after retry."
-msgstr ""
-
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr ""
-
-msgid "The number of test runs with flaky tests."
-msgstr ""
-
-msgid "Unmark as flaky"
-msgstr ""
-
-msgid "New"
-msgstr ""
-
-msgid "Quarantine"
-msgstr ""
-
-msgid "Quarantined"
-msgstr ""
-
-msgid "Unquarantine"
-msgstr ""
-
-msgid "Module Cache"
-msgstr ""
-
-msgid "Automatically by Tuist"
-msgstr ""
-
-msgid "Event"
-msgstr ""
-
-msgid "Events will appear here when the test case status changes."
-msgstr ""
-
-msgid "First run of this test"
-msgstr ""
-
-msgid "Load more"
-msgstr ""
-
-msgid "Manually by @%{name}"
-msgstr ""
-
-msgid "Marked as flaky"
-msgstr ""
-
-msgid "Marked as quarantined"
-msgstr ""
-
-msgid "Marked as unquarantined"
-msgstr ""
-
-msgid "No history available"
-msgstr ""
-
-msgid "Test History"
-msgstr ""
-
-msgid "Test history"
-msgstr ""
-
-msgid "Unmarked as flaky"
-msgstr ""
-
-msgid "Last run"
-msgstr ""
-
-msgid "No quarantined tests"
-msgstr ""
-
-msgid "Quarantined Tests"
-msgstr ""
-
-msgid "Quarantined by"
-msgstr ""
-
-msgid "Quarantined tests"
-msgstr ""
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-msgid "Build: %{name}"
-msgstr ""
-
-msgid "Class"
-msgstr ""
-
-msgid "Crash Report"
-msgstr ""
-
-msgid "Exception"
-msgstr ""
-
-msgid "Project"
-msgstr ""
-
-msgid "Signal"
-msgstr ""
-
-msgid "Subtype"
-msgstr ""
-
-msgid "Test Class"
-msgstr ""
-
-msgid "Test Classes"
-msgstr ""
-
-msgid "Test Suite"
-msgstr ""
-
-msgid "Scheme:"
-msgstr ""
-
-msgid "Run Details"
-msgstr ""
-
-msgid "Test case run not found."
-msgstr ""
-
-msgid "Test Case: %{name}"
-msgstr ""
-
-msgid "Attachments"
-msgstr ""
-
-msgid "File"
-msgstr ""
-
-msgid "Image"
-msgstr ""
-
-msgid "Loading..."
-msgstr ""
-
-msgid "Text File"
-msgstr ""
-
-msgid "Log File"
-msgstr ""
-
-msgid "Other"
+msgid "•"
 msgstr ""

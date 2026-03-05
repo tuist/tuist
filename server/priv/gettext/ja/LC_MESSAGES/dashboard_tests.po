@@ -49,6 +49,18 @@ msgid "Any"
 msgstr "Any"
 
 #, fuzzy
+msgid "Apply"
+msgstr "適用"
+
+#, fuzzy
+msgid "Attachments"
+msgstr "添付ファイル"
+
+#, fuzzy
+msgid "Automatically by Tuist"
+msgstr "Tuistによる自動翻訳"
+
+#, fuzzy
 msgid "Average"
 msgstr "平均"
 
@@ -90,6 +102,10 @@ msgid "Branch"
 msgstr "Branch"
 
 #, fuzzy
+msgid "Build: %{name}"
+msgstr "ビルド: %{name}"
+
+#, fuzzy
 msgid "Build: %{scheme}"
 msgstr "ビルド: %{scheme}"
 
@@ -100,6 +116,10 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
+
+#, fuzzy
+msgid "Cancel"
+msgstr "キャンセル"
 
 #, fuzzy
 msgid "Caught error"
@@ -118,6 +138,10 @@ msgid "Caught error: %{message}"
 msgstr "エラーを検出しました: %{message}"
 
 #, fuzzy
+msgid "Class"
+msgstr "クラス"
+
+#, fuzzy
 msgid "Command"
 msgstr "コマンド"
 
@@ -130,6 +154,14 @@ msgid "Commit"
 msgstr "コミット"
 
 #, fuzzy
+msgid "Crash Report"
+msgstr "クラッシュレポート"
+
+#, fuzzy
+msgid "Custom"
+msgstr "カスタム"
+
+#, fuzzy
 msgid "Download result"
 msgstr "結果をダウンロード"
 
@@ -140,6 +172,18 @@ msgstr "Duration"
 #, fuzzy
 msgid "Environment:"
 msgstr "環境:"
+
+#, fuzzy
+msgid "Event"
+msgstr "イベント"
+
+#, fuzzy
+msgid "Events will appear here when the test case status changes."
+msgstr "テストケースのステータスが変更されると、ここにイベントが表示されます。"
+
+#, fuzzy
+msgid "Exception"
+msgstr "例外"
 
 #, fuzzy
 msgid "Expectation failed"
@@ -203,8 +247,44 @@ msgid "Failures"
 msgstr "失敗"
 
 #, fuzzy
+msgid "File"
+msgstr "ファイル"
+
+#, fuzzy
 msgid "Filter"
 msgstr "Filter"
+
+#, fuzzy
+msgid "First run of this test"
+msgstr "このテストの初回実行"
+
+#, fuzzy
+msgid "Flakiness rate"
+msgstr "不安定率"
+
+#, fuzzy
+msgid "Flaky"
+msgstr "不安定"
+
+#, fuzzy
+msgid "Flaky Runs"
+msgstr "不安定な実行"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "不安定なテスト"
+
+#, fuzzy
+msgid "Flaky runs"
+msgstr "不安定な動作"
+
+#, fuzzy
+msgid "Flaky test cases"
+msgstr "不安定なテストケース"
+
+#, fuzzy
+msgid "Flaky test runs"
+msgstr "不安定なテスト実行"
 
 #, fuzzy
 msgid "Hash"
@@ -213,6 +293,10 @@ msgstr "ハッシュ"
 #, fuzzy
 msgid "Hit"
 msgstr "Hit"
+
+#, fuzzy
+msgid "Image"
+msgstr "Image"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -231,12 +315,36 @@ msgid "Issue recorded: %{message}"
 msgstr "記録された問題: %{message}"
 
 #, fuzzy
+msgid "Last 12 months"
+msgstr "過去12か月"
+
+#, fuzzy
+msgid "Last 24 hours"
+msgstr "過去24時間"
+
+#, fuzzy
+msgid "Last 30 days"
+msgstr "過去30日間"
+
+#, fuzzy
+msgid "Last 7 days"
+msgstr "過去7日間"
+
+#, fuzzy
 msgid "Last Status"
 msgstr "最終ステータス"
 
 #, fuzzy
+msgid "Last flaky run"
+msgstr "最後の不安定な実行"
+
+#, fuzzy
 msgid "Last ran at"
 msgstr "最終実行時刻"
+
+#, fuzzy
+msgid "Last run"
+msgstr "最終実行"
 
 #, fuzzy
 msgid "Last run duration"
@@ -247,12 +355,44 @@ msgid "Last status"
 msgstr "最終ステータス"
 
 #, fuzzy
+msgid "Load more"
+msgstr "もっと読み込む"
+
+#, fuzzy
+msgid "Loading..."
+msgstr "読み込み中..."
+
+#, fuzzy
 msgid "Local"
 msgstr "Local"
 
 #, fuzzy
+msgid "Log File"
+msgstr "ログファイル"
+
+#, fuzzy
 msgid "Mac device"
 msgstr "Macデバイス"
+
+#, fuzzy
+msgid "Manually by @%{name}"
+msgstr "手動で @%{name} により"
+
+#, fuzzy
+msgid "Mark as flaky"
+msgstr "フラッキーとしてマーク"
+
+#, fuzzy
+msgid "Marked as flaky"
+msgstr "不安定な状態としてマーク済み"
+
+#, fuzzy
+msgid "Marked as quarantined"
+msgstr "検疫対象としてマーク済み"
+
+#, fuzzy
+msgid "Marked as unquarantined"
+msgstr "検疫解除済みとしてマーク"
 
 #, fuzzy
 msgid "Missed"
@@ -263,8 +403,20 @@ msgid "Module"
 msgstr "モジュール"
 
 #, fuzzy
+msgid "Module Cache"
+msgstr "モジュールキャッシュ"
+
+#, fuzzy
 msgid "Modules"
 msgstr "モジュール"
+
+#, fuzzy
+msgid "Most occurring flaky tests"
+msgstr "最も頻繁に発生する不安定なテスト"
+
+#, fuzzy
+msgid "New"
+msgstr "新規"
 
 #, fuzzy
 msgid "No data"
@@ -279,8 +431,20 @@ msgid "No failures detected"
 msgstr "エラーは検出されませんでした"
 
 #, fuzzy
+msgid "No flaky tests"
+msgstr "不安定なテストは行わない"
+
+#, fuzzy
+msgid "No history available"
+msgstr "履歴は利用できません"
+
+#, fuzzy
 msgid "No modules found"
 msgstr "見つかりませんでした"
+
+#, fuzzy
+msgid "No quarantined tests"
+msgstr "隔離されたテストはありません"
 
 #, fuzzy
 msgid "No test case runs found"
@@ -307,12 +471,20 @@ msgid "Number of test cases that failed."
 msgstr "失敗したテストケースの数。"
 
 #, fuzzy
+msgid "Number of test cases that passed after retry."
+msgstr "再試行後に通過したテストケースの数。"
+
+#, fuzzy
 msgid "Number of times this test case has failed."
 msgstr "このテストケースが失敗した回数。"
 
 #, fuzzy
 msgid "Optimization Summary"
 msgstr "最適化サマリー"
+
+#, fuzzy
+msgid "Other"
+msgstr "その他"
 
 #, fuzzy
 msgid "Overview"
@@ -325,6 +497,34 @@ msgstr "合格"
 #, fuzzy
 msgid "Passed runs"
 msgstr "合格した実行"
+
+#, fuzzy
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "過去30日間のテスト実行で不安定だった割合。"
+
+#, fuzzy
+msgid "Project"
+msgstr "プロジェクト"
+
+#, fuzzy
+msgid "Quarantine"
+msgstr "Quarantine"
+
+#, fuzzy
+msgid "Quarantined"
+msgstr "Quarantined"
+
+#, fuzzy
+msgid "Quarantined Tests"
+msgstr "隔離されたテスト"
+
+#, fuzzy
+msgid "Quarantined by"
+msgstr "Quarantined by"
+
+#, fuzzy
+msgid "Quarantined tests"
+msgstr "隔離されたテスト"
 
 #, fuzzy
 msgid "Ran at"
@@ -343,8 +543,16 @@ msgid "Remote"
 msgstr "リモート"
 
 #, fuzzy
+msgid "Run Details"
+msgstr "実行詳細"
+
+#, fuzzy
 msgid "Scheme"
 msgstr "Scheme"
+
+#, fuzzy
+msgid "Scheme:"
+msgstr "仕様:"
 
 #, fuzzy
 msgid "Search..."
@@ -387,6 +595,10 @@ msgid "Selective testing: no data yet"
 msgstr "選択的テスト：データはまだありません"
 
 #, fuzzy
+msgid "Signal"
+msgstr "シグナル"
+
+#, fuzzy
 msgid "Skipped"
 msgstr "スキップ"
 
@@ -401,6 +613,10 @@ msgstr "並べ替え:"
 #, fuzzy
 msgid "Status"
 msgstr "ステータス"
+
+#, fuzzy
+msgid "Subtype"
+msgstr "サブタイプ"
 
 #, fuzzy
 msgid ""
@@ -427,12 +643,28 @@ msgid "Test Case Runs"
 msgstr "テストケースの実行"
 
 #, fuzzy
+msgid "Test Case: %{name}"
+msgstr "テストケース: %{name}"
+
+#, fuzzy
 msgid "Test Cases"
 msgstr "テストケース"
 
 #, fuzzy
+msgid "Test Class"
+msgstr "テストクラス"
+
+#, fuzzy
+msgid "Test Classes"
+msgstr "テストクラス"
+
+#, fuzzy
 msgid "Test Details"
 msgstr "テスト詳細"
+
+#, fuzzy
+msgid "Test History"
+msgstr "テスト履歴"
 
 #, fuzzy
 msgid "Test Modules"
@@ -451,6 +683,10 @@ msgid "Test Runs"
 msgstr "テスト実行"
 
 #, fuzzy
+msgid "Test Suite"
+msgstr "テストスイート"
+
+#, fuzzy
 msgid "Test Suites"
 msgstr "テストスイート"
 
@@ -461,6 +697,10 @@ msgstr "テストケース"
 #, fuzzy
 msgid "Test case not found."
 msgstr "テストケースが見つかりません。"
+
+#, fuzzy
+msgid "Test case run not found."
+msgstr "テストケースの実行が見つかりませんでした。"
 
 #, fuzzy
 msgid "Test case runs"
@@ -477,6 +717,10 @@ msgstr ""
 #, fuzzy
 msgid "Test cases"
 msgstr "テストケース"
+
+#, fuzzy
+msgid "Test history"
+msgstr "テスト履歴"
 
 #, fuzzy
 msgid "Test reliability"
@@ -508,12 +752,20 @@ msgid "Tests"
 msgstr "テスト"
 
 #, fuzzy
+msgid "Text File"
+msgstr "テキストファイル"
+
+#, fuzzy
 msgid "The average test run duration with individual percentile intervals."
 msgstr "個々のパーセンタイル間隔を伴う平均テスト実行時間。"
 
 #, fuzzy
 msgid "The number of test runs that failed."
 msgstr "失敗したテスト実行の数。"
+
+#, fuzzy
+msgid "The number of test runs with flaky tests."
+msgstr "不安定なテストを含むテスト実行回数。"
 
 #, fuzzy
 msgid "The total number of test runs."
@@ -544,6 +796,10 @@ msgid "Try updating your search"
 msgstr "検索を更新してみてください"
 
 #, fuzzy
+msgid "Tuist"
+msgstr "Tuist"
+
+#, fuzzy
 msgid "Tuist version"
 msgstr "Tuist バージョン"
 
@@ -554,6 +810,18 @@ msgstr "不明"
 #, fuzzy
 msgid "Unknown error"
 msgstr "不明なエラー"
+
+#, fuzzy
+msgid "Unmark as flaky"
+msgstr "フラッキーとしてマークを解除"
+
+#, fuzzy
+msgid "Unmarked as flaky"
+msgstr "不安定な状態を解除"
+
+#, fuzzy
+msgid "Unquarantine"
+msgstr "検疫解除"
 
 #, fuzzy
 msgid "View more"
@@ -604,6 +872,10 @@ msgid "since last month"
 msgstr "先月から"
 
 #, fuzzy
+msgid "since last period"
+msgstr "前回のピリオド以降"
+
+#, fuzzy
 msgid "since last week"
 msgstr "先週以来"
 
@@ -612,284 +884,12 @@ msgid "since last year"
 msgstr "昨年以来"
 
 #, fuzzy
-msgid "•"
-msgstr "•"
-
-#, fuzzy
-msgid "Apply"
-msgstr "適用"
-
-#, fuzzy
-msgid "Cancel"
-msgstr "キャンセル"
-
-#, fuzzy
-msgid "Custom"
-msgstr "カスタム"
-
-#, fuzzy
-msgid "Last 12 months"
-msgstr "過去12か月"
-
-#, fuzzy
-msgid "Last 24 hours"
-msgstr "過去24時間"
-
-#, fuzzy
-msgid "Last 30 days"
-msgstr "過去30日間"
-
-#, fuzzy
-msgid "Last 7 days"
-msgstr "過去7日間"
-
-#, fuzzy
-msgid "since last period"
-msgstr "前回のピリオド以降"
-
-#, fuzzy
 msgid "since yesterday"
 msgstr "昨日から"
 
 #, fuzzy
-msgid "Flakiness rate"
-msgstr "不安定率"
-
-#, fuzzy
-msgid "Flaky"
-msgstr "不安定"
-
-#, fuzzy
-msgid "Flaky Runs"
-msgstr "不安定な実行"
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "不安定なテスト"
-
-#, fuzzy
-msgid "Flaky runs"
-msgstr "不安定な動作"
-
-#, fuzzy
-msgid "Flaky test cases"
-msgstr "不安定なテストケース"
-
-#, fuzzy
-msgid "Flaky test runs"
-msgstr "不安定なテスト実行"
-
-#, fuzzy
-msgid "Last flaky run"
-msgstr "最後の不安定な実行"
-
-#, fuzzy
-msgid "Mark as flaky"
-msgstr "フラッキーとしてマーク"
-
-#, fuzzy
-msgid "Most occurring flaky tests"
-msgstr "最も頻繁に発生する不安定なテスト"
-
-#, fuzzy
-msgid "No flaky tests"
-msgstr "不安定なテストは行わない"
-
-#, fuzzy
-msgid "Number of test cases that passed after retry."
-msgstr "再試行後に通過したテストケースの数。"
-
-#, fuzzy
-msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr "過去30日間のテスト実行で不安定だった割合。"
-
-#, fuzzy
-msgid "The number of test runs with flaky tests."
-msgstr "不安定なテストを含むテスト実行回数。"
-
-#, fuzzy
-msgid "Unmark as flaky"
-msgstr "フラッキーとしてマークを解除"
-
-#, fuzzy
-msgid "New"
-msgstr "新規"
-
-#, fuzzy
-msgid "Quarantine"
-msgstr "Quarantine"
-
-#, fuzzy
-msgid "Quarantined"
-msgstr "Quarantined"
-
-#, fuzzy
-msgid "Unquarantine"
-msgstr "検疫解除"
-
-#, fuzzy
-msgid "Module Cache"
-msgstr "モジュールキャッシュ"
-
-#, fuzzy
-msgid "Automatically by Tuist"
-msgstr "Tuistによる自動翻訳"
-
-#, fuzzy
-msgid "Event"
-msgstr "イベント"
-
-#, fuzzy
-msgid "Events will appear here when the test case status changes."
-msgstr "テストケースのステータスが変更されると、ここにイベントが表示されます。"
-
-#, fuzzy
-msgid "First run of this test"
-msgstr "このテストの初回実行"
-
-#, fuzzy
-msgid "Load more"
-msgstr "もっと読み込む"
-
-#, fuzzy
-msgid "Manually by @%{name}"
-msgstr "手動で @%{name} により"
-
-#, fuzzy
-msgid "Marked as flaky"
-msgstr "不安定な状態としてマーク済み"
-
-#, fuzzy
-msgid "Marked as quarantined"
-msgstr "検疫対象としてマーク済み"
-
-#, fuzzy
-msgid "Marked as unquarantined"
-msgstr "検疫解除済みとしてマーク"
-
-#, fuzzy
-msgid "No history available"
-msgstr "履歴は利用できません"
-
-#, fuzzy
-msgid "Test History"
-msgstr "テスト履歴"
-
-#, fuzzy
-msgid "Test history"
-msgstr "テスト履歴"
-
-#, fuzzy
-msgid "Unmarked as flaky"
-msgstr "不安定な状態を解除"
-
-#, fuzzy
-msgid "Last run"
-msgstr "最終実行"
-
-#, fuzzy
-msgid "No quarantined tests"
-msgstr "隔離されたテストはありません"
-
-#, fuzzy
-msgid "Quarantined Tests"
-msgstr "隔離されたテスト"
-
-#, fuzzy
-msgid "Quarantined by"
-msgstr "Quarantined by"
-
-#, fuzzy
-msgid "Quarantined tests"
-msgstr "隔離されたテスト"
-
-#, fuzzy
-msgid "Tuist"
-msgstr "Tuist"
-
-#, fuzzy
-msgid "Build: %{name}"
-msgstr "ビルド: %{name}"
-
-#, fuzzy
-msgid "Class"
-msgstr "クラス"
-
-#, fuzzy
-msgid "Crash Report"
-msgstr "クラッシュレポート"
-
-#, fuzzy
-msgid "Exception"
-msgstr "例外"
-
-#, fuzzy
-msgid "Project"
-msgstr "プロジェクト"
-
-#, fuzzy
-msgid "Signal"
-msgstr "シグナル"
-
-#, fuzzy
-msgid "Subtype"
-msgstr "サブタイプ"
-
-#, fuzzy
-msgid "Test Class"
-msgstr "テストクラス"
-
-#, fuzzy
-msgid "Test Classes"
-msgstr "テストクラス"
-
-#, fuzzy
-msgid "Test Suite"
-msgstr "テストスイート"
-
-#, fuzzy
-msgid "Scheme:"
-msgstr "仕様:"
-
-#, fuzzy
-msgid "Run Details"
-msgstr "実行詳細"
-
-#, fuzzy
-msgid "Test case run not found."
-msgstr "テストケースの実行が見つかりませんでした。"
-
-#, fuzzy
-msgid "Test Case: %{name}"
-msgstr "テストケース: %{name}"
-
-#, fuzzy
-msgid "Attachments"
-msgstr "添付ファイル"
-
-#, fuzzy
-msgid "File"
-msgstr "ファイル"
-
-#, fuzzy
-msgid "Image"
-msgstr "Image"
-
-#, fuzzy
-msgid "Loading..."
-msgstr "読み込み中..."
-
-#, fuzzy
-msgid "Text File"
-msgstr "テキストファイル"
-
-#, fuzzy
-msgid "Log File"
-msgstr "ログファイル"
-
-#, fuzzy
-msgid "Other"
-msgstr "その他"
+msgid "•"
+msgstr "•"
 
 #, fuzzy
 #~ msgid "Test suite"
