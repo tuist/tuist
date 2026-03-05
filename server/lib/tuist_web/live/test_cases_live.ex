@@ -124,44 +124,15 @@ defmodule TuistWeb.TestCasesLive do
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
 
-    if socket.assigns.test_case_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          widget,
-          socket.assigns.selected_duration_type,
-          socket.assigns.test_case_runs_analytics.result,
-          socket.assigns.failed_test_case_runs_analytics.result,
-          socket.assigns.test_case_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
-    socket =
-      socket
-      |> assign(:selected_duration_type, type)
-      |> assign(:analytics_selected_widget, "test_case_run_duration")
-
-    if socket.assigns.test_case_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          "test_case_run_duration",
-          type,
-          socket.assigns.test_case_runs_analytics.result,
-          socket.assigns.failed_test_case_runs_analytics.result,
-          socket.assigns.test_case_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply,
+     socket
+     |> assign(:selected_duration_type, type)
+     |> assign(:analytics_selected_widget, "test_case_run_duration")}
   end
 
   def handle_event(
@@ -239,7 +210,6 @@ defmodule TuistWeb.TestCasesLive do
 
     analytics_selected_widget = params["analytics-selected-widget"] || "test_case_run_count"
 
-
     socket
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
@@ -248,58 +218,29 @@ defmodule TuistWeb.TestCasesLive do
     |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
-
     |> assign(:uri, uri)
-    |> assign_async(
-      [
-        :test_case_runs_analytics,
-        :failed_test_case_runs_analytics,
-        :test_case_runs_duration_analytics,
-        :analytics_chart_data,
-        :analytics_chart_grid_left
-      ],
-      fn ->
-        test_case_runs_analytics = Analytics.test_case_run_analytics(project.id, opts)
-
-        failed_test_case_runs_analytics =
-          Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
-
-        test_case_runs_duration_analytics =
-          Analytics.test_case_run_duration_analytics(project.id, opts)
-
-        chart_data =
-          analytics_chart_data(
-            analytics_selected_widget,
-            selected_duration_type,
-            test_case_runs_analytics,
-            failed_test_case_runs_analytics,
-            test_case_runs_duration_analytics
-          )
-
-        max_chart_value = Enum.max(chart_data.values, fn -> 0 end)
-
-        chart_grid_left =
-          if max_chart_value >= 1_000_000, do: "0.8%", else: "0.4%"
-
-        {:ok,
-         %{
-           test_case_runs_analytics: test_case_runs_analytics,
-           failed_test_case_runs_analytics: failed_test_case_runs_analytics,
-           test_case_runs_duration_analytics: test_case_runs_duration_analytics,
-           analytics_chart_data: chart_data,
-           analytics_chart_grid_left: chart_grid_left
-         }}
-      end
-    )
+    |> assign_async(:test_case_runs_analytics, fn ->
+      {:ok, %{test_case_runs_analytics: Analytics.test_case_run_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:failed_test_case_runs_analytics, fn ->
+      {:ok,
+       %{
+         failed_test_case_runs_analytics:
+           Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+       }}
+    end)
+    |> assign_async(:test_case_runs_duration_analytics, fn ->
+      {:ok, %{test_case_runs_duration_analytics: Analytics.test_case_run_duration_analytics(project.id, opts)}}
+    end)
   end
 
-  defp analytics_chart_data(
-         analytics_selected_widget,
-         selected_duration_type,
-         test_case_runs_analytics,
-         failed_test_case_runs_analytics,
-         test_case_runs_duration_analytics
-       ) do
+  def analytics_chart_data(
+        analytics_selected_widget,
+        selected_duration_type,
+        test_case_runs_analytics,
+        failed_test_case_runs_analytics,
+        test_case_runs_duration_analytics
+      ) do
     case analytics_selected_widget do
       "test_case_run_count" ->
         %{

@@ -222,20 +222,28 @@
         }
       />
     </div>
-    <.card_section :if={!@builds_duration_analytics.ok?}>
+    <.card_section :if={
+      (@analytics_selected_widget == "build-duration" and
+         (!@builds_duration_analytics.ok? or !@builds_p99_durations.ok? or
+            !@builds_p90_durations.ok? or !@builds_p50_durations.ok?)) or
+        (@analytics_selected_widget != "build-duration" and
+           (!@total_builds_analytics.ok? or !@failed_builds_analytics.ok? or
+              !@build_success_rate_analytics.ok?))
+    }>
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section
       :if={
-        @builds_duration_analytics.ok? &&
+        @analytics_selected_widget == "build-duration" and
+          @builds_duration_analytics.ok? and @builds_p99_durations.ok? and
+          @builds_p90_durations.ok? and @builds_p50_durations.ok? and
           @builds_duration_analytics.result.total_average_duration != 0
       }
       data-part="analytics-card-chart-section"
     >
       <.chart
-        :if={@analytics_selected_widget == "build-duration"}
         id="gradle-average-build-time-chart"
         type="line"
         extra_options={
@@ -355,8 +363,23 @@
         ]}
         y_axis_min={0}
       />
+    </.card_section>
+    <.card_section
+      :if={
+        @analytics_selected_widget != "build-duration" and
+          @total_builds_analytics.ok? and @failed_builds_analytics.ok? and
+          @build_success_rate_analytics.ok?
+      }
+      data-part="analytics-card-chart-section"
+    >
+      <% chart =
+        TuistWeb.GradleBuildsLive.analytics_chart_data(
+          @analytics_selected_widget,
+          @total_builds_analytics.result,
+          @failed_builds_analytics.result,
+          @build_success_rate_analytics.result
+        ) %>
       <.chart
-        :if={@analytics_selected_widget != "build-duration"}
         id="gradle-builds-analytics-chart"
         type="line"
         extra_options={
@@ -374,8 +397,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @analytics_chart_data.result.dates |> List.first(),
-                  @analytics_chart_data.result.dates |> List.last()
+                  chart.dates |> List.first(),
+                  chart.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -388,7 +411,7 @@
               },
               axisLabel: %{
                 color: "var:noora-surface-label-secondary",
-                formatter: @analytics_chart_data.result.value_formatter
+                formatter: chart.value_formatter
               }
             },
             legend: %{
@@ -396,9 +419,9 @@
             },
             tooltip:
               if @analytics_preset == "last-24-hours" do
-                %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
+                %{valueFormat: chart.value_formatter, dateFormat: "hour"}
               else
-                %{valueFormat: @analytics_chart_data.result.value_formatter}
+                %{valueFormat: chart.value_formatter}
               end
           }
         }
@@ -412,17 +435,17 @@
               ),
             data:
               Enum.zip(
-                @analytics_chart_data.result.dates,
+                chart.dates,
                 if @analytics_selected_widget == "build-success-rate" do
-                  @analytics_chart_data.result.values
+                  chart.values
                   |> Enum.map(&Decimal.from_float/1)
                   |> Enum.map(&Decimal.round(&1, 1))
                 else
-                  @analytics_chart_data.result.values
+                  chart.values
                 end
               )
               |> Enum.map(&Tuple.to_list/1),
-            name: @analytics_chart_data.result.name,
+            name: chart.name,
             type: "line",
             smooth: 0.1,
             symbol: "none"

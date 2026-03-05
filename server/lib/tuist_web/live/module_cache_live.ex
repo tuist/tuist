@@ -57,21 +57,7 @@ defmodule TuistWeb.ModuleCacheLive do
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
-
-    if socket.assigns.hit_rate_analytics.ok? do
-      chart_data =
-        build_analytics_chart_data(
-          widget,
-          socket.assigns.hits_analytics.result,
-          socket.assigns.misses_analytics.result,
-          socket.assigns.hit_rate_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   def handle_event(
@@ -147,38 +133,24 @@ defmodule TuistWeb.ModuleCacheLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
-    |> assign_async(
-      [
-        :hit_rate_analytics,
-        :hit_rate_p99,
-        :hit_rate_p90,
-        :hit_rate_p50,
-        :hits_analytics,
-        :misses_analytics,
-        :analytics_chart_data
-      ],
-      fn ->
-        [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
-          combined_module_cache_analytics(project.id, opts)
-
-        {:ok,
-         %{
-           hit_rate_analytics: hit_rate_analytics,
-           hit_rate_p99: hit_rate_p99,
-           hit_rate_p90: hit_rate_p90,
-           hit_rate_p50: hit_rate_p50,
-           hits_analytics: hits_analytics,
-           misses_analytics: misses_analytics,
-           analytics_chart_data:
-             build_analytics_chart_data(
-               analytics_selected_widget,
-               hits_analytics,
-               misses_analytics,
-               hit_rate_analytics
-             )
-         }}
-      end
-    )
+    |> assign_async(:hit_rate_analytics, fn ->
+      {:ok, %{hit_rate_analytics: Analytics.module_cache_hit_rate_analytics(opts)}}
+    end)
+    |> assign_async(:hit_rate_p99, fn ->
+      {:ok, %{hit_rate_p99: Analytics.module_cache_hit_rate_percentile(project.id, 0.99, opts)}}
+    end)
+    |> assign_async(:hit_rate_p90, fn ->
+      {:ok, %{hit_rate_p90: Analytics.module_cache_hit_rate_percentile(project.id, 0.9, opts)}}
+    end)
+    |> assign_async(:hit_rate_p50, fn ->
+      {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
+    end)
+    |> assign_async(:hits_analytics, fn ->
+      {:ok, %{hits_analytics: Analytics.module_cache_hits_analytics(opts)}}
+    end)
+    |> assign_async(:misses_analytics, fn ->
+      {:ok, %{misses_analytics: Analytics.module_cache_misses_analytics(opts)}}
+    end)
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
@@ -238,11 +210,7 @@ defmodule TuistWeb.ModuleCacheLive do
     end)
   end
 
-  defp build_analytics_chart_data(analytics_selected_widget, hits_analytics, misses_analytics, hit_rate_analytics) do
-    analytics_chart_data(analytics_selected_widget, hits_analytics, misses_analytics, hit_rate_analytics)
-  end
-
-  defp analytics_chart_data("cache_hits", hits_analytics, _misses_analytics, _hit_rate_analytics) do
+  def analytics_chart_data("cache_hits", hits_analytics, _misses_analytics, _hit_rate_analytics) do
     %{
       dates: hits_analytics.dates,
       values: hits_analytics.values,
@@ -251,7 +219,7 @@ defmodule TuistWeb.ModuleCacheLive do
     }
   end
 
-  defp analytics_chart_data("cache_misses", _hits_analytics, misses_analytics, _hit_rate_analytics) do
+  def analytics_chart_data("cache_misses", _hits_analytics, misses_analytics, _hit_rate_analytics) do
     %{
       dates: misses_analytics.dates,
       values: misses_analytics.values,
@@ -260,7 +228,7 @@ defmodule TuistWeb.ModuleCacheLive do
     }
   end
 
-  defp analytics_chart_data(_cache_hit_rate, _hits_analytics, _misses_analytics, hit_rate_analytics) do
+  def analytics_chart_data(_cache_hit_rate, _hits_analytics, _misses_analytics, hit_rate_analytics) do
     %{
       dates: hit_rate_analytics.dates,
       values: hit_rate_analytics.values,
@@ -290,17 +258,4 @@ defmodule TuistWeb.ModuleCacheLive do
   defp environment_label("any"), do: dgettext("dashboard_cache", "Any")
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")
-
-  defp combined_module_cache_analytics(project_id, opts) do
-    queries = [
-      fn -> Analytics.module_cache_hit_rate_analytics(opts) end,
-      fn -> Analytics.module_cache_hits_analytics(opts) end,
-      fn -> Analytics.module_cache_misses_analytics(opts) end,
-      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.99, opts) end,
-      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.9, opts) end,
-      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.5, opts) end
-    ]
-
-    Tuist.Tasks.parallel_tasks(queries)
-  end
 end

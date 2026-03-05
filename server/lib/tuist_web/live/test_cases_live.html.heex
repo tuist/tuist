@@ -220,15 +220,47 @@
         empty_label={dgettext("dashboard_tests", "No data")}
       />
     </div>
-    <.card_section :if={!@test_case_runs_analytics.ok?}>
+    <.card_section :if={
+      (@analytics_selected_widget == "test_case_run_duration" and
+         !@test_case_runs_duration_analytics.ok?) or
+        (@analytics_selected_widget == "test_case_run_count" and !@test_case_runs_analytics.ok?) or
+        (@analytics_selected_widget == "failed_test_case_run_count" and
+           !@failed_test_case_runs_analytics.ok?)
+    }>
       <div data-part="analytics-chart">
         <.skeleton_chart />
       </div>
     </.card_section>
     <.card_section :if={
-      @test_case_runs_analytics.ok? && @test_case_runs_analytics.result.count != 0
+      (@analytics_selected_widget == "test_case_run_duration" and
+         @test_case_runs_duration_analytics.ok? and
+         @test_case_runs_duration_analytics.result.total_average_duration != 0) or
+        (@analytics_selected_widget == "test_case_run_count" and
+           @test_case_runs_analytics.ok? and @test_case_runs_analytics.result.count != 0) or
+        (@analytics_selected_widget == "failed_test_case_run_count" and
+           @failed_test_case_runs_analytics.ok? and
+           @failed_test_case_runs_analytics.result.count != 0)
     }>
       <div data-part="analytics-chart">
+        <% chart =
+          TuistWeb.TestCasesLive.analytics_chart_data(
+            @analytics_selected_widget,
+            @selected_duration_type,
+            if(@test_case_runs_analytics.ok?,
+              do: @test_case_runs_analytics.result,
+              else: %{dates: [], values: []}
+            ),
+            if(@failed_test_case_runs_analytics.ok?,
+              do: @failed_test_case_runs_analytics.result,
+              else: %{dates: [], values: []}
+            ),
+            if(@test_case_runs_duration_analytics.ok?,
+              do: @test_case_runs_duration_analytics.result,
+              else: %{dates: [], values: []}
+            )
+          ) %>
+        <% chart_grid_left =
+          if Enum.max(chart.values, fn -> 0 end) >= 1_000_000, do: "0.8%", else: "0.4%" %>
         <.chart
           :if={@analytics_selected_widget != "test_case_run_duration"}
           id="test-cases-analytics-chart"
@@ -237,7 +269,7 @@
             %{
               grid: %{
                 width: "93%",
-                left: @analytics_chart_grid_left,
+                left: chart_grid_left,
                 right: "7%",
                 height: "88%",
                 top: "5%"
@@ -249,8 +281,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @analytics_chart_data.result.dates |> List.first(),
-                    @analytics_chart_data.result.dates |> List.last()
+                    chart.dates |> List.first(),
+                    chart.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -263,14 +295,14 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: @analytics_chart_data.result.value_formatter
+                  formatter: chart.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: chart.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: @analytics_chart_data.result.value_formatter}
+                  %{valueFormat: chart.value_formatter}
                 end,
               legend: %{
                 show: false
@@ -281,11 +313,11 @@
             %{
               data:
                 Enum.zip(
-                  @analytics_chart_data.result.dates,
-                  @analytics_chart_data.result.values
+                  chart.dates,
+                  chart.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
-              name: @analytics_chart_data.result.name,
+              name: chart.name,
               type: "line",
               smooth: 0.1,
               symbol: "none"

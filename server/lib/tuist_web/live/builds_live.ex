@@ -80,20 +80,9 @@ defmodule TuistWeb.BuildsLive do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/builds?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
-
-    {:noreply, socket}
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   def handle_event(

@@ -44,21 +44,7 @@ defmodule TuistWeb.XcodeCacheLive do
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
-
-    if socket.assigns.uploads_analytics.ok? do
-      chart_data =
-        build_analytics_chart_data(
-          widget,
-          socket.assigns.uploads_analytics.result,
-          socket.assigns.downloads_analytics.result,
-          socket.assigns.hit_rate_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   def handle_event(
@@ -132,45 +118,27 @@ defmodule TuistWeb.XcodeCacheLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
     |> assign(:uri, uri)
-    |> assign_async(
-      [
-        :uploads_analytics,
-        :downloads_analytics,
-        :hit_rate_analytics,
-        :hit_rate_p99,
-        :hit_rate_p90,
-        :hit_rate_p50,
-        :analytics_chart_data
-      ],
-      fn ->
-        [uploads_analytics, downloads_analytics, hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
-          Analytics.combined_cache_analytics(project.id, opts)
-
-        {:ok,
-         %{
-           uploads_analytics: uploads_analytics,
-           downloads_analytics: downloads_analytics,
-           hit_rate_analytics: hit_rate_analytics,
-           hit_rate_p99: hit_rate_p99,
-           hit_rate_p90: hit_rate_p90,
-           hit_rate_p50: hit_rate_p50,
-           analytics_chart_data:
-             build_analytics_chart_data(
-               analytics_selected_widget,
-               uploads_analytics,
-               downloads_analytics,
-               hit_rate_analytics
-             )
-         }}
-      end
-    )
+    |> assign_async(:uploads_analytics, fn ->
+      {:ok, %{uploads_analytics: Analytics.cas_uploads_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:downloads_analytics, fn ->
+      {:ok, %{downloads_analytics: Analytics.cas_downloads_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:hit_rate_analytics, fn ->
+      {:ok, %{hit_rate_analytics: Analytics.build_cache_hit_rate_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:hit_rate_p99, fn ->
+      {:ok, %{hit_rate_p99: Analytics.build_cache_hit_rate_percentile(project.id, 0.99, opts)}}
+    end)
+    |> assign_async(:hit_rate_p90, fn ->
+      {:ok, %{hit_rate_p90: Analytics.build_cache_hit_rate_percentile(project.id, 0.9, opts)}}
+    end)
+    |> assign_async(:hit_rate_p50, fn ->
+      {:ok, %{hit_rate_p50: Analytics.build_cache_hit_rate_percentile(project.id, 0.5, opts)}}
+    end)
   end
 
-  defp build_analytics_chart_data(analytics_selected_widget, uploads_analytics, downloads_analytics, hit_rate_analytics) do
-    analytics_chart_data(analytics_selected_widget, uploads_analytics, downloads_analytics, hit_rate_analytics)
-  end
-
-  defp analytics_chart_data("cache_uploads", uploads_analytics, _downloads_analytics, _hit_rate_analytics) do
+  def analytics_chart_data("cache_uploads", uploads_analytics, _downloads_analytics, _hit_rate_analytics) do
     %{
       dates: uploads_analytics.dates,
       values: uploads_analytics.values,
@@ -179,7 +147,7 @@ defmodule TuistWeb.XcodeCacheLive do
     }
   end
 
-  defp analytics_chart_data("cache_downloads", _uploads_analytics, downloads_analytics, _hit_rate_analytics) do
+  def analytics_chart_data("cache_downloads", _uploads_analytics, downloads_analytics, _hit_rate_analytics) do
     %{
       dates: downloads_analytics.dates,
       values: downloads_analytics.values,
@@ -188,7 +156,7 @@ defmodule TuistWeb.XcodeCacheLive do
     }
   end
 
-  defp analytics_chart_data(_cache_hit_rate, _uploads_analytics, _downloads_analytics, hit_rate_analytics) do
+  def analytics_chart_data(_cache_hit_rate, _uploads_analytics, _downloads_analytics, hit_rate_analytics) do
     %{
       dates: hit_rate_analytics.dates,
       values: hit_rate_analytics.values,

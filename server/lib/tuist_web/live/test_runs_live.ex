@@ -140,44 +140,15 @@ defmodule TuistWeb.TestRunsLive do
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
 
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          widget,
-          socket.assigns.selected_duration_type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   def handle_event("select_duration_type", %{"type" => type}, socket) do
-    socket =
-      socket
-      |> assign(:selected_duration_type, type)
-      |> assign(:analytics_selected_widget, "test_run_duration")
-
-    if socket.assigns.test_runs_analytics.ok? do
-      chart_data =
-        analytics_chart_data(
-          "test_run_duration",
-          type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply,
+     socket
+     |> assign(:selected_duration_type, type)
+     |> assign(:analytics_selected_widget, "test_run_duration")}
   end
 
   def handle_event(
@@ -270,40 +241,25 @@ defmodule TuistWeb.TestRunsLive do
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
     |> assign(:uri, uri)
-    |> assign_async(
-      [:test_runs_analytics, :failed_test_runs_analytics, :test_runs_duration_analytics, :analytics_chart_data],
-      fn ->
-        test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
-        failed_test_runs_analytics = Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
-        test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
-
-        chart_data =
-          analytics_chart_data(
-            analytics_selected_widget,
-            selected_duration_type,
-            test_runs_analytics,
-            failed_test_runs_analytics,
-            test_runs_duration_analytics
-          )
-
-        {:ok,
-         %{
-           test_runs_analytics: test_runs_analytics,
-           failed_test_runs_analytics: failed_test_runs_analytics,
-           test_runs_duration_analytics: test_runs_duration_analytics,
-           analytics_chart_data: chart_data
-         }}
-      end
-    )
+    |> assign_async(:test_runs_analytics, fn ->
+      {:ok, %{test_runs_analytics: Analytics.test_run_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:failed_test_runs_analytics, fn ->
+      {:ok,
+       %{failed_test_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))}}
+    end)
+    |> assign_async(:test_runs_duration_analytics, fn ->
+      {:ok, %{test_runs_duration_analytics: Analytics.test_run_duration_analytics(project.id, opts)}}
+    end)
   end
 
-  defp analytics_chart_data(
-         analytics_selected_widget,
-         selected_duration_type,
-         test_runs_analytics,
-         failed_test_runs_analytics,
-         test_runs_duration_analytics
-       ) do
+  def analytics_chart_data(
+        analytics_selected_widget,
+        selected_duration_type,
+        test_runs_analytics,
+        failed_test_runs_analytics,
+        test_runs_duration_analytics
+      ) do
     case analytics_selected_widget do
       "test_run_count" ->
         %{

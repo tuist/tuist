@@ -25,21 +25,7 @@ defmodule TuistWeb.GradleBuildsLive do
 
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
-    socket = socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)
-
-    if socket.assigns.builds_duration_analytics.ok? do
-      chart_data =
-        build_analytics_chart_data(
-          widget,
-          socket.assigns.total_builds_analytics.result,
-          socket.assigns.failed_builds_analytics.result,
-          socket.assigns.build_success_rate_analytics.result
-        )
-
-      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
-    else
-      {:noreply, socket}
-    end
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
@@ -74,67 +60,35 @@ defmodule TuistWeb.GradleBuildsLive do
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
     |> assign(:uri, uri)
-    |> assign_async(
-      [
-        :builds_duration_analytics,
-        :builds_p99_durations,
-        :builds_p90_durations,
-        :builds_p50_durations,
-        :total_builds_analytics,
-        :failed_builds_analytics,
-        :build_success_rate_analytics,
-        :analytics_chart_data
-      ],
-      fn ->
-        builds_duration_analytics = Analytics.build_duration_analytics(project.id, opts)
-        builds_p99_durations = Analytics.build_percentile_durations(project.id, 0.99, opts)
-        builds_p90_durations = Analytics.build_percentile_durations(project.id, 0.9, opts)
-        builds_p50_durations = Analytics.build_percentile_durations(project.id, 0.5, opts)
-        total_builds_analytics = Analytics.build_analytics(project.id, opts)
-        failed_builds_analytics = Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))
-        build_success_rate_analytics = Analytics.build_success_rate_analytics(project.id, opts)
-
-        {:ok,
-         %{
-           builds_duration_analytics: builds_duration_analytics,
-           builds_p99_durations: builds_p99_durations,
-           builds_p90_durations: builds_p90_durations,
-           builds_p50_durations: builds_p50_durations,
-           total_builds_analytics: total_builds_analytics,
-           failed_builds_analytics: failed_builds_analytics,
-           build_success_rate_analytics: build_success_rate_analytics,
-           analytics_chart_data:
-             build_analytics_chart_data(
-               analytics_selected_widget,
-               total_builds_analytics,
-               failed_builds_analytics,
-               build_success_rate_analytics
-             )
-         }}
-      end
-    )
+    |> assign_async(:builds_duration_analytics, fn ->
+      {:ok, %{builds_duration_analytics: Analytics.build_duration_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:builds_p99_durations, fn ->
+      {:ok, %{builds_p99_durations: Analytics.build_percentile_durations(project.id, 0.99, opts)}}
+    end)
+    |> assign_async(:builds_p90_durations, fn ->
+      {:ok, %{builds_p90_durations: Analytics.build_percentile_durations(project.id, 0.9, opts)}}
+    end)
+    |> assign_async(:builds_p50_durations, fn ->
+      {:ok, %{builds_p50_durations: Analytics.build_percentile_durations(project.id, 0.5, opts)}}
+    end)
+    |> assign_async(:total_builds_analytics, fn ->
+      {:ok, %{total_builds_analytics: Analytics.build_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:failed_builds_analytics, fn ->
+      {:ok, %{failed_builds_analytics: Analytics.build_analytics(project.id, Keyword.put(opts, :status, "failure"))}}
+    end)
+    |> assign_async(:build_success_rate_analytics, fn ->
+      {:ok, %{build_success_rate_analytics: Analytics.build_success_rate_analytics(project.id, opts)}}
+    end)
   end
 
-  defp build_analytics_chart_data(
-         analytics_selected_widget,
-         total_builds_analytics,
-         failed_builds_analytics,
-         build_success_rate_analytics
-       ) do
-    analytics_chart_data(
-      analytics_selected_widget,
-      total_builds_analytics,
-      failed_builds_analytics,
-      build_success_rate_analytics
-    )
-  end
-
-  defp analytics_chart_data(
-         "total-builds",
-         total_builds_analytics,
-         _failed_builds_analytics,
-         _build_success_rate_analytics
-       ) do
+  def analytics_chart_data(
+        "total-builds",
+        total_builds_analytics,
+        _failed_builds_analytics,
+        _build_success_rate_analytics
+      ) do
     %{
       dates: total_builds_analytics.dates,
       values: total_builds_analytics.values,
@@ -143,12 +97,12 @@ defmodule TuistWeb.GradleBuildsLive do
     }
   end
 
-  defp analytics_chart_data(
-         "failed-builds",
-         _total_builds_analytics,
-         failed_builds_analytics,
-         _build_success_rate_analytics
-       ) do
+  def analytics_chart_data(
+        "failed-builds",
+        _total_builds_analytics,
+        failed_builds_analytics,
+        _build_success_rate_analytics
+      ) do
     %{
       dates: failed_builds_analytics.dates,
       values: failed_builds_analytics.values,
@@ -157,12 +111,12 @@ defmodule TuistWeb.GradleBuildsLive do
     }
   end
 
-  defp analytics_chart_data(
-         _analytics_selected_widget,
-         _total_builds_analytics,
-         _failed_builds_analytics,
-         build_success_rate_analytics
-       ) do
+  def analytics_chart_data(
+        _analytics_selected_widget,
+        _total_builds_analytics,
+        _failed_builds_analytics,
+        build_success_rate_analytics
+      ) do
     %{
       dates: build_success_rate_analytics.dates,
       values: Enum.map(build_success_rate_analytics.values, &(&1 * 100)),

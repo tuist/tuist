@@ -66,13 +66,7 @@ defmodule TuistWeb.TestsLive do
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     uri = URI.new!("?" <> Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget))
 
-    socket =
-      socket
-      |> assign(:analytics_selected_widget, widget)
-      |> assign(:uri, uri)
-      |> maybe_assign_analytics_chart_data(widget, socket.assigns.selected_duration_type)
-
-    {:noreply, socket}
+    {:noreply, socket |> assign(:analytics_selected_widget, widget) |> assign(:uri, uri)}
   end
 
   def handle_event(
@@ -195,40 +189,19 @@ defmodule TuistWeb.TestsLive do
     |> assign(:analytics_trend_label, trend_label(preset))
     |> assign(:analytics_selected_widget, analytics_selected_widget)
     |> assign(:selected_duration_type, selected_duration_type)
-    |> assign_async(
-      [
-        :test_runs_analytics,
-        :flaky_test_runs_analytics,
-        :failed_test_runs_analytics,
-        :test_runs_duration_analytics,
-        :analytics_chart_data
-      ],
-      fn ->
-        test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
-        flaky_test_runs_analytics = Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))
-        failed_test_runs_analytics = Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
-        test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
-
-        analytics_chart_data =
-          analytics_chart_data(
-            analytics_selected_widget,
-            selected_duration_type,
-            test_runs_analytics,
-            flaky_test_runs_analytics,
-            failed_test_runs_analytics,
-            test_runs_duration_analytics
-          )
-
-        {:ok,
-         %{
-           test_runs_analytics: test_runs_analytics,
-           flaky_test_runs_analytics: flaky_test_runs_analytics,
-           failed_test_runs_analytics: failed_test_runs_analytics,
-           test_runs_duration_analytics: test_runs_duration_analytics,
-           analytics_chart_data: analytics_chart_data
-         }}
-      end
-    )
+    |> assign_async(:test_runs_analytics, fn ->
+      {:ok, %{test_runs_analytics: Analytics.test_run_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:flaky_test_runs_analytics, fn ->
+      {:ok, %{flaky_test_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
+    end)
+    |> assign_async(:failed_test_runs_analytics, fn ->
+      {:ok,
+       %{failed_test_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))}}
+    end)
+    |> assign_async(:test_runs_duration_analytics, fn ->
+      {:ok, %{test_runs_duration_analytics: Analytics.test_run_duration_analytics(project.id, opts)}}
+    end)
   end
 
   defp assign_selective_testing(%{assigns: %{selected_project: project}} = socket, params) do
@@ -330,14 +303,14 @@ defmodule TuistWeb.TestsLive do
     end)
   end
 
-  defp analytics_chart_data(
-         analytics_selected_widget,
-         selected_duration_type,
-         test_runs_analytics,
-         flaky_test_runs_analytics,
-         failed_test_runs_analytics,
-         test_runs_duration_analytics
-       ) do
+  def analytics_chart_data(
+        analytics_selected_widget,
+        selected_duration_type,
+        test_runs_analytics,
+        flaky_test_runs_analytics,
+        failed_test_runs_analytics,
+        test_runs_duration_analytics
+      ) do
     case analytics_selected_widget do
       "test_run_count" ->
         %{dates: test_runs_analytics.dates, values: test_runs_analytics.values}
@@ -358,24 +331,6 @@ defmodule TuistWeb.TestsLive do
           end
 
         %{dates: test_runs_duration_analytics.dates, values: values}
-    end
-  end
-
-  defp maybe_assign_analytics_chart_data(socket, analytics_selected_widget, selected_duration_type) do
-    if socket.assigns.test_runs_analytics.ok? do
-      analytics_chart_data =
-        analytics_chart_data(
-          analytics_selected_widget,
-          selected_duration_type,
-          socket.assigns.test_runs_analytics.result,
-          socket.assigns.flaky_test_runs_analytics.result,
-          socket.assigns.failed_test_runs_analytics.result,
-          socket.assigns.test_runs_duration_analytics.result
-        )
-
-      assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: analytics_chart_data})
-    else
-      socket
     end
   end
 
