@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "a5d9da0743b9",
+  "strategy": "manual-commit",
+  "branch": "fix/mcp-sse-hang",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "examples/gradle/simple_android_app/tuist.toml",
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a5/d9da0743b9/0/metadata.json",
+      "transcript": "/a5/d9da0743b9/0/full.jsonl",
+      "context": "/a5/d9da0743b9/0/context.md",
+      "content_hash": "/a5/d9da0743b9/0/content_hash.txt",
+      "prompt": "/a5/d9da0743b9/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 13,
+    "cache_creation_tokens": 2267,
+    "cache_read_tokens": 809185,
+    "output_tokens": 1053,
+    "api_call_count": 9
+  }
+}
