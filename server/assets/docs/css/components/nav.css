@@ -1,0 +1,23 @@
+#docs-nav {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: var(--noora-spacing-6) var(--noora-spacing-7);
+  background: var(--noora-surface-background-tertiary);
+  border-bottom: 1px solid var(--noora-content-divider-line);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="logo"] {
+      width: 40px;
+      height: 40px;
+    }
+  }
+
+  & > [data-part="cta"] {
+
+  }
+}
