@@ -219,6 +219,71 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_testing_context_prunes_non_test_dependency_targets() throws {
+        // Given
+        let framework = Target.test(name: "Framework")
+        let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
+        let exampleApp = Target.test(name: "FrameworkExample", product: .app)
+        let subject = FocusTargetsGraphMappers(includedTargets: Set(), isTestingContext: true)
+        let path = try temporaryPath()
+        let project = Project.test(path: path, targets: [framework, frameworkTests, exampleApp])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: frameworkTests.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+                .target(name: exampleApp.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEqual(pruningTargets.map(\.name), [exampleApp.name])
+    }
+
+    func test_map_when_testing_context_with_explicit_filters_uses_filters() throws {
+        // Given
+        let framework = Target.test(name: "Framework")
+        let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
+        let exampleApp = Target.test(name: "FrameworkExample", product: .app)
+        let subject = FocusTargetsGraphMappers(
+            includedTargets: [.named("FrameworkExample")],
+            isTestingContext: true
+        )
+        let path = try temporaryPath()
+        let project = Project.test(path: path, targets: [framework, frameworkTests, exampleApp])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: frameworkTests.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+                .target(name: exampleApp.name, path: path): [
+                    .target(name: framework.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+        let pruningTargets = gotGraph.projects.values.flatMap(\.targets.values).sorted()
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+
+        // Then
+        XCTAssertEqual(
+            pruningTargets.map(\.name).sorted(),
+            [frameworkTests.name]
+        )
+    }
+
     func test_map_when_included_targets_is_unused_tag() throws {
         // Given
         let targetNames = ["foo"]
