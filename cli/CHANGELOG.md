@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.155.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* expose ProjectDescription product on Linux for DocC generation by [@pepicrft](https://github.com/pepicrft) in [#9745](https://github.com/tuist/tuist/pull/9745)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.1...4.155.2
+
 ## What's Changed in 4.155.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
