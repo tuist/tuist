@@ -23,7 +23,9 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
           id: project.id,
           name: project.name,
           account_handle: project.account.name,
-          full_handle: "#{project.account.name}/#{project.name}"
+          full_handle: "#{project.account.name}/#{project.name}",
+          build_system: to_string(project.build_system),
+          default_branch: project.default_branch
         }
       end)
 

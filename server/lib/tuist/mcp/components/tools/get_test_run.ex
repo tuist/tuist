@@ -15,7 +15,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   @authorization_category :test
 
   schema do
-    field :test_run_id, :string, required: true, description: "The UUID of the test run."
+    field :test_run_id, :string, required: true, description: "The ID of the test run."
   end
 
   @impl true
