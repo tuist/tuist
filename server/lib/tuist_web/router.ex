@@ -20,17 +20,12 @@ defmodule TuistWeb.Router do
   end
 
   pipeline :content_security_policy do
-    plug :put_content_security_policy, &__MODULE__.csp_opts/1
-  end
-
-  def csp_opts(_conn) do
-    s3_endpoint = Tuist.Environment.s3_endpoint()
-
-    [
+    plug :put_content_security_policy,
       frame_ancestors: "'self'",
       img_src:
-        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com #{s3_endpoint}",
-      media_src: "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org #{s3_endpoint}",
+        "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com https://developer.apple.com https://tuist.dev https://videos.tuist.dev",
+      media_src:
+        "'self' https://*.mastodon.social https://hachyderm.io https://fosstodon.org http://localhost:9095 https://t3.storage.dev",
       style_src:
         "'self' 'unsafe-inline' https://fonts.googleapis.com https://chat.cdn-plain.com https://cdn.jsdelivr.net https://rsms.me",
       style_src_attr: "'unsafe-inline'",
@@ -42,8 +37,7 @@ defmodule TuistWeb.Router do
       font_src:
         "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
-      connect_src: "'self' https://chat.cdn-plain.com https://chat.uk.plain.com https://*.posthog.com #{s3_endpoint}"
-    ]
+      connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
 
   pipeline :browser_app do
@@ -157,6 +151,14 @@ defmodule TuistWeb.Router do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :mcp}
     plug TuistWeb.Plugs.MCPRateLimitPlug
+  end
+
+  pipeline :api_registry_swift do
+    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+    plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+    plug TuistWeb.RateLimit.Registry
   end
 
   pipeline :authenticated_api do
@@ -335,7 +337,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     live_session :docs do
-      live "/en", DocsLive, :show, metadata: %{type: :docs}
+      live "/en", DocsLive, :overview, metadata: %{type: :docs}
       live "/en/*path", DocsLive, :show, metadata: %{type: :docs}
     end
 
@@ -576,6 +578,34 @@ defmodule TuistWeb.Router do
         :update_member
   end
 
+  scope "/api", TuistWeb.API do
+    # Deprecated Swift package registry endpoints
+    scope "/accounts/:account_handle/registry", Registry do
+      scope "/swift" do
+        pipe_through [:api_registry_swift]
+
+        get "/identifiers", SwiftController, :identifiers
+        get "/:scope/:name", SwiftController, :list_releases
+        get "/:scope/:name/:version", SwiftController, :show_release
+        get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+        get "/availability", SwiftController, :availability
+        post "/login", SwiftController, :login
+      end
+    end
+
+    # Swift package registry endpoints
+    scope "/registry/swift", Registry do
+      pipe_through [:api_registry_swift]
+
+      get "/identifiers", SwiftController, :identifiers
+      get "/:scope/:name", SwiftController, :list_releases
+      get "/:scope/:name/:version", SwiftController, :show_release
+      get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+      get "/availability", SwiftController, :availability
+      post "/login", SwiftController, :login
+    end
+  end
+
   scope "/api" do
     pipe_through [:open_api, :non_authenticated_api]
 
@@ -590,6 +620,8 @@ defmodule TuistWeb.Router do
 
     post "/auth", AuthController, :authenticate
     post "/auth/apple", AuthController, :authenticate_apple
+
+    get "/registry/swift", Registry.SwiftController, :availability
 
     post "/auth/oidc/token", OIDCController, :exchange_token
   end
@@ -886,7 +918,6 @@ defmodule TuistWeb.Router do
 
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
-      live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
     end
 

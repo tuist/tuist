@@ -12,36 +12,83 @@
   min-width: 0;
   max-width: 100%;
 
-  & > [data-part="tabs"] {
+  & > [data-part="header"] {
     display: flex;
     flex-direction: row;
-    gap: var(--noora-spacing-1);
-    padding: var(--noora-spacing-2) var(--noora-spacing-4);
-    overflow-x: auto;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    padding: 4px 8px;
 
-    & > [data-part="tab"] {
-      flex-shrink: 0;
-      appearance: none;
-      transition:
-        background 0.15s ease,
-        color 0.15s ease;
+    & > [data-part="tabs"] {
+      display: flex;
+      flex-direction: row;
+      gap: 24px;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+      padding: 2px 0 12px;
+
+      & > [data-part="tab"] {
+        flex-shrink: 0;
+        appearance: none;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        padding: 0;
+        position: relative;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        white-space: nowrap;
+
+        &:hover {
+          color: var(--noora-surface-label-primary);
+        }
+
+        &[data-selected="true"] {
+          color: var(--noora-surface-label-primary);
+
+          &::after {
+            content: "";
+            position: absolute;
+            bottom: -12px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            border-radius: 1px;
+            background: var(--noora-surface-label-primary);
+          }
+        }
+      }
+    }
+
+    & > [data-part="copy"] {
+      display: flex;
+      justify-content: center;
+      align-items: center;
       cursor: pointer;
       border: none;
-      border-radius: var(--noora-radius-medium);
       background: transparent;
-      padding: var(--noora-spacing-2) var(--noora-spacing-4);
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      white-space: nowrap;
+      border-radius: 6px;
+      padding: 6px;
+      color: var(--noora-button-neutral-label);
+      position: absolute;
+      top: 8px;
+      right: 8px;
 
-      &:hover {
-        background: var(--noora-surface-background-secondary);
-        color: var(--noora-surface-label-primary);
+      & svg {
+        width: 20px;
+        height: 20px;
       }
 
-      &[data-selected="true"] {
-        background: var(--noora-surface-background-tertiary);
-        color: var(--noora-surface-label-primary);
+      &:hover {
+        opacity: 0.7;
+      }
+
+      &:active {
+        opacity: 0.5;
       }
     }
   }
