@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -758,63 +758,85 @@ msgstr "环境"
 msgid "local"
 msgstr "local"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "添加阈值"
 
 msgid "All"
 msgstr ""
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "基线分支"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
-msgstr ""
+msgstr "当代码包大小超过基准分支的阈值时，阻止拉取请求"
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"当<strong>%{size_label}</strong> 与<strong>%{baseline_branch}</strong> 上的最"
+"新捆绑包相比，其<strong>%{deviation}%</strong> 增加超过 %{deviation}% 时，阻"
+"止 PR。"
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"当<strong>%{size_label}</strong> 的<strong>%{bundle_name}</strong> 相较"
+"于<strong>%{baseline_branch}</strong> 上的最新包，其<strong>%{deviation}%</"
+"strong> 增加超过 %{deviation}% 时，阻止 PR。"
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "包名"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr ""
+msgstr "当包大小超过限制时，创建阈值以阻止PR"
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "创建尺寸阈值"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "偏差率"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "无尺寸限制"
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "尺寸阈值"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "阈值名称"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "阈值"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "更新大小阈值"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "连接 GitHub"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
-msgstr ""
+msgstr "连接 Tuist GitHub 应用程序，以便在 PR 上运行包大小检查。"
 
 #, fuzzy
 #~ msgid ""
