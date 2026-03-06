@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/es/>\n"
 "Language: es\n"
@@ -780,64 +780,93 @@ msgstr "Entorno"
 msgid "local"
 msgstr "local"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "Añadir umbral."
 
 #, fuzzy
 msgid "All"
 msgstr "Todos"
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "Rama de referencia"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
+"Bloquea las solicitudes de incorporación de cambios cuando el tamaño del "
+"paquete supere un umbral en comparación con una rama de referencia."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"Bloquea las solicitudes de incorporación de cambios cuando el <strong>%"
+"{size_label}</strong> aumente en más de <strong>%{deviation}%</strong> en "
+"comparación con el último paquete en <strong>%{baseline_branch}</strong>."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"Bloquea las solicitudes de incorporación de cambios cuando el <strong>%"
+"{size_label}</strong> de <strong>%{bundle_name}</strong> aumente en más de "
+"<strong>%{deviation}%</strong> en comparación con el último paquete en "
+"<strong>%{baseline_branch}</strong>."
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "Nombre del paquete"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr ""
+"Crea un umbral para bloquear las solicitudes de incorporación de cambios "
+"cuando el tamaño del paquete supere un límite."
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "Crear umbral de tamaño."
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "% de desviación"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "Sin límites de tamaño."
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "Umbrales de tamaño"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "Nombre del umbral"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "Umbrales"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "Actualizar el umbral de tamaño."
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "Conecta GitHub."
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr ""
+"Conecta la aplicación Tuist GitHub para habilitar la comprobación del tamaño "
+"del paquete en las solicitudes de incorporación de cambios."
 
 #, fuzzy
 #~ msgid ""
