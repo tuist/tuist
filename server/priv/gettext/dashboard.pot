@@ -46,8 +46,8 @@ msgstr ""
 msgid "Account settings"
 msgstr ""
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:121
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:127
 #, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr ""
@@ -185,7 +185,7 @@ msgstr ""
 msgid "Module Cache"
 msgstr ""
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:115
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:117
 #, elixir-autogen, elixir-format
 msgid "N/A"
 msgstr ""
@@ -426,17 +426,17 @@ msgstr ""
 msgid "bash"
 msgstr ""
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:126
 #, elixir-autogen, elixir-format
 msgid "p50"
 msgstr ""
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
 #, elixir-autogen, elixir-format
 msgid "p90"
 msgstr ""
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:122
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
 #, elixir-autogen, elixir-format
 msgid "p99"
 msgstr ""

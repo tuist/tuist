@@ -16,6 +16,7 @@ defmodule Tuist.VCS do
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.GitHub.Client
+  alias Tuist.Gradle
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Repo
@@ -362,6 +363,12 @@ defmodule Tuist.VCS do
         project: project
       })
 
+    gradle_builds =
+      get_latest_gradle_builds(%{
+        git_ref: git_ref,
+        project: project
+      })
+
     previews_body =
       get_previews_body(%{
         previews: previews,
@@ -390,6 +397,7 @@ defmodule Tuist.VCS do
     builds_body =
       get_builds_body(%{
         builds: builds,
+        gradle_builds: gradle_builds,
         git_remote_url_origin: git_remote_url_origin,
         build_url: build_url,
         project: project
@@ -569,16 +577,53 @@ defmodule Tuist.VCS do
     else
       project = Repo.preload(project, :account)
 
-      metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
-      metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+      {xcode_runs, gradle_runs} = Enum.split_with(test_runs, &(&1.build_system != "gradle"))
+      has_multiple_build_systems = xcode_runs != [] and gradle_runs != []
+
+      xcode_body =
+        get_xcode_test_body(%{
+          test_runs: xcode_runs,
+          git_remote_url_origin: git_remote_url_origin,
+          test_run_url: test_run_url,
+          project: project
+        })
+
+      gradle_body =
+        get_gradle_test_body(%{
+          test_runs: gradle_runs,
+          git_remote_url_origin: git_remote_url_origin,
+          test_run_url: test_run_url,
+          project: project
+        })
+
+      xcode_section =
+        if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
+
+      gradle_section =
+        if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
 
       """
 
       #### Tests 🧪
 
-      | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
-      |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-      #{Enum.map(test_runs, fn test_run ->
+      #{xcode_section}#{gradle_section}
+      """
+    end
+  end
+
+  defp get_xcode_test_body(%{test_runs: [], project: _project} = _args), do: ""
+
+  defp get_xcode_test_body(%{
+         test_runs: test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
+    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
+    rows =
+      Enum.map_join(test_runs, "", fn test_run ->
         test_run_metrics = Map.get(metrics_map, test_run.id)
 
         git_commit_sha = test_run.git_commit_sha
@@ -590,12 +635,40 @@ defmodule Tuist.VCS do
         skipped_tests = if test_run_metrics, do: test_run_metrics.skipped_tests, else: 0
         ran_tests = if test_run_metrics, do: test_run_metrics.ran_tests, else: 0
 
-        """
-        | [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
-        """
-      end)}
-      """
-    end
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{cache_hit_rate} | #{total_tests} | #{skipped_tests} | #{ran_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+      end)
+
+    "| Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|:-:|:-:|:-:|\n" <>
+      rows
+  end
+
+  defp get_gradle_test_body(%{test_runs: [], project: _project} = _args), do: ""
+
+  defp get_gradle_test_body(%{
+         test_runs: test_runs,
+         git_remote_url_origin: git_remote_url_origin,
+         test_run_url: test_run_url,
+         project: project
+       }) do
+    metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
+    metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
+
+    rows =
+      Enum.map_join(test_runs, "", fn test_run ->
+        test_run_metrics = Map.get(metrics_map, test_run.id)
+
+        git_commit_sha = test_run.git_commit_sha
+        test_url = test_run_url.(%{project: project, test_run: test_run})
+        scheme = if test_run.scheme == "", do: "Unknown", else: test_run.scheme
+        total_tests = if test_run_metrics, do: test_run_metrics.total_tests, else: 0
+
+        "| [#{scheme}](#{test_url}) | #{get_test_run_status_text(test_run)} | #{total_tests} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |\n"
+      end)
+
+    "| Project | Status | Tests | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
   end
 
   defp get_test_run_status_text(test_run) do
@@ -692,6 +765,32 @@ defmodule Tuist.VCS do
     |> Map.values()
   end
 
+  defp get_latest_gradle_builds(%{git_ref: git_ref, project: project}) do
+    git_ref_pattern = get_git_ref_pattern(git_ref)
+
+    from(b in Gradle.Build)
+    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> order_by([b], desc: b.inserted_at)
+    |> ClickHouseRepo.all()
+    |> Enum.filter(&(&1.root_project_name != ""))
+    |> Enum.reduce(%{}, fn build, acc ->
+      name = build.root_project_name
+
+      current_build = Map.get(acc, name)
+
+      if current_build == nil or
+           NaiveDateTime.after?(
+             build.inserted_at,
+             current_build.inserted_at
+           ) do
+        Map.put(acc, name, build)
+      else
+        acc
+      end
+    end)
+    |> Map.values()
+  end
+
   defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
@@ -720,38 +819,95 @@ defmodule Tuist.VCS do
 
   defp get_builds_body(%{
          builds: builds,
+         gradle_builds: gradle_builds,
          git_remote_url_origin: git_remote_url_origin,
          build_url: build_url,
          project: project
        }) do
-    if Enum.empty?(builds) do
+    if Enum.empty?(builds) and Enum.empty?(gradle_builds) do
       nil
     else
+      has_multiple_build_systems = builds != [] and gradle_builds != []
+
+      xcode_body =
+        get_xcode_builds_body(%{
+          builds: builds,
+          git_remote_url_origin: git_remote_url_origin,
+          build_url: build_url,
+          project: project
+        })
+
+      gradle_body =
+        get_gradle_builds_body(%{
+          builds: gradle_builds,
+          git_remote_url_origin: git_remote_url_origin,
+          build_url: build_url,
+          project: project
+        })
+
+      xcode_section =
+        if has_multiple_build_systems and xcode_body != "", do: "##### Xcode\n\n" <> xcode_body, else: xcode_body
+
+      gradle_section =
+        if has_multiple_build_systems and gradle_body != "", do: "\n##### Gradle\n\n" <> gradle_body, else: gradle_body
+
       """
 
       #### Builds 🔨
 
-      | Scheme | Status | Duration | Commit |
-      |:-:|:-:|:-:|:-:|
-      #{Enum.map(builds, fn build ->
-        git_commit_sha = build.git_commit_sha
-        build_url = build_url.(%{project: project, build: build})
-
-        scheme = build.scheme
-        duration = DateFormatter.format_duration_from_milliseconds(build.duration)
-
-        """
-        | [#{scheme}](#{build_url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{git_commit_sha}) |
-        """
-      end)}
+      #{xcode_section}#{gradle_section}
       """
     end
+  end
+
+  defp get_xcode_builds_body(%{builds: [], project: _project} = _args), do: ""
+
+  defp get_xcode_builds_body(%{
+         builds: builds,
+         git_remote_url_origin: git_remote_url_origin,
+         build_url: build_url,
+         project: project
+       }) do
+    rows =
+      Enum.map_join(builds, "", fn build ->
+        url = build_url.(%{project: project, build: %{id: build.id}})
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration)
+
+        "| [#{build.scheme}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+      end)
+
+    "| Scheme | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
+  end
+
+  defp get_gradle_builds_body(%{builds: [], project: _project} = _args), do: ""
+
+  defp get_gradle_builds_body(%{
+         builds: builds,
+         git_remote_url_origin: git_remote_url_origin,
+         build_url: build_url,
+         project: project
+       }) do
+    rows =
+      Enum.map_join(builds, "", fn build ->
+        url = build_url.(%{project: project, build: %{id: build.id}})
+        duration = DateFormatter.format_duration_from_milliseconds(build.duration_ms)
+
+        "| [#{build.root_project_name}](#{url}) | #{get_build_status_text(build)} | #{duration} | [#{String.slice(build.git_commit_sha, 0, 9)}](#{git_remote_url_origin}/commit/#{build.git_commit_sha}) |\n"
+      end)
+
+    "| Project | Status | Duration | Commit |\n" <>
+      "|:-:|:-:|:-:|:-:|\n" <>
+      rows
   end
 
   defp get_build_status_text(build) do
     case build.status do
       "failure" -> "❌"
       "success" -> "✅"
+      "cancelled" -> "🚫"
+      _ -> "❓"
     end
   end
 
@@ -855,4 +1011,6 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
     Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds)
   end
+
+  def update_check_run(params), do: Client.update_check_run(params)
 end

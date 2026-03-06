@@ -19,7 +19,7 @@ Since manifest files are Swift files that need to be compiled, Tuist caches the 
 
 ## Project.swift {#projectswift}
 
-The <LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink> manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
+The [`Project.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/project) manifest declares an Xcode project. The project gets generated in the same directory where the manifest file is located with the name indicated in the `name` property.
 
 ```swift
 // Project.swift
@@ -40,7 +40,7 @@ The only variable that should be at the root of the manifest is `let project = P
 
 ## Workspace.swift {#workspaceswift}
 
-By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a <LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink> manifest.
+By default, Tuist generates an [Xcode Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces) containing the project being generated and the projects of its dependencies. If for any reason you'd like to customize the workspace to add additional projects or include files and groups, you can do so by defining a [`Workspace.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/workspace) manifest.
 
 ```swift
 // Workspace.swift
@@ -68,7 +68,7 @@ In the Tuist project we lean on mono-projects because the cold generation time i
 
 ## Tuist.swift {#tuistswift}
 
-Tuist provides <LocalizedLink href="/contributors/principles#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink> at the root of the project, which is used by Tuist to determine the root of the project.
+Tuist provides <LocalizedLink href="/contributors/principles#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can customize the configuration by defining a [`Tuist.swift`](https://projectdescription.tuist.dev/documentation/projectdescription/tuist) at the root of the project, which is used by Tuist to determine the root of the project.
 
 ```swift
 import ProjectDescription

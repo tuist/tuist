@@ -3480,6 +3480,7 @@ public enum Components {
                 /// - Remark: Generated from `#/components/schemas/AccountTokens/tokensPayload/scopesPayload`.
                 @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                     case ci = "ci"
+                    case mcp = "mcp"
                     case account_colon_members_colon_read = "account:members:read"
                     case account_colon_members_colon_write = "account:members:write"
                     case account_colon_registry_colon_read = "account:registry:read"
@@ -3920,6 +3921,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/file_name`.
             public var file_name: Swift.String
+            /// The repetition number (attempt) this attachment belongs to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/repetition_number`.
+            public var repetition_number: Swift.Int?
             /// The UUID of the test case run.
             ///
             /// - Remark: Generated from `#/components/schemas/TestCaseRunAttachmentParams/test_case_run_id`.
@@ -3928,16 +3933,20 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - file_name: The file name of the attachment.
+            ///   - repetition_number: The repetition number (attempt) this attachment belongs to.
             ///   - test_case_run_id: The UUID of the test case run.
             public init(
                 file_name: Swift.String,
+                repetition_number: Swift.Int? = nil,
                 test_case_run_id: Swift.String
             ) {
                 self.file_name = file_name
+                self.repetition_number = repetition_number
                 self.test_case_run_id = test_case_run_id
             }
             public enum CodingKeys: String, CodingKey {
                 case file_name
+                case repetition_number
                 case test_case_run_id
             }
         }
@@ -8435,6 +8444,7 @@ public enum Components {
             /// - Remark: Generated from `#/components/schemas/CreateAccountToken/scopesPayload`.
             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case ci = "ci"
+                case mcp = "mcp"
                 case account_colon_members_colon_read = "account:members:read"
                 case account_colon_members_colon_write = "account:members:write"
                 case account_colon_registry_colon_read = "account:registry:read"
@@ -23742,6 +23752,7 @@ public enum Operations {
                             /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/GET/responses/200/content/json/tokensPayload/scopesPayload`.
                             @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case ci = "ci"
+                                case mcp = "mcp"
                                 case account_colon_members_colon_read = "account:members:read"
                                 case account_colon_members_colon_write = "account:members:write"
                                 case account_colon_registry_colon_read = "account:registry:read"
@@ -24118,6 +24129,7 @@ public enum Operations {
                     /// - Remark: Generated from `#/paths/api/accounts/{account_handle}/tokens/POST/requestBody/json/scopesPayload`.
                     @frozen public enum scopesPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case ci = "ci"
+                        case mcp = "mcp"
                         case account_colon_members_colon_read = "account:members:read"
                         case account_colon_members_colon_write = "account:members:write"
                         case account_colon_registry_colon_read = "account:registry:read"
@@ -38160,6 +38172,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/file_name`.
                     public var file_name: Swift.String
+                    /// The repetition number (attempt) this attachment belongs to.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/repetition_number`.
+                    public var repetition_number: Swift.Int?
                     /// The UUID of the test case run.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/attachments/POST/requestBody/json/test_case_run_id`.
@@ -38168,16 +38184,20 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - file_name: The file name of the attachment.
+                    ///   - repetition_number: The repetition number (attempt) this attachment belongs to.
                     ///   - test_case_run_id: The UUID of the test case run.
                     public init(
                         file_name: Swift.String,
+                        repetition_number: Swift.Int? = nil,
                         test_case_run_id: Swift.String
                     ) {
                         self.file_name = file_name
+                        self.repetition_number = repetition_number
                         self.test_case_run_id = test_case_run_id
                     }
                     public enum CodingKeys: String, CodingKey {
                         case file_name
+                        case repetition_number
                         case test_case_run_id
                     }
                 }
