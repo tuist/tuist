@@ -117,7 +117,7 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             sideEffects.append(sideEffect)
         }
 
-        if case .external = project.type,
+        if
            target.sources.containsObjcFiles,
            target.resources.containsBundleAccessedResources,
            !target.supportsResources || target.product == .staticFramework
@@ -128,10 +128,12 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
             let headerFile = SourceFile(path: headerFilePath, contentHash: headerHash)
             let headerSideEffect = SideEffectDescriptor.file(.init(path: headerFilePath, contents: headerData, state: .present))
 
-            let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
+            if project.type == .external {
+                let gccPrefixHeader = "$(SRCROOT)/\(headerFile.path.relative(to: project.path).pathString)"
             var settings = modifiedTarget.settings?.base ?? SettingsDictionary()
             settings["GCC_PREFIX_HEADER"] = .string(gccPrefixHeader)
             modifiedTarget.settings = modifiedTarget.settings?.with(base: settings)
+            }
 
             sideEffects.append(headerSideEffect)
 
