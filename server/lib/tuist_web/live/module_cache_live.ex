@@ -189,7 +189,7 @@ defmodule TuistWeb.ModuleCacheLive do
       fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
 
       events =
-        from(e in Event,
+        from(e in {"command_events_by_ran_at", Event},
           where:
             e.project_id == ^project.id and
               e.cacheable_targets_count > 0 and
