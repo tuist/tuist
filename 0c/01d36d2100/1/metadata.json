@@ -1,9 +1,11 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "0c01d36d2100",
+  "session_id": "cb944aed-3b3e-4be1-afa1-32e335f32091",
   "strategy": "manual-commit",
+  "created_at": "2026-03-06T13:26:36.792897Z",
   "branch": "fix/project-description-linux-product",
-  "checkpoints_count": 2,
+  "checkpoints_count": 1,
   "files_touched": [
     "Package.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
@@ -17,27 +19,22 @@
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
-  "sessions": [
-    {
-      "metadata": "/0c/01d36d2100/0/metadata.json",
-      "transcript": "/0c/01d36d2100/0/full.jsonl",
-      "context": "/0c/01d36d2100/0/context.md",
-      "content_hash": "/0c/01d36d2100/0/content_hash.txt",
-      "prompt": "/0c/01d36d2100/0/prompt.txt"
-    },
-    {
-      "metadata": "/0c/01d36d2100/1/metadata.json",
-      "transcript": "/0c/01d36d2100/1/full.jsonl",
-      "context": "/0c/01d36d2100/1/context.md",
-      "content_hash": "/0c/01d36d2100/1/content_hash.txt",
-      "prompt": "/0c/01d36d2100/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "07f9269c-e084-4a94-965f-1cfd614dd323",
   "token_usage": {
-    "input_tokens": 80,
-    "cache_creation_tokens": 102143,
-    "cache_read_tokens": 1401725,
-    "output_tokens": 5671,
-    "api_call_count": 35
+    "input_tokens": 77,
+    "cache_creation_tokens": 101868,
+    "cache_read_tokens": 1355100,
+    "output_tokens": 5643,
+    "api_call_count": 34
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-06T13:26:36.743715Z",
+    "agent_lines": 16,
+    "human_added": 67512,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 67528,
+    "agent_percentage": 0.023693875133278048
   }
 }
