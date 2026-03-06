@@ -3,6 +3,7 @@
   position: sticky;
   top: 0;
   flex-direction: row;
+  align-items: center;
   justify-content: space-between;
   z-index: 10;
   border-bottom: 1px solid var(--noora-content-divider-line);
