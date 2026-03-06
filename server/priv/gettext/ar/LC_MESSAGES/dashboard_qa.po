@@ -590,3 +590,6 @@ msgstr "الإشعارات"
 #, fuzzy
 msgid "Automations"
 msgstr "الأتمتة"
+
+msgid "Bundles"
+msgstr ""

@@ -572,3 +572,6 @@ msgstr "通知"
 #, fuzzy
 msgid "Automations"
 msgstr "自动化"
+
+msgid "Bundles"
+msgstr ""

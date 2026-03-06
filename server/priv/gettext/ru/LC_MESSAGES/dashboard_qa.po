@@ -588,3 +588,6 @@ msgstr "Уведомления"
 #, fuzzy
 msgid "Automations"
 msgstr "Автоматизация"
+
+msgid "Bundles"
+msgstr ""

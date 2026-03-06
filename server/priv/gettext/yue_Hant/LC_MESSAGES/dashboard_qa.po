@@ -438,3 +438,6 @@ msgstr ""
 
 msgid "Automations"
 msgstr ""
+
+msgid "Bundles"
+msgstr ""
