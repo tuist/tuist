@@ -44,6 +44,50 @@ const DocsInstallTabs = {
   },
 };
 
+const DocsMobileMenu = {
+  mounted() {
+    const nav = this.el;
+    const toggle = nav.querySelector("[data-part='menu-toggle']");
+    const sidebar = document.getElementById("docs-mobile-sidebar");
+
+    if (toggle && sidebar) {
+      toggle.addEventListener("click", () => {
+        const isOpen = nav.getAttribute("data-mobile-menu-open") === "true";
+        if (isOpen) {
+          nav.removeAttribute("data-mobile-menu-open");
+          sidebar.removeAttribute("data-open");
+          document.body.style.overflow = "";
+        } else {
+          nav.setAttribute("data-mobile-menu-open", "true");
+          sidebar.setAttribute("data-open", "");
+          document.body.style.overflow = "hidden";
+        }
+      });
+    }
+
+    this._onKeydown = (e) => {
+      if (e.key === "Escape" && nav.getAttribute("data-mobile-menu-open") === "true") {
+        nav.removeAttribute("data-mobile-menu-open");
+        sidebar?.removeAttribute("data-open");
+        document.body.style.overflow = "";
+      }
+    };
+    document.addEventListener("keydown", this._onKeydown);
+
+    this._onNavigate = () => {
+      nav.removeAttribute("data-mobile-menu-open");
+      sidebar?.removeAttribute("data-open");
+      document.body.style.overflow = "";
+    };
+    window.addEventListener("phx:navigate", this._onNavigate);
+  },
+  destroyed() {
+    document.removeEventListener("keydown", this._onKeydown);
+    window.removeEventListener("phx:navigate", this._onNavigate);
+    document.body.style.overflow = "";
+  },
+};
+
 const DocsActivePage = {
   mounted() {
     this._updateSidebar();
@@ -95,7 +139,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { ...Noora.Hooks, DocsActivePage, DocsContent, DocsInstallTabs },
+  hooks: { ...Noora.Hooks, DocsActivePage, DocsContent, DocsInstallTabs, DocsMobileMenu },
 });
 liveSocket.connect();
 

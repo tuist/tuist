@@ -15,6 +15,12 @@
   --docs-nav-height: 73px;
 }
 
+@media (max-width: 1024px) {
+  :root {
+    --docs-nav-height: 56px;
+  }
+}
+
 html {
   overflow-x: hidden;
   scroll-padding-top: var(--docs-nav-height);
