@@ -1042,6 +1042,17 @@ var targets: [Target] = [
     ),
 ]
 
+// MARK: - Cross-platform targets (outside macOS gate)
+
+targets.append(contentsOf: [
+    .target(
+        name: "ProjectDescription",
+        dependencies: [],
+        path: "cli/Sources/ProjectDescription",
+        exclude: ["AGENTS.md"]
+    ),
+])
+
 // MARK: - macOS-only targets
 
 #if os(macOS)
@@ -1164,12 +1175,6 @@ targets.append(contentsOf: [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    ),
-    .target(
-        name: "ProjectDescription",
-        dependencies: [],
-        path: "cli/Sources/ProjectDescription",
-        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "ProjectAutomation",
