@@ -448,3 +448,6 @@ msgstr "알림"
 
 msgid "Automations"
 msgstr "자동화"
+
+msgid "Bundles"
+msgstr ""

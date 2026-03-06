@@ -596,3 +596,6 @@ msgstr "Notificaciones"
 #, fuzzy
 msgid "Automations"
 msgstr "Automatizaciones"
+
+msgid "Bundles"
+msgstr ""

@@ -587,3 +587,6 @@ msgstr "Bildirimler"
 #, fuzzy
 msgid "Automations"
 msgstr "Otomasyonlar"
+
+msgid "Bundles"
+msgstr ""
