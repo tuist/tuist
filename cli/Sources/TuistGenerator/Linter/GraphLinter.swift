@@ -619,6 +619,7 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .macro),
+            LintableTarget(platform: .macOS, product: .commandLineTool),
         ],
         LintableTarget(platform: .macOS, product: .unitTests): [
             LintableTarget(platform: .macOS, product: .app),
@@ -650,6 +651,8 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .macOS, product: .staticFramework),
             LintableTarget(platform: .macOS, product: .framework),
             LintableTarget(platform: .macOS, product: .macro),
+            // 9/28
+            LintableTarget(platform: .macOS, product: .commandLineTool),
         ],
         LintableTarget(platform: .macOS, product: .xpc): [
             LintableTarget(platform: .macOS, product: .staticLibrary),
