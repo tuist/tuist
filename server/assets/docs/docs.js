@@ -2,9 +2,47 @@
 import "phoenix_html";
 import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
-// import { Hooks } from "./js/hooks.js";
 import Noora from "noora";
+import { highlightCodeBlocks } from "../shared/js/hooks/shiki-highlight.js";
+import { setupCodeCopy } from "../shared/js/hooks/code-copy.js";
+import { setupCodeGroups } from "../shared/js/hooks/code-group.js";
 import "./docs.css";
+
+const DocsContent = {
+  async mounted() {
+    await highlightCodeBlocks(this.el);
+    setupCodeCopy(this.el);
+    setupCodeGroups(this.el);
+  },
+  async updated() {
+    await highlightCodeBlocks(this.el);
+    setupCodeCopy(this.el);
+    setupCodeGroups(this.el);
+  },
+};
+
+const DocsInstallTabs = {
+  mounted() {
+    const tabs = this.el.querySelectorAll("[data-part='terminal-tab']");
+    const body = this.el.querySelector("[data-part='terminal-body'] code");
+    const commands = { mise: "mise install tuist", homebrew: "brew install tuist/tuist/tuist" };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.removeAttribute("data-selected"));
+        tab.setAttribute("data-selected", "");
+        if (body) body.textContent = commands[tab.textContent.trim()] || "";
+      });
+    });
+
+    const copyBtn = this.el.querySelector("[data-part='terminal-copy']");
+    if (copyBtn && body) {
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(body.textContent.trim());
+      });
+    }
+  },
+};
 
 const DocsActivePage = {
   mounted() {
@@ -12,6 +50,7 @@ const DocsActivePage = {
   },
   updated() {
     this._updateSidebar();
+    window.scrollTo(0, 0);
   },
   _updateSidebar() {
     const currentSlug = this.el.dataset.currentSlug;
@@ -56,7 +95,7 @@ let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("co
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { ...Noora.Hooks, DocsActivePage },
+  hooks: { ...Noora.Hooks, DocsActivePage, DocsContent, DocsInstallTabs },
 });
 liveSocket.connect();
 

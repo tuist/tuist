@@ -6,22 +6,36 @@
   flex-direction: column;
   align-self: start;
   justify-self: start;
-  gap: var(--noora-spacing-7);
-  padding: var(--noora-spacing-7) var(--noora-spacing-4);
   width: 220px;
   max-height: calc(100vh - var(--docs-nav-height));
+}
+
+[data-part="sidebar"] > [data-part="sidebar-scroll"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+  padding: var(--noora-spacing-7) var(--noora-spacing-4);
+  min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
 }
 
 /* Section group (line divider + content divider + items) */
 [data-part="nav-section"] {
   display: flex;
   flex-direction: column;
+  gap: var(--noora-spacing-7);
 }
 
-/* Line divider between sections */
-[data-part="nav-section"] .noora-line-divider {
-  margin-bottom: var(--noora-spacing-7);
+[data-part="sidebar-scroll"] > [data-part="nav-section"]:first-child .noora-line-divider {
+  display: none;
+}
+
+/* Nav items list */
+[data-part="nav-items"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
 }
 
 /* Content divider: icon + label */
@@ -80,20 +94,20 @@
 }
 
 /* Also handle indicator state from the root element */
-[data-part="sidebar"] [data-part="root"]:not([data-state="open"]) [data-part="indicator-up"] {
+[data-part="sidebar"] [data-part="root"]:not([data-state="open"]) > [data-part="trigger"] [data-part="indicator-up"] {
   display: none;
 }
 
-[data-part="sidebar"] [data-part="root"][data-state="open"] [data-part="indicator-down"] {
+[data-part="sidebar"] [data-part="root"][data-state="open"] > [data-part="trigger"] [data-part="indicator-down"] {
   display: none;
 }
 
 /* Collapsible content visibility */
-[data-part="sidebar"] [data-part="root"]:not([data-state="open"]) [data-part="content"] {
+[data-part="sidebar"] [data-part="root"]:not([data-state="open"]) > [data-part="content"] {
   display: none;
 }
 
-[data-part="sidebar"] [data-part="root"][data-state="open"] [data-part="content"] {
+[data-part="sidebar"] [data-part="root"][data-state="open"] > [data-part="content"] {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-2);
