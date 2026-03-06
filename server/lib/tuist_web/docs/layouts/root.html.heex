@@ -26,11 +26,12 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
-    <nav id="docs-nav">
+    <nav id="docs-nav" phx-hook="DocsMobileMenu">
       <div data-part="header">
         <.link navigate="/docs/en" data-part="logo-link">
           <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
         </.link>
+        <span data-part="logo-text">Tuist</span>
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}
@@ -77,6 +78,15 @@
             <.brand_bluesky />
           </.neutral_button>
         </div>
+      </div>
+      <div data-part="mobile-actions">
+        <.neutral_button size="small" data-action="search">
+          <.icon name="search" />
+        </.neutral_button>
+        <button data-part="menu-toggle" aria-label="Toggle menu">
+          <span data-part="menu-icon"><.icon name="menu" /></span>
+          <span data-part="close-icon"><.icon name="x" /></span>
+        </button>
       </div>
     </nav>
     {@inner_content}
