@@ -56,7 +56,7 @@ import TuistServer
     import TuistProfile
     import TuistSDK
 
-    enum TabIdentifier: Hashable {
+    enum TabIdentifier: Hashable, CaseIterable {
         case previews, profile
     }
 
