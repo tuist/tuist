@@ -173,7 +173,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     needs: [check-team-membership]
     if: |
