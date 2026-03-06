@@ -158,4 +158,31 @@ defmodule TuistWeb.Utilities.Query do
   def has_cursor?(params) when is_map(params) do
     Map.has_key?(params, "after") or Map.has_key?(params, "before")
   end
+
+  @doc """
+  Extracts query parameters from a URI.
+
+  ## Parameters
+
+    * `uri` - A URI string (typically from `handle_params`)
+
+  ## Examples
+
+      iex> TuistWeb.Utilities.Query.query_params("https://tuist.dev/tuist/project/tests?analytics_environment=local")
+      %{"analytics_environment" => "local"}
+
+      iex> TuistWeb.Utilities.Query.query_params("https://tuist.dev/tuist/project/tests")
+      %{}
+
+      iex> TuistWeb.Utilities.Query.query_params(nil)
+      %{}
+  """
+  def query_params(uri) when is_binary(uri) do
+    case URI.parse(uri).query do
+      nil -> %{}
+      query -> URI.decode_query(query)
+    end
+  end
+
+  def query_params(nil), do: %{}
 end

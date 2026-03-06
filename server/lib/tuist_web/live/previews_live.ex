@@ -36,7 +36,8 @@ defmodule TuistWeb.PreviewsLive do
      |> assign(:available_filters, define_filters())}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project, available_filters: available_filters}} = socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
     filter_name = params["name"] || ""

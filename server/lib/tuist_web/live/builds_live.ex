@@ -32,7 +32,9 @@ defmodule TuistWeb.BuildsLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
+    params = Query.query_params(uri)
+
     if Project.gradle_project?(project) do
       {:noreply,
        socket

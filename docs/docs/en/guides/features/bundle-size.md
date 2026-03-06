@@ -99,3 +99,25 @@ To get automatic pull/merge request comments, integrate your <LocalizedLink href
 
 Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), Tuist will post a comment directly in your pull/merge requests whenever you run `tuist inspect bundle`:
 ![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+
+## Size thresholds {#size-thresholds}
+
+::: warning INTEGRATION WITH GIT FORGE REQUIRED
+<!-- -->
+To use size thresholds, connect the [Tuist GitHub App](https://github.com/apps/tuist) to your project. You can do this from your project's integrations page.
+<!-- -->
+:::
+
+Size thresholds let you block pull requests when the bundle size increases beyond a configured percentage compared to a baseline branch. When a threshold is violated, Tuist creates a GitHub Check Run on the PR commit, blocking the merge until the size increase is resolved:
+
+![PR status check showing bundle size threshold exceeded](/images/guides/features/bundle-size/github-pr-check-status.png)
+
+The check run shows the baseline size, current size, and percentage change. If the increase is intentional, you can accept it directly from the GitHub UI by clicking the **Accept** button:
+
+![GitHub check run showing threshold violation](/images/guides/features/bundle-size/github-check-run-threshold.png)
+
+### Configuration {#size-thresholds-configuration}
+
+To configure thresholds, go to your project's **Settings > Bundles** tab:
+
+![Bundle size thresholds settings](/images/guides/features/bundle-size/bundle-size-thresholds.png)

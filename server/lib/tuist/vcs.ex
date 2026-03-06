@@ -1011,4 +1011,6 @@ defmodule Tuist.VCS do
     token_max_age_seconds = 7_776_000
     Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds)
   end
+
+  def update_check_run(params), do: Client.update_check_run(params)
 end
