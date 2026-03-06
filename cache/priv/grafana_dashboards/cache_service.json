@@ -1786,12 +1786,460 @@
       "type": "timeseries"
     },
     {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "id": 100,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "cache_kv_db_file_size_bytes{instance=~\"$instance\"}",
+          "legendFormat": "DB File - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "cache_kv_wal_file_size_bytes{instance=~\"$instance\"}",
+          "legendFormat": "WAL File - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "KV SQLite Database Size",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 24676863283
+              },
+              {
+                "color": "red",
+                "value": 26843545600
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "id": 101,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "cache_kv_sqlite_in_use_bytes{instance=~\"$instance\"}",
+          "legendFormat": "In Use - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "cache_kv_sqlite_reclaimable_bytes{instance=~\"$instance\"}",
+          "legendFormat": "Reclaimable - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "KV SQLite Space Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 68
+      },
+      "id": 102,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(cache_kv_eviction_entries_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Entries/s - {{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "KV Eviction Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 68
+      },
+      "id": 103,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(cache_kv_eviction_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p50 - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(cache_kv_eviction_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p90 - {{instance}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(cache_kv_eviction_duration_seconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p99 - {{instance}}",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "KV Eviction Duration",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 76
       },
       "id": 31,
       "panels": [],
@@ -1917,7 +2365,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 77
       },
       "id": 32,
       "options": {
@@ -2038,7 +2486,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 61
+        "y": 77
       },
       "id": 33,
       "options": {
@@ -2110,7 +2558,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 69
+        "y": 85
       },
       "id": 34,
       "options": {
@@ -2174,7 +2622,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 69
+        "y": 85
       },
       "id": 35,
       "options": {
@@ -2247,7 +2695,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 69
+        "y": 85
       },
       "id": 36,
       "options": {
@@ -2347,7 +2795,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 93
       },
       "id": 37,
       "panels": [],
@@ -2443,7 +2891,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 78
+        "y": 94
       },
       "id": 38,
       "options": {
@@ -2548,7 +2996,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 78
+        "y": 94
       },
       "id": 39,
       "options": {
@@ -2629,7 +3077,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 86
+        "y": 102
       },
       "id": 40,
       "options": {
@@ -2729,7 +3177,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 110
       },
       "id": 41,
       "panels": [],
@@ -2825,7 +3273,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 95
+        "y": 111
       },
       "id": 42,
       "options": {
@@ -2897,7 +3345,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 95
+        "y": 111
       },
       "id": 43,
       "options": {
@@ -3017,7 +3465,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 95
+        "y": 111
       },
       "id": 44,
       "options": {
@@ -3062,7 +3510,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 103
+        "y": 119
       },
       "id": 84,
       "panels": [],
@@ -3173,7 +3621,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 104
+        "y": 120
       },
       "id": 85,
       "options": {
@@ -3266,7 +3714,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 104
+        "y": 120
       },
       "id": 86,
       "options": {
@@ -3417,7 +3865,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 112
+        "y": 128
       },
       "id": 87,
       "options": {
@@ -3514,7 +3962,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 112
+        "y": 128
       },
       "id": 88,
       "options": {
@@ -3602,7 +4050,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 120
+        "y": 136
       },
       "id": 89,
       "options": {
@@ -3691,7 +4139,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 120
+        "y": 136
       },
       "id": 90,
       "options": {
@@ -3728,7 +4176,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 128
+        "y": 144
       },
       "id": 19,
       "panels": [],
@@ -3789,7 +4237,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 129
+        "y": 145
       },
       "id": 20,
       "options": {

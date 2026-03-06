@@ -3,11 +3,15 @@ defmodule Cache.Application do
 
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do
       migrate()
     end
+
+    check_sqlite_health()
 
     if Cache.Config.analytics_enabled?() do
       Cache.Telemetry.attach()
@@ -55,6 +59,55 @@ defmodule Cache.Application do
 
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+    end
+  end
+
+  defp check_sqlite_health do
+    repos = Application.fetch_env!(:cache, :ecto_repos)
+
+    for repo <- repos do
+      Ecto.Migrator.with_repo(repo, fn _repo ->
+        log_sqlite_health()
+      end)
+    end
+  end
+
+  defp log_sqlite_health do
+    with {:ok, %{rows: [[auto_vacuum]]}} <- Cache.Repo.query("PRAGMA auto_vacuum"),
+         {:ok, %{rows: [[freelist_count]]}} <- Cache.Repo.query("PRAGMA freelist_count"),
+         {:ok, %{rows: [[page_count]]}} <- Cache.Repo.query("PRAGMA page_count"),
+         {:ok, %{rows: [[page_size]]}} <- Cache.Repo.query("PRAGMA page_size") do
+      in_use_bytes = (page_count - freelist_count) * page_size
+      reclaimable_bytes = freelist_count * page_size
+
+      case auto_vacuum do
+        0 ->
+          Logger.warning(
+            "SQLite auto_vacuum is disabled (value: 0). " <>
+              "Storage health: in_use=#{in_use_bytes} bytes, " <>
+              "reclaimable=#{reclaimable_bytes} bytes, " <>
+              "page_count=#{page_count}, page_size=#{page_size}"
+          )
+
+        2 ->
+          Logger.info(
+            "SQLite auto_vacuum is incremental (value: 2). " <>
+              "Storage health: in_use=#{in_use_bytes} bytes, " <>
+              "reclaimable=#{reclaimable_bytes} bytes, " <>
+              "page_count=#{page_count}, page_size=#{page_size}"
+          )
+
+        other ->
+          Logger.info(
+            "SQLite auto_vacuum value: #{other}. " <>
+              "Storage health: in_use=#{in_use_bytes} bytes, " <>
+              "reclaimable=#{reclaimable_bytes} bytes, " <>
+              "page_count=#{page_count}, page_size=#{page_size}"
+          )
+      end
+    else
+      {:error, reason} ->
+        Logger.warning("Failed to check SQLite health: #{inspect(reason)}")
     end
   end
 
