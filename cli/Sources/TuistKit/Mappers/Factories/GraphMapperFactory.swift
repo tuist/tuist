@@ -22,7 +22,8 @@ protocol GraphMapperFactorying {
         config: Tuist,
         testPlan: String?,
         includedTargets: Set<TargetQuery>,
-        excludedTargets: Set<TargetQuery>
+        excludedTargets: Set<TargetQuery>,
+        includedProducts: Set<Product>
     ) -> [GraphMapping]
 
     /// Returns the default graph mapper that should be used from all the commands that require loading and processing the graph.
@@ -39,7 +40,8 @@ public struct GraphMapperFactory: GraphMapperFactorying {
         config: Tuist,
         testPlan: String?,
         includedTargets: Set<TargetQuery>,
-        excludedTargets: Set<TargetQuery>
+        excludedTargets: Set<TargetQuery>,
+        includedProducts: Set<Product> = []
     ) -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(
@@ -47,7 +49,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 testPlan: testPlan,
                 includedTargets: includedTargets,
                 excludedTargets: excludedTargets,
-                includedProducts: [.unitTests, .uiTests]
+                includedProducts: includedProducts
             )
         )
         mappers.append(TreeShakePrunedTargetsGraphMapper())
