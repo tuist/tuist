@@ -76,6 +76,9 @@
                     "text": "Registro de cambios"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Tutoriales"
         }
     },
     "sidebars": {
@@ -92,6 +95,9 @@
                         },
                         "directories": {
                             "text": "Directorios"
+                        },
+                        "debugging": {
+                            "text": "Depuración"
                         }
                     }
                 },
@@ -111,6 +117,22 @@
                     "items": {
                         "from-v3-to-v4": {
                             "text": "De v3 a v4"
+                        }
+                    }
+                },
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Proyectos generados"
+                        }
+                    }
+                },
+                "configuration": {
+                    "text": "Configuración",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
                         }
                     }
                 }
@@ -144,6 +166,26 @@
                 },
                 "releases": {
                     "text": "Releases"
+                },
+                "debugging": {
+                    "text": "Depuración"
+                },
+                "code": {
+                    "text": "Código",
+                    "items": {
+                        "handbook": {
+                            "text": "Manual"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Servidor"
+                        },
+                        "docs": {
+                            "text": "Docs"
+                        }
+                    }
                 }
             }
         },
@@ -318,6 +360,20 @@
                                 },
                                 "module-cache": {
                                     "text": "Módulo caché"
+                                },
+                                "xcode": {
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Caché de Xcode"
+                                        },
+                                        "module-cache": {
+                                            "text": "Módulo caché"
+                                        }
+                                    }
+                                },
+                                "gradle-cache": {
+                                    "text": "Caché de Gradle"
                                 }
                             }
                         },
@@ -366,6 +422,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Pruebas poco fiables"
+                                }
+                            },
+                            "text": "Información sobre la prueba"
                         }
                     }
                 },
@@ -374,6 +438,9 @@
                     "items": {
                         "mcp": {
                             "text": "Model Context Protocol (MCP)"
+                        },
+                        "skills": {
+                            "text": "Habilidades"
                         }
                     }
                 },
@@ -392,7 +459,10 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "Forjas Git"
+                            "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -422,9 +492,28 @@
                         },
                         "authentication": {
                             "text": "Autentificación"
+                        },
+                        "network": {
+                            "text": "Red"
                         }
                     },
                     "text": "Servidor"
+                },
+                "install-tuist": {
+                    "text": "Instala Tuist"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Tutoriales",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Crear un proyecto generado"
+                        }
+                    }
                 }
             }
         }
