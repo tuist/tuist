@@ -82,6 +82,17 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
+          :if={@run.storage_key && @run.storage_key != ""}
+          href={
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/download-archive"
+          }
+          label={dgettext("dashboard_builds", "Download build archive")}
+          variant="secondary"
+          size="medium"
+        >
+          <:icon_left><.download /></:icon_left>
+        </.button>
+        <.button
           :if={Tuist.Builds.build_ci_run_url(@run)}
           href={Tuist.Builds.build_ci_run_url(@run)}
           label={dgettext("dashboard_builds", "CI Run")}

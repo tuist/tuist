@@ -45,6 +45,7 @@ defmodule Tuist do
       Builds.Build,
       Builds.CASOutput,
       Builds.Analytics,
+      Builds.Workers.ProcessBuildWorker,
       Runs.Analytics,
       Tests,
       Tests.Test,
