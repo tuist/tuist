@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/tr/>\n"
 "Language: tr\n"
@@ -774,63 +774,90 @@ msgstr "Ortam"
 msgid "local"
 msgstr "yerel"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "Eşik ekleyin"
 
 msgid "All"
 msgstr ""
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "Temel dal"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
+"Paket boyutu temel dal ile karşılaştırıldığında eşiği aştığında PR'leri "
+"engelleyin."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"<strong>%{size_label}</strong>, <strong>%{baseline_branch}</strong> "
+"adresindeki en son pakete kıyasla <strong>%{deviation}%</strong> oranından "
+"fazla arttığında PR'leri engelleyin."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"<strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> <strong> %"
+"{deviation}%</strong> <strong> %{baseline_branch}</strong> adresindeki en "
+"son pakete kıyasla % 'den fazla arttığında PR'leri engelleyin."
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "Paket adı"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
 msgstr ""
+"Paket boyutu sınırı aştığında PR'leri engellemek için bir eşik oluşturun."
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "Boyut eşiği oluşturun"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "Sapma %"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "Boyut sınırı yoktur."
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "Boyut eşikleri"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "Eşik adı"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "Eşikler"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "Boyut eşiğini güncelleyin"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "GitHub'a bağlan"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr ""
+"Tuist GitHub uygulamasını bağlayarak PR'lerde paket boyutu kontrolünün "
+"çalışmasını sağlayın."
 
 #, fuzzy
 #~ msgid ""
