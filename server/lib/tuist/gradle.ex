@@ -260,6 +260,7 @@ defmodule Tuist.Gradle do
           project_id: event.project_id,
           account_handle: event.account_handle,
           project_handle: event.project_handle,
+          cache_endpoint: event.cache_endpoint,
           inserted_at: now
         }
       end)
