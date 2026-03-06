@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -762,8 +763,9 @@ msgstr "local"
 msgid "Add threshold"
 msgstr "添加阈值"
 
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "全部"
 
 #, fuzzy
 msgid "Baseline branch"
