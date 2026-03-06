@@ -2,7 +2,7 @@
 title: "Monzo slashed CI pipeline time by 70%"
 date: "2026-03-06"
 url: "https://monzo.com/"
-onboarded_date: "2024-01-01"
+onboarded_date: "2025-01-22"
 founded_date: "2015"
 company: "Monzo"
 excerpt: "Monzo cut their P50 PR time from 52 to 15 minutes using Tuist Binary Cache and selective testing. Learn how their 50+ iOS engineer team transformed their CI pipeline."
