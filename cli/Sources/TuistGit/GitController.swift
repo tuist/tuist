@@ -240,8 +240,14 @@ public struct GitController: GitControlling {
         }
 
         // SHA
+        // When checked out on a merge ref (e.g. refs/pull/N/merge), HEAD is an ephemeral
+        // merge commit that doesn't exist on the remote. Use HEAD^2 to get the actual
+        // PR branch tip, which is the second parent of the merge commit.
         let commitSHA: String?
-        if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
+        if let gitRef, gitRef.hasPrefix("refs/pull/") {
+            commitSHA = try? capture(command: "git", "-C", workingDirectory.pathString, "rev-parse", "HEAD^2")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if hasCurrentBranchCommits(workingDirectory: workingDirectory) {
             commitSHA = try? currentCommitSHA(workingDirectory: workingDirectory)
         } else {
             commitSHA = nil
