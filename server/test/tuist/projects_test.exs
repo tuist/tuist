@@ -238,6 +238,36 @@ defmodule Tuist.ProjectsTest do
                )
     end
 
+    test "get all project accounts for an authenticated account with all_projects includes org projects" do
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      organization = AccountsFixtures.organization_fixture()
+      org_account = Accounts.get_account_from_organization(organization)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      personal_project =
+        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account])
+
+      org_project =
+        ProjectsFixtures.project_fixture(account_id: org_account.id, preload: [:account])
+
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: user_account,
+          scopes: [],
+          all_projects: true
+        })
+
+      got_handles = got |> Enum.map(& &1.handle) |> Enum.sort()
+
+      assert got_handles ==
+               Enum.sort([
+                 "#{user_account.name}/#{personal_project.name}",
+                 "#{org_account.name}/#{org_project.name}"
+               ])
+    end
+
     test "get all project accounts for a project subject" do
       project = ProjectsFixtures.project_fixture()
 
@@ -1397,6 +1427,44 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == {:error, :not_found}
+    end
+  end
+
+  describe "has_vcs_connection?/1" do
+    test "returns true when project has VCS connection with GitHub app installation" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      assert Projects.has_vcs_connection?(project)
+    end
+
+    test "returns false when project has no VCS connection" do
+      project = ProjectsFixtures.project_fixture()
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      refute Projects.has_vcs_connection?(project)
+    end
+
+    test "returns false when VCS connection has no GitHub app installation" do
+      project = ProjectsFixtures.project_fixture()
+
+      Projects.create_vcs_connection(%{
+        project_id: project.id,
+        provider: :github,
+        repository_full_handle: "org/repo",
+        github_app_installation_id: nil
+      })
+
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      refute Projects.has_vcs_connection?(project)
     end
   end
 end

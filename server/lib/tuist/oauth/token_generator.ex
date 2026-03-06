@@ -46,8 +46,23 @@ defmodule Tuist.OAuth.TokenGenerator do
     end
   end
 
-  defp parse_scopes(nil), do: []
-  defp parse_scopes(""), do: []
+  @default_user_scopes [
+    "project:cache:read",
+    "project:cache:write",
+    "project:previews:read",
+    "project:previews:write",
+    "project:bundles:read",
+    "project:bundles:write",
+    "project:tests:read",
+    "project:tests:write",
+    "project:builds:read",
+    "project:builds:write",
+    "project:runs:read",
+    "project:runs:write"
+  ]
+
+  defp parse_scopes(nil), do: @default_user_scopes
+  defp parse_scopes(""), do: @default_user_scopes
   defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
 
   @impl TokenGenerator

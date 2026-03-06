@@ -68,6 +68,46 @@ struct XCActivityLogControllerTests {
         #expect(got.category == .clean)
     }
 
+    @Test func parseCleanBuildWithCompilationCacheXCActivityLog() async throws {
+        // Given
+        let logPath = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_4_clean_build_with_cache.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(logPath)
+
+        // Then
+        #expect(got.category == .clean)
+    }
+
+    @Test func parseIncrementalBuildWithCompilationCacheXCActivityLog() async throws {
+        // Given
+        let logPath = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../../Fixtures/xcode_26_4_incremental_build_with_cache.xcactivitylog"))
+
+        // When
+        let got = try await subject.parse(logPath)
+
+        // Then
+        #expect(got.category == .incremental)
+    }
+
+    @Test func parseIncrementalBuildWithCompilationCacheMultiplatformXCActivityLog() async throws {
+        // Given
+        let logPath = try AbsolutePath(validating: #file).parentDirectory
+            .appending(
+                try RelativePath(
+                    validating: "../../Fixtures/xcode_26_incremental_build_with_cache_multiplatform.xcactivitylog"
+                )
+            )
+
+        // When
+        let got = try await subject.parse(logPath)
+
+        // Then
+        #expect(got.category == .incremental)
+    }
+
     @Test func parseIncrementalBuildXCActivityLog() async throws {
         // Given
         let incrementalBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory

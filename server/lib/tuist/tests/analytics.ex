@@ -11,6 +11,9 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunDailyAggregate
+
+  @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
 
   def test_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
@@ -559,12 +562,11 @@ defmodule Tuist.Tests.Analytics do
 
   defp test_case_run_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
-
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
 
-    query =
-      from(tcr in TestCaseRun,
+    if time_bucket == "1 hour" do
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -575,22 +577,41 @@ defmodule Tuist.Tests.Analytics do
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
+      |> apply_is_ci_filter(is_ci)
+      |> apply_status_filter(status)
+      |> ClickHouseRepo.all()
+    else
+      start_date = DateTime.to_date(start_datetime)
+      end_date = DateTime.to_date(end_datetime)
 
-    query
-    |> apply_is_ci_filter(is_ci)
-    |> apply_status_filter(status)
-    |> ClickHouseRepo.all()
+      from(s in TestCaseRunDailyAggregate,
+        where: s.project_id == ^project_id,
+        where: s.date >= ^start_date,
+        where: s.date <= ^end_date,
+        group_by: fragment("formatDateTime(?, ?)", s.date, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", s.date, ^date_format),
+          count: fragment("countMerge(count_state)")
+        },
+        order_by: fragment("formatDateTime(?, ?)", s.date, ^date_format)
+      )
+      |> apply_is_ci_filter(is_ci)
+      |> apply_status_filter(status)
+      |> ClickHouseRepo.all()
+    end
   end
 
   defp test_case_run_total_count(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
 
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: tcr.inserted_at >= ^start_datetime,
-      where: tcr.inserted_at <= ^end_datetime,
-      select: count(tcr.id)
+    from(s in TestCaseRunDailyAggregate,
+      where: s.project_id == ^project_id,
+      where: s.date >= ^start_date,
+      where: s.date <= ^end_date,
+      select: fragment("countMerge(count_state)")
     )
     |> apply_is_ci_filter(is_ci)
     |> apply_status_filter(status)
@@ -702,21 +723,18 @@ defmodule Tuist.Tests.Analytics do
 
   defp test_case_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
 
     query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.inserted_at >= ^start_datetime,
-        where: tcr.inserted_at <= ^end_datetime,
-        select: avg(tcr.duration)
+      from(s in TestCaseRunDailyAggregate,
+        where: s.project_id == ^project_id,
+        where: s.date >= ^start_date,
+        where: s.date <= ^end_date,
+        select: fragment("avgMerge(avg_duration_state)")
       )
 
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
+    query = apply_is_ci_filter(query, is_ci)
 
     result = ClickHouseRepo.one(query)
 
@@ -729,25 +747,22 @@ defmodule Tuist.Tests.Analytics do
 
   defp test_case_run_duration_percentiles(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
+    start_date = DateTime.to_date(start_datetime)
+    end_date = DateTime.to_date(end_datetime)
 
     query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.inserted_at >= ^start_datetime,
-        where: tcr.inserted_at <= ^end_datetime,
+      from(s in TestCaseRunDailyAggregate,
+        where: s.project_id == ^project_id,
+        where: s.date >= ^start_date,
+        where: s.date <= ^end_date,
         select: %{
-          p50: fragment("quantile(0.50)(?)", tcr.duration),
-          p90: fragment("quantile(0.90)(?)", tcr.duration),
-          p99: fragment("quantile(0.99)(?)", tcr.duration)
+          p50: fragment("quantileMerge(0.50)(p50_duration_state)"),
+          p90: fragment("quantileMerge(0.90)(p90_duration_state)"),
+          p99: fragment("quantileMerge(0.99)(p99_duration_state)")
         }
       )
 
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
+    query = apply_is_ci_filter(query, is_ci)
 
     result = ClickHouseRepo.one(query)
 
@@ -770,11 +785,10 @@ defmodule Tuist.Tests.Analytics do
 
   defp test_case_run_average_durations(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
-
     is_ci = Keyword.get(opts, :is_ci)
 
-    query =
-      from(tcr in TestCaseRun,
+    if time_bucket == "1 hour" do
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -785,24 +799,34 @@ defmodule Tuist.Tests.Analytics do
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
+      |> apply_is_ci_filter(is_ci)
+      |> ClickHouseRepo.all()
+    else
+      start_date = DateTime.to_date(start_datetime)
+      end_date = DateTime.to_date(end_datetime)
 
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
-
-    ClickHouseRepo.all(query)
+      from(s in TestCaseRunDailyAggregate,
+        where: s.project_id == ^project_id,
+        where: s.date >= ^start_date,
+        where: s.date <= ^end_date,
+        group_by: fragment("formatDateTime(?, ?)", s.date, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", s.date, ^date_format),
+          value: fragment("avgMerge(avg_duration_state)")
+        },
+        order_by: fragment("formatDateTime(?, ?)", s.date, ^date_format)
+      )
+      |> apply_is_ci_filter(is_ci)
+      |> ClickHouseRepo.all()
+    end
   end
 
   defp test_case_run_percentile_durations(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
-
     is_ci = Keyword.get(opts, :is_ci)
 
-    query =
-      from(tcr in TestCaseRun,
+    if time_bucket == "1 hour" do
+      from(tcr in @test_case_runs_by_inserted_at,
         where: tcr.project_id == ^project_id,
         where: tcr.inserted_at >= ^start_datetime,
         where: tcr.inserted_at <= ^end_datetime,
@@ -815,24 +839,34 @@ defmodule Tuist.Tests.Analytics do
         },
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
+      |> apply_is_ci_filter(is_ci)
+      |> ClickHouseRepo.all()
+      |> Enum.map(fn row ->
+        %{date: row.date, p50: row.p50 || 0, p90: row.p90 || 0, p99: row.p99 || 0}
+      end)
+    else
+      start_date = DateTime.to_date(start_datetime)
+      end_date = DateTime.to_date(end_datetime)
 
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
-
-    query
-    |> ClickHouseRepo.all()
-    |> Enum.map(fn row ->
-      %{
-        date: row.date,
-        p50: row.p50 || 0,
-        p90: row.p90 || 0,
-        p99: row.p99 || 0
-      }
-    end)
+      from(s in TestCaseRunDailyAggregate,
+        where: s.project_id == ^project_id,
+        where: s.date >= ^start_date,
+        where: s.date <= ^end_date,
+        group_by: fragment("formatDateTime(?, ?)", s.date, ^date_format),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", s.date, ^date_format),
+          p50: fragment("quantileMerge(0.50)(p50_duration_state)"),
+          p90: fragment("quantileMerge(0.90)(p90_duration_state)"),
+          p99: fragment("quantileMerge(0.99)(p99_duration_state)")
+        },
+        order_by: fragment("formatDateTime(?, ?)", s.date, ^date_format)
+      )
+      |> apply_is_ci_filter(is_ci)
+      |> ClickHouseRepo.all()
+      |> Enum.map(fn row ->
+        %{date: row.date, p50: row.p50 || 0, p90: row.p90 || 0, p99: row.p99 || 0}
+      end)
+    end
   end
 
   @doc """

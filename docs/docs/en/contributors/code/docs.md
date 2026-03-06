@@ -28,6 +28,7 @@ mise run dev
 We embed some generated data in the docs:
 
 - CLI reference data: `mise run generate-cli-docs`
-- Project manifest reference data: `mise run generate-manifests-docs`
 
 These are optional. The docs render without them, so only run them when you need to refresh the generated content.
+
+The ProjectDescription API reference is hosted separately as a DocC site at [projectdescription.tuist.dev](https://projectdescription.tuist.dev). To build it locally, run `mise run docs:project-description` from the repository root.

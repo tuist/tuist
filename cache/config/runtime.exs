@@ -25,10 +25,12 @@ if config_env() == :prod do
 
       path ->
         File.mkdir_p!(Path.dirname(path))
-        _ = File.rm(path)
+        suffix = 4 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
+        unique_path = Path.rootname(path) <> "-#{suffix}" <> Path.extname(path)
+        Application.put_env(:cache, :socket_path, unique_path)
 
         [
-          ip: {:local, path},
+          ip: {:local, unique_path},
           port: 0,
           thousand_island_options: [
             transport_options: [backlog: 16_384]

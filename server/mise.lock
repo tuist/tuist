@@ -11,9 +11,17 @@ backend = "aqua:FiloSottile/age"
 version = "2025-09-07T16-13-09Z"
 backend = "asdf:aeons/asdf-minio"
 
-[[tools.clickhouse]]
+[[tools."github:ClickHouse/ClickHouse"]]
 version = "26.1.2.11-stable"
-backend = "asdf:clickhouse"
+backend = "github:ClickHouse/ClickHouse"
+"platforms.linux-arm64" = { checksum = "sha256:05914b3e08f2aa505378830e4682baba698a7edd9cf767b177230a8c9d087371", url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-common-static-26.1.2.11-arm64.tgz", url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543509"}
+"platforms.linux-x64" = { checksum = "sha256:197d9d4359175a84dc0192873144be52363eb16cafb6e4db77c77bc035b0a226", url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-common-static-26.1.2.11-amd64.tgz", url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543186"}
+"platforms.macos-arm64" = { checksum = "sha256:6fbd4182ea063b007f003b00b47b8b75cfe4983db8c32f34087202e79d40f37e", url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-macos-aarch64", url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543796"}
+"platforms.macos-x64" = { checksum = "sha256:5872e20cbec9420a8f3cadbdd67df4500f124dd158a04289ae8f436721a13cfd", url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-macos", url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543782"}
+"platforms.windows-x64" = { checksum = "sha256:7323406b781232bdc33f2356c03da968d1f7633ddfb19a7c82f982b83e92c56c", url = "https://github.com/ClickHouse/ClickHouse/releases/download/v26.1.2.11-stable/clickhouse-client-26.1.2.11-amd64.tgz", url_api = "https://api.github.com/repos/ClickHouse/ClickHouse/releases/assets/349543176"}
+
+[tools."github:ClickHouse/ClickHouse".options]
+version_prefix = "v"
 
 [[tools.node]]
 version = "24.11.0"

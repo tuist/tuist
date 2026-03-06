@@ -24,40 +24,9 @@ import {
   networkIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
-import { loadData as loadProjectDescriptionData } from "./data/project-description";
 import { localizedString } from "./i18n.mjs";
 
 const CLI_CONTENT_LOCALE = "en";
-const MANIFEST_REFERENCE_LOCALE = "en";
-
-async function projectDescriptionSidebar(locale) {
-  const projectDescriptionTypesData = await loadProjectDescriptionData();
-  const projectDescriptionSidebar = {
-    text: "Project Description",
-    collapsed: true,
-    items: [],
-  };
-  function capitalize(text) {
-    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-  }
-  ["structs", "enums", "extensions", "typealiases"].forEach((category) => {
-    if (
-      projectDescriptionTypesData.find((item) => item.category === category)
-    ) {
-      projectDescriptionSidebar.items.push({
-        text: capitalize(category),
-        collapsed: true,
-        items: projectDescriptionTypesData
-          .filter((item) => item.category === category)
-          .map((item) => ({
-            text: item.title,
-            link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/${item.identifier}`,
-          })),
-      });
-    }
-  });
-  return projectDescriptionSidebar;
-}
 
 export async function referencesSidebar(locale) {
   return [
@@ -91,7 +60,10 @@ export async function referencesSidebar(locale) {
           ),
           collapsed: true,
           items: [
-            await projectDescriptionSidebar(locale),
+            {
+              text: "Project Description",
+              link: "https://projectdescription.tuist.dev/documentation/projectdescription/project",
+            },
             {
               text: localizedString(
                 locale,
@@ -147,7 +119,7 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: `/${MANIFEST_REFERENCE_LOCALE}/references/tuist-toml`,
+          link: `/${locale}/references/tuist-toml`,
         },
         {
           text: localizedString(

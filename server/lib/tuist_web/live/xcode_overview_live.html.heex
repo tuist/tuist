@@ -824,7 +824,12 @@
       </.date_picker>
     </:actions>
     <div data-part="builds-card-sections">
-      <.card_section :if={!@recent_build_runs.ok?}>
+      <.card_section :if={
+        !@recent_build_runs.ok? ||
+          (@recent_build_runs.ok? &&
+             not Enum.empty?(@recent_build_runs.result) &&
+             (!@passed_build_runs_count.ok? || !@failed_build_runs_count.ok?))
+      }>
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.skeleton_legend />
@@ -833,7 +838,12 @@
           <.skeleton_chart />
         </div>
       </.card_section>
-      <.card_section :if={@recent_build_runs.ok? && not Enum.empty?(@recent_build_runs.result)}>
+      <.card_section :if={
+        @recent_build_runs.ok? &&
+          @passed_build_runs_count.ok? &&
+          @failed_build_runs_count.ok? &&
+          not Enum.empty?(@recent_build_runs.result)
+      }>
         <div data-part="build-runs-chart">
           <div data-part="legends">
             <.legend

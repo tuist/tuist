@@ -189,6 +189,8 @@ defmodule Tuist.Tests do
       {:ok, test} ->
         {test_case_ids_with_flaky_run, test_case_runs} = create_test_modules(test, test_modules)
 
+        test = mark_test_run_as_flaky(test, test_case_ids_with_flaky_run)
+
         schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
         project = Tuist.Projects.get_project_by_id(test.project_id)
@@ -214,6 +216,22 @@ defmodule Tuist.Tests do
     |> Oban.insert!()
 
     :ok
+  end
+
+  defp mark_test_run_as_flaky(test, []), do: test
+  defp mark_test_run_as_flaky(%{is_flaky: true} = test, _flaky_ids), do: test
+
+  defp mark_test_run_as_flaky(test, _flaky_ids) do
+    updated_test = %{test | is_flaky: true}
+
+    attrs =
+      updated_test
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :ran_by_account, :build_run, :gradle_build, :test_case_runs])
+      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+
+    IngestRepo.insert_all(Test, [attrs])
+    updated_test
   end
 
   defp has_any_flaky_test_case?(test_modules) do

@@ -1,7 +1,7 @@
 defmodule Tuist.MCP.Components.ToolSupport do
   @moduledoc false
 
-  alias Hermes.MCP.Error
+  alias Anubis.MCP.Error
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 

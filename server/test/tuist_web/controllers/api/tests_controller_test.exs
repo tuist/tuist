@@ -11,6 +11,7 @@ defmodule TuistWeb.API.TestsControllerTest do
 
   describe "POST /api/:account_handle/:project_handle/tests" do
     setup %{conn: conn} do
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
@@ -173,6 +174,50 @@ defmodule TuistWeb.API.TestsControllerTest do
         )
 
       assert %{"type" => "test", "id" => _id} = json_response(conn, 200)
+    end
+
+    test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
+      test_pid = self()
+
+      expect(Tests, :get_test, fn _id -> {:error, :not_found} end)
+
+      expect(Tests, :create_test, fn attrs ->
+        {:ok,
+         %Test{
+           id: attrs.id,
+           duration: attrs.duration,
+           project_id: project.id,
+           build_system: "gradle",
+           test_case_runs: []
+         }}
+      end)
+
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn args ->
+        send(test_pid, {:vcs_comment_enqueued, args})
+        :ok
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(
+        "/api/projects/#{user.account.name}/#{project.name}/tests",
+        %{
+          duration: 3000,
+          is_ci: true,
+          build_system: "gradle",
+          status: "success",
+          git_commit_sha: "abc123",
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://github.com/tuist/tuist.git",
+          test_modules: []
+        }
+      )
+
+      assert_received {:vcs_comment_enqueued, args}
+      assert args.git_commit_sha == "abc123"
+      assert args.git_ref == "refs/pull/42/merge"
+      assert args.git_remote_url_origin == "https://github.com/tuist/tuist.git"
+      assert args.project_id == project.id
     end
   end
 

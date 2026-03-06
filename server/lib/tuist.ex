@@ -27,6 +27,8 @@ defmodule Tuist do
       # among them. They must only depend on core and utility modules.
       Bundles,
       Bundles.Bundle,
+      Bundles.BundleThreshold,
+      Bundles.Workers.BundleThresholdWorker,
       Cache,
       Cache.Analytics,
       CacheEndpoints,

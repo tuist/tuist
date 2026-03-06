@@ -89,6 +89,7 @@ defmodule TuistWeb.OverviewLiveTest do
   } do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+    render_async(lv)
 
     assert has_element?(
              lv,

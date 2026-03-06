@@ -155,7 +155,7 @@ services:
     plan: standard
     numInstances: 1
     previews:
-      generation: automatic
+      generation: manual
     buildFilter:
       paths:
         - server/**

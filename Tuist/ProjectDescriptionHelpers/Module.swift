@@ -1943,7 +1943,7 @@ public enum Module: String, CaseIterable {
             buildableFolders: [
                 .folder(
                     buildableFolderPath,
-                    exceptions: [.exception(excluded: ["AGENTS.md"])]
+                    exceptions: [.exception(excluded: ["AGENTS.md", "*.docc", "*.docc/**"])]
                 ),
             ],
             dependencies: dependencies,

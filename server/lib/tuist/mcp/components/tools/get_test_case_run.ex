@@ -3,9 +3,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   Get detailed information about a specific test case run including failures and repetitions.
   """
 
-  use Hermes.Server.Component, type: :tool
+  use Anubis.Server.Component, type: :tool
 
-  alias Hermes.Server.Response
+  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests

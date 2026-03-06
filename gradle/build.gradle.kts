@@ -3,6 +3,7 @@ plugins {
     `java-gradle-plugin`
     `maven-publish`
     id("com.gradle.plugin-publish") version "1.3.1"
+    id("com.gradleup.shadow") version "9.0.0-beta12"
 }
 
 group = "dev.tuist"
@@ -15,6 +16,10 @@ repositories {
 
 dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("org.tomlj:tomlj:1.1.1")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
@@ -22,6 +27,32 @@ dependencies {
     testImplementation(gradleTestKit())
     testImplementation(kotlin("test"))
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+}
+
+tasks.shadowJar {
+    archiveClassifier.set("")
+    dependencies {
+        exclude(dependency("org.jetbrains.kotlin:.*"))
+        exclude(dependency("org.jetbrains:annotations:.*"))
+    }
+    relocate("okhttp3", "dev.tuist.shadow.okhttp3")
+    relocate("retrofit2", "dev.tuist.shadow.retrofit2")
+    relocate("okio", "dev.tuist.shadow.okio")
+    relocate("com.google.gson", "dev.tuist.shadow.gson")
+    relocate("org.tomlj", "dev.tuist.shadow.tomlj")
+    relocate("org.antlr", "dev.tuist.shadow.antlr")
+    minimize()
+}
+
+tasks.jar {
+    archiveClassifier.set("thin")
+}
+
+listOf(configurations.apiElements, configurations.runtimeElements).forEach { config ->
+    config.configure {
+        outgoing.artifacts.clear()
+        outgoing.artifact(tasks.shadowJar)
+    }
 }
 
 tasks.test {
