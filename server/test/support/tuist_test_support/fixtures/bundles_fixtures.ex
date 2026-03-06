@@ -10,6 +10,25 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @doc """
+  Generates a bundle threshold.
+  """
+  def bundle_threshold_fixture(opts \\ []) do
+    project = Keyword.get(opts, :project, ProjectsFixtures.project_fixture())
+
+    {:ok, threshold} =
+      Bundles.create_bundle_threshold(%{
+        project_id: project.id,
+        name: Keyword.get(opts, :name, "Default threshold"),
+        metric: Keyword.get(opts, :metric, :install_size),
+        deviation_percentage: Keyword.get(opts, :deviation_percentage, 5.0),
+        baseline_branch: Keyword.get(opts, :baseline_branch, "main"),
+        bundle_name: Keyword.get(opts, :bundle_name)
+      })
+
+    threshold
+  end
+
+  @doc """
   Generates a bundle.
   """
   def bundle_fixture(opts \\ []) do
