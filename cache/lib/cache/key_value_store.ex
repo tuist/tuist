@@ -1,3 +1,8 @@
+defmodule Cache.KeyValueStore.ReadContentionError do
+  @moduledoc false
+  defexception message: "KV read-through exceeded SQLite contention budget"
+end
+
 defmodule Cache.KeyValueStore do
   @moduledoc """
   Read-through key-value cache backed by Cachex and persisted to SQLite.
@@ -6,9 +11,13 @@ defmodule Cache.KeyValueStore do
 
   import Cachex.Spec, only: [expiration: 1, limit: 1]
 
+  alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
+  alias Cache.KeyValueStore.ReadContentionError
   alias Cache.Repo
+
+  require Logger
 
   @cache_name :cache_keyvalue_store
   # 1 week
@@ -90,14 +99,53 @@ defmodule Cache.KeyValueStore do
   end
 
   defp load_from_persistence(key, cache) do
-    case Repo.get_by(KeyValueEntry, key: key) do
-      nil ->
-        {:error, :not_found}
+    with_repo_busy_timeout(Config.repo_busy_timeout_ms(), fn ->
+      case Repo.get_by(KeyValueEntry, key: key) do
+        nil ->
+          {:error, :not_found}
 
-      record ->
-        Cachex.put(cache, key, record.json_payload)
-        KeyValueBuffer.enqueue_access(key)
-        {:ok, record.json_payload}
+        record ->
+          Cachex.put(cache, key, record.json_payload)
+          KeyValueBuffer.enqueue_access(key)
+          {:ok, record.json_payload}
+      end
+    end)
+  rescue
+    error ->
+      if busy_error?(error) do
+        Logger.warning("KV read-through exceeded SQLite contention budget")
+        raise ReadContentionError
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp with_repo_busy_timeout(timeout_ms, fun) do
+    Repo.checkout(fn ->
+      set_busy_timeout!(timeout_ms)
+
+      try do
+        fun.()
+      after
+        set_busy_timeout!(Config.repo_busy_timeout_ms())
+      end
+    end)
+  end
+
+  defp set_busy_timeout!(timeout_ms) do
+    case Repo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
+      {:ok, _result} -> :ok
+      {:error, error} -> raise error
+    end
+  end
+
+  defp busy_error?(error) do
+    case error do
+      %Exqlite.Error{message: msg} when is_binary(msg) ->
+        String.contains?(msg, ["database is locked", "SQLITE_BUSY"])
+
+      _ ->
+        false
     end
   end
 

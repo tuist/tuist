@@ -32,7 +32,8 @@ config :cache, :s3, bucket: "test-bucket", registry_bucket: "test-registry-bucke
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: "/tmp/test_cas",
-  api_key: "test-secret-key"
+  api_key: "test-secret-key",
+  check_sqlite_health_on_startup: false
 
 config :logger, level: :warning
 

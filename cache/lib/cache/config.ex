@@ -119,6 +119,14 @@ defmodule Cache.Config do
   @default_orphan_scan_max_dirs 50
   def orphan_scan_max_dirs, do: Application.get_env(:cache, :orphan_scan_max_dirs, @default_orphan_scan_max_dirs)
 
+  def repo_busy_timeout_ms do
+    Application.get_env(:cache, Cache.Repo)[:busy_timeout] || 30_000
+  end
+
+  def key_value_eviction_max_duration_ms do
+    Application.get_env(:cache, :key_value_eviction_max_duration_ms, 300_000)
+  end
+
   def s3_config do
     Application.fetch_env(:ex_aws, :s3)
   end

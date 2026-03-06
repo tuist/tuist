@@ -3,11 +3,13 @@ defmodule Cache.KeyValueStoreTest do
   use Mimic
 
   import Ecto.Query
+  import ExUnit.CaptureLog
 
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueStore
+  alias Cache.KeyValueStore.ReadContentionError
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -410,6 +412,52 @@ defmodule Cache.KeyValueStoreTest do
                  project_handle,
                  cache_name: cache_name
                )
+    end
+
+    test "raises a contention error when SQLite remains busy", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      expect(Repo, :get_by, fn KeyValueEntry, [key: _key] ->
+        raise %Exqlite.Error{message: "database is locked"}
+      end)
+
+      Cachex.clear(cache_name)
+
+      capture_log(fn ->
+        assert_raise ReadContentionError, fn ->
+          KeyValueStore.get_key_value(
+            cas_id,
+            account_handle,
+            project_handle,
+            cache_name: cache_name
+          )
+        end
+      end)
+    end
+
+    test "propagates unexpected DB errors", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      expect(Repo, :get_by, fn KeyValueEntry, [key: _key] ->
+        raise %RuntimeError{message: "unexpected failure"}
+      end)
+
+      Cachex.clear(cache_name)
+
+      assert_raise RuntimeError, "unexpected failure", fn ->
+        KeyValueStore.get_key_value(
+          cas_id,
+          account_handle,
+          project_handle,
+          cache_name: cache_name
+        )
+      end
     end
 
     test "returns {:error, :not_found} for nonexistent account", %{

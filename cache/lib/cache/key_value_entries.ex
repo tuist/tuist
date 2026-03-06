@@ -5,6 +5,7 @@ defmodule Cache.KeyValueEntries do
 
   import Ecto.Query
 
+  alias Cache.Config
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
   alias Cache.Repo
@@ -12,34 +13,63 @@ defmodule Cache.KeyValueEntries do
   @id_chunk_size 500
   @hash_chunk_size 500
   @insert_chunk_size 200
-  @delete_limit 10_000
+  @default_batch_size 1000
+  @default_max_duration_ms 300_000
+  @batch_sleep_ms 10
 
   @doc """
   Deletes expired entries and returns CAS hashes grouped by account/project scope.
 
-  The return shape is `{grouped_hashes, deleted_count}` where `grouped_hashes`
-  is `%{{account_handle, project_handle} => [cas_hash, ...]}`.
+  The return shape is `{grouped_hashes, deleted_count, status}` where
+  `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`
+  and `status` is `:complete` or `:time_limit_reached`.
   """
-  def delete_expired(max_age_days \\ 30) do
+  def delete_expired(max_age_days \\ 30, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
+    max_duration_ms = Keyword.get(opts, :max_duration_ms, @default_max_duration_ms)
+    batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
+    deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
 
-    ids_to_delete =
-      Repo.all(
-        from(e in KeyValueEntry,
-          where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
-          order_by: e.id,
-          limit: @delete_limit,
-          select: e.id
-        )
-      )
+    with_repo_busy_timeout(fn ->
+      delete_expired_batches(cutoff, batch_size, deadline_ms)
+    end)
+  end
 
-    case ids_to_delete do
-      [] ->
+  @doc """
+  Deletes one batch of the oldest expired entries and returns CAS hashes
+  grouped by account/project scope.
+
+  Entries with NULL `last_accessed_at` are evicted first, followed by the
+  oldest non-NULL entries that exceed the given age threshold.
+
+  Returns `{grouped_hashes, deleted_count}` where
+  `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`.
+  """
+  def delete_one_expired_batch(max_age_days, opts \\ []) do
+    cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
+    batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
+    max_duration_ms = Keyword.get(opts, :max_duration_ms, @default_max_duration_ms)
+    deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
+
+    with_repo_busy_timeout(fn ->
+      if time_limit_reached?(deadline_ms) do
         {%{}, 0}
+      else
+        set_remaining_busy_timeout!(deadline_ms)
 
-      ids_to_delete ->
-        delete_expired_entries(ids_to_delete, cutoff)
-    end
+        case candidate_batch(cutoff, batch_size, nil) do
+          [] ->
+            {%{}, 0}
+
+          batch ->
+            ids_to_delete = Enum.map(batch, &elem(&1, 0))
+            set_remaining_busy_timeout!(deadline_ms)
+            {hash_sets, count} = delete_expired_entries(ids_to_delete, cutoff)
+            :timer.sleep(@batch_sleep_ms)
+            {to_sorted_hash_lists(hash_sets), count}
+        end
+      end
+    end)
   end
 
   @doc """
@@ -100,6 +130,123 @@ defmodule Cache.KeyValueEntries do
     Enum.reject(hashes, &MapSet.member?(referenced, &1))
   end
 
+  defp delete_expired_batches(cutoff, batch_size, deadline_ms) do
+    do_delete_expired_batches(cutoff, batch_size, deadline_ms, nil, %{}, 0)
+  end
+
+  defp do_delete_expired_batches(cutoff, batch_size, deadline_ms, cursor, hash_sets_acc, count_acc) do
+    if time_limit_reached?(deadline_ms) do
+      {to_sorted_hash_lists(hash_sets_acc), count_acc, :time_limit_reached}
+    else
+      set_remaining_busy_timeout!(deadline_ms)
+
+      case candidate_batch(cutoff, batch_size, cursor) do
+        [] ->
+          {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
+
+        batch ->
+          ids_to_delete = Enum.map(batch, &elem(&1, 0))
+
+          set_remaining_busy_timeout!(deadline_ms)
+          {batch_hash_sets, batch_deleted_count} = delete_expired_entries(ids_to_delete, cutoff)
+
+          :timer.sleep(@batch_sleep_ms)
+
+          do_delete_expired_batches(
+            cutoff,
+            batch_size,
+            deadline_ms,
+            batch_cursor(batch),
+            merge_grouped_hash_sets(hash_sets_acc, batch_hash_sets),
+            count_acc + batch_deleted_count
+          )
+      end
+    end
+  end
+
+  # Queries candidates for eviction, handling NULL last_accessed_at entries
+  # separately from non-NULL entries so the (last_accessed_at, id) index
+  # can be used for the non-NULL path.
+  defp candidate_batch(cutoff, batch_size, nil) do
+    nulls = null_candidates(batch_size, nil)
+
+    if length(nulls) >= batch_size do
+      nulls
+    else
+      remaining = batch_size - length(nulls)
+      non_nulls = non_null_candidates(cutoff, remaining, nil)
+      nulls ++ non_nulls
+    end
+  end
+
+  defp candidate_batch(cutoff, batch_size, {:null_cursor, cursor_id}) do
+    nulls = null_candidates(batch_size, cursor_id)
+
+    if length(nulls) >= batch_size do
+      nulls
+    else
+      remaining = batch_size - length(nulls)
+      non_nulls = non_null_candidates(cutoff, remaining, nil)
+      nulls ++ non_nulls
+    end
+  end
+
+  defp candidate_batch(cutoff, batch_size, {:time_cursor, cursor_time, cursor_id}) do
+    non_null_candidates(cutoff, batch_size, {cursor_time, cursor_id})
+  end
+
+  defp null_candidates(limit, after_id) do
+    query =
+      from(e in KeyValueEntry,
+        where: is_nil(e.last_accessed_at),
+        order_by: [asc: e.id],
+        limit: ^limit,
+        select: {e.id, e.last_accessed_at}
+      )
+
+    query = if after_id, do: from(e in query, where: e.id > ^after_id), else: query
+
+    Repo.all(query)
+  end
+
+  defp non_null_candidates(cutoff, limit, cursor) do
+    base =
+      from(e in KeyValueEntry,
+        where: not is_nil(e.last_accessed_at) and e.last_accessed_at < ^cutoff,
+        order_by: [asc: e.last_accessed_at, asc: e.id],
+        limit: ^limit,
+        select: {e.id, e.last_accessed_at}
+      )
+
+    query =
+      case cursor do
+        nil ->
+          base
+
+        {cursor_time, cursor_id} ->
+          from(e in base,
+            where:
+              e.last_accessed_at > ^cursor_time or
+                (e.last_accessed_at == ^cursor_time and e.id > ^cursor_id)
+          )
+      end
+
+    Repo.all(query)
+  end
+
+  defp batch_cursor(batch) do
+    {id, last_accessed_at} = List.last(batch)
+
+    case last_accessed_at do
+      nil -> {:null_cursor, id}
+      time -> {:time_cursor, time, id}
+    end
+  end
+
+  defp time_limit_reached?(deadline_ms) do
+    System.monotonic_time(:millisecond) >= deadline_ms
+  end
+
   defp delete_expired_entries(ids_to_delete, cutoff) do
     {grouped_hash_sets, deleted_count} =
       ids_to_delete
@@ -109,29 +256,60 @@ defmodule Cache.KeyValueEntries do
         {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count}
       end)
 
-    {to_sorted_hash_lists(grouped_hash_sets), deleted_count}
+    {grouped_hash_sets, deleted_count}
   end
 
   defp delete_chunk(ids_chunk, cutoff) do
-    verified_ids =
-      Repo.all(
-        from(e in KeyValueEntry,
-          where: e.id in ^ids_chunk,
-          where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
-          select: e.id
-        )
-      )
+    {:ok, {grouped_hash_sets, deleted_count}} =
+      Repo.transaction(fn ->
+        verified_ids =
+          Repo.all(
+            from(e in KeyValueEntry,
+              where: e.id in ^ids_chunk,
+              where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
+              select: e.id
+            )
+          )
 
-    grouped_hash_sets = hash_references_for_entries(verified_ids)
+        grouped_hash_sets = hash_references_for_entries(verified_ids)
 
-    {deleted_count, _} =
-      Repo.delete_all(
-        from(e in KeyValueEntry,
-          where: e.id in ^verified_ids
-        )
-      )
+        {deleted_count, _} =
+          Repo.delete_all(
+            from(e in KeyValueEntry,
+              where: e.id in ^verified_ids,
+              where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff
+            )
+          )
+
+        {grouped_hash_sets, deleted_count}
+      end)
 
     {grouped_hash_sets, deleted_count}
+  end
+
+  defp with_repo_busy_timeout(fun) do
+    Repo.checkout(fn ->
+      try do
+        fun.()
+      after
+        set_busy_timeout!(Config.repo_busy_timeout_ms())
+      end
+    end)
+  end
+
+  defp set_remaining_busy_timeout!(deadline_ms) do
+    set_busy_timeout!(remaining_time(deadline_ms))
+  end
+
+  defp set_busy_timeout!(timeout_ms) do
+    case Repo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
+      {:ok, _result} -> :ok
+      {:error, error} -> raise error
+    end
+  end
+
+  defp remaining_time(deadline_ms) do
+    max(deadline_ms - System.monotonic_time(:millisecond), 0)
   end
 
   defp hash_references_for_entries([]), do: %{}
