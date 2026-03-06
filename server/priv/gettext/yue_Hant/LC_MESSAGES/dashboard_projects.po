@@ -569,3 +569,61 @@ msgstr ""
 
 msgid "local"
 msgstr ""
+
+msgid "Add threshold"
+msgstr ""
+
+msgid "All"
+msgstr ""
+
+msgid "Baseline branch"
+msgstr ""
+
+msgid ""
+"Block PRs when bundle size exceeds a threshold compared to a baseline branch"
+msgstr ""
+
+msgid ""
+"Block PRs when the <strong>%{size_label}</strong> increases by more than "
+"<strong>%{deviation}%</strong> compared to the latest bundle on "
+"<strong>%{baseline_branch}</strong>."
+msgstr ""
+
+msgid ""
+"Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
+"strong> increases by more than <strong>%{deviation}%</strong> compared to "
+"the latest bundle on <strong>%{baseline_branch}</strong>."
+msgstr ""
+
+msgid "Bundle name"
+msgstr ""
+
+msgid "Create a threshold to block PRs when bundle size exceeds a limit"
+msgstr ""
+
+msgid "Create size threshold"
+msgstr ""
+
+msgid "Deviation %"
+msgstr ""
+
+msgid "No size thresholds"
+msgstr ""
+
+msgid "Size thresholds"
+msgstr ""
+
+msgid "Threshold name"
+msgstr ""
+
+msgid "Thresholds"
+msgstr ""
+
+msgid "Update size threshold"
+msgstr ""
+
+msgid "Connect GitHub"
+msgstr ""
+
+msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
+msgstr ""
