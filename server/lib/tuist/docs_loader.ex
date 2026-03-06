@@ -5,6 +5,7 @@ defmodule Tuist.Docs.Loader do
 
   @docs_root Path.expand("../../../docs/docs", __DIR__)
   @english_docs_root Path.join(@docs_root, "en")
+  @examples_root Path.expand("../../../examples/xcode", __DIR__)
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
   @localized_link_regex ~r/<LocalizedLink\s+href="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
@@ -20,8 +21,15 @@ defmodule Tuist.Docs.Loader do
       |> Enum.sort()
       |> Enum.reject(&excluded_source?/1)
 
-    pages = Enum.map(source_paths, &build_page!/1)
-    {pages, source_paths}
+    example_readmes =
+      @examples_root
+      |> Path.join("*/README.md")
+      |> Path.wildcard()
+      |> Enum.sort()
+
+    pages = Enum.map(source_paths, &build_page!/1) ++ Enum.map(example_readmes, &build_example_page!/1)
+    all_source_paths = source_paths ++ example_readmes
+    {pages, all_source_paths}
   end
 
   defp build_page!(source_path) do
@@ -41,6 +49,43 @@ defmodule Tuist.Docs.Loader do
       body: html,
       markdown: markdown,
       source_path: relative_path,
+      headings: headings
+    }
+  end
+
+  def load_example_items! do
+    @examples_root
+    |> Path.join("*/README.md")
+    |> Path.wildcard()
+    |> Enum.sort()
+    |> Enum.map(fn readme_path ->
+      dir_name = readme_path |> Path.dirname() |> Path.basename()
+      markdown = File.read!(readme_path)
+      title = title_from_markdown(markdown) || dir_name
+      slug = "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+      {title, slug}
+    end)
+  end
+
+  defp build_example_page!(readme_path) do
+    dir_name = readme_path |> Path.dirname() |> Path.basename()
+    slug = "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+    markdown = File.read!(readme_path)
+    title = title_from_markdown(markdown) || dir_name
+    github_url = "https://github.com/tuist/tuist/tree/main/examples/xcode/#{dir_name}"
+
+    markdown_with_link = markdown <> "\n\n[Check out example](#{github_url})\n"
+    headings = extract_headings(markdown_with_link)
+    html = render_markdown(markdown_with_link)
+
+    %Page{
+      slug: slug,
+      title: title,
+      title_template: ":title · Examples · References · Tuist",
+      description: "Example: #{title}",
+      body: html,
+      markdown: markdown_with_link,
+      source_path: readme_path,
       headings: headings
     }
   end

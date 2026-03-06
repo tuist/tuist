@@ -35,7 +35,7 @@ defmodule Tuist.Docs.Sidebar do
   def item_active?(%Item{}, _current_slug), do: false
 
   def item_or_children_active?(%Item{slug: slug, items: items}, current_slug) do
-    slug == current_slug or Enum.any?(items, &item_active?(&1, current_slug))
+    slug == current_slug or Enum.any?(items, &item_or_children_active?(&1, current_slug))
   end
 
   def guides_tree do
@@ -322,17 +322,36 @@ defmodule Tuist.Docs.Sidebar do
     ]
   end
 
+  @example_tuples Tuist.Docs.Loader.load_example_items!()
+
   def references_tree do
+    example_items =
+      Enum.map(@example_tuples, fn {title, slug} -> %Item{label: title, slug: slug} end)
+
     [
+      %Group{
+        label: "Xcode",
+        items: [
+          %Item{
+            label: "Generated projects",
+            items: [
+              %Item{
+                label: "Project description",
+                url: "https://tuist.dev/api/docs"
+              },
+              %Item{
+                label: "Examples",
+                slug: "/en/references/examples/generated-projects",
+                items: example_items
+              }
+            ]
+          }
+        ]
+      },
       %Group{
         label: "References",
         items: [
           %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
-          %Item{label: "Examples", slug: "/en/references/examples"},
-          %Item{
-            label: "Generated projects",
-            slug: "/en/references/examples/generated-projects"
-          },
           %Item{
             label: "Migrations",
             items: [
