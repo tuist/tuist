@@ -5,6 +5,47 @@
   data-current-slug={@current_slug}
   data-current-tab={@tab}
 >
+  <div id="docs-mobile-sidebar" data-part="mobile-sidebar">
+    <.button_group size="large" id="docs-mobile-nav-tabs">
+      <.button_group_item
+        label="Guides"
+        navigate="/docs/en"
+        data-tab="guides"
+        data-selected={@tab == :guides}
+      />
+      <.button_group_item
+        label="References"
+        navigate="/docs/en/references/tuist-toml"
+        data-tab="references"
+        data-selected={@tab == :references}
+      />
+      <.button_group_item
+        label="Resources"
+        navigate="/docs/en/contributors/code"
+        data-tab="resources"
+        data-selected={@tab == :resources}
+      />
+    </.button_group>
+    <div data-part="mobile-sidebar-nav">
+      <.link :if={@tab == :guides} patch="/docs/en" data-part="nav-link">
+        <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/en"}>
+          <:icon_left>
+            <.icon name="smart_home" />
+          </:icon_left>
+        </.tab_menu_vertical>
+      </.link>
+      <div :for={group <- @tree} data-part="nav-section">
+        <.line_divider />
+        <div :if={group.label} data-part="content-divider">
+          <.icon name={group_icon(group.label)} />
+          <span>{group.label}</span>
+        </div>
+        <div data-part="nav-items">
+          <.nav_items items={group.items} current_slug={@current_slug} />
+        </div>
+      </div>
+    </div>
+  </div>
   <section data-part="layout">
     <nav
       id="docs-sidebar"

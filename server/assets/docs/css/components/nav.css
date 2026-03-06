@@ -39,4 +39,78 @@
       gap: var(--noora-spacing-4);
     }
   }
+
+  /* Hidden on desktop */
+  & > [data-part="logo-text"] {
+    display: none;
+  }
+
+  & > [data-part="mobile-actions"] {
+    display: none;
+  }
+
+  & [data-part="close-icon"] {
+    display: none;
+  }
+
+  &[data-mobile-menu-open="true"] {
+    & [data-part="menu-icon"] {
+      display: none;
+    }
+
+    & [data-part="close-icon"] {
+      display: flex;
+    }
+  }
+}
+
+@media (max-width: 1024px) {
+  #docs-nav {
+    padding: 8px 16px;
+
+    & > [data-part="header"] {
+      gap: 6px;
+
+      & .noora-button-group {
+        display: none;
+      }
+    }
+
+    & > [data-part="logo-text"] {
+      display: block;
+      color: var(--noora-surface-label-primary);
+      font-family: "DM Sans", sans-serif;
+      font-weight: 500;
+      font-size: 20px;
+      letter-spacing: -0.2px;
+    }
+
+    & > [data-part="cta"] {
+      display: none;
+    }
+
+    & > [data-part="mobile-actions"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 6px;
+
+      & [data-part="menu-toggle"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 6px;
+        background: none;
+        padding: 6px;
+        cursor: pointer;
+        color: var(--noora-surface-label-primary);
+
+        & svg {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+  }
 }
