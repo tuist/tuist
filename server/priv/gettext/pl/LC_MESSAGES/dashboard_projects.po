@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/pl/>\n"
 "Language: pl\n"
@@ -777,63 +777,89 @@ msgstr "Środowisko"
 msgid "local"
 msgstr "lokalny"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "Dodaj próg"
 
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "Wszystkie"
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "Gałąź bazowa"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
+"Blokuj PR, gdy rozmiar pakietu przekroczy próg w porównaniu z gałęzią bazową."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"Blokuj PR, gdy <strong>%{size_label}</strong> wzrośnie o więcej niż <strong>%"
+"{deviation}%</strong> w porównaniu z najnowszym pakietem na <strong>%"
+"{baseline_branch}</strong>."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"Blokuj PR, gdy <strong>%{size_label}</strong> z <strong>%{bundle_name}</"
+"strong> wzrośnie o więcej niż <strong>%{deviation}%</strong> w porównaniu z "
+"najnowszym pakietem na <strong>%{baseline_branch}</strong>."
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "Nazwa pakietu"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr ""
+msgstr "Utwórz próg blokujący PR, gdy rozmiar pakietu przekroczy limit."
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "Utwórz próg wielkości"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "Odchylenie %"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "Brak ograniczeń dotyczących rozmiaru"
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "Progi rozmiaru"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "Nazwa progu"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "Progi"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "Zaktualizuj próg rozmiaru"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "Połącz GitHub"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr ""
+"Połącz aplikację Tuist GitHub, aby umożliwić sprawdzanie rozmiaru pakietu w "
+"PR."
 
 #, fuzzy
 #~ msgid ""
