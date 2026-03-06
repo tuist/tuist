@@ -261,6 +261,32 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheArtifactDownloadURL
       x-validate:
+    Upload:
+      properties:
+        id:
+          description: The upload ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        purpose:
+          description: The purpose of the upload.
+          type: string
+          x-struct:
+          x-validate:
+        upload_url:
+          description: The presigned URL to upload the file to.
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - purpose
+        - upload_url
+      title: Upload
+      type: object
+      x-struct:
+      x-validate:
     Tokens:
       description: A list of project tokens.
       properties:
@@ -914,6 +940,12 @@ components:
           type: array
           x-struct:
           x-validate:
+        upload_id:
+          description: "The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously."
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         xcode_version:
           description: The version of Xcode used during the build.
           type: string
@@ -921,7 +953,6 @@ components:
           x-validate:
       required:
         - id
-        - duration
         - is_ci
       title: BuildParams
       type: object
@@ -966,6 +997,27 @@ components:
         - status
         - data
       title: PreviewArtifactUpload
+      type: object
+      x-struct:
+      x-validate:
+    UploadParams:
+      description: Parameters to create an upload.
+      properties:
+        content_length:
+          description: The size of the file to upload in bytes.
+          type: integer
+          x-struct:
+          x-validate:
+        purpose:
+          description: The purpose of the upload.
+          enum:
+            - build_archive
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - purpose
+      title: UploadParams
       type: object
       x-struct:
       x-validate:
@@ -2564,6 +2616,15 @@ components:
         project_id:
           description: The ID of the Tuist project associated with this build run
           type: integer
+          x-struct:
+          x-validate:
+        status:
+          description: The status of the build run
+          enum:
+            - success
+            - failure
+            - processing
+          type: string
           x-struct:
           x-validate:
         type:
@@ -6027,6 +6088,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -6043,12 +6112,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Page number for pagination.
+        - description: Filter bundles by git branch.
           in: query
-          name: page
+          name: git_branch
           required: false
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -6057,14 +6126,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
       responses:
@@ -8203,6 +8264,7 @@ paths:
                           enum:
                             - success
                             - failure
+                            - processing
                           type: string
                           x-struct:
                           x-validate:
@@ -8764,6 +8826,12 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                upload_id:
+                  description: "The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously."
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 xcode_version:
                   description: The version of Xcode used during the build.
                   type: string
@@ -8771,7 +8839,6 @@ paths:
                   x-validate:
               required:
                 - id
-                - duration
                 - is_ci
               title: BuildParams
               type: object
@@ -9064,6 +9131,12 @@ paths:
                   x-validate:
                 git_ref:
                   description: Git ref.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                git_remote_url_origin:
+                  description: Git remote URL origin.
                   nullable: true
                   type: string
                   x-struct:
@@ -13308,6 +13381,111 @@ paths:
       summary: Upload a crash report for a test case run.
       tags:
         - Tests
+  /api/projects/{account_handle}/{project_handle}/uploads:
+    post:
+      callbacks: {}
+      operationId: createUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: Parameters to create an upload.
+              properties:
+                content_length:
+                  description: The size of the file to upload in bytes.
+                  type: integer
+                  x-struct:
+                  x-validate:
+                purpose:
+                  description: The purpose of the upload.
+                  enum:
+                    - build_archive
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - purpose
+              title: UploadParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Upload params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    description: The upload ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  purpose:
+                    description: The purpose of the upload.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  upload_url:
+                    description: The presigned URL to upload the file to.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - purpose
+                  - upload_url
+                title: Upload
+                type: object
+                x-struct:
+                x-validate:
+          description: The created upload
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to create an upload
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Create an upload.
+      tags:
+        - Uploads
   /api/projects/{account_handle}/{project_handle}/tests:
     post:
       callbacks: {}
@@ -13894,6 +14072,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:4002
     variables: {}
 tags: []

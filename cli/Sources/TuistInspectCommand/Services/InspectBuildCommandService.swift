@@ -21,6 +21,7 @@
         case missingFullHandle
         case executablePathMissing
         case mostRecentActivityLogNotFound(AbsolutePath)
+        case archiveCreationFailed
 
         var errorDescription: String? {
             switch self {
@@ -32,6 +33,8 @@
             case let .mostRecentActivityLogNotFound(projectPath):
                 return
                     "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
+            case .archiveCreationFailed:
+                return "Failed to create build archive zip."
             }
         }
     }
@@ -42,6 +45,7 @@
         private let machineEnvironment: MachineEnvironmentRetrieving
         private let xcodeBuildController: XcodeBuildControlling
         private let createBuildService: CreateBuildServicing
+        private let uploadBuildArchiveService: UploadBuildArchiveServicing
         private let configLoader: ConfigLoading
         private let xcActivityLogController: XCActivityLogControlling
         private let backgroundProcessRunner: BackgroundProcessRunning
@@ -57,6 +61,7 @@
             machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
             xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
             createBuildService: CreateBuildServicing = CreateBuildService(),
+            uploadBuildArchiveService: UploadBuildArchiveServicing = UploadBuildArchiveService(),
             configLoader: ConfigLoading = ConfigLoader(),
             xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
@@ -71,6 +76,7 @@
             self.machineEnvironment = machineEnvironment
             self.xcodeBuildController = xcodeBuildController
             self.createBuildService = createBuildService
+            self.uploadBuildArchiveService = uploadBuildArchiveService
             self.configLoader = configLoader
             self.xcActivityLogController = xcActivityLogController
             self.backgroundProcessRunner = backgroundProcessRunner
@@ -83,7 +89,8 @@
 
         func run(
             path: String?,
-            derivedDataPath: String? = nil
+            derivedDataPath: String? = nil,
+            mode: InspectBuildMode = .remote
         ) async throws {
             let referenceDate = dateService.now()
             guard let executablePath = Bundle.main.executablePath else {
@@ -130,11 +137,27 @@
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 referenceDate: referenceDate
             )
-            let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
-            try await createBuild(
-                for: xcactivityLog,
-                projectPath: projectPath
-            )
+
+            switch mode {
+            case .remote:
+                do {
+                    try await createRemoteBuild(
+                        mostRecentActivityLogPath: mostRecentActivityLogPath,
+                        projectPath: projectPath
+                    )
+                } catch {
+                    Logger.current.warning("Remote build upload failed: \(error.localizedDescription). Falling back to local mode.")
+                    try await createLocalBuild(
+                        mostRecentActivityLogPath: mostRecentActivityLogPath,
+                        projectPath: projectPath
+                    )
+                }
+            case .local:
+                try await createLocalBuild(
+                    mostRecentActivityLogPath: mostRecentActivityLogPath,
+                    projectPath: projectPath
+                )
+            }
         }
 
         private func mostRecentActivityLogPath(
@@ -173,10 +196,11 @@
             return mostRecentActivityLogPath
         }
 
-        private func createBuild(
-            for xcactivityLog: XCActivityLog,
+        private func createLocalBuild(
+            mostRecentActivityLogPath: AbsolutePath,
             projectPath: AbsolutePath
         ) async throws {
+            let xcactivityLog = try await xcActivityLogController.parse(mostRecentActivityLogPath)
             let config =
                 try await configLoader
                     .loadConfig(path: projectPath)
@@ -216,11 +240,135 @@
                 ciProvider: ciInfo?.provider,
                 cacheableTasks: xcactivityLog.cacheableTasks,
                 casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
-                    xcactivityLog.casOutputs.filter { $0.operation != .upload }
+                    xcactivityLog.casOutputs.filter { $0.operation != .upload },
+                uploadId: nil
             )
             AlertController.current.success(
                 .alert("View the analyzed build at \(build.url.absoluteString)")
             )
+        }
+
+        // swiftlint:disable:next function_body_length
+        private func createRemoteBuild(
+            mostRecentActivityLogPath: AbsolutePath,
+            projectPath: AbsolutePath
+        ) async throws {
+            let config =
+                try await configLoader
+                    .loadConfig(path: projectPath)
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            guard let fullHandle = config.fullHandle else {
+                throw InspectBuildCommandServiceError.missingFullHandle
+            }
+
+            let archiveData = try await bundleBuildArchive(
+                mostRecentActivityLogPath: mostRecentActivityLogPath
+            )
+
+            let upload = try await uploadBuildArchiveService.uploadBuildArchive(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                archiveData: archiveData,
+                contentLength: archiveData.count
+            )
+
+            let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
+            let ciInfo = ciController.ciInfo()
+            let customMetadata = readCustomMetadata()
+            let build = try await createBuildService.createBuild(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                id: UUID().uuidString,
+                category: .incremental,
+                configuration: Environment.current.variables["CONFIGURATION"],
+                customMetadata: customMetadata,
+                duration: 0,
+                files: [],
+                gitBranch: gitInfo.branch,
+                gitCommitSHA: gitInfo.sha,
+                gitRef: gitInfo.ref,
+                gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+                isCI: Environment.current.isCI,
+                issues: [],
+                modelIdentifier: machineEnvironment.modelIdentifier(),
+                macOSVersion: machineEnvironment.macOSVersion,
+                scheme: Environment.current.schemeName,
+                targets: [],
+                xcodeVersion: try await xcodeBuildController.version()?.description,
+                status: .success,
+                ciRunId: ciInfo?.runId,
+                ciProjectHandle: ciInfo?.projectHandle,
+                ciHost: ciInfo?.host,
+                ciProvider: ciInfo?.provider,
+                cacheableTasks: [],
+                casOutputs: [],
+                uploadId: upload.id
+            )
+            AlertController.current.success(
+                .alert("Build archive uploaded for processing. View status at \(build.url.absoluteString)")
+            )
+        }
+
+        private func bundleBuildArchive(
+            mostRecentActivityLogPath: AbsolutePath
+        ) async throws -> Data {
+            let tempDirectory = try FileManager.default.url(
+                for: .itemReplacementDirectory,
+                in: .userDomainMask,
+                appropriateFor: URL(fileURLWithPath: NSTemporaryDirectory()),
+                create: true
+            )
+            defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+            let archiveDirectory = tempDirectory.appendingPathComponent("build_archive")
+            try FileManager.default.createDirectory(at: archiveDirectory, withIntermediateDirectories: true)
+
+            let xcactivitylogDir = archiveDirectory.appendingPathComponent("xcactivitylog")
+            try FileManager.default.createDirectory(at: xcactivitylogDir, withIntermediateDirectories: true)
+            let logURL = URL(fileURLWithPath: mostRecentActivityLogPath.pathString)
+            try FileManager.default.copyItem(
+                at: logURL,
+                to: xcactivitylogDir.appendingPathComponent(logURL.lastPathComponent)
+            )
+
+            let stateDir = URL(fileURLWithPath: Environment.current.stateDirectory.pathString)
+            let casMetadataDir = archiveDirectory.appendingPathComponent("cas_metadata")
+            try FileManager.default.createDirectory(at: casMetadataDir, withIntermediateDirectories: true)
+
+            for subdirectory in ["nodes", "cas", "keyvalue"] {
+                let sourceDir = stateDir.appendingPathComponent(subdirectory)
+                if FileManager.default.fileExists(atPath: sourceDir.path) {
+                    let destDir = casMetadataDir.appendingPathComponent(subdirectory)
+                    try FileManager.default.copyItem(at: sourceDir, to: destDir)
+                }
+            }
+
+            let manifest = BuildArchiveManifest(
+                cacheUploadEnabled: true,
+                macOSVersion: machineEnvironment.macOSVersion,
+                modelIdentifier: machineEnvironment.modelIdentifier(),
+                xcodeVersion: try await xcodeBuildController.version()?.description
+            )
+            let manifestData = try JSONEncoder().encode(manifest)
+            try manifestData.write(to: archiveDirectory.appendingPathComponent("manifest.json"))
+
+            let coordinator = NSFileCoordinator()
+            var coordinatorError: NSError?
+            var archiveData: Data?
+            coordinator.coordinate(
+                readingItemAt: archiveDirectory,
+                options: [.forUploading],
+                error: &coordinatorError
+            ) { zipFileURL in
+                archiveData = try? Data(contentsOf: zipFileURL)
+            }
+            if let coordinatorError {
+                throw coordinatorError
+            }
+            guard let data = archiveData else {
+                throw InspectBuildCommandServiceError.archiveCreationFailed
+            }
+            return data
         }
 
         private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {

@@ -38,7 +38,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            uploadId: String?
         ) async throws -> ServerBuild
     }
 
@@ -104,7 +105,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            uploadId: String? = nil
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -180,6 +182,7 @@ import TuistHTTP
                             status: status,
                             targets: targets
                                 .map(Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload.init),
+                            upload_id: uploadId,
                             xcode_version: xcodeVersion
                         )
                     )

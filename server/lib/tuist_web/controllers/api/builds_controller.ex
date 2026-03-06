@@ -119,7 +119,11 @@ defmodule TuistWeb.API.BuildsController do
                  properties: %{
                    id: %Schema{type: :string, format: :uuid, description: "The build ID."},
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
-                   status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
+                   status: %Schema{
+                     type: :string,
+                     enum: ["success", "failure", "processing"],
+                     description: "Build status."
+                   },
                    category: %Schema{
                      type: :string,
                      enum: ["clean", "incremental"],
@@ -783,11 +787,17 @@ defmodule TuistWeb.API.BuildsController do
                  description: "Key-value pairs for structured data. URL values will auto-link in the UI."
                }
              }
+           },
+           upload_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description:
+               "The ID of a previously created upload (from POST /uploads with purpose build_archive). " <>
+                 "When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously."
            }
          },
          required: [
            :id,
-           :duration,
            :is_ci
          ]
        }},
@@ -805,12 +815,21 @@ defmodule TuistWeb.API.BuildsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    account = Authentication.authenticated_subject_account(conn)
+
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:account, account)
 
-    case get_or_create_build(run_params) do
+    result =
+      if Map.get(body_params, :upload_id) do
+        create_processing_build(run_params, selected_project, account)
+      else
+        get_or_create_build(run_params)
+      end
+
+    case result do
       {:ok, build} ->
         Tuist.VCS.enqueue_vcs_pull_request_comment(%{
           git_commit_sha: build.git_commit_sha,
@@ -830,6 +849,7 @@ defmodule TuistWeb.API.BuildsController do
         |> json(%{
           type: "build",
           id: build.id,
+          status: build.status,
           duration: build.duration,
           project_id: build.project_id,
           url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
@@ -837,6 +857,55 @@ defmodule TuistWeb.API.BuildsController do
 
       {:error, _changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+    end
+  end
+
+  defp create_processing_build(params, selected_project, account) do
+    upload_id = params.upload_id
+    storage_key = "#{selected_project.account.name}/#{selected_project.name}/build_archives/#{upload_id}.zip"
+
+    custom_metadata = Map.get(params, :custom_metadata, %{})
+
+    build_attrs = %{
+      id: params.id,
+      duration: Map.get(params, :duration, 0),
+      macos_version: Map.get(params, :macos_version),
+      xcode_version: Map.get(params, :xcode_version),
+      is_ci: Map.get(params, :is_ci),
+      model_identifier: Map.get(params, :model_identifier),
+      scheme: Map.get(params, :scheme),
+      configuration: Map.get(params, :configuration),
+      project_id: selected_project.id,
+      account_id: account.id,
+      status: "processing",
+      category: Map.get(params, :category),
+      git_branch: Map.get(params, :git_branch),
+      git_commit_sha: Map.get(params, :git_commit_sha),
+      git_ref: Map.get(params, :git_ref),
+      ci_run_id: Map.get(params, :ci_run_id),
+      ci_project_handle: Map.get(params, :ci_project_handle),
+      ci_host: Map.get(params, :ci_host),
+      ci_provider: Map.get(params, :ci_provider),
+      storage_key: storage_key,
+      custom_tags: Map.get(custom_metadata, :tags, []),
+      custom_values: Map.get(custom_metadata, :values, %{})
+    }
+
+    case Builds.create_build(build_attrs) do
+      {:ok, build} ->
+        %{
+          build_id: build.id,
+          storage_key: storage_key,
+          account_id: account.id,
+          project_id: selected_project.id
+        }
+        |> Tuist.Builds.Workers.ProcessBuildWorker.new()
+        |> Oban.insert()
+
+        {:ok, build}
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 

@@ -324,7 +324,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban
 config :tuist, Oban,
-  queues: [default: 10],
+  queues: [default: 10, build_processing: 5],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
@@ -360,6 +360,9 @@ config :tuist, Tuist.PromEx,
     port: 9091,
     auth_strategy: :none
   ]
+
+# Processor
+config :tuist, :processor_url, System.get_env("PROCESSOR_URL")
 
 if otel_endpoint do
   config :opentelemetry,

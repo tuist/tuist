@@ -1,0 +1,165 @@
+defmodule Tuist.Builds.Workers.ProcessBuildWorker do
+  @moduledoc false
+  use Oban.Worker, queue: :build_processing, max_attempts: 3
+
+  require Logger
+
+  alias Tuist.Builds
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{
+        args: %{
+          "build_id" => build_id,
+          "storage_key" => storage_key,
+          "account_id" => account_id,
+          "project_id" => project_id
+        }
+      }) do
+    processor_url = Application.get_env(:tuist, :processor_url)
+
+    if is_nil(processor_url) or processor_url == "" do
+      mark_build_failed(build_id, project_id, account_id)
+      {:error, "processor_url_not_configured"}
+    else
+      payload = %{
+        build_id: build_id,
+        storage_key: storage_key,
+        account_id: account_id,
+        project_id: project_id
+      }
+
+      Logger.info("Sending build #{build_id} to processor at #{processor_url}")
+
+      case Req.post("#{processor_url}/webhooks/process-build",
+             json: payload,
+             receive_timeout: 300_000
+           ) do
+        {:ok, %{status: 200, body: parsed_data}} ->
+          Logger.info(
+            "Processor returned parsed data for build #{build_id}: " <>
+              "#{length(Map.get(parsed_data, "targets", []))} targets, " <>
+              "#{length(Map.get(parsed_data, "issues", []))} issues, " <>
+              "#{length(Map.get(parsed_data, "files", []))} files, " <>
+              "#{length(Map.get(parsed_data, "cacheable_tasks", []))} cacheable_tasks, " <>
+              "#{length(Map.get(parsed_data, "cas_outputs", []))} cas_outputs"
+          )
+
+          replace_build_run(build_id, project_id, account_id, parsed_data)
+
+        {:ok, %{status: status, body: body}} ->
+          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
+          mark_build_failed(build_id, project_id, account_id)
+          {:error, "processor_error_#{status}: #{inspect(body)}"}
+
+        {:error, reason} ->
+          Logger.error("Processor request failed for build #{build_id}: #{inspect(reason)}")
+          mark_build_failed(build_id, project_id, account_id)
+          {:error, reason}
+      end
+    end
+  end
+
+  defp replace_build_run(build_id, project_id, account_id, parsed_data) do
+    Logger.info("Fetching original processing build #{build_id} from ClickHouse")
+    original_build = Builds.get_build(build_id)
+
+    if original_build do
+      Logger.info("Found original build #{build_id} (status: #{original_build.status})")
+    else
+      Logger.warning("Original build #{build_id} not found in ClickHouse, proceeding without metadata")
+    end
+
+    parsed = atomize_keys(parsed_data)
+
+    attrs = %{
+      id: build_id,
+      project_id: project_id,
+      account_id: account_id,
+      duration: parsed[:duration] || 0,
+      status: parsed[:status] || "success",
+      category: parsed[:category],
+      is_ci: parsed[:is_ci] || (original_build && original_build.is_ci) || false,
+      macos_version: parsed[:macos_version] || (original_build && original_build.macos_version) || "",
+      xcode_version: parsed[:xcode_version] || (original_build && original_build.xcode_version) || "",
+      model_identifier: parsed[:model_identifier] || (original_build && original_build.model_identifier) || "",
+      scheme: (original_build && original_build.scheme) || "",
+      configuration: (original_build && original_build.configuration) || "",
+      git_branch: (original_build && original_build.git_branch) || "",
+      git_commit_sha: (original_build && original_build.git_commit_sha) || "",
+      git_ref: (original_build && original_build.git_ref) || "",
+      ci_run_id: (original_build && original_build.ci_run_id) || "",
+      ci_project_handle: (original_build && original_build.ci_project_handle) || "",
+      ci_host: (original_build && original_build.ci_host) || "",
+      ci_provider: (original_build && original_build.ci_provider) || "",
+      custom_tags: (original_build && original_build.custom_tags) || [],
+      custom_values: (original_build && original_build.custom_values) || %{},
+      storage_key: (original_build && original_build.storage_key),
+      targets: convert_targets(parsed[:targets] || []),
+      issues: convert_issues(parsed[:issues] || []),
+      files: convert_files(parsed[:files] || []),
+      cacheable_tasks: convert_cacheable_tasks(parsed[:cacheable_tasks] || []),
+      cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
+    }
+
+    Logger.info("Writing parsed build #{build_id} to ClickHouse (status: #{attrs[:status]}, duration: #{attrs[:duration]}ms)")
+
+    case Builds.create_build(attrs) do
+      {:ok, _build} ->
+        Logger.info("Successfully wrote build #{build_id} to ClickHouse")
+        :ok
+
+      {:error, changeset} ->
+        Logger.error("Failed to create build #{build_id}: #{inspect(changeset.errors)}")
+        {:error, "failed_to_create_build"}
+    end
+  end
+
+  defp mark_build_failed(build_id, project_id, account_id) do
+    Builds.create_build(%{
+      id: build_id,
+      project_id: project_id,
+      account_id: account_id,
+      status: "failure",
+      duration: 0,
+      is_ci: false
+    })
+  end
+
+  defp atomize_keys(map) when is_map(map) do
+    Map.new(map, fn {k, v} when is_binary(k) -> {String.to_atom(k), v}; other -> other end)
+  end
+
+  defp convert_files(files) do
+    Enum.map(files, fn f ->
+      f = atomize_keys(f)
+      Map.update!(f, :type, &String.to_atom/1)
+    end)
+  end
+
+  defp convert_issues(issues) do
+    Enum.map(issues, fn i ->
+      i = atomize_keys(i)
+
+      i
+      |> Map.update!(:type, &String.to_atom/1)
+      |> Map.update!(:step_type, &String.to_atom/1)
+    end)
+  end
+
+  defp convert_targets(targets) do
+    Enum.map(targets, fn t ->
+      t = atomize_keys(t)
+      Map.update!(t, :status, &String.to_atom/1)
+    end)
+  end
+
+  defp convert_cacheable_tasks(tasks) do
+    Enum.map(tasks, fn t ->
+      t = atomize_keys(t)
+
+      t
+      |> Map.update!(:type, &String.to_atom/1)
+      |> Map.update!(:status, &String.to_atom/1)
+    end)
+  end
+end

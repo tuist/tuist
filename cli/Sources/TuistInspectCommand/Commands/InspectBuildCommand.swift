@@ -4,6 +4,11 @@
     import TuistEnvKey
     import TuistNooraExtension
 
+    public enum InspectBuildMode: String, ExpressibleByArgument, CaseIterable, Sendable {
+        case local
+        case remote
+    }
+
     struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
         static var configuration: CommandConfiguration {
             CommandConfiguration(
@@ -28,13 +33,22 @@
         )
         var derivedDataPath: String?
 
+        @Option(
+            wrappedValue: .remote,
+            name: .long,
+            help: "The processing mode for xcactivitylog parsing. 'remote' uploads the raw log for server-side processing. 'local' parses the log on this machine.",
+            envKey: .inspectBuildMode
+        )
+        var mode: InspectBuildMode
+
         var jsonThroughNoora: Bool = false
 
         func run() async throws {
             try await InspectBuildCommandService()
                 .run(
                     path: path,
-                    derivedDataPath: derivedDataPath
+                    derivedDataPath: derivedDataPath,
+                    mode: mode
                 )
         }
     }

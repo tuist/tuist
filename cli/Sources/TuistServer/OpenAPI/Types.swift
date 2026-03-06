@@ -495,6 +495,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests/crash-reports`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/crash-reports/post(createCrashReport)`.
     func createCrashReport(_ input: Operations.createCrashReport.Input) async throws -> Operations.createCrashReport.Output
+    /// Create an upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/uploads`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)`.
+    func createUpload(_ input: Operations.createUpload.Input) async throws -> Operations.createUpload.Output
     /// Create a new test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
@@ -1679,6 +1684,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Create an upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/uploads`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)`.
+    public func createUpload(
+        path: Operations.createUpload.Input.Path,
+        headers: Operations.createUpload.Input.Headers = .init(),
+        body: Operations.createUpload.Input.Body? = nil
+    ) async throws -> Operations.createUpload.Output {
+        try await createUpload(Operations.createUpload.Input(
+            path: path,
+            headers: headers,
+            body: body
+        ))
+    }
     /// Create a new test run.
     ///
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/tests`.
@@ -1750,7 +1770,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:8080",
+                validatingOpenAPIServerURL: "http://localhost:4002",
                 variables: []
             )
         }
@@ -1758,7 +1778,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:8080",
+            validatingOpenAPIServerURL: "http://localhost:4002",
             variables: []
         )
     }
@@ -2098,6 +2118,41 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case data
                 case status
+            }
+        }
+        /// - Remark: Generated from `#/components/schemas/Upload`.
+        public struct Upload: Codable, Hashable, Sendable {
+            /// The upload ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Upload/id`.
+            public var id: Swift.String
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Upload/purpose`.
+            public var purpose: Swift.String
+            /// The presigned URL to upload the file to.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Upload/upload_url`.
+            public var upload_url: Swift.String
+            /// Creates a new `Upload`.
+            ///
+            /// - Parameters:
+            ///   - id: The upload ID.
+            ///   - purpose: The purpose of the upload.
+            ///   - upload_url: The presigned URL to upload the file to.
+            public init(
+                id: Swift.String,
+                purpose: Swift.String,
+                upload_url: Swift.String
+            ) {
+                self.id = id
+                self.purpose = purpose
+                self.upload_url = upload_url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case id
+                case purpose
+                case upload_url
             }
         }
         /// A list of project tokens.
@@ -2641,7 +2696,7 @@ public enum Components {
             /// Duration of the build in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/duration`.
-            public var duration: Swift.Int
+            public var duration: Swift.Int?
             /// - Remark: Generated from `#/components/schemas/BuildParams/filesPayload`.
             public struct filesPayloadPayload: Codable, Hashable, Sendable {
                 /// The duration of the compilation for the file in milliseconds.
@@ -2966,6 +3021,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/targets`.
             public var targets: Components.Schemas.BuildParams.targetsPayload?
+            /// The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildParams/upload_id`.
+            public var upload_id: Swift.String?
             /// The version of Xcode used during the build.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/xcode_version`.
@@ -2996,6 +3055,7 @@ public enum Components {
             ///   - scheme: The scheme used for the build.
             ///   - status: The status of the build run.
             ///   - targets: Targets with build metadata associated with the build run.
+            ///   - upload_id: The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
             ///   - xcode_version: The version of Xcode used during the build.
             public init(
                 cacheable_tasks: Components.Schemas.BuildParams.cacheable_tasksPayload? = nil,
@@ -3007,7 +3067,7 @@ public enum Components {
                 ci_run_id: Swift.String? = nil,
                 configuration: Swift.String? = nil,
                 custom_metadata: Components.Schemas.BuildParams.custom_metadataPayload? = nil,
-                duration: Swift.Int,
+                duration: Swift.Int? = nil,
                 files: Components.Schemas.BuildParams.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
                 git_commit_sha: Swift.String? = nil,
@@ -3021,6 +3081,7 @@ public enum Components {
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildParams.statusPayload? = nil,
                 targets: Components.Schemas.BuildParams.targetsPayload? = nil,
+                upload_id: Swift.String? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
@@ -3046,6 +3107,7 @@ public enum Components {
                 self.scheme = scheme
                 self.status = status
                 self.targets = targets
+                self.upload_id = upload_id
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -3072,6 +3134,7 @@ public enum Components {
                 case scheme
                 case status
                 case targets
+                case upload_id
                 case xcode_version
             }
         }
@@ -3142,6 +3205,41 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case data
                 case status
+            }
+        }
+        /// Parameters to create an upload.
+        ///
+        /// - Remark: Generated from `#/components/schemas/UploadParams`.
+        public struct UploadParams: Codable, Hashable, Sendable {
+            /// The size of the file to upload in bytes.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadParams/content_length`.
+            public var content_length: Swift.Int?
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadParams/purpose`.
+            @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build_archive = "build_archive"
+            }
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadParams/purpose`.
+            public var purpose: Components.Schemas.UploadParams.purposePayload
+            /// Creates a new `UploadParams`.
+            ///
+            /// - Parameters:
+            ///   - content_length: The size of the file to upload in bytes.
+            ///   - purpose: The purpose of the upload.
+            public init(
+                content_length: Swift.Int? = nil,
+                purpose: Components.Schemas.UploadParams.purposePayload
+            ) {
+                self.content_length = content_length
+                self.purpose = purpose
+            }
+            public enum CodingKeys: String, CodingKey {
+                case content_length
+                case purpose
             }
         }
         /// - Remark: Generated from `#/components/schemas/Project`.
@@ -5594,6 +5692,18 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/project_id`.
             public var project_id: Swift.Int
+            /// The status of the build run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/status`.
+            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case success = "success"
+                case failure = "failure"
+                case processing = "processing"
+            }
+            /// The status of the build run
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunsBuild/status`.
+            public var status: Components.Schemas.RunsBuild.statusPayload?
             /// The type of the run, which is 'build' in this case
             ///
             /// - Remark: Generated from `#/components/schemas/RunsBuild/type`.
@@ -5614,18 +5724,21 @@ public enum Components {
             ///   - duration: The duration of the build run in milliseconds
             ///   - id: The unique identifier of the build run
             ///   - project_id: The ID of the Tuist project associated with this build run
+            ///   - status: The status of the build run
             ///   - _type: The type of the run, which is 'build' in this case
             ///   - url: The URL to access the build run
             public init(
                 duration: Swift.Int,
                 id: Swift.String,
                 project_id: Swift.Int,
+                status: Components.Schemas.RunsBuild.statusPayload? = nil,
                 _type: Components.Schemas.RunsBuild._typePayload,
                 url: Swift.String
             ) {
                 self.duration = duration
                 self.id = id
                 self.project_id = project_id
+                self.status = status
                 self._type = _type
                 self.url = url
             }
@@ -5633,6 +5746,7 @@ public enum Components {
                 case duration
                 case id
                 case project_id
+                case status
                 case _type = "type"
                 case url
             }
@@ -12398,28 +12512,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -21113,6 +21227,7 @@ public enum Operations {
                             @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                 case success = "success"
                                 case failure = "failure"
+                                case processing = "processing"
                             }
                             /// Build status.
                             ///
@@ -21746,7 +21861,7 @@ public enum Operations {
                     /// Duration of the build in milliseconds.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/duration`.
-                    public var duration: Swift.Int
+                    public var duration: Swift.Int?
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/filesPayload`.
                     public struct filesPayloadPayload: Codable, Hashable, Sendable {
                         /// The duration of the compilation for the file in milliseconds.
@@ -22071,6 +22186,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/targets`.
                     public var targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload?
+                    /// The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/upload_id`.
+                    public var upload_id: Swift.String?
                     /// The version of Xcode used during the build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/xcode_version`.
@@ -22101,6 +22220,7 @@ public enum Operations {
                     ///   - scheme: The scheme used for the build.
                     ///   - status: The status of the build run.
                     ///   - targets: Targets with build metadata associated with the build run.
+                    ///   - upload_id: The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
                     ///   - xcode_version: The version of Xcode used during the build.
                     public init(
                         cacheable_tasks: Operations.createBuild.Input.Body.jsonPayload.cacheable_tasksPayload? = nil,
@@ -22112,7 +22232,7 @@ public enum Operations {
                         ci_run_id: Swift.String? = nil,
                         configuration: Swift.String? = nil,
                         custom_metadata: Operations.createBuild.Input.Body.jsonPayload.custom_metadataPayload? = nil,
-                        duration: Swift.Int,
+                        duration: Swift.Int? = nil,
                         files: Operations.createBuild.Input.Body.jsonPayload.filesPayload? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -22126,6 +22246,7 @@ public enum Operations {
                         scheme: Swift.String? = nil,
                         status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? = nil,
                         targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload? = nil,
+                        upload_id: Swift.String? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.cacheable_tasks = cacheable_tasks
@@ -22151,6 +22272,7 @@ public enum Operations {
                         self.scheme = scheme
                         self.status = status
                         self.targets = targets
+                        self.upload_id = upload_id
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -22177,6 +22299,7 @@ public enum Operations {
                         case scheme
                         case status
                         case targets
+                        case upload_id
                         case xcode_version
                     }
                 }
@@ -23241,6 +23364,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_ref`.
                     public var git_ref: Swift.String?
+                    /// Git remote URL origin.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
                     /// Gradle version.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/gradle_version`.
@@ -23371,6 +23498,7 @@ public enum Operations {
                     ///   - git_branch: Git branch.
                     ///   - git_commit_sha: Git commit SHA.
                     ///   - git_ref: Git ref.
+                    ///   - git_remote_url_origin: Git remote URL origin.
                     ///   - gradle_version: Gradle version.
                     ///   - id: Client-provided build ID (UUID).
                     ///   - is_ci: Whether the build ran on CI.
@@ -23383,6 +23511,7 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
                         gradle_version: Swift.String? = nil,
                         id: Swift.String? = nil,
                         is_ci: Swift.Bool? = nil,
@@ -23395,6 +23524,7 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
                         self.gradle_version = gradle_version
                         self.id = id
                         self.is_ci = is_ci
@@ -23408,6 +23538,7 @@ public enum Operations {
                         case git_branch
                         case git_commit_sha
                         case git_ref
+                        case git_remote_url_origin
                         case gradle_version
                         case id
                         case is_ci
@@ -37246,6 +37377,428 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.createCrashReport.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Create an upload.
+    ///
+    /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/uploads`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)`.
+    public enum createUpload {
+        public static let id: Swift.String = "createUpload"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.createUpload.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createUpload.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.createUpload.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.createUpload.Input.Headers
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody`.
+            @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to create an upload.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json`.
+                public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The size of the file to upload in bytes.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/content_length`.
+                    public var content_length: Swift.Int?
+                    /// The purpose of the upload.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/purpose`.
+                    @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                        case build_archive = "build_archive"
+                    }
+                    /// The purpose of the upload.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/purpose`.
+                    public var purpose: Operations.createUpload.Input.Body.jsonPayload.purposePayload
+                    /// Creates a new `jsonPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - content_length: The size of the file to upload in bytes.
+                    ///   - purpose: The purpose of the upload.
+                    public init(
+                        content_length: Swift.Int? = nil,
+                        purpose: Operations.createUpload.Input.Body.jsonPayload.purposePayload
+                    ) {
+                        self.content_length = content_length
+                        self.purpose = purpose
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case content_length
+                        case purpose
+                    }
+                }
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/content/application\/json`.
+                case json(Operations.createUpload.Input.Body.jsonPayload)
+            }
+            public var body: Operations.createUpload.Input.Body?
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            ///   - body:
+            public init(
+                path: Operations.createUpload.Input.Path,
+                headers: Operations.createUpload.Input.Headers = .init(),
+                body: Operations.createUpload.Input.Body? = nil
+            ) {
+                self.path = path
+                self.headers = headers
+                self.body = body
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// The upload ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// The purpose of the upload.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/200/content/json/purpose`.
+                        public var purpose: Swift.String
+                        /// The presigned URL to upload the file to.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/200/content/json/upload_url`.
+                        public var upload_url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - id: The upload ID.
+                        ///   - purpose: The purpose of the upload.
+                        ///   - upload_url: The presigned URL to upload the file to.
+                        public init(
+                            id: Swift.String,
+                            purpose: Swift.String,
+                            upload_url: Swift.String
+                        ) {
+                            self.id = id
+                            self.purpose = purpose
+                            self.upload_url = upload_url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case id
+                            case purpose
+                            case upload_url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/200/content/application\/json`.
+                    case json(Operations.createUpload.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.createUpload.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createUpload.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createUpload.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The created upload
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.createUpload.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.createUpload.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createUpload.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createUpload.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.createUpload.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.createUpload.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createUpload.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createUpload.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to create an upload
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.createUpload.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.createUpload.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createUpload.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createUpload.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// The authenticated subject is not authorized to perform this action
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.createUpload.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.createUpload.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.createUpload.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.createUpload.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// The project doesn't exist
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/uploads/post(createUpload)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.createUpload.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.createUpload.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):

@@ -409,6 +409,8 @@ defmodule TuistWeb.Router do
           post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
+        post "/uploads", UploadsController, :create
+
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
@@ -820,6 +822,7 @@ defmodule TuistWeb.Router do
       live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
+      get "/builds/build-runs/:build_run_id/download-archive", BuildArchiveController, :download
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,
