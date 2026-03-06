@@ -22,6 +22,11 @@
       navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
     />
     <.tab_menu_horizontal_item
+      label={dgettext("dashboard_qa", "Bundles")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+    />
+    <.tab_menu_horizontal_item
       :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_qa", "QA")}
       selected={true}

@@ -504,6 +504,15 @@ defmodule Tuist.Projects do
   end
 
   @doc """
+  Checks whether the project has a VCS connection configured.
+  Expects the project to have `vcs_connection: :github_app_installation` preloaded.
+  """
+  def has_vcs_connection?(project) do
+    project.vcs_connection != nil &&
+      project.vcs_connection.github_app_installation != nil
+  end
+
+  @doc """
   Get all projects connected to a VCS repository.
   """
   def projects_by_vcs_repository_full_handle(vcs_repository_full_handle, opts \\ []) do
