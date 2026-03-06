@@ -10,6 +10,8 @@ defmodule Cache.KeyValueStore do
   alias Cache.KeyValueEntry
   alias Cache.Repo
 
+  require Logger
+
   @cache_name :cache_keyvalue_store
   # 1 week
   @ttl_ms to_timeout(week: 1)
@@ -57,6 +59,7 @@ defmodule Cache.KeyValueStore do
     case fetch_entry(key, cache) do
       {:ok, json} -> {:ok, json}
       {:error, :not_found} -> {:error, :not_found}
+      {:error, :busy} -> {:error, :busy}
     end
   end
 
@@ -89,14 +92,65 @@ defmodule Cache.KeyValueStore do
   end
 
   defp load_from_persistence(key, cache) do
+    load_from_persistence_with_retry(key, cache, 0)
+  end
+
+  defp load_from_persistence_with_retry(key, cache, attempt) do
     case Repo.get_by(KeyValueEntry, key: key) do
       nil ->
         {:error, :not_found}
 
       record ->
+        if attempt > 0 do
+          Logger.debug("Loaded key-value entry after retry")
+
+          :telemetry.execute(
+            [:cache, :kv, :read_through, :retry],
+            %{count: attempt},
+            %{status: :success}
+          )
+        end
+
         Cachex.put(cache, key, record.json_payload)
         KeyValueBuffer.enqueue_access(key)
         {:ok, record.json_payload}
+    end
+  rescue
+    error ->
+      handle_persistence_error(key, cache, error, attempt)
+  end
+
+  defp handle_persistence_error(key, cache, error, attempt) do
+    busy = busy_error?(error)
+
+    if busy and attempt < 3 do
+      backoff_ms = 5 * Integer.pow(2, attempt)
+      :timer.sleep(backoff_ms)
+      load_from_persistence_with_retry(key, cache, attempt + 1)
+    else
+      if busy do
+        Logger.warning("Failed to load key-value entry after retries")
+
+        :telemetry.execute(
+          [:cache, :kv, :read_through, :retry],
+          %{count: attempt},
+          %{status: :exhausted}
+        )
+
+        {:error, :busy}
+      else
+        {:error, :not_found}
+      end
+    end
+  end
+
+  defp busy_error?(error) do
+    case error do
+      %Exqlite.Error{message: msg} when is_binary(msg) ->
+        String.contains?(msg, ["database is locked", "SQLITE_BUSY"])
+
+      _ ->
+        false
     end
   end
 
