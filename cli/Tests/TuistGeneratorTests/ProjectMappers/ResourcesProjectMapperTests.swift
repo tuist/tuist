@@ -1005,6 +1005,27 @@ struct ResourcesProjectMapperTests {
         #expect(xcstringsSources.first?.path == expectedXcstringsPath)
     }
 
+    @Test
+    func mapWhenStaticTargetHasResourcesSetsPackageResourceBundleName() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [
+            .file(path: "/Resources/Assets.xcassets"),
+        ]
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        let expectedBundleName = "\(project.name)_\(target.name)"
+        let bundleNameSetting = gotTarget.settings?.base["PACKAGE_RESOURCE_BUNDLE_NAME"]
+        #expect(bundleNameSetting == .string(expectedBundleName))
+    }
+
     // MARK: - Helpers
 
     private func verifySideEffects(
