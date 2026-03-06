@@ -1,9 +1,12 @@
+import { flashCopyCheck } from "./code-copy.js";
+
 function setupCodeGroups(el) {
   const groups = el.querySelectorAll(".code-group");
 
   groups.forEach((group) => {
     const tabs = group.querySelectorAll('[data-part="tab"]');
     const panels = group.querySelectorAll('[data-part="panel"]');
+    const copyBtn = group.querySelector('[data-part="header"] > [data-part="copy"]');
 
     tabs.forEach((tab) => {
       tab.addEventListener("click", () => {
@@ -21,6 +24,21 @@ function setupCodeGroups(el) {
         });
       });
     });
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const activePanel = group.querySelector('[data-part="panel"]:not([data-hidden="true"])');
+        if (activePanel) {
+          const codeBlock = activePanel.querySelector('[data-part="code"]');
+          if (codeBlock) {
+            navigator.clipboard
+              .writeText(codeBlock.textContent.trim())
+              .then(() => flashCopyCheck(copyBtn))
+              .catch((err) => console.error("Failed to copy code:", err));
+          }
+        }
+      });
+    }
   });
 }
 

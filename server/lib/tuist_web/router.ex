@@ -314,7 +314,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_docs]
 
     live_session :docs do
-      live "/en", DocsOverviewLive, :show, metadata: %{type: :docs}
+      live "/en", DocsLive, :overview, metadata: %{type: :docs}
       live "/en/*path", DocsLive, :show, metadata: %{type: :docs}
     end
 

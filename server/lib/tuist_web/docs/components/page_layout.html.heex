@@ -12,20 +12,24 @@
       aria-label="Documentation navigation"
       phx-update="ignore"
     >
-      <.link patch="/docs/en" data-part="nav-link">
-        <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/en"}>
-          <:icon_left>
-            <.icon name="smart_home" />
-          </:icon_left>
-        </.tab_menu_vertical>
-      </.link>
-      <div :for={group <- @tree} data-part="nav-section">
-        <.line_divider />
-        <div data-part="content-divider">
-          <.icon name={group_icon(group.label)} />
-          <span>{group.label}</span>
+      <div data-part="sidebar-scroll">
+        <.link :if={@tab == :guides} patch="/docs/en" data-part="nav-link">
+          <.tab_menu_vertical label="Overview" data-selected={@current_slug == "/en"}>
+            <:icon_left>
+              <.icon name="smart_home" />
+            </:icon_left>
+          </.tab_menu_vertical>
+        </.link>
+        <div :for={group <- @tree} data-part="nav-section">
+          <.line_divider />
+          <div data-part="content-divider">
+            <.icon name={group_icon(group.label)} />
+            <span>{group.label}</span>
+          </div>
+          <div data-part="nav-items">
+            <.nav_items items={group.items} current_slug={@current_slug} />
+          </div>
         </div>
-        <.nav_items items={group.items} current_slug={@current_slug} />
       </div>
     </nav>
     <div data-part="content">
