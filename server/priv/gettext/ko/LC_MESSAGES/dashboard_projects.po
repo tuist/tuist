@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -596,8 +596,9 @@ msgstr "local"
 msgid "Add threshold"
 msgstr "추가 임계값"
 
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "전체"
 
 #, fuzzy
 msgid "Baseline branch"
@@ -641,8 +642,9 @@ msgstr "번들 크기가 한도를 초과할 때 PR을 차단하는 임계값 �
 msgid "Create size threshold"
 msgstr "크기 기준값 생성"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "편차 (%)"
 
 #, fuzzy
 msgid "No size thresholds"
