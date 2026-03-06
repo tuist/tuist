@@ -174,7 +174,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/builds/insights" data-part="feature-card">
+            <.link navigate="/docs/en/guides/features/insights" data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -196,7 +196,7 @@ defmodule TuistWeb.DocsLive do
           </p>
           <div data-part="feature-cards">
             <.link
-              navigate="/docs/en/guides/features/tests/selective-testing"
+              navigate="/docs/en/guides/features/selective-testing"
               data-part="feature-card"
             >
               <div data-part="feature-card-image">
@@ -209,7 +209,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/tests/flaky-tests" data-part="feature-card">
+            <.link navigate="/docs/en/guides/features/test-insights/flaky-tests" data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.progress_x /></span>
                 <span data-part="feature-card-title">Flaky Tests</span>
@@ -220,7 +220,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/tests/insights" data-part="feature-card">
+            <.link navigate="/docs/en/guides/features/test-insights" data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.search /></span>
                 <span data-part="feature-card-title">Insights</span>
@@ -241,7 +241,7 @@ defmodule TuistWeb.DocsLive do
             From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating.
           </p>
           <div data-part="feature-cards">
-            <.link navigate="/docs/en/guides/features/qa/previews" data-part="feature-card">
+            <.link navigate="/docs/en/guides/features/previews" data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.devices /></span>
                 <span data-part="feature-card-title">Previews</span>
@@ -252,7 +252,7 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/qa/agentic-qa" data-part="feature-card">
+            <.link navigate="/docs/en/guides/features/qa" data-part="feature-card">
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.checkup_list /></span>
                 <span data-part="feature-card-title">Agentic QA</span>

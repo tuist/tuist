@@ -72,9 +72,81 @@
     max-width: 100%;
   }
 
-  & .noora-table td {
-    padding: var(--noora-spacing-5) var(--noora-spacing-7);
+  & .noora-table th {
+    padding: var(--noora-spacing-4) var(--noora-spacing-7)
+      var(--noora-spacing-5) var(--noora-spacing-7);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-align: left;
+  }
+
+  & .noora-table table tbody tr td {
+    background-color: var(--noora-surface-background-primary);
+    padding: 22px var(--noora-spacing-7);
     font: var(--noora-font-body-medium);
+    vertical-align: middle;
+    color: var(--noora-surface-label-primary);
+    line-height: 20px;
+  }
+
+  & .noora-table table tbody tr:not(:first-child) td {
+    box-shadow:
+      0 1px 0 0
+        light-dark(var(--noora-neutral-light-400), oklch(0% 0 0 / 80%))
+        inset,
+      0px 2px 0px 0px
+        light-dark(
+          oklch(from var(--noora-neutral-light-500) l c h / 30%),
+          oklch(from var(--noora-neutral-dark-900) l c h / 35%)
+        )
+        inset;
+  }
+
+  & .docs-home-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-7);
+  }
+
+  & .docs-home-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    transition: box-shadow 0.15s ease;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: 12px;
+    background: var(--noora-surface-background-primary);
+    width: 370px;
+    overflow: hidden;
+    text-decoration: none;
+
+    &:hover {
+      box-shadow: var(--noora-light-border-focus);
+    }
+
+    & .docs-home-card-image {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: var(--noora-light-border-default);
+      border-radius: 12px;
+      background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+      height: 120px;
+    }
+
+    & strong {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & .docs-home-card-body {
+      padding: 0 var(--noora-spacing-5) var(--noora-spacing-5);
+    }
+
+    & .docs-home-card-body p {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
   }
 
   & b,
@@ -82,7 +154,7 @@
     font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
   }
 
-  & a:not(.heading-anchor) {
+  & a:not(.heading-anchor):not(.docs-home-card) {
     color: var(--noora-button-primary-background);
     text-decoration: underline;
   }

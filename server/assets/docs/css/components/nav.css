@@ -12,11 +12,16 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
+    align-items: center;
     gap: var(--noora-spacing-8);
 
-    & > [data-part="logo"] {
-      width: 40px;
-      height: 40px;
+    & > [data-part="logo-link"] {
+      display: flex;
+
+      & > [data-part="logo"] {
+        width: 40px;
+        height: 40px;
+      }
     }
   }
 

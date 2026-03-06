@@ -6,7 +6,7 @@ defmodule Tuist.Docs.Sidebar do
 
   defmodule Item do
     @moduledoc false
-    defstruct [:label, :slug, :icon, items: []]
+    defstruct [:label, :slug, :icon, :url, items: []]
   end
 
   defmodule Group do
@@ -281,7 +281,19 @@ defmodule Tuist.Docs.Sidebar do
   def resources_tree do
     [
       %Group{
-        label: "Resources",
+        label: nil,
+        items: [
+          %Item{label: "Changelog", url: "https://github.com/tuist/tuist/releases"},
+          %Item{label: "API documentation", url: "https://tuist.dev/api/docs"},
+          %Item{label: "Status", url: "https://status.tuist.io"},
+          %Item{
+            label: "Metrics dashboard",
+            url: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9"
+          }
+        ]
+      },
+      %Group{
+        label: "Contributors",
         items: [
           %Item{
             label: "Code",
