@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ru/>\n"
 "Language: ru\n"
@@ -776,64 +776,90 @@ msgstr "Среда"
 msgid "local"
 msgstr "local"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "Добавить порог"
 
 #, fuzzy
 msgid "All"
 msgstr "Все"
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "Базовая ветвь"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
+"Блокируйте PR, если размер пакета превышает пороговое значение по сравнению "
+"с базовой веткой."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"Блокируйте PR, если <strong>%{size_label}</strong> увеличивается более чем "
+"на <strong>%{deviation}%</strong> по сравнению с последним пакетом на "
+"<strong>%{baseline_branch}</strong>."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"Блокируйте PR, если <strong>%{size_label}</strong> из <strong>%{bundle_name}"
+"</strong> увеличивается более чем на <strong>%{deviation}%</strong> по "
+"сравнению с последним пакетом на <strong>%{baseline_branch}</strong>."
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "Название пакета"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr ""
+msgstr "Создайте порог для блокировки PR, когда размер пакета превышает лимит"
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "Создать пороговое значение размера"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "Отклонение %"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "Без ограничений по размеру"
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "Пороговые значения размера"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "Название порога"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "Пороги"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "Обновление порогового значения размера"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "Подключите GitHub"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr ""
+"Подключите приложение Tuist GitHub, чтобы включить проверку размера пакета в "
+"PR."
 
 #, fuzzy
 #~ msgid ""
