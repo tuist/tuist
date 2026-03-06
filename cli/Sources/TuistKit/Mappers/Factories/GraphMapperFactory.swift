@@ -47,7 +47,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                 testPlan: testPlan,
                 includedTargets: includedTargets,
                 excludedTargets: excludedTargets,
-                isTestingContext: true
+                includedProducts: [.unitTests, .uiTests]
             )
         )
         mappers.append(TreeShakePrunedTargetsGraphMapper())
@@ -159,7 +159,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                     testPlan: testPlan,
                     includedTargets: includedTargets,
                     excludedTargets: excludedTargets,
-                    isTestingContext: true
+                    includedProducts: [.unitTests, .uiTests]
                 )
             )
             mappers.append(TreeShakePrunedTargetsGraphMapper())

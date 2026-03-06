@@ -34,19 +34,19 @@ public struct FocusTargetsGraphMappers: GraphMapping {
     /// The targets to be kept as non prunable with their respective dependencies and tests targets.
     public let includedTargets: Set<TargetQuery>
     public let excludedTargets: Set<TargetQuery>
-    /// When true and no explicit filters are provided, automatically focuses on test targets and their dependencies.
-    public let isTestingContext: Bool
+    /// When no explicit filters are provided, only targets matching these products and their dependencies are kept as non-prunable.
+    public let includedProducts: Set<Product>
 
     public init(
         testPlan: String? = nil,
         includedTargets: Set<TargetQuery>,
         excludedTargets: Set<TargetQuery> = [],
-        isTestingContext: Bool = false
+        includedProducts: Set<Product> = []
     ) {
         self.testPlan = testPlan
         self.includedTargets = includedTargets
         self.excludedTargets = excludedTargets
-        self.isTestingContext = isTestingContext
+        self.includedProducts = includedProducts
     }
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
@@ -56,9 +56,8 @@ public struct FocusTargetsGraphMappers: GraphMapping {
         let hasExplicitFilters = !includedTargets.isEmpty || !excludedTargets.isEmpty || testPlan != nil
         let sourceTargets: Set<GraphTarget>
 
-        if isTestingContext, !hasExplicitFilters {
-            let testTargets = graphTraverser.allTargets().filter { $0.target.product.testsBundle }
-            sourceTargets = testTargets
+        if !includedProducts.isEmpty, !hasExplicitFilters {
+            sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
         } else {
             let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(
                 basedOn: graphTraverser.allTargets(),

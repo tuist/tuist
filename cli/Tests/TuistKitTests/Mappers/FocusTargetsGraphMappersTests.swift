@@ -219,12 +219,12 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_testing_context_prunes_non_test_dependency_targets() throws {
+    func test_map_when_included_products_prunes_non_test_dependency_targets() throws {
         // Given
         let framework = Target.test(name: "Framework")
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
         let exampleApp = Target.test(name: "FrameworkExample", product: .app)
-        let subject = FocusTargetsGraphMappers(includedTargets: Set(), isTestingContext: true)
+        let subject = FocusTargetsGraphMappers(includedTargets: Set(), includedProducts: [.unitTests, .uiTests])
         let path = try temporaryPath()
         let project = Project.test(path: path, targets: [framework, frameworkTests, exampleApp])
         let graph = Graph.test(
@@ -249,14 +249,14 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         XCTAssertEqual(pruningTargets.map(\.name), [exampleApp.name])
     }
 
-    func test_map_when_testing_context_with_explicit_filters_uses_filters() throws {
+    func test_map_when_included_products_with_explicit_filters_uses_filters() throws {
         // Given
         let framework = Target.test(name: "Framework")
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
         let exampleApp = Target.test(name: "FrameworkExample", product: .app)
         let subject = FocusTargetsGraphMappers(
             includedTargets: [.named("FrameworkExample")],
-            isTestingContext: true
+            includedProducts: [.unitTests, .uiTests]
         )
         let path = try temporaryPath()
         let project = Project.test(path: path, targets: [framework, frameworkTests, exampleApp])
