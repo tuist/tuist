@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-03-02 09:30+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
+"PO-Revision-Date: 2026-03-06 11:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -592,63 +592,85 @@ msgstr "환경"
 msgid "local"
 msgstr "local"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "추가 임계값"
 
 msgid "All"
 msgstr ""
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "기준 분기"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
-msgstr ""
+msgstr "기준 브랜치 대비 번들 크기가 임계값을 초과할 경우 PR 차단"
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"<strong> 의 %{size_label}</strong> 이 <strong> 의 %{deviation}%</strong> "
+"보다 증가할 경우, <strong> 의 %{baseline_branch}</strong> 최신 번들에 비해 "
+"증가한 경우 PR을 차단하십시오."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"<strong> 의 %{size_label}</strong> 가 <strong> 의 %{bundle_name}</strong> "
+"에서 <strong> 의 %{deviation}%</strong> 보다 증가할 경우, <strong> 의 %"
+"{baseline_branch}</strong> 에 있는 최신 번들과 비교하여 블록 PR을 "
+"생성하십시오."
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "번들 이름"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr ""
+msgstr "번들 크기가 한도를 초과할 때 PR을 차단하는 임계값 설정"
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "크기 기준값 생성"
 
 msgid "Deviation %"
 msgstr ""
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "크기 제한 없음"
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "크기 기준"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "임계값 이름"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "임계값"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "크기 임계값 업데이트"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "GitHub 연결"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
-msgstr ""
+msgstr "Tuist GitHub 앱을 연결하여 PR에서 번들 크기 검사를 실행할 수 있도록 하세요."
 
 #, fuzzy
 #~ msgid ""
