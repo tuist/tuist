@@ -1539,14 +1539,26 @@ var products: [Product] = [
 ]
 
 #if os(macOS)
-products.append(contentsOf: [
-    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
-    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
+products.append(
     .library(
         name: "ProjectDescription",
         type: .dynamic,
         targets: ["ProjectDescription"]
-    ),
+    )
+)
+#else
+products.append(
+    .library(
+        name: "ProjectDescription",
+        targets: ["ProjectDescription"]
+    )
+)
+#endif
+
+#if os(macOS)
+products.append(contentsOf: [
+    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
+    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
     .library(
         name: "ProjectAutomation",
         type: .dynamic,
