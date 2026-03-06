@@ -22,7 +22,7 @@
         </.link>
         <div :for={group <- @tree} data-part="nav-section">
           <.line_divider />
-          <div data-part="content-divider">
+          <div :if={group.label} data-part="content-divider">
             <.icon name={group_icon(group.label)} />
             <span>{group.label}</span>
           </div>

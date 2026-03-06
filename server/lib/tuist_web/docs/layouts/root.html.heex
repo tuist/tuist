@@ -28,7 +28,9 @@
   <body data-scrollable="true">
     <nav id="docs-nav">
       <div data-part="header">
-        <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+        <.link navigate="/docs/en" data-part="logo-link">
+          <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+        </.link>
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}

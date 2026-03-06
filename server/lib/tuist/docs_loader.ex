@@ -98,6 +98,7 @@ defmodule Tuist.Docs.Loader do
     markdown
     |> String.replace(@script_setup_regex, "")
     |> localize_link_components()
+    |> convert_home_cards()
     |> strip_custom_heading_ids()
     |> convert_vitepress_containers()
     |> MDEx.to_html!(
@@ -180,6 +181,39 @@ defmodule Tuist.Docs.Loader do
         ~s(<div data-part="code"><code>#{code}</code>) <>
         ~s(</div>) <>
         ~s(</div>)
+    end)
+  end
+
+  @home_cards_regex ~r/<HomeCards>\s*(.*?)\s*<\/HomeCards>/s
+  @home_card_icon_regex ~r/\s+icon="[^"]*"/
+  @home_card_regex ~r/<HomeCard\s+([^>]*?)\/>/s
+  @home_card_attr_regex ~r/(\w+)="([^"]*)"/
+
+  defp convert_home_cards(markdown) do
+    Regex.replace(@home_cards_regex, markdown, fn _, content ->
+      # Strip icon attributes first (they contain HTML with > that breaks parsing)
+      content = Regex.replace(@home_card_icon_regex, content, "")
+
+      cards =
+        Regex.scan(@home_card_regex, content)
+        |> Enum.map_join("", fn [_, attrs_str] ->
+          attrs =
+            Regex.scan(@home_card_attr_regex, attrs_str)
+            |> Enum.map(fn [_, key, value] -> {key, value} end)
+            |> Map.new()
+
+          title = Map.get(attrs, "title", "")
+          details = Map.get(attrs, "details", "")
+          link = Map.get(attrs, "link", "")
+          link_href = if link != "", do: "/docs/en#{link}", else: "#"
+
+          ~s(<a href="#{link_href}" class="docs-home-card">) <>
+            ~s(<div class="docs-home-card-image"><strong>#{title}</strong></div>) <>
+            ~s(<div class="docs-home-card-body"><p>#{details}</p></div>) <>
+            ~s(</a>)
+        end)
+
+      ~s(<div class="docs-home-cards">#{cards}</div>\n)
     end)
   end
 
@@ -301,11 +335,16 @@ defmodule Tuist.Docs.Loader do
     icon = admonition_icon(status)
     title_text = if title && title != "", do: capitalize_title(title), else: default_admonition_title(type)
 
+    cleaned_content =
+      content
+      |> String.replace(~r/<!--\s*-->/, "")
+      |> String.trim()
+
     ~s(<div class="noora-alert" data-type="secondary" data-status="#{status}" data-size="large">) <>
       ~s(<div data-part="icon">#{icon}</div>) <>
       ~s(<div data-part="column">) <>
       ~s(<span data-part="title">#{title_text}</span>) <>
-      ~s(<div data-part="description">\n\n#{String.trim(content)}\n\n</div>) <>
+      ~s(<div data-part="description">\n\n#{cleaned_content}\n\n</div>) <>
       ~s(</div>) <>
       ~s(</div>\n)
   end
