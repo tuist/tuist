@@ -330,21 +330,12 @@ defmodule Tuist.Docs.Sidebar do
 
     [
       %Group{
-        label: "Xcode",
+        label: "Examples",
         items: [
           %Item{
             label: "Generated projects",
-            items: [
-              %Item{
-                label: "Project description",
-                url: "https://tuist.dev/api/docs"
-              },
-              %Item{
-                label: "Examples",
-                slug: "/en/references/examples/generated-projects",
-                items: example_items
-              }
-            ]
+            slug: "/en/references/examples/generated-projects",
+            items: example_items
           }
         ]
       },
@@ -352,6 +343,10 @@ defmodule Tuist.Docs.Sidebar do
         label: "References",
         items: [
           %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
+          %Item{
+            label: "Project description",
+            url: "https://tuist.dev/api/docs"
+          },
           %Item{
             label: "Migrations",
             items: [

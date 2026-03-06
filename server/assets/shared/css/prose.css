@@ -186,6 +186,8 @@
   & h2,
   & h3,
   & h4 {
+    scroll-margin-top: calc(var(--docs-nav-height, 0px) + var(--noora-spacing-5));
+
     & a.heading-anchor {
       display: inline-flex;
       align-items: baseline;
