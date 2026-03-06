@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-27 15:57+0000\n"
+"PO-Revision-Date: 2026-03-06 08:52+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ar/>\n"
@@ -770,63 +770,87 @@ msgstr "البيئة"
 msgid "local"
 msgstr "محلي"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "أضف عتبة"
 
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "الكل"
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "فرع خط الأساس"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
+"قم بحظر طلبات السحب عندما يتجاوز حجم الحزمة الحد الأقصى مقارنة بفرع خط الأساس"
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"قم بحظر طلبات السحب (PR) عندما يزيد <strong>%{size_label}</strong> بأكثر من "
+"<strong>%{deviation}%</strong> مقارنة بأحدث حزمة على <strong>%"
+"{baseline_branch}</strong>."
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"قم بحظر طلبات السحب (PR) عندما يزيد <strong>%{size_label}</strong> من "
+"<strong>%{bundle_name}</strong> بأكثر من <strong>%{deviation}%</strong> "
+"مقارنةً بأحدث حزمة على <strong>%{baseline_branch}</strong>."
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "اسم الحزمة"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr ""
+msgstr "قم بإنشاء عتبة لحظر طلبات السحب عندما يتجاوز حجم الحزمة الحد الأقصى"
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "إنشاء حد أدنى للحجم"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "نسبة الانحراف"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "لا توجد حدود دنيا للحجم"
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "حدود الحجم"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "اسم العتبة"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "الحدود"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "تحديث حد الحجم"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "اتصل بـ GitHub"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
-msgstr ""
+msgstr "قم بتوصيل تطبيق Tuist GitHub لتمكين تشغيل فحص حجم الحزمة على PRs."
 
 #, fuzzy
 #~ msgid ""
