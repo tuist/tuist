@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.155.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* exclude non-test-dependency targets from workspace scheme build action by [@fortmarek](https://github.com/fortmarek) in [#9741](https://github.com/tuist/tuist/pull/9741)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.3
+
 ## What's Changed in 4.155.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
