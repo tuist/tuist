@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ja/>\n"
 "Language: ja\n"
@@ -767,64 +767,90 @@ msgstr "環境"
 msgid "local"
 msgstr "local"
 
+#, fuzzy
 msgid "Add threshold"
-msgstr ""
+msgstr "閾値を追加"
 
 #, fuzzy
 msgid "All"
 msgstr "すべて"
 
+#, fuzzy
 msgid "Baseline branch"
-msgstr ""
+msgstr "ベースラインブランチ"
 
+#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr ""
+"ベースラインブランチと比較してバンドルサイズが閾値を超えた場合、"
+"プルリクエストをブロックする"
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
+"<strong>%{size_label}</strong> が、<strong>%{baseline_branch}</strong> の最新"
+"バンドルと比較して<strong>%{deviation}%</strong> 以上増加した場合、PR を"
+"ブロックする。"
 
+#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
+"<strong>%{size_label}</strong> of<strong>%{bundle_name}</strong> が、<strong>"
+"%{baseline_branch}</strong> 上の最新バンドルと比較して<strong>%{deviation}%</"
+"strong> 以上増加した場合、PR をブロックする。"
 
+#, fuzzy
 msgid "Bundle name"
-msgstr ""
+msgstr "バンドル名"
 
+#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr ""
+msgstr "バンドルサイズが制限を超えた場合にPRをブロックするしきい値を設定する"
 
+#, fuzzy
 msgid "Create size threshold"
-msgstr ""
+msgstr "サイズ閾値を作成する"
 
+#, fuzzy
 msgid "Deviation %"
-msgstr ""
+msgstr "偏差率"
 
+#, fuzzy
 msgid "No size thresholds"
-msgstr ""
+msgstr "サイズ制限なし"
 
+#, fuzzy
 msgid "Size thresholds"
-msgstr ""
+msgstr "サイズ閾値"
 
+#, fuzzy
 msgid "Threshold name"
-msgstr ""
+msgstr "閾値名"
 
+#, fuzzy
 msgid "Thresholds"
-msgstr ""
+msgstr "閾値"
 
+#, fuzzy
 msgid "Update size threshold"
-msgstr ""
+msgstr "サイズ閾値を更新"
 
+#, fuzzy
 msgid "Connect GitHub"
-msgstr ""
+msgstr "GitHubを接続"
 
+#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr ""
+"Tuist GitHub Appを接続して、プルリクエストでのバンドルサイズチェックを有効に"
+"します。"
 
 #, fuzzy
 #~ msgid ""
