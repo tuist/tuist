@@ -1,4 +1,13 @@
 <%= for item <- @items do %>
+  <%= if item.url do %>
+    <.link href={item.url} target="_blank" rel="noopener noreferrer" data-part="nav-link">
+      <.tab_menu_vertical label={item.label}>
+        <:icon_right>
+          <.icon name="external_link" />
+        </:icon_right>
+      </.tab_menu_vertical>
+    </.link>
+  <% else %>
   <%= if item.items == [] do %>
     <.link patch={"/docs#{item.slug}"} data-part="nav-link">
       <.tab_menu_vertical
@@ -74,5 +83,6 @@
         </div>
       </div>
     </div>
+  <% end %>
   <% end %>
 <% end %>

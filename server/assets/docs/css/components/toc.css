@@ -44,6 +44,7 @@
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
+    scrollbar-width: none;
     list-style: none;
 
     [data-part="item"] {
