@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,7 +38,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>オープンソースへのコミットメントとコアバリューが、独自の価格設定アプローチを形成しています。「営業へお問い合わせ」、限定デモ、その他のセールス戦術でお客様から少しでも多く引き出そうとする多くのモデルとは異なり、私たちは公正さと透明性を信じています。すべての人を平等に扱い、誰にとっても公平な価格を設定します。私たちのサービスを選ぶことで、優れた製品を手に入れるだけでなく、より多くのオープンソースプロジェクトの開発を支援することになります。繁栄するビジネスの構築は長期的な旅であり、怪しい慣習に満ちた短期スプリントではないと考えています。私たちの理念については%{read_more}をご覧ください。</p>\n<p>Tuistをサポートすることで、Swiftエコシステムのためのより多くのオープンソースソフトウェアの開発も支援することになります。</p>\n"
+msgstr ""
+"<p>オープンソースへのコミットメントとコアバリューが、独自の価格設定アプローチを形成しています。「営業へお問い合わせ」、限定デモ、その他のセールス戦術でお客様から少しでも多く引き出そうとする多くのモデルとは異なり、私たちは公正さと透明性を信じています。すべての人を平等に扱い、誰にとっても公平な価格を設定します。私たちのサービスを選ぶことで、優れた製品を手に入れるだけでなく、より多くのオープンソースプロジェクトの開発を支援することになります。繁栄するビジネスの構築は長期的な旅であり、怪しい慣習に満ちた短期スプリントではないと考えています。私たちの理念については%{read_more}をご覧ください。</p>\n"
+"<p>Tuistをサポートすることで、Swiftエコシステムのためのより多くのオープンソースソフトウェアの開発も支援することになります。</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "詳細を記載した確認メールをお送りしました。"
@@ -883,9 +885,6 @@ msgstr "から"
 msgid "per additional unit"
 msgstr "追加1ユニットあたり"
 
-msgid "AI writes faster. So should your builds."
-msgstr "AIは速く書く。ビルドも速くあるべき。"
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "サーバーと連携してテスト結果情報を取得するTuistコマンド実行。概算として、これはCIでのテスト実行回数にほぼ相当します。"
 
@@ -912,3 +911,166 @@ msgstr "ダッシュボードでライブ表示"
 
 msgid "Language"
 msgstr "言語"
+
+#, fuzzy
+msgid "Read story"
+msgstr "ストーリーを読む"
+
+#, fuzzy
+msgid "%{company} case study"
+msgstr "%{company} 事例研究"
+
+#, fuzzy
+msgid "(opens in new tab)"
+msgstr "(新しいタブで開く)"
+
+#, fuzzy
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr "世界中のチームがTuistを活用し、高品質なアプリを迅速に構築し、ワークフローを効率化し、膨大なエンジニアリング時間を節約している方法をぜひご覧ください。"
+
+#, fuzzy
+msgid "Founded"
+msgstr "設立"
+
+#, fuzzy
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr "チームがTuistを活用してiOS開発をスケールさせる方法をご覧ください。"
+
+#, fuzzy
+msgid "Onboarded"
+msgstr "オンボーディング済み"
+
+#, fuzzy
+msgid "Read next"
+msgstr "続きを読む"
+
+#, fuzzy
+msgid "Explore Tuist's features on the public dashboard"
+msgstr "パブリックダッシュボードでTuistの機能を探索する"
+
+#, fuzzy
+msgid "Public dashboard"
+msgstr "公開ダッシュボード"
+
+#, fuzzy
+msgid "See how leading teams scale with Tuist"
+msgstr "Tuistでトップチームがどのようにスケールするかをご覧ください"
+
+#, fuzzy
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr "主要テクノロジー企業がTuistで開発を拡大している様子をご覧ください。"
+
+#, fuzzy
+msgid "AI moves fast. So should your builds."
+msgstr "AIは速く動く。ビルドも同様に速くあるべきだ。"
+
+#, fuzzy
+msgid "Customers"
+msgstr "お客様"
+
+#, fuzzy
+msgid "Tuist Customers"
+msgstr "Tuist Customers"
+
+#, fuzzy
+msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+msgstr "チェックアウトフローのQAテストを実施し、8件の問題を特定、16枚のスクリーンショットを撮影"
+
+#, fuzzy
+msgid "App preview interface showing share preview button and platform options"
+msgstr "共有プレビューボタンとプラットフォームオプションを表示するアプリプレビューインターフェース"
+
+#, fuzzy
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr "コード変更なしに失敗する不安定なテストを自動検出し、誤った失敗の調査に費やす時間を削減します。"
+
+#, fuzzy
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr "ビルド期間のメトリクス（p90、p99、平均パーセンタイル）を示すインサイトチャートを作成する"
+
+#, fuzzy
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr "キャッシュヒット率ダッシュボード：今週のヒット率90%、節約時間14.2時間"
+
+#, fuzzy
+msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+msgstr "モジュラー化されたXcodeプロジェクトの複雑さを概念的に圧縮し、保守性と拡張性を高める。"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "不安定なテスト"
+
+#, fuzzy
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr "テスト履歴と自動化作成モーダルを表示する不安定なテストダッシュボード"
+
+#, fuzzy
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr "コードからフィードバックまで数分で。即時プレビューとAI駆動のテストが、構築と検証のループを閉じる。"
+
+#, fuzzy
+msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+msgstr "プルリクエストで@tuist-qaをメンションすると、AIエージェントが実際のユーザーのようにアプリをテストし、エッジケースを探索してスクリーンショットやログ付きで問題を報告します。"
+
+#, fuzzy
+msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+msgstr "ローカル環境とCI環境におけるビルドパフォーマンスを監視し、ボトルネック化する前に遅延を検知する。"
+
+#, fuzzy
+msgid "Quality assurance"
+msgstr "品質保証"
+
+#, fuzzy
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr "前回の実行成功以降の変更点を検知し、必要なテストのみを実行することで、ローカル開発環境とCIの両方でテスト時間を短縮します。"
+
+#, fuzzy
+msgid "Selective Testing"
+msgstr "選択的テスト"
+
+#, fuzzy
+msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+msgstr "選択的テストダッシュボード（スキップされたテストを表示）：今週スキップされたテスト数 134/196、節約時間 15.8時間"
+
+#, fuzzy
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr "アプリをURLで即座に共有。TestFlightの待ち時間なし、クリックするだけであらゆるシミュレータやデバイスで実行可能。"
+
+#, fuzzy
+msgid "Test Insights"
+msgstr "テストインサイト"
+
+#, fuzzy
+msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+msgstr "テストインサイト（テスト実行、不安定なテスト、失敗したテスト実行、p90テスト実行時間メトリクスを表示）"
+
+#, fuzzy
+msgid "Tests"
+msgstr "テスト"
+
+#, fuzzy
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr "テストの実行状況を追跡し、遅いテストを早期に発見し、ログを掘り下げることなくCIの失敗をデバッグします。"
+
+#, fuzzy
+msgid "Download only what you need — faster, lighter builds locally and on CI."
+msgstr "必要なものだけダウンロード — ローカル環境でもCI環境でも、より高速で軽量なビルドを実現。"
+
+#, fuzzy
+msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+msgstr "モジュール化されたXcodeプロジェクトを簡素化し、ローカルおよびCIビルドを高速化する追加機能。"
+
+#, fuzzy
+msgid "Other features"
+msgstr "その他の機能"
+
+#, fuzzy
+msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+msgstr "変更内容に基づく影響のあるテストのみを実行し、フィードバックループを高速化して待ち時間を削減します — ローカル環境でもCI環境でも同様です。"
+
+#, fuzzy
+msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+msgstr "手動作業を省略し、プロジェクトを自動生成、ビルドを高速化し、組み込み分析機能でインサイトを探索しましょう。"
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "AIは速く書く。ビルドも速くあるべき。"
