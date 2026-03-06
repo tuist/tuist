@@ -29,7 +29,8 @@ defmodule TuistWeb.GenerateRunsLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: _project}} = socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: _project}} = socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
