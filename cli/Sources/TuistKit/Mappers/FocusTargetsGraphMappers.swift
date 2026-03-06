@@ -34,7 +34,8 @@ public struct FocusTargetsGraphMappers: GraphMapping {
     /// The targets to be kept as non prunable with their respective dependencies and tests targets.
     public let includedTargets: Set<TargetQuery>
     public let excludedTargets: Set<TargetQuery>
-    /// When no explicit filters are provided, only targets matching these products and their dependencies are kept as non-prunable.
+    /// When no explicit filters are provided, only targets matching these products
+    /// and their dependencies are kept as non-prunable.
     public let includedProducts: Set<Product>
 
     public init(
