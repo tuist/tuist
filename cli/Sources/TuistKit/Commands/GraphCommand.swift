@@ -81,6 +81,13 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
+    @Flag(
+        name: [.customShort("i"), .long],
+        help: "Start an interactive graph server in the browser.",
+        envKey: .graphInteractive
+    )
+    var interactive: Bool = false
+
     public func run() async throws {
         try await GraphService().run(
             format: format,
@@ -93,7 +100,8 @@ public struct GraphCommand: AsyncParsableCommand {
             path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+                .currentPath,
+            interactive: interactive
         )
     }
 }

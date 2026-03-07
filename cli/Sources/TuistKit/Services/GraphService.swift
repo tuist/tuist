@@ -10,6 +10,7 @@ import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistGenerator
+import TuistGraphServer
 import TuistLoader
 import TuistLogging
 import TuistPlugin
@@ -67,7 +68,8 @@ struct GraphService {
         platformToFilter: Platform?,
         targetsToFilter: [String],
         path: AbsolutePath,
-        outputPath: AbsolutePath
+        outputPath: AbsolutePath,
+        interactive: Bool = false
     ) async throws {
         let config = try await configLoader.loadConfig(path: path)
         let graph: XcodeGraph.Graph
@@ -78,6 +80,17 @@ struct GraphService {
             )
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
+        }
+
+        if interactive {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+            let jsonData = try encoder.encode(graph)
+            let port = 8081
+            let server = GraphServer(graphJSON: jsonData, port: port, openBrowser: open)
+            Logger.current.notice("Starting interactive graph server at http://localhost:\(port) — press Ctrl-C to stop")
+            try server.start()
+            return
         }
 
         let fileExtension = switch format {
