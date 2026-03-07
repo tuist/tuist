@@ -110,7 +110,7 @@ struct InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "BNDL"
         case .staticFramework, .framework:
             packageType = "FMWK"
-        case .watch2App, .watch2Extension, .tvTopShelfExtension:
+        case .watch2App, .watch2AppContainer, .watch2Extension, .tvTopShelfExtension:
             packageType = "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         case .appExtension, .stickerPackExtension, .messagesExtension, .xpc, .extensionKitExtension:
             packageType = "XPC!"
