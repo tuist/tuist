@@ -22,9 +22,10 @@ Use the resolver that matches the project type. Migrate all package references f
 1. Detect the project type and where dependencies are declared.
 2. If the project uses generated Tuist projects with `.remote` packages in `Project.swift`, enable `registryEnabled` in `Tuist.swift` and remove tracked generated `.xcworkspace` directories if the repo commits them.
 3. Otherwise, migrate the relevant `Package.swift` or Xcode-managed package references directly.
-4. Convert all eligible package references from URL-based declarations to registry-based ones.
-5. Run the matching resolver command once after all package changes.
-6. If resolution fails because a package is not available in the registry, revert that package and retry.
+4. Convert all eligible package references from URL-based declarations to registry-based `id:` references.
+5. Keep a short list of packages that do not support the registry yet.
+6. Run the matching resolver command once after all `id:` migrations are complete.
+7. If resolution fails because a package is not available in the registry, revert that package, add it to the unsupported list, and retry.
 
 ## Registry Setup
 
@@ -144,6 +145,22 @@ Example:
 https://github.com/groue/GRDB.swift -> groue.GRDB_swift
 ```
 
+## Track Unsupported Packages
+
+Keep a small migration log while converting dependencies:
+
+```text
+Registry-supported
+- apple.swift-log
+- tuist.XcodeProj
+
+Registry-unsupported
+- someorg.some-private-package
+- example.LegacyPackage
+```
+
+Use this list to explain which packages stayed URL-based after the final resolve step.
+
 ## Migration Workflow
 
 ### Step 1 - Prepare the project
@@ -159,6 +176,8 @@ eval "$(mise activate bash)"
 ### Step 2 - Convert all package references
 
 - Update every eligible package declaration in the project type you detected.
+- Convert all packages you expect to support the registry before running the resolver.
+- Keep a running list of packages that still need to stay URL-based.
 - For generated Tuist projects with XcodeProj-based integration or `.external` integration, you can also keep URL declarations and rely on `--replace-scm-with-registry` when that better matches the project setup.
 - For Xcode projects, replace packages in Xcode rather than editing generated artifacts by hand.
 
@@ -180,9 +199,9 @@ swift package resolve
 xcodebuild -resolvePackageDependencies
 ```
 
-### Step 4 - Handle failures
+### Step 4 - Handle failures and trace unsupported packages
 
-- **`package not found on registry`**: revert that package to its original URL-based declaration and resolve again.
+- **`package not found on registry`**: revert that package to its original URL-based declaration, record it in the unsupported list, and resolve again.
 - **Resolver not found**: activate `mise` or use the project's existing toolchain setup first.
 - **Mixed dependency styles**: keep package declarations in the single location used by that project type.
 
@@ -202,6 +221,7 @@ tuist registry login
 - The correct project type was identified before editing dependencies
 - Registry setup matches the project type
 - All eligible package references were migrated before validation
+- Unsupported packages were recorded and left URL-based
 - Generated `.xcworkspace` directories were removed only when relevant
 - The resolver command for the project type succeeds
 - Packages missing from the registry remain URL-based
