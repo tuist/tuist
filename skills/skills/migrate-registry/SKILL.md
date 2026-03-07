@@ -111,7 +111,9 @@ Xcode does not automatically replace source-control packages with registry packa
 .remote(url: "https://github.com/example/package", requirement: .revision("abc123def456"))
 ```
 
-### Registry-based equivalents
+### Registry-based `package(id:...)` equivalents
+
+The registry overloads support `from:`, `exact:`, open ranges, closed ranges, `.upToNextMajor(from:)`, and `.upToNextMinor(from:)`.
 
 When you migrate to explicit registry references, keep the same semantic version rule where possible:
 
