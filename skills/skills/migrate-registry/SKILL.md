@@ -20,17 +20,17 @@ Use the resolver that matches the project type. Migrate all package references f
 ## Quick Start
 
 1. Detect the project type and where dependencies are declared.
-2. Configure the registry for that project type.
-3. Convert all eligible package references from URL-based declarations to registry-based ones.
-4. Remove tracked generated `.xcworkspace` directories only when working in a generated Tuist project that commits them.
+2. If the project uses generated Tuist projects with `.remote` packages in `Project.swift`, enable `registryEnabled` in `Tuist.swift` and remove tracked generated `.xcworkspace` directories if the repo commits them.
+3. Otherwise, migrate the relevant `Package.swift` or Xcode-managed package references directly.
+4. Convert all eligible package references from URL-based declarations to registry-based ones.
 5. Run the matching resolver command once after all package changes.
 6. If resolution fails because a package is not available in the registry, revert that package and retry.
 
 ## Registry Setup
 
-### Generated Tuist projects
+### Generated Tuist projects using `Project.swift` package references
 
-Enable the registry in `Tuist.swift`:
+If packages are referenced from `Project.swift`, enable the registry in `Tuist.swift`:
 
 ```swift
 let tuist = Tuist(
@@ -42,7 +42,7 @@ let tuist = Tuist(
 )
 ```
 
-`tuist generate` creates the registry configuration automatically.
+`tuist generate` creates the registry configuration automatically. This setup is only needed for generated Tuist projects using package references in `Project.swift`.
 
 ### Swift packages and Xcode projects
 
