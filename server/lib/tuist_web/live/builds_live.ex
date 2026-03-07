@@ -77,15 +77,12 @@ defmodule TuistWeb.BuildsLive do
      |> push_event("replace-url", %{url: "?" <> query})}
   end
 
-  def handle_event("select_widget", %{"widget" => widget}, socket) do
-    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
-    uri = URI.new!("?" <> query)
-
-    {:noreply,
-     socket
-     |> assign(:analytics_selected_widget, widget)
-     |> assign(:uri, uri)
-     |> push_event("replace-url", %{url: "?" <> query})}
+  def handle_event("select_widget", %{"widget" => _widget} = params, %{assigns: %{selected_project: project}} = socket) do
+    if Project.gradle_project?(project) do
+      TuistWeb.GradleBuildsLive.handle_event("select_widget", params, socket)
+    else
+      TuistWeb.XcodeBuildsLive.handle_event("select_widget", params, socket)
+    end
   end
 
   def handle_event(
