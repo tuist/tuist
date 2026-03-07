@@ -16,8 +16,9 @@ definicji projektów jest przydatna z następujących powodów:
   miejscu, a wszystkie projekty otrzymują je automatycznie.
 - Umożliwia to zdefiniowanie konwencji **** , do których mogą dostosować się
   nowe projekty.
-- Projekty są bardziej spójne **** , dzięki czemu prawdopodobieństwo wystąpienia
-  błędów kompilacji spowodowanych niespójnościami jest znacznie mniejsze.
+- Projekty są bardziej spójne **** , dzięki czemu prawdopodobieństwo
+  nieprawidłowego działania kompilacji z powodu niespójności jest znacznie
+  mniejsze.
 - Dodawanie nowych projektów staje się łatwym zadaniem, ponieważ możemy ponownie
   wykorzystać istniejącą logikę.
 
@@ -37,7 +38,7 @@ nie.
 
 ## Pomocnicy opisujący projekt {#project-description-helpers}
 
-Pomocniki opisu projektu to pliki Swift, które są kompilowane do modułu
+Pomocnicy opisu projektu to pliki Swift, które są kompilowane do modułu
 `ProjectDescriptionHelpers`, który może być importowany przez pliki manifestu.
 Moduł jest kompilowany poprzez zebranie wszystkich plików z katalogu
 `Tuist/ProjectDescriptionHelpers`.
@@ -58,9 +59,8 @@ import ProjectDescriptionHelpers
 
 ## Przykład {#example}
 
-Poniższe fragmenty zawierają przykład rozszerzenia modelu projektu `` w celu
-dodania konstruktorów statycznych oraz wykorzystania ich w pliku
-`Project.swift`:
+Poniższe fragmenty zawierają przykład rozszerzenia modelu projektu `` o
+statyczne konstruktory oraz ich wykorzystania w pliku `Project.swift`:
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
