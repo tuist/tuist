@@ -1063,6 +1063,17 @@ var targets: [Target] = [
     ),
 ]
 
+// MARK: - Cross-platform targets (outside macOS gate)
+
+targets.append(contentsOf: [
+    .target(
+        name: "ProjectDescription",
+        dependencies: [],
+        path: "cli/Sources/ProjectDescription",
+        exclude: ["AGENTS.md"]
+    ),
+])
+
 // MARK: - macOS-only targets
 
 #if os(macOS)
@@ -1186,12 +1197,6 @@ targets.append(contentsOf: [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    ),
-    .target(
-        name: "ProjectDescription",
-        dependencies: [],
-        path: "cli/Sources/ProjectDescription",
-        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "ProjectAutomation",
@@ -1561,14 +1566,26 @@ var products: [Product] = [
 ]
 
 #if os(macOS)
-products.append(contentsOf: [
-    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
-    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
+products.append(
     .library(
         name: "ProjectDescription",
         type: .dynamic,
         targets: ["ProjectDescription"]
-    ),
+    )
+)
+#else
+products.append(
+    .library(
+        name: "ProjectDescription",
+        targets: ["ProjectDescription"]
+    )
+)
+#endif
+
+#if os(macOS)
+products.append(contentsOf: [
+    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
+    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
     .library(
         name: "ProjectAutomation",
         type: .dynamic,
@@ -1658,7 +1675,7 @@ let package = Package(
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.15.0")),
-        .package(id: "tuist.Command", .upToNextMajor(from: "0.13.0")),
+        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.0")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "apple.swift-nio", from: "2.70.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
@@ -1667,15 +1684,15 @@ let package = Package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(id: "apple.swift-protobuf", exact: "1.32.0"),
+        .package(id: "apple.swift-protobuf", exact: "1.35.1"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.45")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.46")),
         .package(id: "modelcontextprotocol.swift-sdk", .upToNextMajor(from: "0.9.0")),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.0")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
@@ -1691,6 +1708,7 @@ let package = Package(
         .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
         .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
         .package(id: "apple.swift-algorithms", from: "1.2.1"),
+        .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

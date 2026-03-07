@@ -113,7 +113,8 @@ public struct GeneratorFactory: GeneratorFactorying {
             config: config,
             testPlan: testPlan,
             includedTargets: Set(includedTargets.map(TargetQuery.init(stringLiteral:))),
-            excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:)))
+            excludedTargets: Set(excludedTargets.map(TargetQuery.init(stringLiteral:))),
+            includedProducts: [.unitTests, .uiTests]
         )
         let workspaceMappers = workspaceMapperFactory.automation(
             tuist: config

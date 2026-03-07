@@ -35,6 +35,7 @@ import ScrollIntoView from "./js/ScrollIntoView.js";
 import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
+import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -52,6 +53,7 @@ Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
+Hooks.TextAttachmentContent = TextAttachmentContent;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
@@ -83,6 +85,12 @@ window.addEventListener("phx:navigate", (info) => {
     // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
     posthog.capture("$pageview");
   }
+});
+
+// Replace the browser URL without triggering handle_params (which push_patch would do),
+// avoiding unnecessary assign_async re-fetches when switching widgets.
+window.addEventListener("phx:replace-url", (e) => {
+  history.replaceState(history.state, "", e.detail.url);
 });
 
 // expose liveSocket on window for web console debug logs and latency simulation:

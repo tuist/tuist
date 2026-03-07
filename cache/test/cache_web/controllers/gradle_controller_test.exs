@@ -1,0 +1,274 @@
+defmodule CacheWeb.GradleControllerTest do
+  use ExUnit.Case, async: true
+  use Mimic
+
+  import ExUnit.CaptureLog
+  import Phoenix.ConnTest
+  import Plug.Conn
+
+  alias Cache.Authentication
+  alias Cache.Gradle
+  alias Cache.S3Transfers
+  alias Ecto.Adapters.SQL.Sandbox
+
+  @endpoint CacheWeb.Endpoint
+
+  setup :set_mimic_from_context
+
+  setup context do
+    :ok = Sandbox.checkout(Cache.Repo)
+
+    context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
+
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
+
+    Cache.Disk
+    |> stub(:storage_dir, fn -> test_storage_dir end)
+    |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
+
+    stub(Authentication, :server_url, fn -> "http://localhost:4000" end)
+
+    {:ok, Map.merge(context, %{conn: build_conn(), test_storage_dir: test_storage_dir})}
+  end
+
+  describe "PUT /api/cache/gradle/:cache_key" do
+    test "saves artifact successfully when authenticated", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      body = "test artifact content"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      Gradle.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^cache_key, ^body ->
+        :ok
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> put(
+            "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+            body
+          )
+
+        assert conn.status == 201
+        assert conn.resp_body == ""
+      end)
+
+      :ok = Cache.S3TransfersBuffer.flush()
+
+      uploads = S3Transfers.pending(:upload, 10)
+      assert length(uploads) == 1
+      upload = hd(uploads)
+      assert upload.type == :upload
+      assert upload.account_handle == account_handle
+      assert upload.project_handle == project_handle
+      assert upload.artifact_type == :gradle
+      assert upload.key == "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+    end
+
+    test "streams large artifact to temp file on same filesystem as storage", %{
+      conn: conn,
+      test_storage_dir: test_storage_dir
+    } do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      large_body = :binary.copy("0123456789abcdef", 150_000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      Gradle.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^cache_key, {:file, tmp_path} ->
+        assert File.exists?(tmp_path)
+        assert File.stat!(tmp_path).size == byte_size(large_body)
+
+        assert String.starts_with?(tmp_path, test_storage_dir),
+               "Expected temp file #{tmp_path} to be under storage dir #{test_storage_dir}"
+
+        File.rm(tmp_path)
+        :ok
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
+          |> put(
+            "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+            large_body
+          )
+
+        assert conn.status == 201
+        assert conn.resp_body == ""
+      end)
+
+      :ok = Cache.S3TransfersBuffer.flush()
+
+      uploads = S3Transfers.pending(:upload, 10)
+      assert length(uploads) == 1
+      upload = hd(uploads)
+      assert upload.type == :upload
+      assert upload.account_handle == account_handle
+      assert upload.project_handle == project_handle
+      assert upload.artifact_type == :gradle
+      assert upload.key == "#{account_handle}/#{project_handle}/gradle/ab/c1/#{cache_key}"
+    end
+
+    test "skips save when artifact already exists", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      body = "test artifact content"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Gradle.Disk, :exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        true
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          body
+        )
+
+      assert conn.status == 200
+      assert conn.resp_body == ""
+    end
+
+    test "returns 500 when disk write fails", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      body = "test artifact content"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      Gradle.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^cache_key, ^body ->
+        {:error, :enospc}
+      end)
+
+      capture_log(fn ->
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("content-type", "application/octet-stream")
+          |> put(
+            "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+            body
+          )
+
+        assert conn.status == 500
+        response = json_response(conn, 500)
+        assert response["message"] == "Failed to persist artifact"
+      end)
+    end
+
+    test "treats put_file exists error as success", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+      large_body = :binary.copy("0123456789abcdef", 150_000)
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      Gradle.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^cache_key ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^cache_key, {:file, tmp_path} ->
+        assert File.exists?(tmp_path)
+        File.rm(tmp_path)
+        {:error, :exists}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> Plug.Conn.put_private(:body_read_opts, length: 128_000, read_length: 128_000, read_timeout: 60_000)
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          large_body
+        )
+
+      assert conn.status == 200
+      assert conn.resp_body == ""
+    end
+
+    test "returns 401 when authorization header is missing", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:error, 401, "Missing Authorization header"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          "body"
+        )
+
+      assert conn.status == 401
+      response = json_response(conn, 401)
+      assert response["message"] == "Missing Authorization header"
+    end
+
+    test "returns 404 when project is not accessible", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      cache_key = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:error, 404, "Unauthorized or not found"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer invalid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> put(
+          "/api/cache/gradle/#{cache_key}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          "body"
+        )
+
+      assert conn.status == 404
+      response = json_response(conn, 404)
+      assert response["message"] == "Unauthorized or not found"
+    end
+  end
+end

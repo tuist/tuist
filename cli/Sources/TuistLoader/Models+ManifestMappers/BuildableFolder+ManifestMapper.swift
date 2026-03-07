@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistLogging
+import TuistSupport
 import XcodeGraph
 
 enum BuildableFolderManifestMapperError: FatalError, Equatable {
@@ -39,15 +40,23 @@ extension XcodeGraph.BuildableFolder {
         let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
-        let resolvedFiles = try await fileSystem
+        let allPaths = try await fileSystem
             .glob(directory: path, include: ["**/*"]).collect()
-            .compactMap { path -> BuildableFolderFile? in
-                if exclusions.contains(path) { return nil }
+            .filter { !exclusions.contains($0) }
+        let resolvedFiles = try await allPaths.concurrentCompactMap(maxConcurrentTasks: 100) { filePath -> BuildableFolderFile? in
+            if filePath.isInOpaqueDirectory { return nil }
+            if filePath.isOpaqueDirectory {
                 return BuildableFolderFile(
-                    path: path,
-                    compilerFlags: compilerFlagsByPath[path]
+                    path: filePath,
+                    compilerFlags: compilerFlagsByPath[filePath]
                 )
             }
+            if try await fileSystem.exists(filePath, isDirectory: true) { return nil }
+            return BuildableFolderFile(
+                path: filePath,
+                compilerFlags: compilerFlagsByPath[filePath]
+            )
+        }
 
         return XcodeGraph.BuildableFolder(
             path: path,

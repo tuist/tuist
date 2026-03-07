@@ -26,118 +26,77 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
   end
 
   describe "generate/2" do
-    test "generates access token with projects claim", %{user: user, project: project} do
-      # Given
+    test "generates an account token with type claim", %{user: user} do
       token = %Token{
         sub: Integer.to_string(user.id),
         client_id: "test-client-id"
       }
 
-      # When
       jwt_token = TokenGenerator.generate(:access_token, token)
 
-      # Then
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
-      assert is_list(claims["projects"])
-      assert "#{user.account.name}/#{project.name}" in claims["projects"]
-    end
-
-    test "generates refresh token with projects claim", %{user: user, project: project} do
-      # Given
-      token = %Token{
-        sub: Integer.to_string(user.id),
-        client_id: "test-client-id"
-      }
-
-      # When
-      jwt_token = TokenGenerator.generate(:refresh_token, token)
-
-      # Then
-      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
-      assert is_list(claims["projects"])
-      assert "#{user.account.name}/#{project.name}" in claims["projects"]
+      assert claims["type"] == "account"
+      assert claims["all_projects"] == true
     end
 
     test "includes preferred_username claim", %{user: user} do
-      # Given
       token = %Token{
         sub: Integer.to_string(user.id),
         client_id: "test-client-id"
       }
 
-      # When
       jwt_token = TokenGenerator.generate(:access_token, token)
 
-      # Then
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
       assert claims["preferred_username"] == user.account.name
     end
 
     test "includes email claim", %{user: user} do
-      # Given
       token = %Token{
         sub: Integer.to_string(user.id),
         client_id: "test-client-id"
       }
 
-      # When
       jwt_token = TokenGenerator.generate(:access_token, token)
 
-      # Then
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
       assert claims["email"] == user.email
     end
 
     test "uses access_token_ttl from client for access tokens", %{user: user, client: client} do
-      # Given
       token = %Token{
         sub: Integer.to_string(user.id),
         client_id: "test-client-id"
       }
 
-      # When
       jwt_token = TokenGenerator.generate(:access_token, token)
 
-      # Then
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
-      exp = claims["exp"]
-      iat = claims["iat"]
-      assert exp - iat == client.access_token_ttl
+      assert claims["exp"] - claims["iat"] == client.access_token_ttl
     end
 
     test "uses refresh_token_ttl from client for refresh tokens", %{user: user, client: client} do
-      # Given
       token = %Token{
         sub: Integer.to_string(user.id),
         client_id: "test-client-id"
       }
 
-      # When
       jwt_token = TokenGenerator.generate(:refresh_token, token)
 
-      # Then
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
-      exp = claims["exp"]
-      iat = claims["iat"]
-      assert exp - iat == client.refresh_token_ttl
+      assert claims["exp"] - claims["iat"] == client.refresh_token_ttl
     end
 
     test "returns nil when user not found" do
-      # Given
       token = %Token{
         sub: "99999999",
         client_id: "test-client-id"
       }
 
-      # When
-      result = TokenGenerator.generate(:access_token, token)
-
-      # Then
-      assert is_nil(result)
+      assert is_nil(TokenGenerator.generate(:access_token, token))
     end
 
     test "returns nil when client not found", %{user: user} do
-      # Given
       stub(Clients, :get_client, fn _ -> nil end)
 
       token = %Token{
@@ -145,11 +104,90 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
         client_id: "non-existent-client"
       }
 
-      # When
-      result = TokenGenerator.generate(:access_token, token)
+      assert is_nil(TokenGenerator.generate(:access_token, token))
+    end
 
-      # Then
-      assert is_nil(result)
+    test "includes mcp in scopes when scope is mcp", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: "mcp"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      assert claims["scopes"] == ["mcp"]
+    end
+
+    test "sets default user scopes when no scope is provided", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: ""
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+
+      assert claims["scopes"] == [
+               "project:cache:read",
+               "project:cache:write",
+               "project:previews:read",
+               "project:previews:write",
+               "project:bundles:read",
+               "project:bundles:write",
+               "project:tests:read",
+               "project:tests:write",
+               "project:builds:read",
+               "project:builds:write",
+               "project:runs:read",
+               "project:runs:write"
+             ]
+    end
+
+    test "sets default user scopes when scope is nil", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: nil
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+
+      assert claims["scopes"] == [
+               "project:cache:read",
+               "project:cache:write",
+               "project:previews:read",
+               "project:previews:write",
+               "project:bundles:read",
+               "project:bundles:write",
+               "project:tests:read",
+               "project:tests:write",
+               "project:builds:read",
+               "project:builds:write",
+               "project:runs:read",
+               "project:runs:write"
+             ]
+    end
+
+    test "resolves to AuthenticatedAccount with correct fields", %{user: user} do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id",
+        scope: "mcp"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, resource, _claims} = Tuist.Guardian.resource_from_token(jwt_token)
+      assert %Tuist.Accounts.AuthenticatedAccount{} = resource
+      assert resource.scopes == ["mcp"]
+      assert resource.all_projects == true
+      assert resource.account.id == user.account.id
     end
   end
 end

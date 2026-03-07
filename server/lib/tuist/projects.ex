@@ -218,6 +218,14 @@ defmodule Tuist.Projects do
     |> maybe_filter_recent(opts)
   end
 
+  def list_accessible_projects(%AuthenticatedAccount{account: %{user_id: user_id} = account, all_projects: true}, opts)
+      when not is_nil(user_id) do
+    case Accounts.get_user_by_id(user_id) do
+      nil -> list_accessible_projects(account, opts)
+      user -> list_accessible_projects(user, opts)
+    end
+  end
+
   def list_accessible_projects(%AuthenticatedAccount{account: account}, opts) do
     list_accessible_projects(account, opts)
   end
@@ -493,6 +501,15 @@ defmodule Tuist.Projects do
     |> Enum.filter(fn project -> not is_nil(project.last_interacted_at) end)
     |> Enum.sort_by(& &1.last_interacted_at, {:desc, NaiveDateTime})
     |> Enum.take(limit)
+  end
+
+  @doc """
+  Checks whether the project has a VCS connection configured.
+  Expects the project to have `vcs_connection: :github_app_installation` preloaded.
+  """
+  def has_vcs_connection?(project) do
+    project.vcs_connection != nil &&
+      project.vcs_connection.github_app_installation != nil
   end
 
   @doc """

@@ -13,6 +13,21 @@ import XCLogParser
 
 import struct TSCBasic.RegEx
 
+enum XCActivityLogControllerError: LocalizedError, Equatable {
+    case failedToParseActivityLog(path: AbsolutePath, reason: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .failedToParseActivityLog(path, reason):
+            return "Failed to parse the activity log at \(path.pathString): \(reason)"
+        }
+    }
+
+    static func wrap(_ error: Error, path: AbsolutePath) -> XCActivityLogControllerError {
+        .failedToParseActivityLog(path: path, reason: error.localizedDescription)
+    }
+}
+
 @Mockable
 public protocol XCActivityLogControlling {
     func mostRecentActivityLogFile(
@@ -74,9 +89,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let logStoreManifestPlistPath = buildLogsPath.appending(components: [
             "LogStoreManifest.plist",
         ])
-        let logStoreManifest: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
-            at: logStoreManifestPlistPath
-        )
+        let logStoreManifest: XCLogStoreManifestPlist
+        do {
+            logStoreManifest = try await fileSystem.readPlistFile(
+                at: logStoreManifestPlistPath
+            )
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: logStoreManifestPlistPath)
+        }
 
         let activityLogPaths = logStoreManifest.logs.keys.map {
             buildLogsPath.appending(components: ["\($0).xcactivitylog"])
@@ -90,17 +110,27 @@ public struct XCActivityLogController: XCActivityLogControlling {
     {
         var buildTimes: [String: Double] = [:]
         for activityLogPath in activityLogPaths {
-            let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
-                activityLogPath.url,
-                redacted: false,
-                withoutBuildSpecificInformation: false
-            )
-            let buildStep = try XCLogParser.ParserBuildSteps(
-                omitWarningsDetails: true,
-                omitNotesDetails: true,
-                truncLargeIssues: true
-            )
-            .parse(activityLog: activityLog)
+            let activityLog: IDEActivityLog
+            do {
+                activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
+                    activityLogPath.url,
+                    redacted: false,
+                    withoutBuildSpecificInformation: false
+                )
+            } catch {
+                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+            }
+            let buildStep: BuildStep
+            do {
+                buildStep = try XCLogParser.ParserBuildSteps(
+                    omitWarningsDetails: true,
+                    omitNotesDetails: true,
+                    truncLargeIssues: true
+                )
+                .parse(activityLog: activityLog)
+            } catch {
+                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+            }
 
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
                 .filter({ $0.title.starts(with: "Build target") }).map({
@@ -145,9 +175,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
             return nil
         }
         Logger.current.debug("Activity log manifest found at \(logManifestPlistPath.pathString)")
-        let plist: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
-            at: logManifestPlistPath
-        )
+        let plist: XCLogStoreManifestPlist
+        do {
+            plist = try await fileSystem.readPlistFile(
+                at: logManifestPlistPath
+            )
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: logManifestPlistPath)
+        }
         Logger.current.debug("Activity log manifest contains \(plist.logs.count) log(s)")
 
         let logFiles = plist.logs.values.map {
@@ -176,18 +211,28 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
-        let activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
-            path.url,
-            redacted: false,
-            withoutBuildSpecificInformation: false
-        )
+        let activityLog: IDEActivityLog
+        do {
+            activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
+                path.url,
+                redacted: false,
+                withoutBuildSpecificInformation: false
+            )
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: path)
+        }
 
-        let buildStep = try XCLogParser.ParserBuildSteps(
-            omitWarningsDetails: false,
-            omitNotesDetails: false,
-            truncLargeIssues: false
-        )
-        .parse(activityLog: activityLog)
+        let buildStep: BuildStep
+        do {
+            buildStep = try XCLogParser.ParserBuildSteps(
+                omitWarningsDetails: false,
+                omitNotesDetails: false,
+                truncLargeIssues: false
+            )
+            .parse(activityLog: activityLog)
+        } catch {
+            throw XCActivityLogControllerError.wrap(error, path: path)
+        }
 
         let steps = flattenedXCLogParserBuildStep([buildStep])
         let targets = steps.filter { $0.type == .target }
@@ -199,11 +244,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 )
             }
 
+        let totalProjectTargetCount = totalTargetCountFromDependencyGraph(activityLog)
+
         let category = buildCategory(
-            steps: steps.filter {
-                $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation
-            },
-            targets: targets
+            steps: steps,
+            targets: targets,
+            totalProjectTargetCount: totalProjectTargetCount
         )
         let rootDirectory = try await rootDirectory()
 
@@ -370,10 +416,35 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
     }
 
-    private func buildCategory(steps: [BuildStep], targets: [TargetWithStep])
-        -> XCActivityBuildCategory
-    {
-        let targetIdentifiers = targetIdentifiers(buildSteps: steps)
+    private func buildCategory(
+        steps: [BuildStep],
+        targets: [TargetWithStep],
+        totalProjectTargetCount: Int
+    ) -> XCActivityBuildCategory {
+        // When Xcode's compilation cache (CAS) is active (Xcode 26+), traditional compilation
+        // steps don't appear in the log, making the per-step fetchedFromCache heuristic unreliable.
+        // Instead, we look at CAS step types: "query key" steps indicate active compilation while
+        // "materialize key" steps indicate cache retrieval. A build with zero query key steps is
+        // fully served from cache and therefore incremental.
+        let hasCompilationCache = steps.contains { step in
+            step.title.contains("Swift caching") || step.title.contains("Clang caching")
+        }
+        if hasCompilationCache {
+            let queryKeyCount = steps.filter { $0.title.contains("caching query key") }.count
+            if queryKeyCount == 0 {
+                return .incremental
+            }
+            if totalProjectTargetCount > targets.count {
+                return .incremental
+            }
+            return .clean
+        }
+
+        let detailSteps = steps.filter {
+            $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation
+        }
+
+        let targetIdentifiers = targetIdentifiers(buildSteps: detailSteps)
         var targetsCompiledCount = [String: Int]()
 
         for target in targets {
@@ -381,7 +452,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
 
         let buildSteps =
-            steps
+            detailSteps
                 .filter {
                     $0.detailStepType != .other && $0.detailStepType != .scriptExecution
                         && $0.detailStepType != .copySwiftLibs
@@ -413,7 +484,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
             }
         }
 
-        // If at least 50% of the targets are clean, we categorise the build as clean.
         if targetsCategory.values.filter({ $0 == .clean }).count > targets.count / 2 {
             return .clean
         } else {
@@ -470,6 +540,46 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return targetIdentifiers
     }
 
+    /// Extracts the total number of unique targets in the project from the xcactivitylog's
+    /// "Compute target dependency graph" section.
+    ///
+    /// This is needed because when Xcode's compilation cache is active (Xcode 26+), the log
+    /// only contains build steps for targets that had actual work to do. Fully cached targets
+    /// are completely absent. The dependency graph section, however, always lists every target
+    /// in the project regardless of whether it was rebuilt, giving us the true total count.
+    private func totalTargetCountFromDependencyGraph(_ activityLog: IDEActivityLog) -> Int {
+        var targetNames = Set<String>()
+        collectDependencyGraphTargets(from: activityLog.mainSection, into: &targetNames)
+        return targetNames.count
+    }
+
+    private func collectDependencyGraphTargets(
+        from section: IDEActivityLogSection,
+        into targetNames: inout Set<String>
+    ) {
+        targetNamesFromDependencyGraph(from: section.text, into: &targetNames)
+
+        for message in section.messages {
+            targetNamesFromDependencyGraph(from: message.title, into: &targetNames)
+        }
+
+        for subSection in section.subSections {
+            collectDependencyGraphTargets(from: subSection, into: &targetNames)
+        }
+    }
+
+    // swiftlint:disable:next force_try
+    private static let dependencyGraphTargetRegex = try! Regex(#"Target '(?<name>[^']+)' in project"#)
+
+    private func targetNamesFromDependencyGraph(from text: String, into targetNames: inout Set<String>) {
+        guard text.contains("Target dependency graph") else { return }
+        for match in text.matches(of: Self.dependencyGraphTargetRegex) {
+            if let name = match["name"]?.substring {
+                targetNames.insert(String(name))
+            }
+        }
+    }
+
     private func path(of step: BuildStep, rootDirectory: AbsolutePath?) async throws -> RelativePath? {
         if let file = try? AbsolutePath(
             validating: step.documentURL
@@ -511,13 +621,13 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func createCASOutputDownloads(nodeMetadata: [CASNodeMetadata]) async throws -> [CASOutput] {
-        return try await nodeMetadata.concurrentCompactMap { metadata in
+        return try await nodeMetadata.concurrentCompactMap(maxConcurrentTasks: 100) { metadata in
             try await createCASOutput(for: metadata, operation: .download)
         }
     }
 
     private func createCASOutputUploads(nodeMetadata: [CASNodeMetadata]) async throws -> [CASOutput] {
-        return try await nodeMetadata.concurrentCompactMap { metadata in
+        return try await nodeMetadata.concurrentCompactMap(maxConcurrentTasks: 100) { metadata in
             try await createCASOutput(for: metadata, operation: .upload)
         }
     }

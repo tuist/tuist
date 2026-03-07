@@ -200,6 +200,10 @@
         & > #repository-dropdown {
           width: 244px;
 
+          & .noora-dropdown-content {
+            max-height: 200px;
+          }
+
           & [data-part="icon"] {
             flex-shrink: 0;
           }

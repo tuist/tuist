@@ -129,7 +129,7 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
   end
 
   describe "authorize_error/2" do
-    test "redirects to login on unauthorized error", %{conn: conn} do
+    test "redirects to login on unauthorized error when user is not logged in", %{conn: conn} do
       error = %Error{
         status: :unauthorized,
         error: :invalid_resource_owner,
@@ -143,6 +143,52 @@ defmodule TuistWeb.Controllers.Oauth.AuthorizeControllerTest do
 
       assert conn.status == 302
       assert redirected_to(conn) == "/users/log_in"
+    end
+
+    test "returns JSON error when user is logged in and error has no redirect_uri", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      error = %Error{
+        status: :unauthorized,
+        error: :invalid_client,
+        error_description: "Invalid client_id or redirect_uri."
+      }
+
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{})
+        |> assign(:current_user, user)
+        |> AuthorizeController.authorize_error(error)
+
+      assert conn.status == 401
+      body = json_response(conn, 401)
+      assert body["error"] == "invalid_client"
+      assert body["error_description"] == "Invalid client_id or redirect_uri."
+    end
+
+    test "redirects to client with error when user is logged in and error has redirect_uri", %{
+      conn: conn
+    } do
+      user = AccountsFixtures.user_fixture()
+
+      error = %Error{
+        status: :bad_request,
+        error: :invalid_scope,
+        error_description: "Given scopes are unknown or unauthorized.",
+        format: :query,
+        redirect_uri: "http://127.0.0.1:3000/callback"
+      }
+
+      conn =
+        conn
+        |> Plug.Test.init_test_session(%{})
+        |> assign(:current_user, user)
+        |> AuthorizeController.authorize_error(error)
+
+      assert conn.status == 302
+      location = redirected_to(conn)
+      assert location =~ "http://127.0.0.1:3000/callback?"
+      assert location =~ "error=invalid_scope"
     end
   end
 end

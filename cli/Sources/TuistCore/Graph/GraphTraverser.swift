@@ -463,6 +463,7 @@ public class GraphTraverser: GraphTraversing {
     > {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
             .union(staticPrecompiledFrameworksDependencies(path: path, name: name))
+            .union(transitiveStaticDependenciesOfDynamicFrameworkDependencies(path: path, name: name))
     }
 
     public func linkableDependencies(path: Path.AbsolutePath, name: String) throws -> Set<
@@ -1694,6 +1695,24 @@ public class GraphTraverser: GraphTraversing {
 
         return Set(precompiledStatic + precompiledDependencies)
             .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
+    }
+
+    private func transitiveStaticDependenciesOfDynamicFrameworkDependencies(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        let targetGraphDependency = GraphDependency.target(name: name, path: path)
+
+        let directDynamicDeps = graph.dependencies[targetGraphDependency, default: []]
+            .filter(or(isDependencyDynamicLibrary, isDependencyFramework))
+
+        let transitiveStaticDeps = directDynamicDeps.flatMap { dynamicDep in
+            transitiveStaticDependencies(from: dynamicDep)
+        }
+
+        return Set(transitiveStaticDeps.compactMap {
+            dependencyReference(to: $0, from: targetGraphDependency)
+        })
     }
 
     private func staticPrecompiledXCFrameworksDependencies(

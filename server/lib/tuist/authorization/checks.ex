@@ -16,6 +16,14 @@ defmodule Tuist.Authorization.Checks do
       "project:tests:write",
       "project:builds:write",
       "project:runs:write"
+    ],
+    "mcp" => [
+      "project:cache:read",
+      "project:previews:read",
+      "project:bundles:read",
+      "project:tests:read",
+      "project:builds:read",
+      "project:runs:read"
     ]
   }
 
@@ -87,7 +95,7 @@ defmodule Tuist.Authorization.Checks do
   Checks if the authenticated account's scopes include the required scope.
 
   Scopes are expected to be strings in the format "entity:object:action"
-  (e.g., "project:cache:read", "account:registry:read").
+  (e.g., "project:cache:read", "account:members:read").
 
   Scope groups (e.g., "ci") are automatically expanded to their component scopes.
 

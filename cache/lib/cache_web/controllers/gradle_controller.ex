@@ -21,6 +21,8 @@ defmodule CacheWeb.GradleController do
 
   require Logger
 
+  @max_upload_bytes 100 * 1024 * 1024
+
   plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true
 
@@ -167,12 +169,12 @@ defmodule CacheWeb.GradleController do
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, cache_key) do
-    case BodyReader.read(conn) do
-      {:ok, data, conn_after} ->
-        size = data_size(data)
-        :telemetry.execute([:cache, :gradle, :upload, :attempt], %{size: size}, %{})
-        persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size)
-
+    with {:ok, target_dir} <- Gradle.Disk.ensure_artifact_directory(account_handle, project_handle, cache_key),
+         {:ok, data, conn_after} <- BodyReader.read(conn, max_bytes: @max_upload_bytes, tmp_dir: target_dir) do
+      size = data_size(data)
+      :telemetry.execute([:cache, :gradle, :upload, :attempt], %{size: size}, %{})
+      persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size)
+    else
       {:error, :too_large, conn_after} ->
         :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :too_large})
         send_error(conn_after, :request_entity_too_large, "Request body exceeded allowed size")
@@ -188,6 +190,11 @@ defmodule CacheWeb.GradleController do
       {:error, _reason, conn_after} ->
         :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :read_error})
         send_error(conn_after, :internal_server_error, "Failed to persist artifact")
+
+      {:error, reason} ->
+        Logger.error("Failed to ensure Gradle artifact directory: #{inspect(reason)}")
+        :telemetry.execute([:cache, :gradle, :upload, :error], %{count: 1}, %{reason: :persist_error})
+        send_error(conn, :internal_server_error, "Failed to persist artifact")
     end
   end
 

@@ -312,6 +312,8 @@ defmodule TuistWeb.API.BundlesController do
              },
              preload: [:uploaded_by_account, project: [:account]]
            ) do
+      maybe_enqueue_threshold_check(bundle, selected_project)
+
       conn
       |> put_status(:ok)
       |> json(bundle_to_map(bundle))
@@ -375,6 +377,14 @@ defmodule TuistWeb.API.BundlesController do
       artifacts: artifacts,
       url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
     }
+  end
+
+  defp maybe_enqueue_threshold_check(bundle, project) do
+    if bundle.git_commit_sha && bundle.git_ref do
+      %{bundle_id: bundle.id, project_id: project.id, git_commit_sha: bundle.git_commit_sha}
+      |> Tuist.Bundles.Workers.BundleThresholdWorker.new()
+      |> Oban.insert()
+    end
   end
 
   defp artifact_to_map(artifact) do

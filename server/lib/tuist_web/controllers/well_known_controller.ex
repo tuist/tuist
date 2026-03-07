@@ -45,6 +45,7 @@ defmodule TuistWeb.WellKnownController do
       grant_types_supported: ["authorization_code", "refresh_token"],
       response_types_supported: ["code"],
       code_challenge_methods_supported: ["S256"],
+      scopes_supported: ["mcp"],
       token_endpoint_auth_methods_supported: [
         "none",
         "client_secret_basic",
@@ -69,7 +70,7 @@ defmodule TuistWeb.WellKnownController do
       resource: "#{app_url}#{@mcp_path}",
       authorization_servers: [app_url],
       bearer_methods_supported: ["header"],
-      scopes_supported: []
+      scopes_supported: ["mcp"]
     }
 
     conn

@@ -23,7 +23,13 @@ dependencyResolutionManagement {
 rootProject.name = "Tuist"
 
 plugins {
-    id("dev.tuist") version "0.2.1"
+    id("dev.tuist") version "0.3.0"
+}
+
+buildCache {
+    local {
+        isEnabled = System.getenv("CI") == null
+    }
 }
 
 include(":app")

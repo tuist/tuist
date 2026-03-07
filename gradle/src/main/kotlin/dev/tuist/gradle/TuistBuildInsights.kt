@@ -91,6 +91,7 @@ data class BuildReportRequest(
     @SerializedName("git_branch") val gitBranch: String?,
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
+    @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("root_project_name") val rootProjectName: String?,
     val tasks: List<TaskReportEntry>
 )
@@ -108,7 +109,6 @@ abstract class TuistBuildInsightsService :
     interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
-        val executablePath: Property<String>
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
     }
@@ -304,10 +304,9 @@ abstract class TuistBuildInsightsService :
     private fun sendReport() {
         val projectValue = parameters.project.orNull
 
-        val configProvider = TuistCommandConfigurationProvider(
+        val configProvider = DefaultConfigurationProvider(
             project = projectValue,
-            command = listOf(parameters.executablePath.orNull ?: "tuist"),
-            url = parameters.url.get(),
+            serverUrl = parameters.url.get(),
             projectDir = java.io.File(System.getProperty("user.dir"))
         )
 
@@ -397,6 +396,7 @@ internal fun buildReport(
         gitBranch = gitInfoProvider.branch(),
         gitCommitSha = gitInfoProvider.commitSha(),
         gitRef = gitInfoProvider.ref(),
+        gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
         rootProjectName = rootProjectName,
         tasks = taskOutcomes.map { task ->
             TaskReportEntry(
@@ -428,7 +428,6 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
-            parameters.executablePath.set(config.executablePath)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
         }

@@ -54,6 +54,16 @@ defmodule TuistWeb.TestCaseLive do
     {:ok, socket}
   end
 
+  # Renders a failure message span without whitespace around the content.
+  # Using ~H[] on a single line prevents the HEEx formatter from splitting
+  # the tag across lines, which would introduce visible leading whitespace.
+  attr :failure, :map, required: true
+  attr :context, :map, required: true
+
+  defp failure_message_span(assigns) do
+    ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
   defp define_filters(project) do
     filters = [
       %Filter.Filter{
@@ -106,7 +116,8 @@ defmodule TuistWeb.TestCaseLive do
     end
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
     selected_tab = params["tab"] || "overview"
 
@@ -346,34 +357,23 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_analytics(
          %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
        ) do
-    [reliability, analytics, flakiness_rate, {flaky_runs_grouped, flaky_runs_meta}] =
-      Task.await_many(
-        [
-          Task.async(fn ->
-            Analytics.test_case_reliability_by_id(
-              test_case_id,
-              project.default_branch
-            )
-          end),
-          Task.async(fn ->
-            Analytics.test_case_analytics_by_id(test_case_id)
-          end),
-          Task.async(fn ->
-            Analytics.get_test_case_flakiness_rate(test_case_detail)
-          end),
-          Task.async(fn ->
-            Tests.list_flaky_runs_for_test_case(test_case_id)
-          end)
-        ],
-        30_000
-      )
-
     socket
-    |> assign(:reliability, reliability)
-    |> assign(:analytics, analytics)
-    |> assign(:flakiness_rate, flakiness_rate)
-    |> assign(:flaky_runs_grouped, flaky_runs_grouped)
-    |> assign(:flaky_runs_meta, flaky_runs_meta)
+    |> assign_async(:reliability, fn ->
+      {:ok, %{reliability: Analytics.test_case_reliability_by_id(test_case_id, project.default_branch)}}
+    end)
+    |> assign_async(:analytics, fn ->
+      {:ok, %{analytics: Analytics.test_case_analytics_by_id(test_case_id)}}
+    end)
+    |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
+      {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(test_case_id)
+
+      {:ok,
+       %{
+         flakiness_rate: Analytics.get_test_case_flakiness_rate(test_case_detail),
+         flaky_runs_grouped: flaky_runs_grouped,
+         flaky_runs_meta: flaky_runs_meta
+       }}
+    end)
   end
 
   defp assign_test_case_runs(

@@ -20,6 +20,10 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
   end
 
+  def optimize_test_runs do
+    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
+  end
+
   def build_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
@@ -202,7 +206,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 
-    {1, _} = IngestRepo.insert_all(TestCaseRun, [test_case_run])
+    IngestRepo.insert_all(TestCaseRun, [test_case_run])
 
     test_case_run
   end
@@ -268,6 +272,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
       file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
+      repetition_number: Keyword.get(attrs, :repetition_number, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 

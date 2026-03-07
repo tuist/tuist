@@ -30,6 +30,7 @@ data class TestReport(
     @SerializedName("git_branch") val gitBranch: String?,
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
+    @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("gradle_build_id") val gradleBuildId: String? = null,
     @SerializedName("test_modules") val testModules: List<TestModule>
 )
@@ -108,6 +109,7 @@ internal class TestReportCollector {
         gitBranch: String?,
         gitCommitSha: String?,
         gitRef: String?,
+        gitRemoteUrlOrigin: String?,
         gradleBuildId: String?
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
@@ -147,6 +149,7 @@ internal class TestReportCollector {
             gitBranch = gitBranch,
             gitCommitSha = gitCommitSha,
             gitRef = gitRef,
+            gitRemoteUrlOrigin = gitRemoteUrlOrigin,
             gradleBuildId = gradleBuildId,
             testModules = testModules
         )
@@ -265,7 +268,6 @@ abstract class TuistTestInsightsService :
     interface Params : BuildServiceParameters {
         val url: Property<String>
         val project: Property<String>
-        val executablePath: Property<String>
         val rootProjectName: Property<String>
     }
 
@@ -336,10 +338,9 @@ abstract class TuistTestInsightsService :
     private fun sendReport() {
         val projectValue = parameters.project.orNull
 
-        val configProvider = TuistCommandConfigurationProvider(
+        val configProvider = DefaultConfigurationProvider(
             project = projectValue,
-            command = listOf(parameters.executablePath.orNull ?: "tuist"),
-            url = parameters.url.get(),
+            serverUrl = parameters.url.get(),
             projectDir = java.io.File(System.getProperty("user.dir"))
         )
 
@@ -359,6 +360,7 @@ abstract class TuistTestInsightsService :
             gitBranch = gitInfoProvider.branch(),
             gitCommitSha = gitInfoProvider.commitSha(),
             gitRef = gitInfoProvider.ref(),
+            gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
             gradleBuildId = gradleBuildId
         )
 
@@ -422,16 +424,14 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
         ) {
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
-            parameters.executablePath.set(config.executablePath)
             parameters.rootProjectName.set(project.rootProject.name)
         }
 
         val quarantineEnabled = config.testQuarantineEnabled ?: ciDetector.isCi()
         val quarantineService = if (quarantineEnabled) {
-            val configProvider = TuistCommandConfigurationProvider(
+            val configProvider = DefaultConfigurationProvider(
                 project = config.project,
-                command = listOf(config.executablePath),
-                url = config.url,
+                serverUrl = config.url,
                 projectDir = java.io.File(System.getProperty("user.dir"))
             )
             val httpClient = TuistHttpClient(

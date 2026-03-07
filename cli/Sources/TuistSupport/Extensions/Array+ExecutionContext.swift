@@ -98,6 +98,43 @@ extension Array where Element: Sendable {
         }
     }
 
+    /// Async concurrent compact map with concurrency limit
+    ///
+    /// - Parameters:
+    ///   - maxConcurrentTasks: Number of max tasks that can run simultaneously
+    ///   - transform: The transformation closure to apply to the array
+    public func concurrentCompactMap<B>(
+        maxConcurrentTasks: Int = Int.max,
+        _ transform: @escaping (Element) async throws -> B?
+    ) async throws -> [B] {
+        try await withThrowingTaskGroup(
+            of: B?.self,
+            returning: [B].self
+        ) { group in
+            var results: [B] = []
+            for (index, element) in enumerated() {
+                if index > maxConcurrentTasks {
+                    if let result = try await group.next() {
+                        if let value = result {
+                            results.append(value)
+                        }
+                    }
+                }
+                group.addTask {
+                    return try await transform(element)
+                }
+            }
+
+            for try await result in group {
+                if let value = result {
+                    results.append(value)
+                }
+            }
+
+            return results
+        }
+    }
+
     /// For Each (with execution context)
     ///
     /// - Parameters:

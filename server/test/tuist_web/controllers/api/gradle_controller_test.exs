@@ -11,6 +11,7 @@ defmodule TuistWeb.API.GradleControllerTest do
 
   describe "POST /api/projects/:account_handle/:project_handle/gradle/builds" do
     setup %{conn: conn} do
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
@@ -114,6 +115,34 @@ defmodule TuistWeb.API.GradleControllerTest do
       {:ok, build} = Gradle.get_build(client_id)
       assert build.id == client_id
       assert build.project_id == project.id
+    end
+
+    test "enqueues a VCS pull request comment", %{conn: conn, user: user, project: project} do
+      test_pid = self()
+
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn args ->
+        send(test_pid, {:vcs_comment_enqueued, args})
+        :ok
+      end)
+
+      body = %{
+        duration_ms: 5000,
+        status: "success",
+        git_commit_sha: "abc123",
+        git_ref: "refs/pull/42/merge",
+        git_remote_url_origin: "https://github.com/tuist/tuist.git",
+        tasks: []
+      }
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", body)
+
+      assert_received {:vcs_comment_enqueued, args}
+      assert args.git_commit_sha == "abc123"
+      assert args.git_ref == "refs/pull/42/merge"
+      assert args.git_remote_url_origin == "https://github.com/tuist/tuist.git"
+      assert args.project_id == project.id
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

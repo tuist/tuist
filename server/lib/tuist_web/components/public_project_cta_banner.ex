@@ -1,6 +1,6 @@
 defmodule TuistWeb.Components.PublicProjectCTABanner do
   @moduledoc """
-  A CTA banner component shown to unauthenticated users viewing the tuist/tuist project dashboard.
+  A CTA banner component shown to unauthenticated users viewing a public project dashboard.
   """
   use TuistWeb, :html
   use Noora
@@ -25,7 +25,9 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
         <p>
           {dgettext(
             "dashboard",
-            "This is a public dashboard for the tuist/tuist project."
+            "This is a public dashboard for the %{account_name}/%{project_name} project.",
+            account_name: @account_name,
+            project_name: @project_name
           )}
           <br />
           {dgettext(
@@ -57,8 +59,10 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
     """
   end
 
+  @public_projects MapSet.new([{"tuist", "tuist"}, {"tuist", "android"}])
+
   def show_banner?(account_name, project_name, current_user) do
-    is_nil(current_user) and account_name == "tuist" and project_name == "tuist"
+    is_nil(current_user) and MapSet.member?(@public_projects, {account_name, project_name})
   end
 
   defp banner_shell(assigns) do

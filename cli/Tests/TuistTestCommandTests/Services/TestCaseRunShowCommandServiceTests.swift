@@ -291,6 +291,49 @@ struct TestCaseRunShowCommandServiceTests {
     @Test(
         .withMockedEnvironment(),
         .withMockedNoora
+    ) func run_with_attachments() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let testCaseRun = ServerTestCaseRun.test(
+            attachments: [
+                .init(
+                    file_name: "screenshot.png",
+                    url: "https://cloud.tuist.dev/tuist/tuist/tests/test-cases/runs/run-id/attachments/screenshot.png"
+                ),
+                .init(
+                    file_name: "debug.log",
+                    url: "https://cloud.tuist.dev/tuist/tuist/tests/test-cases/runs/run-id/attachments/debug.log"
+                ),
+            ]
+        )
+        given(getTestCaseRunService).getTestCaseRun(
+            fullHandle: .value(fullHandle),
+            testCaseRunId: .value("run-attach"),
+            serverURL: .value(serverURL)
+        ).willReturn(testCaseRun)
+
+        // When
+        try await subject.run(
+            project: nil,
+            testCaseRunId: "run-attach",
+            path: nil,
+            json: false
+        )
+
+        // Then
+        #expect(ui().contains("Attachments (2)"))
+        #expect(ui().contains("screenshot.png"))
+        #expect(ui().contains("debug.log"))
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora
     ) func run_without_suite() async throws {
         // Given
         let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"

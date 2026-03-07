@@ -81,11 +81,33 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path) do
     if has_submodules?(full_handle, tag, token) do
-      with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
-        zip_directory(source_directory, archive_path)
-      end
+      build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path)
     else
-      TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts)
+      build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path)
+    end
+  end
+
+  defp build_archive_from_clone(full_handle, tag, token, tmp_dir, archive_path) do
+    with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
+      zip_directory(source_directory, archive_path)
+    end
+  end
+
+  defp build_archive_from_zipball(full_handle, tag, token, tmp_dir, archive_path) do
+    with :ok <- TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts) do
+      ensure_archive_without_symlinks(tmp_dir, archive_path)
+    end
+  end
+
+  # SwiftPM does not correctly handle symlinks when unzipping archives, which breaks
+  # packages that contain them (e.g. CLAUDE.md -> AGENTS.md symlinks).
+  # This workaround resolves symlinks by repacking the archive before upload.
+  # Upstream fix: https://github.com/swiftlang/swift-package-manager/pull/9411
+  defp ensure_archive_without_symlinks(tmp_dir, archive_path) do
+    case archive_has_symlinks?(archive_path) do
+      {:ok, true} -> resolve_symlinks_in_archive(tmp_dir, archive_path)
+      {:ok, false} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -200,13 +222,222 @@ defmodule Cache.Registry.ReleaseWorker do
     if File.exists?(gitmodules_path), do: File.rm(gitmodules_path)
   end
 
-  defp zip_directory(directory, archive_path) do
+  @doc false
+  def zip_directory(directory, archive_path) do
     parent_dir = Path.dirname(directory)
     base_name = Path.basename(directory)
 
-    case System.cmd("zip", ["--symlinks", "-r", archive_path, base_name], cd: parent_dir) do
+    with :ok <- ensure_symlinks_within_root(directory),
+         :ok <- resolve_symlinks(directory) do
+      case System.cmd("zip", ["-r", archive_path, base_name], cd: parent_dir) do
+        {_, 0} -> :ok
+        {output, status} -> {:error, {:zip_failed, status, output}}
+      end
+    end
+  end
+
+  defp resolve_symlinks(directory) do
+    case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
+      {output, 0} ->
+        symlink_paths = String.split(output, "\n", trim: true)
+        {directory_symlinks, non_directory_symlinks} = classify_symlinks(symlink_paths)
+
+        with :ok <- resolve_non_directory_symlinks(non_directory_symlinks) do
+          resolve_directory_symlinks(directory_symlinks)
+        end
+
+      {output, status} ->
+        {:error, {:find_symlinks_failed, status, output}}
+    end
+  end
+
+  defp classify_symlinks(symlink_paths) do
+    Enum.split_with(symlink_paths, fn path ->
+      match?({:ok, %File.Stat{type: :directory}}, File.stat(path))
+    end)
+  end
+
+  defp resolve_non_directory_symlinks([]), do: :ok
+
+  defp resolve_non_directory_symlinks([symlink_path | rest]) do
+    case File.stat(symlink_path) do
+      {:ok, %File.Stat{type: :regular}} ->
+        content = File.read!(symlink_path)
+        File.rm!(symlink_path)
+        File.write!(symlink_path, content)
+
+      _ ->
+        File.rm(symlink_path)
+    end
+
+    resolve_non_directory_symlinks(rest)
+  end
+
+  defp resolve_directory_symlinks(directory_symlinks) do
+    {cyclic, non_cyclic} =
+      Enum.split_with(directory_symlinks, fn path ->
+        case File.read_link(path) do
+          {:ok, target} ->
+            resolved = resolve_symlink_target(path, target)
+            symlink_creates_cycle?(Path.expand(path), resolved)
+
+          _ ->
+            false
+        end
+      end)
+
+    Enum.each(cyclic, &remove_cyclic_directory_symlink/1)
+    Enum.each(non_cyclic, &resolve_non_cyclic_directory_symlink/1)
+  end
+
+  defp remove_cyclic_directory_symlink(symlink_path) do
+    {:ok, target} = File.read_link(symlink_path)
+    File.rm!(symlink_path)
+    Logger.info("Removed recursive directory symlink #{symlink_path} -> #{target}")
+  end
+
+  defp resolve_non_cyclic_directory_symlink(symlink_path) do
+    {:ok, target} = File.read_link(symlink_path)
+    resolved_target = resolve_symlink_target(symlink_path, target)
+    File.rm!(symlink_path)
+    File.cp_r!(resolved_target, symlink_path)
+  end
+
+  defp symlink_creates_cycle?(symlink_path, resolved_target) do
+    symlink_path == resolved_target or String.starts_with?(symlink_path, resolved_target <> "/")
+  end
+
+  defp resolve_symlinks_in_archive(tmp_dir, archive_path) do
+    extract_dir = Path.join(tmp_dir, "extract")
+    Logger.info("Resolving symlinks in source archive at #{archive_path}")
+
+    with :ok <- ensure_extract_directory(extract_dir),
+         :ok <- unzip_archive(archive_path, extract_dir),
+         {:ok, top_level_directory} <- extract_archive_root_directory(extract_dir),
+         :ok <- remove_archive(archive_path) do
+      zip_directory(top_level_directory, archive_path)
+    end
+  end
+
+  defp ensure_extract_directory(extract_dir) do
+    case File.mkdir_p(extract_dir) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:create_extract_directory_failed, reason}}
+    end
+  end
+
+  defp unzip_archive(archive_path, extract_dir) do
+    case System.cmd("unzip", [archive_path, "-d", extract_dir], stderr_to_stdout: true) do
       {_, 0} -> :ok
-      {output, status} -> {:error, {:zip_failed, status, output}}
+      {output, status} -> {:error, {:unzip_resolve_symlinks_failed, status, output}}
+    end
+  end
+
+  defp extract_archive_root_directory(extract_dir) do
+    case File.ls(extract_dir) do
+      {:ok, [top_level]} ->
+        top_level_directory = Path.join(extract_dir, top_level)
+
+        case File.lstat(top_level_directory) do
+          {:ok, %File.Stat{type: :directory}} -> {:ok, top_level_directory}
+          {:ok, _} -> {:error, {:invalid_archive_layout, :top_level_not_directory, top_level}}
+          {:error, reason} -> {:error, {:lstat_top_level_directory_failed, reason}}
+        end
+
+      {:ok, entries} ->
+        {:error, {:invalid_archive_layout, :expected_single_top_level, entries}}
+
+      {:error, reason} ->
+        {:error, {:list_extract_directory_failed, reason}}
+    end
+  end
+
+  defp remove_archive(archive_path) do
+    case File.rm(archive_path) do
+      :ok -> :ok
+      {:error, reason} -> {:error, {:remove_original_archive_failed, reason}}
+    end
+  end
+
+  defp ensure_symlinks_within_root(root_directory) do
+    expanded_root_directory = Path.expand(root_directory)
+    validate_symlinks_within_root([expanded_root_directory], expanded_root_directory)
+  end
+
+  defp validate_symlinks_within_root([], _root_directory), do: :ok
+
+  defp validate_symlinks_within_root([path | rest], root_directory) do
+    case File.lstat(path) do
+      {:ok, stat} ->
+        validate_symlink_path(stat, path, rest, root_directory)
+
+      {:error, reason} ->
+        {:error, {:path_lstat_failed, path, reason}}
+    end
+  end
+
+  defp validate_symlink_path(%File.Stat{type: :symlink}, path, rest, root_directory) do
+    with {:ok, target} <- File.read_link(path),
+         :ok <- ensure_symlink_target_within_root(path, target, root_directory) do
+      validate_symlinks_within_root(rest, root_directory)
+    else
+      {:error, reason} -> {:error, {:symlink_read_failed, path, reason}}
+      {:symlink_outside_root, target} -> {:error, {:symlink_points_outside_root, path, target}}
+    end
+  end
+
+  defp validate_symlink_path(%File.Stat{type: :directory}, path, rest, root_directory) do
+    case File.ls(path) do
+      {:ok, entries} ->
+        next_paths = Enum.map(entries, &Path.join(path, &1))
+        validate_symlinks_within_root(next_paths ++ rest, root_directory)
+
+      {:error, reason} ->
+        {:error, {:directory_list_failed, path, reason}}
+    end
+  end
+
+  defp validate_symlink_path(_stat, _path, rest, root_directory) do
+    validate_symlinks_within_root(rest, root_directory)
+  end
+
+  defp ensure_symlink_target_within_root(path, target, root_directory) do
+    resolved_target = resolve_symlink_target(path, target)
+
+    if path_within_root?(resolved_target, root_directory) do
+      :ok
+    else
+      {:symlink_outside_root, target}
+    end
+  end
+
+  defp resolve_symlink_target(link_path, target) do
+    if Path.type(target) == :absolute do
+      Path.expand(target)
+    else
+      link_path
+      |> Path.dirname()
+      |> Path.join(target)
+      |> Path.expand()
+    end
+  end
+
+  defp path_within_root?(path, root_directory) do
+    path == root_directory or String.starts_with?(path, root_directory <> "/")
+  end
+
+  defp archive_has_symlinks?(archive_path) do
+    case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
+      {output, 0} ->
+        has_symlinks =
+          output
+          |> String.split("\n")
+          |> Enum.any?(&String.starts_with?(&1, "l"))
+
+        {:ok, has_symlinks}
+
+      {output, status} ->
+        {:error, {:invalid_archive, status, output}}
     end
   end
 

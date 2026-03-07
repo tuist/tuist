@@ -3,7 +3,6 @@ defmodule Tuist.AuthorizationTest do
   use Mimic
 
   alias Tuist.Accounts
-  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Authorization
   alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -1290,55 +1289,5 @@ defmodule Tuist.AuthorizationTest do
 
     # Then
     assert Authorization.authorize(:ops_read, user, :ops) == :ok
-  end
-
-  test "can.read.account.registry when the subject is the same account being read and the scopes permit the action" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]},
-             account
-           ) == :ok
-  end
-
-  test "can.read.account.registry when the subject is the same account being read and the scopes don't permit the action" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             %AuthenticatedAccount{account: account, scopes: ["account:registry:create"]},
-             account
-           ) == {:error, :forbidden}
-  end
-
-  test "can.read.account.registry when the subject is not the same account being read" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
-    another_account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]},
-             another_account
-           ) == {:error, :forbidden}
-  end
-
-  test "can.read.account.registry when the subject is project" do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
-
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             project,
-             account
-           ) == {:error, :forbidden}
   end
 end

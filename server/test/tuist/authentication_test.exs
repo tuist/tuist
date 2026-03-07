@@ -65,11 +65,11 @@ defmodule Tuist.AuthenticationTest do
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
     {:ok, {_, token_value}} =
-      Accounts.create_account_token(%{account: account, scopes: ["account:registry:read"], name: "test-token"})
+      Accounts.create_account_token(%{account: account, scopes: ["project:cache:read"], name: "test-token"})
 
     # When/Then
     result = Authentication.authenticated_subject(token_value)
-    assert result.scopes == ["account:registry:read"]
+    assert result.scopes == ["project:cache:read"]
     assert result.account == account
     assert result.all_projects == false
     assert result.project_ids == []

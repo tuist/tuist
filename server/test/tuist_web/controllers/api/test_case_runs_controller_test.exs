@@ -308,6 +308,7 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       assert response["git_commit_sha"] == "abc1234"
       assert response["test_run_id"] == test_case_run.test_run_id
       assert response["crash_report"] == nil
+      assert response["attachments"] == []
 
       assert length(response["failures"]) == 1
       failure_response = hd(response["failures"])
@@ -420,6 +421,52 @@ defmodule TuistWeb.API.TestCaseRunsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["crash_report"] == nil
+    end
+
+    test "returns test case run with attachments", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      # Given
+      test_case_run =
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          name: "testWithAttachments",
+          module_name: "AttachmentTests",
+          status: 1
+        )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "screenshot.png"
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "debug.log"
+      )
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests/test-cases/runs/#{test_case_run.id}"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["id"] == test_case_run.id
+      assert length(response["attachments"]) == 2
+
+      file_names = Enum.map(response["attachments"], & &1["file_name"])
+      assert "screenshot.png" in file_names
+      assert "debug.log" in file_names
+
+      Enum.each(response["attachments"], fn attachment ->
+        assert attachment["url"] =~
+                 "/tests/test-cases/runs/#{test_case_run.id}/attachments/#{attachment["file_name"]}"
+      end)
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do
