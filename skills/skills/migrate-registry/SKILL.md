@@ -64,6 +64,8 @@ Commit the generated registry configuration so the team and CI use the same setu
 
 ## Migration Syntax
 
+`Project.swift` examples use Tuist's `ProjectDescription.Package` API. `Package.swift` examples follow SwiftPM's `PackageDescription.Package.Dependency` API.
+
 ### `Project.swift`
 
 ```swift
@@ -74,7 +76,7 @@ Commit the generated registry configuration so the team and CI use the same setu
 .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
 ```
 
-### `Tuist/Package.swift` or `Package.swift`
+### `Tuist/Package.swift` or SwiftPM `Package.swift`
 
 ```swift
 // Before
@@ -90,7 +92,7 @@ Xcode does not automatically replace source-control packages with registry packa
 
 ## Version Requirement Examples
 
-### URL-based requirements in `Package.swift` or `Tuist/Package.swift`
+### URL-based requirements in `Tuist/Package.swift` or SwiftPM `Package.swift`
 
 ```swift
 .package(url: "https://github.com/apple/swift-log", from: "1.5.0")
@@ -127,6 +129,8 @@ When you migrate to explicit registry references, keep the same semantic version
 ```
 
 Branch and revision requirements are source-control specific. Keep them URL-based, or switch to a tagged version before migrating to explicit registry identifiers.
+
+Use Tuist `ProjectDescription` references for `Project.swift` APIs. Use Apple's `PackageDescription.Package.Dependency` reference for SwiftPM `Package.swift` APIs.
 
 ## Registry ID Format
 
