@@ -5,7 +5,7 @@ import NIOWebSocket
 
 /// Serves the interactive graph visualization over HTTP with WebSocket live-reload.
 ///
-/// Generates an HTML page that loads the `<graph-app>` web component from a CDN
+/// Generates an HTML page that loads the `<xcode-graph>` web component from a CDN
 /// and fetches graph data from `/graph.json`. No bundled static assets required.
 ///
 /// Usage:

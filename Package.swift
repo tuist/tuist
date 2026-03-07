@@ -901,6 +901,17 @@ var targets: [Target] = [
         path: "cli/Tests/TuistCASTests"
     ),
     .testTarget(
+        name: "TuistGraphServerTests",
+        dependencies: [
+            "TuistGraphServer",
+            .product(name: "NIO", package: "apple.swift-nio"),
+            .product(name: "NIOHTTP1", package: "apple.swift-nio"),
+            .product(name: "NIOWebSocket", package: "apple.swift-nio"),
+            .product(name: "NIOEmbedded", package: "apple.swift-nio"),
+        ],
+        path: "cli/Tests/TuistGraphServerTests"
+    ),
+    .testTarget(
         name: "TuistOIDCTests",
         dependencies: [
             "TuistOIDC",

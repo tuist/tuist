@@ -83,6 +83,9 @@ struct GraphService {
         }
 
         if interactive {
+            if skipTestTargets || skipExternalDependencies || platformToFilter != nil || !targetsToFilter.isEmpty {
+                Logger.current.warning("Filter flags are ignored in interactive mode — use the web UI to filter the graph")
+            }
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             let jsonData = try encoder.encode(graph)
