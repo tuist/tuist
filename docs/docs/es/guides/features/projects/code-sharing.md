@@ -30,14 +30,14 @@ A muchas organizaciones les gusta Tuist porque ven en los ayudantes de
 descripción de proyectos una plataforma para que los equipos de la plataforma
 codifiquen sus propias convenciones y creen su propio lenguaje para describir
 sus proyectos. Por ejemplo, los generadores de proyectos basados en YAML tienen
-que crear su propia solución de plantillas propietaria basada en YAML, o obligar
+que crear su propia solución de plantillas propietaria basada en YAML, o forzar
 a las organizaciones a crear sus herramientas sobre ella.
 <!-- -->
 :::
 
 ## Ayudantes de descripción del proyecto {#project-description-helpers}
 
-Los ayudantes de descripción de proyectos son archivos Swift que se compilan en
+Los ayudantes de descripción del proyecto son archivos Swift que se compilan en
 un módulo, `ProjectDescriptionHelpers`, que los archivos de manifiesto pueden
 importar. El módulo se compila reuniendo todos los archivos del directorio
 `Tuist/ProjectDescriptionHelpers`.
