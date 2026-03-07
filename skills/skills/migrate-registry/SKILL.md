@@ -68,7 +68,7 @@ Commit the generated registry configuration so the team and CI use the same setu
 
 ```swift
 // Before
-.package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
+.remote(url: "https://github.com/pointfreeco/swift-composable-architecture", requirement: .upToNextMajor(from: "0.1.0"))
 
 // After
 .package(id: "pointfreeco.swift-composable-architecture", from: "0.1.0")
@@ -87,6 +87,44 @@ Commit the generated registry configuration so the team and CI use the same setu
 ### Xcode project
 
 Xcode does not automatically replace source-control packages with registry packages. Remove the source-control package and add the registry package through Xcode's package dependency UI.
+
+## Version Requirement Examples
+
+### URL-based requirements in `Package.swift` or `Tuist/Package.swift`
+
+```swift
+.package(url: "https://github.com/apple/swift-log", from: "1.5.0")
+.package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "9.9.0"))
+.package(url: "https://github.com/pointfreeco/swift-snapshot-testing", .upToNextMinor(from: "1.18.1"))
+.package(url: "https://github.com/stencilproject/Stencil", exact: "0.15.1")
+.package(url: "https://github.com/example/package", "1.2.3"..<"1.2.6")
+.package(url: "https://github.com/example/package", "1.2.3"..."1.2.6")
+```
+
+### URL-based requirements in `Project.swift`
+
+```swift
+.remote(url: "https://github.com/apple/swift-log", requirement: .upToNextMajor(from: "1.5.0"))
+.remote(url: "https://github.com/pointfreeco/swift-snapshot-testing", requirement: .upToNextMinor(from: "1.18.1"))
+.remote(url: "https://github.com/stencilproject/Stencil", requirement: .exact("0.15.1"))
+.remote(url: "https://github.com/example/package", requirement: .branch("main"))
+.remote(url: "https://github.com/example/package", requirement: .revision("abc123def456"))
+```
+
+### Registry-based equivalents
+
+When you migrate to explicit registry references, keep the same semantic version rule where possible:
+
+```swift
+.package(id: "apple.swift-log", from: "1.5.0")
+.package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.9.0"))
+.package(id: "pointfreeco.swift-snapshot-testing", .upToNextMinor(from: "1.18.1"))
+.package(id: "stencilproject.Stencil", exact: "0.15.1")
+.package(id: "example.package", "1.2.3"..<"1.2.6")
+.package(id: "example.package", "1.2.3"..."1.2.6")
+```
+
+Branch and revision requirements are source-control specific. Keep them URL-based, or switch to a tagged version before migrating to explicit registry identifiers.
 
 ## Registry ID Format
 
