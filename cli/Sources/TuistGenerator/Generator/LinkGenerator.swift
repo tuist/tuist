@@ -547,7 +547,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         // Multiple commands produce  ...
         // ```
         // A slightly different build phase is needed, where the destination is unique per target (this does
-        // lead to some wasted derrived data disk space, but only when archiving to limit impact).
+        // lead to some wasted derived data disk space, but only when archiving to limit impact).
         // As of Xcode 14.2, this seems to achieve the desired effect of getting Xcode to process the XCFramework
         // without explicitly linking it nor producing the multiple commands error.
         try generateStaticXCFrameworksDependenciesBuildPhase(

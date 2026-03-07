@@ -25,7 +25,7 @@ public actor RunMetadataStorage {
         self.graphBinaryBuildDuration = graphBinaryBuildDuration
     }
 
-    /// Binar cache-specific cache items
+    /// Binary cache-specific cache items
     public private(set) var binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [:]
     public func update(binaryCacheItems: [AbsolutePath: [String: CacheItem]]) {
         self.binaryCacheItems = binaryCacheItems

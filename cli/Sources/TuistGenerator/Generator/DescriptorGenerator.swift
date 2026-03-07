@@ -4,7 +4,7 @@ import XcodeGraph
 
 /// Descriptor Generator
 ///
-/// This component genertes`XcodeProj` representations of a given graph model.
+/// This component generates`XcodeProj` representations of a given graph model.
 /// No sideeffects take place as a result of this generation.
 ///
 /// - Seealso: `GraphLoader`

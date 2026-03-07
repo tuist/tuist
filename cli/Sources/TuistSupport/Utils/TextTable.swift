@@ -35,12 +35,12 @@ public struct TextTable<T> {
         self.mapper = mapper
     }
 
-    /// Returns a string representing the data redered as a table.
+    /// Returns a string representing the data rendered as a table.
     ///
     /// - Parameters:
     ///   - data: A collection of elements to render.
     ///
-    /// - Returns: A string representing the data redered as a table.
+    /// - Returns: A string representing the data rendered as a table.
     public func render<C: Collection>(_ data: C) -> String where C.Iterator.Element == T {
         guard let headerRow = data.first else { return "" }
 

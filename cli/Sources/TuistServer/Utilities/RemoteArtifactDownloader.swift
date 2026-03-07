@@ -15,7 +15,7 @@ enum RemoteArtifactDownloaderError: LocalizedError, Equatable {
             return "Received a session error when sending \(httpMethod) request to \(url.absoluteString): \(error)"
         case let .noURLResponse(url):
             if let url {
-                return "The response from request to URL \(url.absoluteString) doesnt' have the expected type HTTPURLResponse"
+                return "The response from request to URL \(url.absoluteString) doesn't have the expected type HTTPURLResponse"
             } else {
                 return "Received a response that doesn't have the expected type HTTPURLResponse"
             }

@@ -6,7 +6,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-/// A project mapper that generates derived Info.plist files for targets that define it as a dictonary.
+/// A project mapper that generates derived Info.plist files for targets that define it as a dictionary.
 public struct GenerateInfoPlistProjectMapper: ProjectMapping {
     private let infoPlistContentProvider: InfoPlistContentProviding
     private let derivedDirectoryName: String

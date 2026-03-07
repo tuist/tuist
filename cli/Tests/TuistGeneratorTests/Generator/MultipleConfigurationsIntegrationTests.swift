@@ -236,7 +236,7 @@ final class MultipleConfigurationsIntegrationTests {
     /// - project configuration settings
     /// - target .xcconfig
     /// - target base
-    /// - target configuraiton settings
+    /// - target configuration settings
     @Test(
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
