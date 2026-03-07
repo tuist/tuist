@@ -20,7 +20,7 @@ Use the resolver that matches the project type. Migrate all package references f
 ## Quick Start
 
 1. Detect the project type and where dependencies are declared.
-2. If the project uses generated Tuist projects with `.remote` packages in `Project.swift`, enable `registryEnabled` in `Tuist.swift` and remove tracked generated `.xcworkspace` directories if the repo commits them.
+2. If the project uses generated Tuist projects with `.remote` packages in `Project.swift`, enable `registryEnabled` in `Tuist.swift`.
 3. Otherwise, migrate the relevant `Package.swift` or Xcode-managed package references directly.
 4. Convert all eligible package references from URL-based declarations to registry-based `id:` references.
 5. Keep a short list of packages that do not support the registry yet.
@@ -171,7 +171,7 @@ Use this list to explain which packages stayed URL-based after the final resolve
 eval "$(mise activate bash)"
 ```
 
-- If a generated Tuist project commits generated workspaces, remove stale `.xcworkspace` directories before validation.
+- Do not delete `.xcworkspace` files as part of the migration workflow.
 
 ### Step 2 - Convert all package references
 
@@ -222,7 +222,6 @@ tuist registry login
 - Registry setup matches the project type
 - All eligible package references were migrated before validation
 - Unsupported packages were recorded and left URL-based
-- Generated `.xcworkspace` directories were removed only when relevant
 - The resolver command for the project type succeeds
 - Packages missing from the registry remain URL-based
 - Dotted repository names use `_` in the registry identifier
