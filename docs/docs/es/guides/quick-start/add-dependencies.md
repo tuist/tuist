@@ -9,14 +9,14 @@
 
 Es habitual que los proyectos dependan de bibliotecas de terceros para
 proporcionar funcionalidades adicionales. Para ello, ejecuta el siguiente
-comando y disfruta de la mejor experiencia al editar tu proyecto:
+comando para disfrutar de la mejor experiencia al editar tu proyecto:
 
 ```bash
 tuist edit
 ```
 
 Se abrirá un proyecto Xcode que contiene los archivos de tu proyecto. Edita el
-paquete `Package.swift` y añade el
+paquete Package.swift `` y añade el
 
 ```swift
 // swift-tools-version: 5.9
@@ -92,8 +92,8 @@ Manager](https://www.swift.org/documentation/package-manager/).
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 El enfoque recomendado por Tuist para las dependencias utiliza Swift Package
-Manager (SPM) únicamente para resolver las dependencias. A continuación, Tuist
-las convierte en proyectos y objetivos de Xcode para obtener la máxima
+Manager (SPM) solo para resolver las dependencias. A continuación, Tuist las
+convierte en proyectos y objetivos de Xcode para obtener la máxima
 configurabilidad y control.
 <!-- -->
 :::
