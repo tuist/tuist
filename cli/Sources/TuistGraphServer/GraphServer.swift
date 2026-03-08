@@ -17,7 +17,7 @@ public final class GraphServer: Sendable {
     private let lock = NSLock()
     private nonisolated(unsafe) var _graphJSON: Data
     private nonisolated(unsafe) var channel: Channel?
-    private let eventLoopGroup: MultiThreadedEventLoopGroup
+    private nonisolated(unsafe) var eventLoopGroup: MultiThreadedEventLoopGroup?
     private let port: Int
     private let shouldOpenBrowser: Bool
 
@@ -41,7 +41,6 @@ public final class GraphServer: Sendable {
         self._graphJSON = graphJSON
         self.port = port
         self.shouldOpenBrowser = openBrowser
-        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
     }
 
     /// Replaces the graph data and notifies all connected WebSocket clients to reload.
@@ -61,6 +60,8 @@ public final class GraphServer: Sendable {
     /// This method blocks until the server is shut down.
     public func start() throws {
         let server = self
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        self.eventLoopGroup = group
 
         let websocketUpgrader = NIOWebSocketServerUpgrader(
             shouldUpgrade: { channel, head in
@@ -80,17 +81,20 @@ public final class GraphServer: Sendable {
             }
         )
 
-        let bootstrap = ServerBootstrap(group: eventLoopGroup)
+        let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(.backlog, value: 256)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
-                channel.pipeline.configureHTTPServerPipeline(
+                let httpHandler = GraphHTTPHandler(server: server, port: server.port)
+                return channel.pipeline.configureHTTPServerPipeline(
                     withServerUpgrade: (
                         upgraders: [websocketUpgrader] as [HTTPServerProtocolUpgrader],
-                        completionHandler: { _ in }
+                        completionHandler: { context in
+                            context.pipeline.removeHandler(httpHandler, promise: nil)
+                        }
                     )
                 ).flatMap {
-                    channel.pipeline.addHandler(GraphHTTPHandler(server: server, port: server.port))
+                    channel.pipeline.addHandler(httpHandler)
                 }
             }
             .childChannelOption(.socketOption(.so_reuseaddr), value: 1)
@@ -111,7 +115,7 @@ public final class GraphServer: Sendable {
     /// Gracefully shuts down the server.
     public func shutdown() throws {
         try channel?.close().wait()
-        try eventLoopGroup.syncShutdownGracefully()
+        try eventLoopGroup?.syncShutdownGracefully()
     }
 
     // MARK: - WebSocket client management

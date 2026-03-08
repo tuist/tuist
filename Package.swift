@@ -1563,6 +1563,10 @@ var products: [Product] = [
         name: "TuistOIDC",
         targets: ["TuistOIDC"]
     ),
+    .library(
+        name: "XcodeGraph",
+        targets: ["XcodeGraph"]
+    ),
 ]
 
 #if os(macOS)

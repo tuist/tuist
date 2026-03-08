@@ -8,7 +8,7 @@ import NIOHTTP1
 /// - `GET /`           → generated HTML page that loads `<xcode-graph>` from CDN
 /// - `GET /graph.json` → the raw graph JSON
 /// - `GET /ws`         → WebSocket upgrade (handled by NIOWebSocket upgrader, not here)
-final class GraphHTTPHandler: ChannelInboundHandler {
+final class GraphHTTPHandler: ChannelInboundHandler, RemovableChannelHandler {
     typealias InboundIn = HTTPServerRequestPart
     typealias OutboundOut = HTTPServerResponsePart
 
@@ -43,7 +43,7 @@ final class GraphHTTPHandler: ChannelInboundHandler {
     // MARK: - HTML Generation
 
     /// The CDN URL for the web component bundle.
-    private static let cdnURL = "https://cdn.jsdelivr.net/npm/xcode-graph@0.2.0/dist/xcodegraph.js"
+    private static let cdnURL = "https://cdn.jsdelivr.net/npm/xcode-graph@1.34.5-3/dist/xcodegraph.js"
 
     private static func generateHTML(port: Int) -> String {
         """

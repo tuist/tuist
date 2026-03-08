@@ -58,7 +58,7 @@ struct GraphHTTPHandlerTests {
 
         #expect(head.status == .ok)
         #expect(head.headers.first(name: "content-type") == "text/html")
-        #expect(body.contains("xcode-graph@0.2.0"))
+        #expect(body.contains("xcode-graph@1.34.5-3"))
         #expect(body.contains("xcode-graph"))
     }
 

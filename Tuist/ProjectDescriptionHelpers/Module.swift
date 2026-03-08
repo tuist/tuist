@@ -72,6 +72,7 @@ public enum Module: String, CaseIterable {
     case shareCommand = "TuistShareCommand"
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
+    case graphServer = "TuistGraphServer"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -464,7 +465,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http, .har, .configLoader:
+            .http, .har, .configLoader, .graphServer:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
@@ -750,6 +751,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Noora"),
                     .external(name: "SwiftyJSON"),
                     .external(name: "Rosalind"),
+                    .target(name: Module.graphServer.targetName),
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
@@ -1324,6 +1326,12 @@ public enum Module: String, CaseIterable {
                     .external(name: "Command", condition: .when([.macos])),
                     .external(name: "Mockable"),
                 ]
+            case .graphServer:
+                [
+                    .external(name: "NIO"),
+                    .external(name: "NIOHTTP1"),
+                    .external(name: "NIOWebSocket"),
+                ]
             case .shareCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1425,6 +1433,13 @@ public enum Module: String, CaseIterable {
                  .registryCommand, .buildCommand, .generateCommand,
                  .runCommand, .shareCommand, .inspectCommand, .android:
                 []
+            case .graphServer:
+                [
+                    .external(name: "NIO"),
+                    .external(name: "NIOEmbedded"),
+                    .external(name: "NIOHTTP1"),
+                    .external(name: "NIOWebSocket"),
+                ]
             case .testCommand:
                 [
                     .target(name: Module.config.targetName),
