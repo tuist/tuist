@@ -16,7 +16,7 @@ tuist edit
 ```
 
 Otworzy się projekt Xcode zawierający pliki projektu. Edytuj plik
-`Package.swift` i dodaj
+Package.swift` w folderze `i dodaj
 
 ```swift
 // swift-tools-version: 5.9
@@ -99,7 +99,7 @@ kontrolę.
 
 ## Wizualizuj projekt {#visualize-the-project}
 
-Możesz wyświetlić strukturę projektu, uruchamiając:
+Możesz zwizualizować strukturę projektu, uruchamiając:
 
 ```bash
 tuist graph
@@ -112,8 +112,8 @@ projektu:
 
 ## Użyj zależności {#use-the-dependency}
 
-Uruchom polecenie „ `” tuist generate`, aby otworzyć projekt w Xcode, a
-następnie wprowadź następujące zmiany w pliku „ `ContentView.swift”`:
+Uruchom `tuist generate`, aby otworzyć projekt w Xcode, a następnie wprowadź
+następujące zmiany w pliku `ContentView.swift`:
 
 ```swift
 import SwiftUI
