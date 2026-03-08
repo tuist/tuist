@@ -33,7 +33,8 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
         :ok
       else
         result = Bundles.evaluate_project_thresholds(project, bundle)
-        post_check_run(project, bundle, git_commit_sha, result)
+        head_sha = resolve_head_sha(project, bundle, git_commit_sha)
+        post_check_run(project, bundle, head_sha, result)
       end
     else
       _ -> :ok
@@ -44,6 +45,21 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorker do
     bundle.git_commit_sha != nil &&
       bundle.git_ref != nil &&
       String.starts_with?(bundle.git_ref, "refs/pull/")
+  end
+
+  defp resolve_head_sha(project, bundle, fallback_sha) do
+    with "refs/pull/" <> rest <- bundle.git_ref,
+         {pr_number, _} <- Integer.parse(rest),
+         {:ok, %{"head" => %{"sha" => head_sha}}} <-
+           Client.get_pull_request(%{
+             repository_full_handle: project.vcs_connection.repository_full_handle,
+             installation_id: project.vcs_connection.github_app_installation.installation_id,
+             pr_number: pr_number
+           }) do
+      head_sha
+    else
+      _ -> fallback_sha
+    end
   end
 
   defp post_check_run(

@@ -80,7 +80,8 @@ defmodule TuistWeb.OverviewLive do
     {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
   end
 
-  def handle_params(params, request_uri, %{assigns: %{selected_project: project}} = socket) do
+  def handle_params(_params, request_uri, %{assigns: %{selected_project: project}} = socket) do
+    params = Query.query_params(request_uri)
     full_uri = URI.parse(request_uri)
 
     socket =

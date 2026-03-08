@@ -35,7 +35,9 @@ defmodule TuistWeb.TestsLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
+
     uri =
       URI.new!(
         "?" <>

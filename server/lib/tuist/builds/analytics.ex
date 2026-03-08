@@ -898,15 +898,15 @@ defmodule Tuist.Builds.Analytics do
       ClickHouseRepo.query!(
         """
         SELECT
-          toStartOfInterval(inserted_at, INTERVAL #{interval_str}) as date,
-          SUM(size) as total_size
-        FROM cas_events
+          toStartOfInterval(date, INTERVAL #{interval_str}) as period,
+          SUM(total_size) as total_size
+        FROM cas_events_daily_stats
         WHERE project_id = {project_id:Int64}
           AND action = {action:String}
-          AND inserted_at >= {start_dt:DateTime}
-          AND inserted_at <= {end_dt:DateTime}
-        GROUP BY date
-        ORDER BY date
+          AND date >= toDate({start_dt:DateTime})
+          AND date <= toDate({end_dt:DateTime})
+        GROUP BY period
+        ORDER BY period
         """,
         %{
           project_id: project_id,
@@ -938,12 +938,12 @@ defmodule Tuist.Builds.Analytics do
     result =
       ClickHouseRepo.query!(
         """
-        SELECT SUM(size) as total_size
-        FROM cas_events
+        SELECT SUM(total_size) as total_size
+        FROM cas_events_daily_stats
         WHERE project_id = {project_id:Int64}
           AND action = {action:String}
-          AND inserted_at >= {start_dt:DateTime}
-          AND inserted_at <= {end_dt:DateTime}
+          AND date >= toDate({start_dt:DateTime})
+          AND date <= toDate({end_dt:DateTime})
         """,
         %{
           project_id: project_id,
