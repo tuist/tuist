@@ -87,7 +87,7 @@ Manager](https://www.swift.org/documentation/package-manager/)解决并拉取依
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 Tuist推荐的依赖管理方案仅使用Swift Package Manager (SPM)
-解决依赖问题。随后Tuist将这些依赖转换为Xcode项目和目标，以实现最大程度的可配置性和控制力。
+解决依赖问题。随后Tuist将其转换为Xcode项目和目标，以实现最大程度的可配置性和控制力。
 <!-- -->
 :::
 
@@ -103,7 +103,7 @@ tuist graph
 
 ![项目图](/images/guides/quick-start/graph.png)
 
-## 使用依赖项{#use-the-dependency}
+## 使用依赖关系{#use-the-dependency}
 
 运行`tuist generate` 在 Xcode 中打开项目，并对`ContentView.swift 文件进行以下修改：`
 
