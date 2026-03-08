@@ -8,7 +8,7 @@
 # Zależności {#dependencies}
 
 Gdy projekt się rozrasta, często dzieli się go na wiele celów, aby dzielić kod,
-definiować granice i skrócić czas kompilacji. Wiele celów oznacza definiowanie
+definiować granice i skrócić czas kompilacji. Wiele celów oznacza zdefiniowanie
 zależności między nimi, tworząc wykres zależności typu „ **”**, który może
 również obejmować zależności zewnętrzne.
 
@@ -23,11 +23,11 @@ mogą się pojawić:
   powinny. Kompilacje mogą zakończyć się niepowodzeniem w CI, gdzie częściej
   stosuje się kompilacje czyste, lub później, gdy używana jest inna
   konfiguracja.
-- Zależności dynamiczne celów muszą zostać skopiowane do dowolnego katalogu
-  należącego do ustawienia kompilacji `LD_RUNPATH_SEARCH_PATHS`. Jeśli tak nie
-  jest, cel nie będzie w stanie ich znaleźć w czasie wykonywania. Jest to łatwe
-  do zrozumienia i skonfigurowania, gdy graf jest mały, ale staje się problemem
-  w miarę jego powiększania się.
+- Zależności dynamiczne przechodnie celu muszą zostać skopiowane do dowolnego
+  katalogu należącego do ustawienia kompilacji `LD_RUNPATH_SEARCH_PATHS`. Jeśli
+  tak nie jest, cel nie będzie w stanie ich znaleźć w czasie wykonywania. Jest
+  to łatwe do zrozumienia i skonfigurowania, gdy graf jest mały, ale staje się
+  problemem wraz z jego rozrostem.
 - Gdy cel łączy statyczny
   [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle),
   potrzebuje dodatkowej fazy kompilacji, aby Xcode mógł przetworzyć pakiet i
@@ -45,16 +45,15 @@ Package Manager je przejął.
 Jesteśmy głęboko przekonani, że wykres zależności powinien być **explicit** and
 **static** ponieważ tylko wtedy można go **validated** and **optimized**. Dzięki
 Tuist możesz skupić się na opisaniu, co od czego zależy, a my zajmiemy się
-resztą. Skomplikowane szczegóły i kwestie związane z implementacją są dla Ciebie
-abstrakcyjne.
+resztą. Nie musisz martwić się o zawiłości i szczegóły implementacji.
 
 W kolejnych sekcjach dowiesz się, jak zadeklarować zależności w swoim projekcie.
 
 ::: tip GRAPH VALIDATION
 <!-- -->
 Tuist weryfikuje wykres podczas generowania projektu, aby upewnić się, że nie ma
-cykli i że wszystkie zależności są prawidłowe. Dzięki temu każdy zespół może
-brać udział w rozwijaniu wykresu zależności bez obawy o jego uszkodzenie.
+w nim cykli i że wszystkie zależności są prawidłowe. Dzięki temu każdy zespół
+może brać udział w rozwijaniu wykresu zależności bez obawy o jego uszkodzenie.
 <!-- -->
 :::
 
@@ -66,9 +65,9 @@ zależności `` z dowolną z następujących opcji:
 
 - `` docelowy: Deklaruje zależność z celem w ramach tego samego projektu.
 - `Projekt`: Deklaruje zależność z celem w innym projekcie.
-- `Framework`: Deklaruje zależność od binarnego frameworka.
+- `Framework`: Deklaruje zależność od frameworku binarnego.
 - `Biblioteka`: Deklaruje zależność od biblioteki binarnej.
-- `XCFramework`: Deklaruje zależność od pliku binarnego XCFramework.
+- `XCFramework`: Deklaruje zależność od binarnego XCFramework.
 - `SDK`: Deklaruje zależność od systemowego SDK.
 - `XCTest`: Deklaruje zależność od XCTest.
 
@@ -190,8 +189,8 @@ tuist install
 
 Jak zapewne zauważyłeś, stosujemy podejście podobne do
 [CocoaPods](https://cocoapods.org), gdzie rozwiązywanie zależności jest osobnym
-poleceniem. Dzięki temu użytkownicy mają kontrolę nad tym, kiedy chcą
-rozwiązywać i aktualizować zależności, a także mogą otworzyć Xcode w projekcie i
+poleceniem. Daje to użytkownikom kontrolę nad tym, kiedy chcą rozwiązywać i
+aktualizować zależności, a także pozwala otworzyć Xcode w projekcie i
 przygotować go do kompilacji. Uważamy, że w tym obszarze doświadczenia
 programistów związane z integracją Apple z menedżerem pakietów Swift pogarszają
 się wraz z rozwojem projektu.
@@ -227,7 +226,7 @@ let project = Project(
 
 ::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
-Schematy **** nie są automatycznie tworzone dla projektów Swift Package, aby
+Schematy **** nie są tworzone automatycznie dla projektów Swift Package, aby
 lista schematów była przejrzysta. Można je utworzyć za pomocą interfejsu
 użytkownika Xcode.
 <!-- -->
@@ -244,7 +243,7 @@ let project = Project(name: "MyProject", packages: [
 ])
 ```
 
-Następnie odwołaj się do nich w swoich celach:
+Następnie odwołaj się do nich z poziomu swoich celów:
 
 ```swift
 let target = .target(name: "MyTarget", dependencies: [
@@ -252,8 +251,8 @@ let target = .target(name: "MyTarget", dependencies: [
 ])
 ```
 
-W przypadku makr Swift i wtyczek narzędzi kompilacyjnych należy użyć odpowiednio
-typów `.macro` i `.plugin`.
+W przypadku makr Swift i wtyczek narzędzi kompilacyjnych należy używać
+odpowiednio typów `.macro` i `.plugin`.
 
 ::: warning SPM Build Tool Plugins
 <!-- -->
@@ -265,9 +264,9 @@ projektu.
 <!-- -->
 :::
 
-Praktycznym zastosowaniem wtyczki narzędzia do tworzenia SPM jest sprawdzanie
-poprawności kodu podczas fazy kompilacji „Uruchom wtyczki narzędzia do
-kompilacji” w Xcode. W manifeście pakietu jest to zdefiniowane w następujący
+Praktycznym zastosowaniem wtyczki narzędzia kompilacyjnego SPM jest sprawdzanie
+poprawności kodu podczas fazy kompilacji „Uruchom wtyczki narzędzi
+kompilacyjnych” w Xcode. W manifeście pakietu jest to zdefiniowane w następujący
 sposób:
 
 ```swift
@@ -361,7 +360,7 @@ pod install
 Zależności CocoaPods nie są kompatybilne z procesami takimi jak `build` lub
 `test`, które uruchamiają `xcodebuild` zaraz po wygenerowaniu projektu. Są one
 również niekompatybilne z buforowaniem plików binarnych i testowaniem
-selektywnym, ponieważ logika fingerprintingu nie uwzględnia zależności Pods.
+selektywnym, ponieważ logika identyfikacji nie uwzględnia zależności Pods.
 <!-- -->
 :::
 
@@ -381,15 +380,15 @@ Wyzwaniem związanym ze zmianą między statycznym a dynamicznym łączeniem w g
 projektu jest to, że w Xcode nie jest to trywialne, ponieważ zmiana ma kaskadowy
 wpływ na cały graf (np. biblioteki nie mogą zawierać zasobów, statyczne
 frameworki nie muszą być osadzane). Firma Apple próbowała rozwiązać ten problem
-za pomocą rozwiązań kompilacyjnych, takich jak automatyczny wybór między
-statycznym a dynamicznym łączeniem w Swift Package Manager lub [Mergeable
+za pomocą rozwiązań kompilacyjnych, takich jak automatyczna decyzja Swift
+Package Manager między statycznym a dynamicznym łączeniem lub [Mergeable
 Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
 Dodaje to jednak nowe zmienne dynamiczne do wykresu kompilacji, wprowadzając
 nowe źródła niedeterminizmu i potencjalnie powodując, że niektóre funkcje, takie
 jak Swift Previews, które opierają się na wykresie kompilacji, stają się
 zawodne.
 
-Na szczęście Tuist koncepcyjnie kompresuje złożoność związaną z przechodzeniem
+Na szczęście Tuist koncepcyjnie kompresuje złożoność związaną z przełączaniem
 między trybem statycznym a dynamicznym i syntetyzuje
 <LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">akcesory
 pakietów</LocalizedLink>, które są standardowe dla wszystkich typów łączenia. W
@@ -418,7 +417,7 @@ ustawia typ łącza i wszelkie dodatkowe ustawienia kompilacji, które są czasa
 wymagane, takie jak flaga linkera [`-ObjC`
 ](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
 aby zapewnić poprawność wynikowych plików binarnych. Dlatego też nasze
-stanowisko polega na dostarczaniu użytkownikowi zasobów, zazwyczaj w formie
+stanowisko polega na dostarczaniu użytkownikowi zasobów, zazwyczaj w postaci
 dokumentacji, aby mógł on podjąć właściwe decyzje.
 
 ::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
@@ -439,11 +438,11 @@ statycznego i dynamicznego:
 - **Aplikacje z rozszerzeniami:** Ponieważ aplikacje i ich rozszerzenia muszą
   współdzielić kod, może być konieczne uczynienie tych celów dynamicznymi. W
   przeciwnym razie ten sam kod zostanie zduplikowany zarówno w aplikacji, jak i
-  rozszerzeniu, co spowoduje zwiększenie rozmiaru pliku binarnego.
+  w rozszerzeniu, co spowoduje zwiększenie rozmiaru pliku binarnego.
 - **Wstępnie skompilowane zależności zewnętrzne:** Czasami otrzymujesz wstępnie
   skompilowane pliki binarne, które są statyczne lub dynamiczne. Pliki binarne
   statyczne można zawrzeć w dynamicznych frameworkach lub bibliotekach, aby były
-  one łączone dynamicznie.
+  łączone dynamicznie.
 
 Podczas wprowadzania zmian w wykresie Tuist przeanalizuje go i wyświetli
 ostrzeżenie, jeśli wykryje „statyczny efekt uboczny”. Ostrzeżenie to ma na celu
@@ -456,9 +455,9 @@ najgorszych przypadkach, awariami podczas działania.
 
 ### Zależności Objective-C {#objectivec-dependencies}
 
-Podczas integracji zależności Objective-C może być konieczne dodanie określonych
-flag w docelowym miejscu wykorzystania, aby uniknąć awarii w czasie wykonywania,
-jak opisano szczegółowo w [Apple Technical Q&A
+Podczas integrowania zależności Objective-C może być konieczne dodanie
+określonych flag w docelowym miejscu wykorzystania, aby uniknąć awarii w czasie
+wykonywania, jak opisano szczegółowo w [Apple Technical Q&A
 QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html).
 
 Ponieważ system kompilacji i Tuist nie mają możliwości ustalenia, czy flaga jest
@@ -484,9 +483,9 @@ inne biblioteki Google dla platformy Apple:
 #### Upewnij się, że `-ObjC` zostało dodane do `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
 
 Wiele bibliotek Google jest napisanych w języku Objective-C. Z tego powodu każdy
-docelowy konsument będzie musiał dołączyć tag `-ObjC` w ustawieniu kompilacji
-`OTHER_LDFLAGS`. Można to ustawić w pliku `.xcconfig` lub ręcznie określić w
-ustawieniach docelowych w manifestach Tuist. Przykład:
+docelowy konsument będzie musiał dołączyć tag `-ObjC` do swojego ustawienia
+kompilacji `OTHER_LDFLAGS`. Można to ustawić w pliku `.xcconfig` lub ręcznie
+określić w ustawieniach docelowych w manifestach Tuist. Przykład:
 
 ```swift
 Target.target(
@@ -534,7 +533,7 @@ let package = Package(
 ...
 ```
 
-### Architektura kompozycyjna {#the-composable-architecture}
+### Architektura modułowa {#the-composable-architecture}
 
 Jak opisano
 [tutaj](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184)
@@ -546,7 +545,7 @@ Podczas łączenia statycznego cele testowe i aplikacyjne zazwyczaj działają b
 żadnych problemów, ale podglądy SwiftUI są uszkodzone. Można to rozwiązać,
 łącząc wszystko dynamicznie. W poniższym przykładzie dodano również
 [Sharing](https://github.com/pointfreeco/swift-sharing) jako zależność, ponieważ
-jest ono często używane razem z The Composable Architecture i ma swoje własne
+jest on często używany razem z The Composable Architecture i ma swoje własne
 [pułapki
 konfiguracyjne](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
 
@@ -631,9 +630,10 @@ internal import StaticModule
 
 :: info
 <!-- -->
-Poziom dostępu do importów został uwzględniony w Swift 6. Jeśli używasz
-starszych wersji Swift, musisz zamiast tego użyć
-<LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>:
+Poziom dostępu do importów został uwzględniony w Swift 6. Jeśli korzystasz ze
+starszych wersji Swift, musisz użyć
+<LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
+zamiast:
 <!-- -->
 :::
 
