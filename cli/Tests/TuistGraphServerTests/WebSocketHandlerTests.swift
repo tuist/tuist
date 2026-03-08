@@ -32,6 +32,7 @@ struct WebSocketHandlerTests {
 
     @Test func connection_close_closes_channel() throws {
         let channel = try makeChannel()
+        defer { _ = try? channel.finish() }
 
         let closeFrame = WebSocketFrame(fin: true, opcode: .connectionClose, data: channel.allocator.buffer(capacity: 0))
         try channel.writeInbound(closeFrame)

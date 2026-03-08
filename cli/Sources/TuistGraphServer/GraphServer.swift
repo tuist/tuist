@@ -47,7 +47,7 @@ public final class GraphServer: Sendable {
     public func updateGraph(_ data: Data) {
         lock.lock()
         _graphJSON = data
-        let clients = wsClients.values
+        let clients = Array(wsClients.values)
         lock.unlock()
 
         for client in clients {
@@ -60,7 +60,7 @@ public final class GraphServer: Sendable {
     /// This method blocks until the server is shut down.
     public func start() throws {
         let server = self
-        let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         eventLoopGroup = group
 
         let websocketUpgrader = NIOWebSocketServerUpgrader(

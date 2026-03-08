@@ -94,6 +94,12 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var port: Int = 8081
 
+    public mutating func validate() throws {
+        guard (1 ... 65535).contains(port) else {
+            throw ValidationError("Invalid value for '--port': \(port). Expected a value in the range 1...65535.")
+        }
+    }
+
     public func run() async throws {
         try await GraphService().run(
             format: format,
