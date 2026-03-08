@@ -7,13 +7,13 @@
 ---
 # 依存関係を追加{#add-dependencies}
 
-プロジェクトが追加機能を提供するためにサードパーティライブラリに依存することは一般的です。プロジェクト編集の最適な環境を得るには、次のコマンドを実行してください：
+プロジェクトが追加機能を提供するためにサードパーティライブラリに依存することは一般的です。プロジェクト編集を最適化するには、以下のコマンドを実行してください：
 
 ```bash
 tuist edit
 ```
 
-`Xcodeプロジェクトが開き、プロジェクトファイルが含まれます。Package.swiftを編集し、` に以下の内容を追加してください：
+`Xcodeプロジェクトが開き、プロジェクトファイルが含まれます。Package.swiftを編集してください。` に以下の内容を追加します。
 
 ```swift
 // swift-tools-version: 5.9
@@ -87,8 +87,8 @@ Manager](https://www.swift.org/documentation/package-manager/)
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-Tuistが推奨する依存関係管理のアプローチでは、Swift Package Manager (SPM)
-を依存関係の解決にのみ使用します。その後、TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定性と制御性を実現します。
+Tuistが推奨する依存関係管理のアプローチでは、Swift Package
+Manager（SPM）を依存関係の解決にのみ使用します。その後、TuistはそれらをXcodeプロジェクトおよびターゲットに変換し、最大限の設定性と制御性を実現します。
 <!-- -->
 :::
 
@@ -100,7 +100,7 @@ Tuistが推奨する依存関係管理のアプローチでは、Swift Package M
 tuist graph
 ```
 
-このコマンドはプロジェクトディレクトリに`graph.png` ファイルを出力・開きます：
+このコマンドはプロジェクトディレクトリに以下のファイルを出力・開きます：`graph.png`
 
 ![プロジェクトグラフ](/images/guides/quick-start/graph.png)
 
