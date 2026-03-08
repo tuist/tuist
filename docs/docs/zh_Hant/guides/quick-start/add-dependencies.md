@@ -13,7 +13,7 @@
 tuist edit
 ```
 
-Xcode 專案將開啟並載入您的專案檔案。編輯`中的 Package.swift 檔案，前往` 位置，並新增以下內容：
+Xcode 專案將開啟並載入您的專案檔案。編輯`Package.swift 中的` 並新增
 
 ```swift
 // swift-tools-version: 5.9
@@ -82,7 +82,7 @@ let project = Project(
 ```
 
 接著執行 ``` 並安裝 `` ` 以透過 [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/) 解決並拉取依賴項。
+Manager](https://www.swift.org/documentation/package-manager/) 解析並拉取依賴項。
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
