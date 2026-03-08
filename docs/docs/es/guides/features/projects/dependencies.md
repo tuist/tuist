@@ -39,16 +39,15 @@ muestran algunos ejemplos de los problemas que pueden surgir:
 Los anteriores son solo algunos ejemplos, pero hay muchos más con los que nos
 hemos encontrado a lo largo de los años. Imagina que necesitaras un equipo de
 ingenieros para mantener un gráfico de dependencias y garantizar su validez. O
-peor aún, que las complejidades se resolvieran en el momento de la compilación
-mediante un sistema de compilación de código cerrado que no puedes controlar ni
+peor aún, que las complejidades se resolvieran en tiempo de compilación mediante
+un sistema de compilación de código cerrado que no puedes controlar ni
 personalizar. ¿Te suena familiar? Este es el enfoque que adoptó Apple con Xcode
 y XcodeProj y que ha heredado Swift Package Manager.
 
 Creemos firmemente que el gráfico de dependencias debe ser **explícito** y
 **estático** porque solo así puede ser **validado** y **optimizado**. Con Tuist,
 tú te centras en describir qué depende de qué, y nosotros nos encargamos del
-resto. Las complejidades y los detalles de implementación quedan ocultos para
-ti.
+resto. Las complejidades y los detalles de implementación se abstraen de ti.
 
 En las siguientes secciones aprenderás a declarar dependencias en tu proyecto.
 
@@ -77,10 +76,9 @@ el argumento `dependencies` con cualquiera de las siguientes opciones:
 
 ::: info DEPENDENCY CONDITIONS
 <!-- -->
-Cada tipo de dependencia acepta una condición `opción` para vincular
-condicionalmente la dependencia en función de la plataforma. De forma
-predeterminada, vincula la dependencia para todas las plataformas que admite el
-destino.
+Cada tipo de dependencia acepta una condición `` para vincular condicionalmente
+la dependencia en función de la plataforma. De forma predeterminada, vincula la
+dependencia para todas las plataformas que admite el destino.
 <!-- -->
 :::
 
@@ -98,11 +96,11 @@ Tuist.
 #### Integración basada en XcodeProj de Tuist. {#tuists-xcodeprojbased-integration}
 
 La integración predeterminada de Xcode, aunque es la más cómoda, carece de la
-flexibilidad y el control que se requieren para proyectos medianos y grandes.
-Para solucionar esto, Tuist ofrece una integración basada en XcodeProj que te
-permite integrar paquetes Swift en tu proyecto utilizando los objetivos de
-XcodeProj. Gracias a ello, no solo podemos ofrecerte un mayor control sobre la
-integración, sino también hacerla compatible con flujos de trabajo como
+flexibilidad y el control necesarios para proyectos medianos y grandes. Para
+solucionar esto, Tuist ofrece una integración basada en XcodeProj que te permite
+integrar paquetes Swift en tu proyecto utilizando los objetivos de XcodeProj.
+Gracias a ello, no solo podemos ofrecerte un mayor control sobre la integración,
+sino también hacerla compatible con flujos de trabajo como
 <LocalizedLink href="/guides/features/cache">almacenamiento en
 caché</LocalizedLink> y
 <LocalizedLink href="/guides/features/test/selective-testing">ejecuciones de
@@ -185,7 +183,7 @@ utilizado para los paquetes. Por defecto, no debería necesitarlo.
 > Consulte [#8345](https://github.com/tuist/tuist/issues/8345) para obtener más
 > detalles.
 
-El paquete `. El archivo Package.swift` es solo una interfaz para declarar
+El paquete `El archivo Package.swift` es solo una interfaz para declarar
 dependencias externas, nada más. Por eso no se definen objetivos ni productos en
 el paquete. Una vez definidas las dependencias, puede ejecutar el siguiente
 comando para resolverlas e incorporarlas al directorio `Tuist/Dependencies`:
@@ -391,8 +389,8 @@ es que no es trivial en Xcode, ya que un cambio tiene un efecto en cadena en
 todo el gráfico (por ejemplo, las bibliotecas no pueden contener recursos, los
 marcos estáticos no necesitan estar incrustados). Apple intentó resolver el
 problema con soluciones en tiempo de compilación, como la decisión automática de
-Swift Package Manager entre enlaces estáticos y dinámicos, o [Mergeable
-Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
+Swift Package Manager entre enlaces estáticos y dinámicos, o [bibliotecas
+fusionables](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries).
 Sin embargo, esto añade nuevas variables dinámicas al gráfico de compilación, lo
 que añade nuevas fuentes de indeterminismo y puede hacer que algunas funciones,
 como Swift Previews, que dependen del gráfico de compilación, dejen de ser
@@ -422,7 +420,7 @@ func productType() -> Product {
 Ten en cuenta que Tuist
 <LocalizedLink href="/guides/features/projects/cost-of-convenience"> no utiliza
 la configuración implícita por defecto debido a sus costes</LocalizedLink>. Esto
-significa que dependemos de que tú establezcas el tipo de enlace y cualquier
+significa que dependemos de que tú configures el tipo de enlace y cualquier
 configuración de compilación adicional que sea necesaria en ocasiones, como la
 bandera del enlazador [`-ObjC`
 ](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -434,7 +432,7 @@ documentación, para que puedas tomar las decisiones correctas.
 <!-- -->
 Un paquete Swift que integran muchos proyectos es [The Composable
 Architecture](https://github.com/pointfreeco/swift-composable-architecture).
-Para más detalles, consulta [esta sección](#the-composable-architecture).
+Consulte más detalles en [esta sección](#the-composable-architecture).
 <!-- -->
 :::
 
@@ -456,11 +454,11 @@ dinámicos:
 
 Al realizar cambios en el gráfico, Tuist lo analizará y mostrará una advertencia
 si detecta un «efecto secundario estático». Esta advertencia tiene como objetivo
-ayudarte a identificar problemas que podrían surgir al vincular de forma
-estática un objetivo que depende transitivamente de un objetivo estático a
-través de objetivos dinámicos. Estos efectos secundarios suelen manifestarse en
-forma de aumento del tamaño binario o, en el peor de los casos, fallos en el
-tiempo de ejecución.
+ayudarte a identificar problemas que podrían surgir al vincular un objetivo de
+forma estática que depende transitivamente de un objetivo estático a través de
+objetivos dinámicos. Estos efectos secundarios a menudo se manifiestan como un
+aumento del tamaño binario o, en el peor de los casos, fallos en el tiempo de
+ejecución.
 
 ## Solución de problemas {#troubleshooting}
 
@@ -488,10 +486,10 @@ Las bibliotecas de código abierto de Google, aunque potentes, pueden ser
 difíciles de integrar en Tuist, ya que a menudo utilizan una arquitectura y
 técnicas no estándar en su construcción.
 
-A continuación se ofrecen algunos consejos que pueden ser necesarios seguir para
+A continuación, se incluyen algunos consejos que pueden ser necesarios para
 integrar Firebase y otras bibliotecas de Google para la plataforma Apple:
 
-#### Asegúrate de que se añaden `-ObjC` a `OTHER_LDFLAGS.` {#ensure-objc-is-added-to-other_ldflags}
+#### Asegúrate de que `-ObjC` se añada a `OTHER_LDFLAGS.` {#ensure-objc-is-added-to-other_ldflags}
 
 Muchas de las bibliotecas de Google están escritas en Objective-C. Por este
 motivo, cualquier objetivo de consumo deberá incluir la etiqueta `-ObjC` en su
@@ -515,8 +513,8 @@ anterior para obtener más detalles.
 #### Establece el tipo de producto para `FBLPromises` en el marco dinámico. {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
 Ciertas bibliotecas de Google dependen de `FBLPromises`, otra de las bibliotecas
-de Google. Es posible que se encuentre con un error que mencione `FBLPromises`,
-con un aspecto similar al siguiente:
+de Google. Es posible que se produzca un fallo que mencione `FBLPromises`, con
+un aspecto similar al siguiente:
 
 ```
 NSInvalidArgumentException. Reason: -[FBLPromise HTTPBody]: unrecognized selector sent to instance 0x600000cb2640.
@@ -554,16 +552,16 @@ establecer la configuración de compilación `OTHER_LDFLAGS` en `$(inherited)
 -ObjC` al vincular los paquetes de forma estática, que es el tipo de vinculación
 predeterminado de Tuist. Como alternativa, puedes anular el tipo de producto
 para que el paquete sea dinámico. Al enlazar de forma estática, los objetivos de
-prueba y aplicación suelen funcionar sin problemas, pero las vistas previas de
-SwiftUI no funcionan. Esto se puede resolver enlazando todo de forma dinámica.
-En el ejemplo siguiente, también se añade
+prueba y de la aplicación suelen funcionar sin problemas, pero las vistas
+previas de SwiftUI no funcionan. Esto se puede resolver enlazando todo de forma
+dinámica. En el ejemplo siguiente, también se añade
 [Sharing](https://github.com/pointfreeco/swift-sharing) como dependencia, ya que
 se utiliza a menudo junto con The Composable Architecture y tiene sus propios
 [configuration
 pitfalls](https://github.com/pointfreeco/swift-sharing/issues/150#issuecomment-2797107032).
 
-La siguiente configuración lo vinculará todo de forma dinámica, por lo que la
-aplicación, los objetivos de prueba y las vistas previas de SwiftUI funcionarán.
+La siguiente configuración lo vinculará todo de forma dinámica, de modo que la
+aplicación, los objetivos de prueba y las vistas previas de SwiftUI funcionen.
 
 ::: tip STATIC OR DYNAMIC
 <!-- -->
