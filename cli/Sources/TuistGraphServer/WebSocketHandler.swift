@@ -39,7 +39,7 @@ final class WebSocketHandler: ChannelInboundHandler {
         }
     }
 
-    func errorCaught(context: ChannelHandlerContext, error: Error) {
+    func errorCaught(context: ChannelHandlerContext, error _: Error) {
         context.close(promise: nil)
     }
 

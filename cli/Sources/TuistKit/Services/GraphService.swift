@@ -69,7 +69,8 @@ struct GraphService {
         targetsToFilter: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath,
-        interactive: Bool = false
+        interactive: Bool = false,
+        port: Int = 8081
     ) async throws {
         let config = try await configLoader.loadConfig(path: path)
         let graph: XcodeGraph.Graph
@@ -89,7 +90,6 @@ struct GraphService {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             let jsonData = try encoder.encode(graph)
-            let port = 8081
             let server = GraphServer(graphJSON: jsonData, port: port, openBrowser: open)
             Logger.current.notice("Starting interactive graph server at http://localhost:\(port) — press Ctrl-C to stop")
             try server.start()

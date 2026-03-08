@@ -17,12 +17,12 @@ final class GraphHTTPHandler: ChannelInboundHandler, RemovableChannelHandler {
 
     init(server: GraphServer, port: Int) {
         self.server = server
-        self.htmlPage = Data(Self.generateHTML(port: port).utf8)
+        htmlPage = Data(Self.generateHTML(port: port).utf8)
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let reqPart = unwrapInboundIn(data)
-        guard case .head(let request) = reqPart else { return }
+        guard case let .head(request) = reqPart else { return }
 
         let path = request.uri.split(separator: "?").first.map(String.init) ?? request.uri
 

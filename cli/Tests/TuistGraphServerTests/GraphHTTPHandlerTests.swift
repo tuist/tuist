@@ -31,11 +31,11 @@ struct GraphHTTPHandlerTests {
 
         while let part: HTTPServerResponsePart = try channel.readOutbound() {
             switch part {
-            case .head(let head):
+            case let .head(head):
                 responseHead = head
-            case .body(let ioData):
+            case let .body(ioData):
                 switch ioData {
-                case .byteBuffer(var buf):
+                case var .byteBuffer(buf):
                     if let str = buf.readString(length: buf.readableBytes) {
                         body += str
                     }

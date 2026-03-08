@@ -88,6 +88,12 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var interactive: Bool = false
 
+    @Option(
+        help: "The port to use for the interactive graph server.",
+        envKey: .graphPort
+    )
+    var port: Int = 8081
+
     public func run() async throws {
         try await GraphService().run(
             format: format,
@@ -101,7 +107,8 @@ public struct GraphCommand: AsyncParsableCommand {
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
                 .currentPath,
-            interactive: interactive
+            interactive: interactive,
+            port: port
         )
     }
 }

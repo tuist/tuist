@@ -38,9 +38,9 @@ public final class GraphServer: Sendable {
     ///   - port: Port to bind to (default: 8081).
     ///   - openBrowser: Whether to automatically open the browser (default: true).
     public init(graphJSON: Data, port: Int = 8081, openBrowser: Bool = true) {
-        self._graphJSON = graphJSON
+        _graphJSON = graphJSON
         self.port = port
-        self.shouldOpenBrowser = openBrowser
+        shouldOpenBrowser = openBrowser
     }
 
     /// Replaces the graph data and notifies all connected WebSocket clients to reload.
@@ -61,7 +61,7 @@ public final class GraphServer: Sendable {
     public func start() throws {
         let server = self
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-        self.eventLoopGroup = group
+        eventLoopGroup = group
 
         let websocketUpgrader = NIOWebSocketServerUpgrader(
             shouldUpgrade: { channel, head in
@@ -101,11 +101,11 @@ public final class GraphServer: Sendable {
             .childChannelOption(.maxMessagesPerRead, value: 1)
 
         do {
-            self.channel = try bootstrap.bind(host: "localhost", port: port).wait()
+            channel = try bootstrap.bind(host: "localhost", port: port).wait()
             if shouldOpenBrowser {
                 openBrowser(url: "http://localhost:\(port)")
             }
-            try self.channel?.closeFuture.wait()
+            try channel?.closeFuture.wait()
         } catch {
             try shutdown()
             throw error
@@ -134,15 +134,15 @@ public final class GraphServer: Sendable {
 
     private func openBrowser(url: String) {
         #if os(macOS)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = [url]
-        try? process.run()
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = [url]
+            try? process.run()
         #elseif os(Linux)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
-        process.arguments = [url]
-        try? process.run()
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
+            process.arguments = [url]
+            try? process.run()
         #endif
     }
 }
