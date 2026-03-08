@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-03-06 11:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-03-09 07:56+0000\n"
+"Last-Translator: 이영준 <kofggm@gmail.com>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.1\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -592,85 +592,67 @@ msgstr "환경"
 msgid "local"
 msgstr "local"
 
-#, fuzzy
 msgid "Add threshold"
-msgstr "추가 임계값"
+msgstr "임계값 추가"
 
-#, fuzzy
 msgid "All"
 msgstr "전체"
 
-#, fuzzy
 msgid "Baseline branch"
-msgstr "기준 분기"
+msgstr "기준 Branch"
 
-#, fuzzy
 msgid ""
 "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
 msgstr "기준 브랜치 대비 번들 크기가 임계값을 초과할 경우 PR 차단"
 
-#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> increases by more than "
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
-"<strong> 의 %{size_label}</strong> 이 <strong> 의 %{deviation}%</strong> "
-"보다 증가할 경우, <strong> 의 %{baseline_branch}</strong> 최신 번들에 비해 "
-"증가한 경우 PR을 차단하십시오."
+"<strong> 의 %{size_label}</strong> 이 <strong> %{baseline_branch}</strong> "
+"의 최신 번들에 비해 <strong> %{deviation}%</strong> 증가할 경우 PR을 "
+"차단합니다."
 
-#, fuzzy
 msgid ""
 "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</"
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
-"<strong> 의 %{size_label}</strong> 가 <strong> 의 %{bundle_name}</strong> "
-"에서 <strong> 의 %{deviation}%</strong> 보다 증가할 경우, <strong> 의 %"
-"{baseline_branch}</strong> 에 있는 최신 번들과 비교하여 블록 PR을 "
-"생성하십시오."
+"<strong> %{bundle_name}</strong>의 <strong>%{size_label}</strong> 가 "
+"<strong> %{baseline_branch}</strong> 에 있는 최신 번들과 비교하여 <strong> %"
+"{deviation}%</strong> 증가할 경우 PR을 차단하세요."
 
-#, fuzzy
 msgid "Bundle name"
 msgstr "번들 이름"
 
-#, fuzzy
 msgid "Create a threshold to block PRs when bundle size exceeds a limit"
-msgstr "번들 크기가 한도를 초과할 때 PR을 차단하는 임계값 설정"
+msgstr "번들 크기가 한계를 초과할 때 PR을 차단하는 임계값 설정"
 
-#, fuzzy
 msgid "Create size threshold"
-msgstr "크기 기준값 생성"
+msgstr "크기 임계값 생성"
 
-#, fuzzy
 msgid "Deviation %"
 msgstr "편차 (%)"
 
-#, fuzzy
 msgid "No size thresholds"
 msgstr "크기 제한 없음"
 
-#, fuzzy
 msgid "Size thresholds"
-msgstr "크기 기준"
+msgstr "크기 임계값"
 
-#, fuzzy
 msgid "Threshold name"
 msgstr "임계값 이름"
 
-#, fuzzy
 msgid "Thresholds"
 msgstr "임계값"
 
-#, fuzzy
 msgid "Update size threshold"
-msgstr "크기 임계값 업데이트"
+msgstr "크기 임계값 수정"
 
-#, fuzzy
 msgid "Connect GitHub"
 msgstr "GitHub 연결"
 
-#, fuzzy
 msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
 msgstr "Tuist GitHub 앱을 연결하여 PR에서 번들 크기 검사를 실행할 수 있도록 하세요."
 
