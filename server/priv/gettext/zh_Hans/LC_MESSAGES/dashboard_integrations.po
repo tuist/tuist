@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-02-08 08:21+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-03-08 16:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_integrations/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -13,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -39,7 +38,7 @@ msgstr "选择 Tuist 项目"
 
 #, fuzzy
 msgid "Choose a repository"
-msgstr "选择一个存储库"
+msgstr "选择存储库"
 
 #, fuzzy
 msgid "Choose repository to connect to"
@@ -93,7 +92,7 @@ msgstr "您无权执行此操作。"
 msgid ""
 "Your access to repositories depends on your GitHub and Tuist integration "
 "setup."
-msgstr "您对存储库的访问权限取决于您的 GitHub 与 Tuist 集成设置。"
+msgstr "您对存储库的访问权限取决于您的GitHub与Tuist集成设置。"
 
 #, fuzzy
 msgid "Connect Slack"
