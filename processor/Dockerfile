@@ -32,8 +32,6 @@ RUN apt-get update -y && apt-get install -y build-essential git \
 
 WORKDIR /app
 
-ENV ERL_FLAGS="-noinput"
-
 RUN mix local.hex --force && mix local.rebar --force
 
 ENV MIX_ENV=prod
