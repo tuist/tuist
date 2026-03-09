@@ -3,22 +3,22 @@ import Foundation
 public struct MachineMetricSample: Codable, Sendable {
     public let timestamp: Double
     public let cpuUsagePercent: Double
-    public let memoryUsedBytes: Int64
-    public let memoryTotalBytes: Int64
-    public let networkBytesIn: Int64
-    public let networkBytesOut: Int64
-    public let diskBytesRead: Int64
-    public let diskBytesWritten: Int64
+    public let memoryUsedBytes: Int
+    public let memoryTotalBytes: Int
+    public let networkBytesIn: Int
+    public let networkBytesOut: Int
+    public let diskBytesRead: Int
+    public let diskBytesWritten: Int
 
     public init(
         timestamp: Double,
         cpuUsagePercent: Double,
-        memoryUsedBytes: Int64,
-        memoryTotalBytes: Int64,
-        networkBytesIn: Int64,
-        networkBytesOut: Int64,
-        diskBytesRead: Int64,
-        diskBytesWritten: Int64
+        memoryUsedBytes: Int,
+        memoryTotalBytes: Int,
+        networkBytesIn: Int,
+        networkBytesOut: Int,
+        diskBytesRead: Int,
+        diskBytesWritten: Int
     ) {
         self.timestamp = timestamp
         self.cpuUsagePercent = cpuUsagePercent

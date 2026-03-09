@@ -13,22 +13,22 @@ import TuistHTTP
     public struct ServerMachineMetricSample {
         public let timestampOffsetMs: Int
         public let cpuUsagePercent: Double
-        public let memoryUsedBytes: Int64
-        public let memoryTotalBytes: Int64
-        public let networkBytesIn: Int64
-        public let networkBytesOut: Int64
-        public let diskBytesRead: Int64
-        public let diskBytesWritten: Int64
+        public let memoryUsedBytes: Int
+        public let memoryTotalBytes: Int
+        public let networkBytesIn: Int
+        public let networkBytesOut: Int
+        public let diskBytesRead: Int
+        public let diskBytesWritten: Int
 
         public init(
             timestampOffsetMs: Int,
             cpuUsagePercent: Double,
-            memoryUsedBytes: Int64,
-            memoryTotalBytes: Int64,
-            networkBytesIn: Int64,
-            networkBytesOut: Int64,
-            diskBytesRead: Int64,
-            diskBytesWritten: Int64
+            memoryUsedBytes: Int,
+            memoryTotalBytes: Int,
+            networkBytesIn: Int,
+            networkBytesOut: Int,
+            diskBytesRead: Int,
+            diskBytesWritten: Int
         ) {
             self.timestampOffsetMs = timestampOffsetMs
             self.cpuUsagePercent = cpuUsagePercent
@@ -432,12 +432,12 @@ import TuistHTTP
         fileprivate init(_ sample: ServerMachineMetricSample) {
             self.init(
                 cpu_usage_percent: sample.cpuUsagePercent,
-                disk_bytes_read: Int(sample.diskBytesRead),
-                disk_bytes_written: Int(sample.diskBytesWritten),
-                memory_total_bytes: Int(sample.memoryTotalBytes),
-                memory_used_bytes: Int(sample.memoryUsedBytes),
-                network_bytes_in: Int(sample.networkBytesIn),
-                network_bytes_out: Int(sample.networkBytesOut),
+                disk_bytes_read: sample.diskBytesRead,
+                disk_bytes_written: sample.diskBytesWritten,
+                memory_total_bytes: sample.memoryTotalBytes,
+                memory_used_bytes: sample.memoryUsedBytes,
+                network_bytes_in: sample.networkBytesIn,
+                network_bytes_out: sample.networkBytesOut,
                 timestamp_offset_ms: sample.timestampOffsetMs
             )
         }

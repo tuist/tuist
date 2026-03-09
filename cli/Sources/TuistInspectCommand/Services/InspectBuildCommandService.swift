@@ -9,7 +9,7 @@
     import TuistCore
     import TuistEnvironment
     import TuistGit
-    import TuistInsights
+    import TuistMachineMetrics
     import TuistLoader
     import TuistLogging
     import TuistProcess

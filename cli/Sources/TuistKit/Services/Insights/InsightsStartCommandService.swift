@@ -1,6 +1,6 @@
 #if os(macOS)
 import Foundation
-import TuistInsights
+import TuistMachineMetrics
 import TuistLogging
 
 struct InsightsStartCommandService {

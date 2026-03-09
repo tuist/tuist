@@ -91,8 +91,8 @@ public final class MachineMetricsSampler: @unchecked Sendable {
     }
 
     private struct MemoryInfo {
-        let used: Int64
-        let total: Int64
+        let used: Int
+        let total: Int
     }
 
     private func memoryInfo() -> MemoryInfo {
@@ -106,23 +106,23 @@ public final class MachineMetricsSampler: @unchecked Sendable {
         }
         mach_port_deallocate(mach_task_self_, hostPort)
 
-        let totalMemory = Int64(ProcessInfo.processInfo.physicalMemory)
+        let totalMemory = Int(ProcessInfo.processInfo.physicalMemory)
         guard result == KERN_SUCCESS else {
             return MemoryInfo(used: 0, total: totalMemory)
         }
 
-        let pageSize = Int64(vm_kernel_page_size)
-        let active = Int64(vmStats.active_count) * pageSize
-        let wired = Int64(vmStats.wire_count) * pageSize
-        let compressed = Int64(vmStats.compressor_page_count) * pageSize
+        let pageSize = Int(vm_kernel_page_size)
+        let active = Int(vmStats.active_count) * pageSize
+        let wired = Int(vmStats.wire_count) * pageSize
+        let compressed = Int(vmStats.compressor_page_count) * pageSize
         let used = active + wired + compressed
 
         return MemoryInfo(used: used, total: totalMemory)
     }
 
     private struct NetworkBytes {
-        let bytesIn: Int64
-        let bytesOut: Int64
+        let bytesIn: Int
+        let bytesOut: Int
     }
 
     private func networkBytes() -> NetworkBytes {
@@ -132,16 +132,16 @@ public final class MachineMetricsSampler: @unchecked Sendable {
         }
         defer { freeifaddrs(ifaddrsPtr) }
 
-        var totalIn: Int64 = 0
-        var totalOut: Int64 = 0
+        var totalIn: Int = 0
+        var totalOut: Int = 0
         var current: UnsafeMutablePointer<ifaddrs>? = firstAddr
 
         while let addr = current {
             if addr.pointee.ifa_addr?.pointee.sa_family == UInt8(AF_LINK) {
                 if let data = addr.pointee.ifa_data {
                     let networkData = data.assumingMemoryBound(to: if_data.self).pointee
-                    totalIn += Int64(networkData.ifi_ibytes)
-                    totalOut += Int64(networkData.ifi_obytes)
+                    totalIn += Int(networkData.ifi_ibytes)
+                    totalOut += Int(networkData.ifi_obytes)
                 }
             }
             current = addr.pointee.ifa_next
@@ -151,13 +151,13 @@ public final class MachineMetricsSampler: @unchecked Sendable {
     }
 
     private struct DiskBytes {
-        let bytesRead: Int64
-        let bytesWritten: Int64
+        let bytesRead: Int
+        let bytesWritten: Int
     }
 
     private func diskBytes() -> DiskBytes {
-        var totalRead: Int64 = 0
-        var totalWritten: Int64 = 0
+        var totalRead: Int = 0
+        var totalWritten: Int = 0
 
         let matching = IOServiceMatching("IOBlockStorageDriver")
         var iterator: io_iterator_t = 0
@@ -173,10 +173,10 @@ public final class MachineMetricsSampler: @unchecked Sendable {
                let dict = properties?.takeRetainedValue() as? [String: Any],
                let stats = dict["Statistics"] as? [String: Any]
             {
-                if let bytesRead = stats["Bytes (Read)"] as? Int64 {
+                if let bytesRead = stats["Bytes (Read)"] as? Int {
                     totalRead += bytesRead
                 }
-                if let bytesWritten = stats["Bytes (Write)"] as? Int64 {
+                if let bytesWritten = stats["Bytes (Write)"] as? Int {
                     totalWritten += bytesWritten
                 }
             }
