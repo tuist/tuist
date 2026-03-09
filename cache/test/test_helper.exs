@@ -27,5 +27,6 @@ Mimic.copy(Cache.KeyValueBuffer)
 Mimic.copy(Cache.CacheArtifactsBuffer)
 Mimic.copy(Cache.S3TransfersBuffer)
 Mimic.copy(Cache.Repo)
+Mimic.copy(Cache.KeyValueRepo)
 
 ExUnit.start(max_cases: min(System.schedulers_online(), 4))

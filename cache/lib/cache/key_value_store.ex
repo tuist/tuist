@@ -9,7 +9,7 @@ defmodule Cache.KeyValueStore do
   alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
 
   require Logger
 
@@ -94,8 +94,8 @@ defmodule Cache.KeyValueStore do
   end
 
   defp load_from_persistence(key, cache) do
-    with_repo_busy_timeout(Config.repo_busy_timeout_ms(), fn ->
-      case Repo.get_by(KeyValueEntry, key: key) do
+    with_repo_busy_timeout(Config.repo_busy_timeout_ms(KeyValueRepo), fn ->
+      case KeyValueRepo.get_by(KeyValueEntry, key: key) do
         nil ->
           {:error, :not_found}
 
@@ -117,19 +117,19 @@ defmodule Cache.KeyValueStore do
   end
 
   defp with_repo_busy_timeout(timeout_ms, fun) do
-    Repo.checkout(fn ->
+    KeyValueRepo.checkout(fn ->
       set_busy_timeout!(timeout_ms)
 
       try do
         fun.()
       after
-        set_busy_timeout!(Config.repo_busy_timeout_ms())
+        set_busy_timeout!(Config.repo_busy_timeout_ms(KeyValueRepo))
       end
     end)
   end
 
   defp set_busy_timeout!(timeout_ms) do
-    case Repo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
+    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
       {:ok, _result} -> :ok
       {:error, error} -> raise error
     end

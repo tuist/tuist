@@ -8,7 +8,7 @@ defmodule Cache.KeyValueEntries do
   alias Cache.Config
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
 
   @id_chunk_size 500
   @hash_chunk_size 500
@@ -92,18 +92,18 @@ defmodule Cache.KeyValueEntries do
     entry_chunks = Enum.chunk_every(entries, @id_chunk_size)
 
     {:ok, _} =
-      Repo.transaction(fn ->
+      KeyValueRepo.transaction(fn ->
         Enum.each(entry_chunks, fn entries_chunk ->
           ids_chunk = entries_chunk |> Enum.map(& &1.id) |> Enum.uniq()
 
-          {_, _} = Repo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
+          {_, _} = KeyValueRepo.delete_all(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^ids_chunk))
 
           entries_chunk
           |> Enum.flat_map(&entry_hash_rows/1)
           |> Enum.chunk_every(@insert_chunk_size)
           |> Enum.each(fn rows_chunk ->
             {_, _} =
-              Repo.insert_all(KeyValueEntryHash, rows_chunk,
+              KeyValueRepo.insert_all(KeyValueEntryHash, rows_chunk,
                 on_conflict: :nothing,
                 conflict_target: [:key_value_entry_id, :cas_hash]
               )
@@ -125,7 +125,7 @@ defmodule Cache.KeyValueEntries do
       hashes
       |> Enum.chunk_every(@hash_chunk_size)
       |> Enum.flat_map(fn chunk ->
-        Repo.all(
+        KeyValueRepo.all(
           from(h in KeyValueEntryHash,
             where: h.account_handle == ^account_handle,
             where: h.project_handle == ^project_handle,
@@ -236,7 +236,7 @@ defmodule Cache.KeyValueEntries do
 
     query = if after_id, do: from(e in query, where: e.id > ^after_id), else: query
 
-    Repo.all(query)
+    KeyValueRepo.all(query)
   end
 
   defp non_null_candidates(cutoff, limit, cursor) do
@@ -261,7 +261,7 @@ defmodule Cache.KeyValueEntries do
           )
       end
 
-    Repo.all(query)
+    KeyValueRepo.all(query)
   end
 
   defp batch_cursor(batch) do
@@ -285,8 +285,7 @@ defmodule Cache.KeyValueEntries do
         try do
           {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
 
-          {:cont,
-           {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count, :complete}}
+          {:cont, {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count, :complete}}
         rescue
           error ->
             if busy_error?(error) do
@@ -302,9 +301,9 @@ defmodule Cache.KeyValueEntries do
 
   defp delete_chunk(ids_chunk, cutoff) do
     {:ok, {grouped_hash_sets, deleted_count}} =
-      Repo.transaction(fn ->
+      KeyValueRepo.transaction(fn ->
         verified_ids =
-          Repo.all(
+          KeyValueRepo.all(
             from(e in KeyValueEntry,
               where: e.id in ^ids_chunk,
               where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff,
@@ -315,7 +314,7 @@ defmodule Cache.KeyValueEntries do
         grouped_hash_sets = hash_references_for_entries(verified_ids)
 
         {deleted_count, _} =
-          Repo.delete_all(
+          KeyValueRepo.delete_all(
             from(e in KeyValueEntry,
               where: e.id in ^verified_ids,
               where: is_nil(e.last_accessed_at) or e.last_accessed_at < ^cutoff
@@ -329,11 +328,11 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp with_repo_busy_timeout(fun) do
-    Repo.checkout(fn ->
+    KeyValueRepo.checkout(fn ->
       try do
         fun.()
       after
-        set_busy_timeout!(Config.repo_busy_timeout_ms())
+        set_busy_timeout!(Config.repo_busy_timeout_ms(KeyValueRepo))
       end
     end)
   end
@@ -343,7 +342,7 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp set_busy_timeout!(timeout_ms) do
-    case Repo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
+    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
       {:ok, _result} -> :ok
       {:error, error} -> raise error
     end
@@ -366,7 +365,7 @@ defmodule Cache.KeyValueEntries do
       where: h.key_value_entry_id in ^entry_ids,
       select: {h.account_handle, h.project_handle, h.cas_hash}
     )
-    |> Repo.all()
+    |> KeyValueRepo.all()
     |> Enum.reduce(%{}, fn {account_handle, project_handle, cas_hash}, acc ->
       scope = {account_handle, project_handle}
       Map.update(acc, scope, MapSet.new([cas_hash]), &MapSet.put(&1, cas_hash))

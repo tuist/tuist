@@ -81,6 +81,10 @@ S3_SECRET_ACCESS_KEY=your-secret-key
 
 # CAS storage (required for non-compose deployments)
 DATA_DIR=/data
+
+# Optional dedicated KV SQLite database path.
+# Defaults to /data/key_value.sqlite.
+KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 ```
 
 | Variable | Required | Default | Description |
@@ -89,6 +93,9 @@ DATA_DIR=/data
 | `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
 | `SERVER_URL` | Yes | | URL of your Tuist server for authentication. Defaults to `https://tuist.dev` |
 | `DATA_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
+| `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
+| `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
+| `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
 | `S3_BUCKET` | Yes | | S3 bucket name. |
 | `S3_HOST` | Yes | | S3 endpoint hostname (e.g. `s3.us-east-1.amazonaws.com`). |
 | `S3_REGION` | Yes | | S3 region. Also accepted as `AWS_REGION`. |
@@ -99,6 +106,10 @@ DATA_DIR=/data
 | `AWS_ROLE_ARN` | No | | IAM role ARN to assume when using web identity token authentication. |
 | `CAS_DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |
 | `CAS_DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
+| `KEY_VALUE_MAX_DB_SIZE_BYTES` | No | `26843545600` | Maximum size of the dedicated key-value SQLite database before size-based KV eviction starts. |
+| `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` | No | `1` | Minimum age a key-value entry must reach before size-based KV eviction can remove it. |
+| `KEY_VALUE_EVICTION_MAX_DURATION_MS` | No | `300000` | Maximum runtime for a single KV eviction pass. |
+| `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES` | No | `24696061952` | Target size after KV eviction finishes, providing hysteresis so the worker does not thrash near the limit. |
 | `PHX_SOCKET_PATH` | No | `/run/cache/cache.sock` | Path where the service creates its Unix socket (when enabled). |
 | `PHX_SOCKET_LINK` | No | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | | gRPC endpoint of an OpenTelemetry Collector for distributed tracing. |
@@ -173,8 +184,18 @@ The Docker Compose configuration uses three volumes:
 | Volume | Purpose |
 |--------|---------|
 | `cas_data` | Binary artifact storage |
-| `sqlite_data` | Access metadata for LRU eviction |
+| `sqlite_data` | SQLite metadata storage. By default this holds both `/data/repo.sqlite` (artifact metadata, orphan cleanup state, Oban) and `/data/key_value.sqlite` (KV metadata). |
 | `cache_socket` | Unix socket for Nginx-service communication |
+
+## Background maintenance {#background-maintenance}
+
+The cache service runs several background maintenance loops that are worth knowing when you self-host it:
+
+- **CAS disk eviction** removes local artifacts when disk usage crosses the configured watermarks.
+- **KV eviction** prunes old key-value entries and keeps the dedicated KV SQLite database within its configured size budget.
+- **Orphan cleanup** scans the disk storage tree for files that no longer have a matching `cache_artifacts` row and deletes them.
+
+Orphan cleanup depends on the primary metadata database, not the dedicated KV database.
 
 ## Health checks {#health-checks}
 
@@ -205,6 +226,8 @@ docker compose up -d
 ```
 
 The service runs database migrations automatically on startup.
+
+That includes both SQLite databases: the primary metadata DB and the dedicated KV DB.
 
 ## Troubleshooting {#troubleshooting}
 

@@ -11,13 +11,14 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
   alias Cache.KeyValueEvictionWorker
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
-    :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(Cache.Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
     :ok
   end
 
@@ -51,7 +52,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    remaining_keys = Repo.all(from(e in KeyValueEntry, select: e.key))
+    remaining_keys = KeyValueRepo.all(from(e in KeyValueEntry, select: e.key))
 
     assert length(remaining_keys) == 10
 
@@ -61,10 +62,10 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     expired_ids = Enum.map(expired_entries, & &1.id)
     fresh_ids = Enum.map(fresh_entries, & &1.id)
 
-    assert Repo.aggregate(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^expired_ids), :count) ==
+    assert KeyValueRepo.aggregate(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^expired_ids), :count) ==
              0
 
-    assert Repo.aggregate(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^fresh_ids), :count) ==
+    assert KeyValueRepo.aggregate(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^fresh_ids), :count) ==
              10
 
     enqueued = all_enqueued(worker: CASCleanupWorker)
@@ -79,7 +80,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   test "size-based eviction stops when db drops below release watermark" do
     call_count = :counters.new(1, [:atomics])
 
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") ->
           {:ok, %{rows: []}}
@@ -129,7 +130,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   end
 
   test "size-based eviction reports floor_limited when no entries eligible" do
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
@@ -155,7 +156,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   end
 
   test "lock contention exits safely and emits busy telemetry" do
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[10]]}}
@@ -210,11 +211,11 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     assert metadata == %{trigger: :time, status: :complete}
     assert measurements.entries_deleted == 3
     assert measurements.duration_ms >= 0
-    assert Repo.aggregate(KeyValueEntry, :count) == 2
+    assert KeyValueRepo.aggregate(KeyValueEntry, :count) == 2
   end
 
   defp insert_entry(key, json_payload, last_accessed_at) do
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: key,
       json_payload: json_payload,
       last_accessed_at: last_accessed_at

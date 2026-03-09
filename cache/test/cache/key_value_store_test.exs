@@ -1,6 +1,7 @@
 defmodule Cache.KeyValueStoreTest do
   use ExUnit.Case, async: true
   use Mimic
+  use Oban.Testing, repo: Cache.Repo
 
   import Ecto.Query
   import ExUnit.CaptureLog
@@ -8,14 +9,14 @@ defmodule Cache.KeyValueStoreTest do
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
+  alias Cache.KeyValueRepo
   alias Cache.KeyValueStore
-  alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup context do
-    :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
 
     context = Cache.BufferTestHelpers.setup_key_value_buffer(context)
     suffix = context.unique_suffix
@@ -423,7 +424,7 @@ defmodule Cache.KeyValueStoreTest do
       ref = make_ref()
       handler_id = "kv-store-contention-#{System.unique_integer([:positive])}"
 
-      expect(Repo, :get_by, fn KeyValueEntry, [key: _key] ->
+      expect(KeyValueRepo, :get_by, fn KeyValueEntry, [key: _key] ->
         raise %Exqlite.Error{message: "database is locked"}
       end)
 
@@ -462,7 +463,7 @@ defmodule Cache.KeyValueStoreTest do
       project_handle: project_handle,
       cas_id: cas_id
     } do
-      expect(Repo, :get_by, fn KeyValueEntry, [key: _key] ->
+      expect(KeyValueRepo, :get_by, fn KeyValueEntry, [key: _key] ->
         raise %RuntimeError{message: "unexpected failure"}
       end)
 
@@ -552,7 +553,7 @@ defmodule Cache.KeyValueStoreTest do
       :ok = KeyValueBuffer.flush()
 
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert record.json_payload == Jason.encode!(%{entries: [%{"value" => "value1"}, %{"value" => "value2"}]})
     end
 
@@ -614,7 +615,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
@@ -631,7 +632,7 @@ defmodule Cache.KeyValueStoreTest do
 
       :ok = KeyValueBuffer.flush()
 
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert DateTime.after?(record.last_accessed_at, old_time)
     end
 
@@ -657,7 +658,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
@@ -672,7 +673,7 @@ defmodule Cache.KeyValueStoreTest do
 
       :ok = KeyValueBuffer.flush()
 
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
 
       assert DateTime.truncate(record.last_accessed_at, :second) ==
                DateTime.truncate(old_time, :second)
@@ -684,6 +685,8 @@ defmodule Cache.KeyValueStoreTest do
       project_handle: project_handle,
       cas_id: cas_id
     } do
+      :ok = Sandbox.checkout(Cache.Repo)
+
       values = ["value1"]
 
       assert :ok =
@@ -698,7 +701,7 @@ defmodule Cache.KeyValueStoreTest do
       :ok = KeyValueBuffer.flush()
 
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert record.last_accessed_at
 
       Cachex.clear(cache_name)
@@ -713,19 +716,28 @@ defmodule Cache.KeyValueStoreTest do
 
       :ok = KeyValueBuffer.flush()
 
-      updated_record = Repo.get_by!(KeyValueEntry, key: key)
+      updated_record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert DateTime.compare(updated_record.last_accessed_at, record.last_accessed_at) != :lt
 
       old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
 
       KeyValueEvictionWorker.perform(%Oban.Job{})
 
-      assert Repo.get_by(KeyValueEntry, key: key) == nil
+      assert KeyValueRepo.get_by(KeyValueEntry, key: key) == nil
+
+      assert_enqueued(
+        worker: Cache.CASCleanupWorker,
+        args: %{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          cas_hashes: values
+        }
+      )
     end
   end
 end

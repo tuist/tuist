@@ -26,6 +26,7 @@ defmodule Cache.Application do
 
     base_children = [
       Cache.Repo,
+      Cache.KeyValueRepo,
       Cache.KeyValueBuffer,
       Cache.CacheArtifactsBuffer,
       Cache.S3TransfersBuffer,
@@ -69,23 +70,24 @@ defmodule Cache.Application do
 
     for repo <- repos do
       Ecto.Migrator.with_repo(repo, fn _repo ->
-        log_sqlite_health()
+        log_sqlite_health(repo)
       end)
     end
   end
 
-  defp log_sqlite_health do
-    with {:ok, %{rows: [[auto_vacuum]]}} <- Cache.Repo.query("PRAGMA auto_vacuum"),
-         {:ok, %{rows: [[freelist_count]]}} <- Cache.Repo.query("PRAGMA freelist_count"),
-         {:ok, %{rows: [[page_count]]}} <- Cache.Repo.query("PRAGMA page_count"),
-         {:ok, %{rows: [[page_size]]}} <- Cache.Repo.query("PRAGMA page_size") do
+  defp log_sqlite_health(repo) do
+    with {:ok, %{rows: [[auto_vacuum]]}} <- repo.query("PRAGMA auto_vacuum"),
+         {:ok, %{rows: [[freelist_count]]}} <- repo.query("PRAGMA freelist_count"),
+         {:ok, %{rows: [[page_count]]}} <- repo.query("PRAGMA page_count"),
+         {:ok, %{rows: [[page_size]]}} <- repo.query("PRAGMA page_size") do
       in_use_bytes = (page_count - freelist_count) * page_size
       reclaimable_bytes = freelist_count * page_size
+      repo_name = inspect(repo)
 
       case auto_vacuum do
         0 ->
           Logger.warning(
-            "SQLite auto_vacuum is disabled (value: 0). " <>
+            "SQLite auto_vacuum is disabled for #{repo_name} (value: 0). " <>
               "Storage health: in_use=#{in_use_bytes} bytes, " <>
               "reclaimable=#{reclaimable_bytes} bytes, " <>
               "page_count=#{page_count}, page_size=#{page_size}"
@@ -93,7 +95,7 @@ defmodule Cache.Application do
 
         2 ->
           Logger.info(
-            "SQLite auto_vacuum is incremental (value: 2). " <>
+            "SQLite auto_vacuum is incremental for #{repo_name} (value: 2). " <>
               "Storage health: in_use=#{in_use_bytes} bytes, " <>
               "reclaimable=#{reclaimable_bytes} bytes, " <>
               "page_count=#{page_count}, page_size=#{page_size}"
@@ -101,7 +103,7 @@ defmodule Cache.Application do
 
         other ->
           Logger.info(
-            "SQLite auto_vacuum value: #{other}. " <>
+            "SQLite auto_vacuum for #{repo_name} has value #{other}. " <>
               "Storage health: in_use=#{in_use_bytes} bytes, " <>
               "reclaimable=#{reclaimable_bytes} bytes, " <>
               "page_count=#{page_count}, page_size=#{page_size}"
@@ -109,7 +111,7 @@ defmodule Cache.Application do
       end
     else
       {:error, reason} ->
-        Logger.warning("Failed to check SQLite health: #{inspect(reason)}")
+        Logger.warning("Failed to check SQLite health for #{inspect(repo)}: #{inspect(reason)}")
     end
   end
 

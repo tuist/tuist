@@ -10,13 +10,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup do
-    :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(Cache.Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
     :ok
   end
 
@@ -25,13 +26,13 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(now, -31, :day)
     recent_time = DateTime.add(now, -10, :day)
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "old-entry",
       json_payload: ~s({"hash": "abc"}),
       last_accessed_at: old_time
     })
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "fresh-entry",
       json_payload: ~s({"hash": "def"}),
       last_accessed_at: recent_time
@@ -41,7 +42,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    entries = Repo.all(KeyValueEntry)
+    entries = KeyValueRepo.all(KeyValueEntry)
     assert length(entries) == 1
     assert hd(entries).key == "fresh-entry"
   end
@@ -49,7 +50,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "returns :ok when no entries are expired" do
     now = DateTime.utc_now()
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "recent-entry",
       json_payload: ~s({"hash": "ghi"}),
       last_accessed_at: now
@@ -59,7 +60,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    entries = Repo.all(KeyValueEntry)
+    entries = KeyValueRepo.all(KeyValueEntry)
     assert length(entries) == 1
   end
 
@@ -67,7 +68,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT_HASH",
         json_payload: ~s({"entries":[{"value":"ABCD1234"},{"value":"EFGH5678"}]}),
         last_accessed_at: old_time
@@ -88,7 +89,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "does not enqueue cleanup for expired entry with non-keyvalue key" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "old-entry",
       json_payload: ~s({"hash": "abc"}),
       last_accessed_at: old_time
@@ -104,7 +105,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "does not enqueue cleanup when no hash rows are present" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "keyvalue:acme:ios:ROOT_HASH",
       json_payload: ~s({"hash":"abc"}),
       last_accessed_at: old_time
@@ -121,7 +122,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT_HASH",
         json_payload: ~s({"entries":[]}),
         last_accessed_at: old_time
@@ -140,14 +141,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry_1 =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT1",
         json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
         last_accessed_at: old_time
       })
 
     entry_2 =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT2",
         json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
         last_accessed_at: old_time
@@ -169,14 +170,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry_1 =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT1",
         json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
         last_accessed_at: old_time
       })
 
     entry_2 =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:android:ROOT2",
         json_payload: ~s({"entries":[{"value":"EFGH5678"}]}),
         last_accessed_at: old_time
@@ -199,14 +200,14 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry_1 =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT1",
         json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
         last_accessed_at: old_time
       })
 
     entry_2 =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT2",
         json_payload: ~s({"entries":[{"value":"ABCD1234"}]}),
         last_accessed_at: old_time
@@ -231,7 +232,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       end
 
     entry =
-      Repo.insert!(%KeyValueEntry{
+      KeyValueRepo.insert!(%KeyValueEntry{
         key: "keyvalue:acme:ios:ROOT1",
         json_payload: Jason.encode!(%{"entries" => many_entries}),
         last_accessed_at: old_time
@@ -259,13 +260,13 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     eight_days_ago = DateTime.add(now, -8, :day)
     five_days_ago = DateTime.add(now, -5, :day)
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "older-than-7-days",
       json_payload: ~s({"hash": "jkl"}),
       last_accessed_at: eight_days_ago
     })
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: "within-7-days",
       json_payload: ~s({"hash": "mno"}),
       last_accessed_at: five_days_ago
@@ -275,7 +276,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert count == 1
     assert status == :complete
 
-    entries = Repo.all(KeyValueEntry)
+    entries = KeyValueRepo.all(KeyValueEntry)
     assert length(entries) == 1
     assert hd(entries).key == "within-7-days"
   end
@@ -283,7 +284,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "size-based eviction stops when below release watermark" do
     call_count = :counters.new(1, [:atomics])
 
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") ->
           {:ok, %{rows: []}}
@@ -331,7 +332,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "size-based eviction reports floor_limited when no entries to delete" do
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
@@ -357,7 +358,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   test "size-based eviction stops at worker deadline" do
     stub(Config, :key_value_eviction_max_duration_ms, fn -> 0 end)
 
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
@@ -377,7 +378,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "busy lock contention exits safely" do
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[10]]}}
@@ -401,7 +402,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "time-based eviction preserves partial cleanup work on busy contention" do
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[10]]}}
@@ -429,7 +430,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
   end
 
   test "size-based eviction preserves partial cleanup work on busy contention" do
-    stub(Repo, :query, fn query ->
+    stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}

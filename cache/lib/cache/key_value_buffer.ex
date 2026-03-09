@@ -7,7 +7,7 @@ defmodule Cache.KeyValueBuffer do
 
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
   alias Cache.SQLiteBuffer
 
   @query_chunk_size 500
@@ -108,11 +108,11 @@ defmodule Cache.KeyValueBuffer do
         }
       end)
 
-    Repo.transaction(fn ->
+    KeyValueRepo.transaction(fn ->
       rows
       |> Enum.chunk_every(@query_chunk_size)
       |> Enum.each(fn rows_chunk ->
-        Repo.insert_all(KeyValueEntry, rows_chunk,
+        KeyValueRepo.insert_all(KeyValueEntry, rows_chunk,
           conflict_target: :key,
           on_conflict: {:replace, [:json_payload, :last_accessed_at, :updated_at]}
         )
@@ -122,7 +122,7 @@ defmodule Cache.KeyValueBuffer do
         keys
         |> Enum.chunk_every(@query_chunk_size)
         |> Enum.flat_map(fn keys_chunk ->
-          Repo.all(
+          KeyValueRepo.all(
             from(e in KeyValueEntry,
               where: e.key in ^keys_chunk,
               select: struct(e, [:id, :key, :json_payload])
@@ -143,7 +143,7 @@ defmodule Cache.KeyValueBuffer do
     keys
     |> Enum.chunk_every(@query_chunk_size)
     |> Enum.each(fn keys_chunk ->
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key in ^keys_chunk),
         set: [last_accessed_at: last_accessed_at, updated_at: now]
       )

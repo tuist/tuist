@@ -102,6 +102,11 @@ if config_env() == :prod do
     issuer: "tuist",
     secret_key: System.get_env("GUARDIAN_SECRET_KEY")
 
+  config :cache, Cache.KeyValueRepo,
+    database: System.get_env("KEY_VALUE_DATABASE_PATH") || "/data/key_value.sqlite",
+    pool_size: String.to_integer(System.get_env("KEY_VALUE_POOL_SIZE") || System.get_env("POOL_SIZE") || "2"),
+    show_sensitive_data_on_connection_error: false
+
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),

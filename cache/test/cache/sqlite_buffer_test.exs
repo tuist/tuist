@@ -9,6 +9,7 @@ defmodule Cache.SQLiteBufferTest do
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
+  alias Cache.KeyValueRepo
   alias Cache.Repo
   alias Cache.S3Transfer
   alias Cache.S3TransfersBuffer
@@ -19,6 +20,7 @@ defmodule Cache.SQLiteBufferTest do
 
   setup context do
     :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
 
     context =
       context
@@ -32,8 +34,8 @@ defmodule Cache.SQLiteBufferTest do
 
     Repo.delete_all(S3Transfer)
     Repo.delete_all(CacheArtifact)
-    Repo.delete_all(KeyValueEntryHash)
-    Repo.delete_all(KeyValueEntry)
+    KeyValueRepo.delete_all(KeyValueEntryHash)
+    KeyValueRepo.delete_all(KeyValueEntry)
 
     {:ok, context}
   end
@@ -50,11 +52,12 @@ defmodule Cache.SQLiteBufferTest do
 
     :ok = KeyValueBuffer.flush()
 
-    record = Repo.get_by!(KeyValueEntry, key: key)
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload_two
     assert record.last_accessed_at
 
-    hashes = Repo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^record.id, select: h.cas_hash))
+    hashes =
+      KeyValueRepo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^record.id, select: h.cas_hash))
 
     assert hashes == ["two"]
   end
@@ -70,10 +73,10 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.enqueue(key, payload_two)
     :ok = KeyValueBuffer.flush()
 
-    record = Repo.get_by!(KeyValueEntry, key: key)
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
 
     hashes =
-      Repo.all(
+      KeyValueRepo.all(
         from(h in KeyValueEntryHash,
           where: h.key_value_entry_id == ^record.id,
           select: h.cas_hash,
@@ -95,7 +98,7 @@ defmodule Cache.SQLiteBufferTest do
 
     :ok = KeyValueBuffer.flush()
 
-    record = Repo.get_by!(KeyValueEntry, key: key)
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
     assert record.last_accessed_at
   end
@@ -107,7 +110,7 @@ defmodule Cache.SQLiteBufferTest do
     initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
     timestamp = DateTime.truncate(DateTime.utc_now(), :second)
 
-    Repo.insert!(%KeyValueEntry{
+    KeyValueRepo.insert!(%KeyValueEntry{
       key: key,
       json_payload: payload,
       last_accessed_at: initial_time,
@@ -118,7 +121,7 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.enqueue_access(key)
     :ok = KeyValueBuffer.flush()
 
-    record = Repo.get_by!(KeyValueEntry, key: key)
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
     assert DateTime.after?(record.last_accessed_at, initial_time)
   end
@@ -139,7 +142,7 @@ defmodule Cache.SQLiteBufferTest do
         }
       end
 
-    {1000, _} = Repo.insert_all(KeyValueEntry, rows)
+    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
 
     for i <- 1..1000 do
       :ok = KeyValueBuffer.enqueue_access("#{base_key}:#{i}")
@@ -148,7 +151,7 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.flush()
 
     refreshed_count =
-      Repo.aggregate(
+      KeyValueRepo.aggregate(
         from(e in KeyValueEntry,
           where: like(e.key, ^"#{base_key}:%") and e.last_accessed_at > ^initial_time
         ),
@@ -215,12 +218,12 @@ defmodule Cache.SQLiteBufferTest do
     shutdown_buf = :"sqlite_buffer_shutdown_test_#{suffix}"
     {:ok, pid} = SQLiteBuffer.start_link(name: shutdown_buf, buffer_module: KeyValueBuffer)
 
-    Sandbox.allow(Repo, self(), pid)
+    Sandbox.allow(KeyValueRepo, self(), pid)
     true = :ets.insert(shutdown_buf, {key, {:write, %{key: key, json_payload: payload}}})
 
     :ok = GenServer.stop(pid)
 
-    record = Repo.get_by!(KeyValueEntry, key: key)
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
   end
 
@@ -241,7 +244,7 @@ defmodule Cache.SQLiteBufferTest do
 
     :ok = KeyValueBuffer.flush()
 
-    record = Repo.get_by!(KeyValueEntry, key: key)
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
     decoded = Jason.decode!(record.json_payload)
     assert decoded["value"] in 1..100
   end
@@ -295,7 +298,7 @@ defmodule Cache.SQLiteBufferTest do
 
     :ok = KeyValueBuffer.flush()
 
-    count = Repo.aggregate(from(e in KeyValueEntry, where: like(e.key, ^"#{base_key}%")), :count, :id)
+    count = KeyValueRepo.aggregate(from(e in KeyValueEntry, where: like(e.key, ^"#{base_key}%")), :count, :id)
     assert count == 100
   end
 end

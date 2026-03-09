@@ -17,7 +17,7 @@ defmodule Cache.KeyValueEvictionWorker do
   alias Cache.CASCleanupWorker
   alias Cache.Config
   alias Cache.KeyValueEntries
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
 
   require Logger
 
@@ -146,20 +146,7 @@ defmodule Cache.KeyValueEvictionWorker do
     else
       case run_size_maintenance_pass(deadline_ms) do
         :ok ->
-          case fetch_size_state(deadline_ms) do
-            {:ok, size_state} ->
-              if below_release?(size_state, release_bytes) do
-                {:size, hashes_acc, count_acc, :complete}
-              else
-                size_eviction_loop(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
-              end
-
-            {:error, :busy} ->
-              {:size, hashes_acc, count_acc, :busy}
-
-            {:error, :deadline_exhausted} ->
-              {:size, hashes_acc, count_acc, :time_limit_reached}
-          end
+          continue_size_eviction(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
 
         {:error, :busy} ->
           {:size, hashes_acc, count_acc, :busy}
@@ -167,6 +154,27 @@ defmodule Cache.KeyValueEvictionWorker do
         {:error, :deadline_exhausted} ->
           {:size, hashes_acc, count_acc, :time_limit_reached}
       end
+    end
+  end
+
+  defp continue_size_eviction(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do
+    case fetch_size_state(deadline_ms) do
+      {:ok, size_state} ->
+        maybe_finish_size_eviction(size_state, min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
+
+      {:error, :busy} ->
+        {:size, hashes_acc, count_acc, :busy}
+
+      {:error, :deadline_exhausted} ->
+        {:size, hashes_acc, count_acc, :time_limit_reached}
+    end
+  end
+
+  defp maybe_finish_size_eviction(size_state, min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do
+    if below_release?(size_state, release_bytes) do
+      {:size, hashes_acc, count_acc, :complete}
+    else
+      size_eviction_loop(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc)
     end
   end
 
@@ -192,7 +200,7 @@ defmodule Cache.KeyValueEvictionWorker do
     if deadline_reached?(deadline_ms) do
       {:error, :deadline_exhausted}
     else
-      Repo.checkout(fn ->
+      KeyValueRepo.checkout(fn ->
         try do
           set_busy_timeout!(remaining_time(deadline_ms))
           fun.()
@@ -232,14 +240,14 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp query!(query) do
-    case Repo.query(query) do
+    case KeyValueRepo.query(query) do
       {:ok, result} -> result
       {:error, error} -> raise error
     end
   end
 
   defp db_path do
-    Application.get_env(:cache, Repo)[:database] || "repo.sqlite"
+    Application.get_env(:cache, KeyValueRepo)[:database] || "key_value.sqlite"
   end
 
   defp wal_file_size(path), do: file_size("#{path}-wal")
@@ -270,14 +278,14 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp set_busy_timeout!(timeout_ms) do
-    case Repo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
+    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
       {:ok, _result} -> :ok
       {:error, error} -> raise error
     end
   end
 
   defp restore_busy_timeout! do
-    set_busy_timeout!(Config.repo_busy_timeout_ms())
+    set_busy_timeout!(Config.repo_busy_timeout_ms(KeyValueRepo))
   rescue
     _ -> :ok
   end

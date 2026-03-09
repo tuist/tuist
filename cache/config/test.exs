@@ -1,12 +1,24 @@
 import Config
 
+alias Ecto.Adapters.SQL.Sandbox
+
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
 
+config :cache, Cache.KeyValueRepo,
+  database: Path.expand("../test_key_value.sqlite3", __DIR__),
+  pool: Sandbox,
+  pool_size: System.schedulers_online() * 2 + 10,
+  busy_timeout: 30_000,
+  timeout: 45_000,
+  queue_target: 45_000,
+  queue_interval: 45_000,
+  show_sensitive_data_on_connection_error: false
+
 config :cache, Cache.Repo,
   database: Path.expand("../test.sqlite3", __DIR__),
-  pool: Ecto.Adapters.SQL.Sandbox,
+  pool: Sandbox,
   pool_size: System.schedulers_online() * 2 + 10,
   busy_timeout: 30_000,
   timeout: 45_000,

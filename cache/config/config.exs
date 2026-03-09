@@ -1,5 +1,18 @@
 import Config
 
+config :cache, Cache.KeyValueRepo,
+  busy_timeout: 30_000,
+  journal_mode: :wal,
+  synchronous: :normal,
+  temp_store: :memory,
+  cache_size: -64_000,
+  auto_vacuum: :incremental,
+  journal_size_limit: 67_108_864,
+  queue_target: 1_000,
+  queue_interval: 1_000,
+  custom_pragmas: [mmap_size: 268_435_456],
+  priv: "priv/key_value_repo"
+
 config :cache, Cache.PromEx,
   disabled: false,
   manual_metrics_start_delay: :no_delay,
@@ -58,7 +71,7 @@ config :cache, Oban,
      ]}
   ]
 
-config :cache, ecto_repos: [Cache.Repo]
+config :cache, ecto_repos: [Cache.Repo, Cache.KeyValueRepo]
 
 config :cache,
   env: config_env(),

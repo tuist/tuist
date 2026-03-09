@@ -7,7 +7,7 @@ defmodule Cache.KeyValue.PromExPlugin do
   """
   use PromEx.Plugin
 
-  alias Cache.Repo
+  alias Cache.KeyValueRepo
 
   require Logger
 
@@ -158,7 +158,7 @@ defmodule Cache.KeyValue.PromExPlugin do
   end
 
   def execute_sqlite_metrics do
-    db_path = Application.get_env(:cache, Repo)[:database] || "repo.sqlite"
+    db_path = Application.get_env(:cache, KeyValueRepo)[:database] || "key_value.sqlite"
     wal_path = "#{db_path}-wal"
 
     db_file_size = file_size(db_path)
@@ -203,7 +203,7 @@ defmodule Cache.KeyValue.PromExPlugin do
   end
 
   defp fetch_pragma_value(query) do
-    case Repo.query(query) do
+    case KeyValueRepo.query(query) do
       {:ok, %{rows: [[value]]}} ->
         {:ok, value}
 
