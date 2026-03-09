@@ -4,7 +4,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   require Logger
 
+  alias Tuist.Accounts
   alias Tuist.Builds
+  alias Tuist.Storage
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -38,7 +40,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   defp process_locally(build_id, storage_key, account_id) do
     if Code.ensure_loaded?(Processor.BuildProcessor) do
       Logger.info("Processing build #{build_id} locally")
-      Processor.BuildProcessor.process(storage_key, account_id)
+
+      with {:ok, account} <- Accounts.get_account_by_id(account_id),
+           {:ok, %{body: archive_bytes}} <- Storage.get_object_as_string(storage_key, account) do
+        Processor.BuildProcessor.process_archive(archive_bytes)
+      end
     else
       Logger.error("No processor available for build #{build_id}: processor_url not configured and Processor.BuildProcessor not loaded")
       {:error, "processor_not_available"}

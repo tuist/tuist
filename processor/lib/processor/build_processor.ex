@@ -3,8 +3,21 @@ defmodule Processor.BuildProcessor do
 
   require Logger
 
-  def process(storage_key, account_id) do
-    with {:ok, temp_dir} <- download_and_extract(storage_key, account_id),
+  def process(storage_key, _account_id) do
+    bucket = Application.get_env(:processor, :s3_bucket, "tuist")
+
+    case ExAws.S3.get_object(bucket, storage_key) |> ExAws.request() do
+      {:ok, %{body: body}} ->
+        process_archive(body)
+
+      {:error, reason} ->
+        Logger.error("Failed to download build archive (storage_key: #{storage_key}): #{inspect(reason)}")
+        {:error, {:download_failed, reason}}
+    end
+  end
+
+  def process_archive(archive_bytes) do
+    with {:ok, temp_dir} <- extract_archive(archive_bytes),
          {:ok, manifest} <- read_manifest(temp_dir),
          {:ok, xcactivitylog_path} <- find_xcactivitylog(temp_dir),
          cas_path = Path.join(temp_dir, "cas_metadata"),
@@ -13,30 +26,21 @@ defmodule Processor.BuildProcessor do
       {:ok, parsed_data}
     else
       {:error, reason} ->
-        Logger.error("Failed to process build (storage_key: #{storage_key}): #{inspect(reason)}")
+        Logger.error("Failed to process build archive: #{inspect(reason)}")
         cleanup_temp(nil)
         {:error, reason}
     end
   end
 
-  defp download_and_extract(storage_key, _account_id) do
+  defp extract_archive(archive_bytes) do
     temp_dir = Path.join(System.tmp_dir!(), "processor_#{:erlang.unique_integer([:positive])}")
     File.mkdir_p!(temp_dir)
     archive_path = Path.join(temp_dir, "archive.zip")
+    File.write!(archive_path, archive_bytes)
 
-    bucket = Application.get_env(:processor, :s3_bucket, "tuist")
-
-    case ExAws.S3.get_object(bucket, storage_key) |> ExAws.request() do
-      {:ok, %{body: body}} ->
-        File.write!(archive_path, body)
-
-        case :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}]) do
-          {:ok, _} -> {:ok, temp_dir}
-          {:error, reason} -> {:error, {:unzip_failed, reason}}
-        end
-
-      {:error, reason} ->
-        {:error, {:download_failed, reason}}
+    case :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+      {:ok, _} -> {:ok, temp_dir}
+      {:error, reason} -> {:error, {:unzip_failed, reason}}
     end
   end
 
