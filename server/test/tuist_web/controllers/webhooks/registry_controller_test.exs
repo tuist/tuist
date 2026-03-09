@@ -42,6 +42,7 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
         |> post(~p"/webhooks/registry", body)
 
       assert json_response(conn, 202) == %{}
@@ -54,6 +55,7 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
       assert event.scope == unique_scope
       assert event.name == "swift-nio"
       assert event.version == "2.0.0"
+      assert event.cache_endpoint == "test-cache-node.tuist.dev"
     end
 
     test "returns 400 for invalid payload without events key", %{conn: conn} do
@@ -65,6 +67,7 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
         |> post(~p"/webhooks/registry", body)
 
       assert json_response(conn, 400) == %{"error" => "Invalid payload"}
@@ -87,6 +90,7 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
         |> post(~p"/webhooks/registry", body)
 
       assert json_response(conn, 202) == %{}
@@ -119,10 +123,58 @@ defmodule TuistWeb.Webhooks.RegistryControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", "invalid_signature")
+        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
         |> post(~p"/webhooks/registry", json_body)
 
       assert conn.status == 403
       assert conn.resp_body == "Invalid signature"
+    end
+
+    test "rejects requests without x-cache-endpoint header", %{conn: conn} do
+      unique_scope = "no-header-test-#{System.unique_integer([:positive])}"
+
+      params = %{
+        "events" => [
+          %{"scope" => unique_scope, "name" => "swift-nio", "version" => "2.0.0"}
+        ]
+      }
+
+      {body, signature} = sign_request(params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> post(~p"/webhooks/registry", body)
+
+      assert json_response(conn, 400) == %{"error" => "Missing x-cache-endpoint header"}
+
+      events = ClickHouseRepo.all(from(e in DownloadEvent, where: e.scope == ^unique_scope))
+      assert events == []
+    end
+
+    test "rejects requests with empty x-cache-endpoint header", %{conn: conn} do
+      unique_scope = "empty-header-test-#{System.unique_integer([:positive])}"
+
+      params = %{
+        "events" => [
+          %{"scope" => unique_scope, "name" => "swift-nio", "version" => "2.0.0"}
+        ]
+      }
+
+      {body, signature} = sign_request(params)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-cache-signature", signature)
+        |> put_req_header("x-cache-endpoint", "")
+        |> post(~p"/webhooks/registry", body)
+
+      assert json_response(conn, 400) == %{"error" => "Missing x-cache-endpoint header"}
+
+      events = ClickHouseRepo.all(from(e in DownloadEvent, where: e.scope == ^unique_scope))
+      assert events == []
     end
   end
 end
