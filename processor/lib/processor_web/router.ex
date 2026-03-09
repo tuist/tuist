@@ -10,4 +10,6 @@ defmodule ProcessorWeb.Router do
 
     post "/process-build", WebhookController, :process_build
   end
+
+  get "/health", ProcessorWeb.HealthController, :check
 end
