@@ -795,8 +795,8 @@ msgid ""
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
 "قم بحظر طلبات السحب (PR) عندما يزيد <strong>%{size_label}</strong> بأكثر من "
-"<strong>%{deviation}%</strong> مقارنة بأحدث حزمة على <strong>%"
-"{baseline_branch}</strong>."
+"<strong>%{deviation}%</strong> مقارنة بأحدث حزمة على "
+"<strong>%{baseline_branch}</strong>."
 
 #, fuzzy
 msgid ""

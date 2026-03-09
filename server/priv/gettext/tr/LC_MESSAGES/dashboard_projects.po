@@ -810,8 +810,8 @@ msgid ""
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
-"<strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> <strong> %"
-"{deviation}%</strong> <strong> %{baseline_branch}</strong> adresindeki en "
+"<strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> <strong> "
+"%{deviation}%</strong> <strong> %{baseline_branch}</strong> adresindeki en "
 "son pakete kıyasla % 'den fazla arttığında PR'leri engelleyin."
 
 #, fuzzy

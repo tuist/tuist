@@ -792,8 +792,8 @@ msgid ""
 "strong> increases by more than <strong>%{deviation}%</strong> compared to "
 "the latest bundle on <strong>%{baseline_branch}</strong>."
 msgstr ""
-"当<strong>%{size_label}</strong> 的<strong>%{bundle_name}</strong> 相较"
-"于<strong>%{baseline_branch}</strong> 上的最新包，其<strong>%{deviation}%</"
+"当<strong>%{size_label}</strong> 的<strong>%{bundle_name}</strong> 相较于"
+"<strong>%{baseline_branch}</strong> 上的最新包，其<strong>%{deviation}%</"
 "strong> 增加超过 %{deviation}% 时，阻止 PR。"
 
 #, fuzzy

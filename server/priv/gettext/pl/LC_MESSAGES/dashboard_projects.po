@@ -801,9 +801,9 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the latest bundle on "
 "<strong>%{baseline_branch}</strong>."
 msgstr ""
-"Blokuj PR, gdy <strong>%{size_label}</strong> wzrośnie o więcej niż <strong>%"
-"{deviation}%</strong> w porównaniu z najnowszym pakietem na <strong>%"
-"{baseline_branch}</strong>."
+"Blokuj PR, gdy <strong>%{size_label}</strong> wzrośnie o więcej niż "
+"<strong>%{deviation}%</strong> w porównaniu z najnowszym pakietem na "
+"<strong>%{baseline_branch}</strong>."
 
 #, fuzzy
 msgid ""
