@@ -18,10 +18,21 @@
 
     & > [data-part="logo-link"] {
       display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      text-decoration: none;
 
       & > [data-part="logo"] {
         width: 40px;
         height: 40px;
+      }
+
+      & > [data-part="logo-text"] {
+        display: none;
+        font-size: 20px;
+        font-weight: 500;
+        color: var(--noora-surface-label-primary);
+        letter-spacing: -0.2px;
       }
     }
   }
@@ -40,49 +51,72 @@
     }
   }
 
-  /* Hidden on desktop */
-  & > [data-part="logo-text"] {
-    display: none;
-  }
-
   & > [data-part="mobile-actions"] {
     display: none;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+}
+
+#docs-mobile-menu-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--noora-spacing-4) var(--noora-spacing-6);
+  border-bottom: 1px solid var(--noora-content-divider-line);
+  background: var(--noora-surface-background-tertiary);
+
+  & [data-part="mobile-toc-btn"] {
+    justify-content: flex-end;
+    flex: 1;
   }
 
-  & [data-part="close-icon"] {
-    display: none;
-  }
+  & [data-part="mobile-menu-btn"],
+  & [data-part="mobile-toc-btn"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-1);
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    color: var(--noora-surface-label-primary);
 
-  &[data-mobile-menu-open="true"] {
-    & [data-part="menu-icon"] {
-      display: none;
-    }
-
-    & [data-part="close-icon"] {
-      display: flex;
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
     }
   }
 }
 
+#docs-mobile-toc-trigger {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+[data-part="mobile-toc"] {
+  display: none;
+}
+
 @media (max-width: 1024px) {
+  #docs-mobile-menu-bar {
+    display: flex;
+  }
+
   #docs-nav {
-    padding: 8px 16px;
+    padding: var(--noora-spacing-4) var(--noora-spacing-5);
 
     & > [data-part="header"] {
-      gap: 6px;
-
-      & .noora-button-group {
+      & > .noora-button-group {
         display: none;
       }
-    }
 
-    & > [data-part="logo-text"] {
-      display: block;
-      color: var(--noora-surface-label-primary);
-      font-family: "DM Sans", sans-serif;
-      font-weight: 500;
-      font-size: 20px;
-      letter-spacing: -0.2px;
+      & > [data-part="logo-link"] > [data-part="logo-text"] {
+        display: block;
+      }
     }
 
     & > [data-part="cta"] {
@@ -91,26 +125,43 @@
 
     & > [data-part="mobile-actions"] {
       display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 6px;
-
-      & [data-part="menu-toggle"] {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: none;
-        border-radius: 6px;
-        background: none;
-        padding: 6px;
-        cursor: pointer;
-        color: var(--noora-surface-label-primary);
-
-        & svg {
-          width: 16px;
-          height: 16px;
-        }
-      }
     }
+  }
+
+  [data-part="page"] {
+    position: relative;
+  }
+
+  [data-part="mobile-toc"] {
+    display: none;
+    position: absolute;
+    top: var(--noora-spacing-4);
+    left: var(--noora-spacing-5);
+    right: var(--noora-spacing-5);
+    z-index: 5;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-5);
+    background: var(--noora-surface-background-primary);
+    border-radius: var(--noora-radius-medium);
+    box-shadow:
+      0px 1px 1px 0px rgba(14, 14, 14, 0.05),
+      0px 0px 0px 1px rgba(46, 51, 56, 0.08),
+      0px 1px 1px 0px rgba(46, 51, 56, 0.1);
+  }
+
+  [data-part="mobile-toc"][data-state="open"] {
+    display: flex;
+  }
+
+  [data-part="mobile-toc-item"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+    line-height: 16px;
+  }
+
+  [data-part="mobile-toc-item"]:hover {
+    text-decoration: underline;
   }
 }
