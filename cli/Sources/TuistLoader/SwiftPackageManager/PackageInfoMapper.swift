@@ -411,7 +411,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 if let depTarget = targetsByName[dependencyName] {
                     if depTarget.type == .binary,
                        let depPath = depTarget.path,
-                       URL(fileURLWithPath: depPath).deletingPathExtension().lastPathComponent == singleProduct.name
+                       (try? RelativePath(validating: depPath))?.basenameWithoutExt == singleProduct.name
                     {
                         return targetName
                     }
