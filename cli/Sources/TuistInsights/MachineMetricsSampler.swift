@@ -1,0 +1,228 @@
+#if os(macOS)
+import Darwin
+import Foundation
+import IOKit
+import Path
+import TuistEnvironment
+
+public final class MachineMetricsSampler: @unchecked Sendable {
+    private let metricsFilePath: AbsolutePath
+
+    public init(metricsFilePath: AbsolutePath? = nil) {
+        self.metricsFilePath = metricsFilePath ?? Environment.current.stateDirectory.appending(component: "machine_metrics.jsonl")
+    }
+
+    public func run() async throws {
+        var previousCPUTicks = cpuTicks()
+        var previousNetworkBytes = networkBytes()
+        var previousDiskBytes = diskBytes()
+        var sampleCount = 0
+
+        while !Task.isCancelled {
+            try await Task.sleep(for: .seconds(1))
+
+            let currentCPUTicks = cpuTicks()
+            let currentNetworkBytes = networkBytes()
+            let currentDiskBytes = diskBytes()
+
+            let cpuUsage = calculateCPUUsage(previous: previousCPUTicks, current: currentCPUTicks)
+            let memory = memoryInfo()
+
+            let sample = MachineMetricSample(
+                timestamp: Date().timeIntervalSince1970,
+                cpuUsagePercent: cpuUsage,
+                memoryUsedBytes: memory.used,
+                memoryTotalBytes: memory.total,
+                networkBytesIn: max(0, currentNetworkBytes.bytesIn - previousNetworkBytes.bytesIn),
+                networkBytesOut: max(0, currentNetworkBytes.bytesOut - previousNetworkBytes.bytesOut),
+                diskBytesRead: max(0, currentDiskBytes.bytesRead - previousDiskBytes.bytesRead),
+                diskBytesWritten: max(0, currentDiskBytes.bytesWritten - previousDiskBytes.bytesWritten)
+            )
+
+            previousCPUTicks = currentCPUTicks
+            previousNetworkBytes = currentNetworkBytes
+            previousDiskBytes = currentDiskBytes
+
+            appendSample(sample)
+
+            sampleCount += 1
+            if sampleCount % 60 == 0 {
+                trimSamples()
+            }
+        }
+    }
+
+    private struct CPUTicks {
+        let user: UInt32
+        let system: UInt32
+        let idle: UInt32
+        let nice: UInt32
+    }
+
+    private func cpuTicks() -> CPUTicks {
+        var loadInfo = host_cpu_load_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &loadInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else {
+            return CPUTicks(user: 0, system: 0, idle: 0, nice: 0)
+        }
+        return CPUTicks(
+            user: loadInfo.cpu_ticks.0,
+            system: loadInfo.cpu_ticks.1,
+            idle: loadInfo.cpu_ticks.2,
+            nice: loadInfo.cpu_ticks.3
+        )
+    }
+
+    private func calculateCPUUsage(previous: CPUTicks, current: CPUTicks) -> Double {
+        let userDelta = Double(current.user &- previous.user)
+        let systemDelta = Double(current.system &- previous.system)
+        let idleDelta = Double(current.idle &- previous.idle)
+        let niceDelta = Double(current.nice &- previous.nice)
+        let totalDelta = userDelta + systemDelta + idleDelta + niceDelta
+        guard totalDelta > 0 else { return 0 }
+        return ((userDelta + systemDelta + niceDelta) / totalDelta) * 100.0
+    }
+
+    private struct MemoryInfo {
+        let used: Int64
+        let total: Int64
+    }
+
+    private func memoryInfo() -> MemoryInfo {
+        var vmStats = vm_statistics64_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &vmStats) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+            }
+        }
+
+        let totalMemory = Int64(ProcessInfo.processInfo.physicalMemory)
+        guard result == KERN_SUCCESS else {
+            return MemoryInfo(used: 0, total: totalMemory)
+        }
+
+        let pageSize = Int64(vm_kernel_page_size)
+        let active = Int64(vmStats.active_count) * pageSize
+        let wired = Int64(vmStats.wire_count) * pageSize
+        let compressed = Int64(vmStats.compressor_page_count) * pageSize
+        let used = active + wired + compressed
+
+        return MemoryInfo(used: used, total: totalMemory)
+    }
+
+    private struct NetworkBytes {
+        let bytesIn: Int64
+        let bytesOut: Int64
+    }
+
+    private func networkBytes() -> NetworkBytes {
+        var ifaddrsPtr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddrsPtr) == 0, let firstAddr = ifaddrsPtr else {
+            return NetworkBytes(bytesIn: 0, bytesOut: 0)
+        }
+        defer { freeifaddrs(ifaddrsPtr) }
+
+        var totalIn: Int64 = 0
+        var totalOut: Int64 = 0
+        var current: UnsafeMutablePointer<ifaddrs>? = firstAddr
+
+        while let addr = current {
+            if addr.pointee.ifa_addr?.pointee.sa_family == UInt8(AF_LINK) {
+                if let data = addr.pointee.ifa_data {
+                    let networkData = data.assumingMemoryBound(to: if_data.self).pointee
+                    totalIn += Int64(networkData.ifi_ibytes)
+                    totalOut += Int64(networkData.ifi_obytes)
+                }
+            }
+            current = addr.pointee.ifa_next
+        }
+
+        return NetworkBytes(bytesIn: totalIn, bytesOut: totalOut)
+    }
+
+    private struct DiskBytes {
+        let bytesRead: Int64
+        let bytesWritten: Int64
+    }
+
+    private func diskBytes() -> DiskBytes {
+        var totalRead: Int64 = 0
+        var totalWritten: Int64 = 0
+
+        let matching = IOServiceMatching("IOBlockStorageDriver")
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
+            return DiskBytes(bytesRead: 0, bytesWritten: 0)
+        }
+        defer { IOObjectRelease(iterator) }
+
+        var service = IOIteratorNext(iterator)
+        while service != 0 {
+            var properties: Unmanaged<CFMutableDictionary>?
+            if IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+               let dict = properties?.takeRetainedValue() as? [String: Any],
+               let stats = dict["Statistics"] as? [String: Any]
+            {
+                if let bytesRead = stats["Bytes (Read)"] as? Int64 {
+                    totalRead += bytesRead
+                }
+                if let bytesWritten = stats["Bytes (Write)"] as? Int64 {
+                    totalWritten += bytesWritten
+                }
+            }
+            IOObjectRelease(service)
+            service = IOIteratorNext(iterator)
+        }
+
+        return DiskBytes(bytesRead: totalRead, bytesWritten: totalWritten)
+    }
+
+    private func appendSample(_ sample: MachineMetricSample) {
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(sample),
+              let line = String(data: data, encoding: .utf8)
+        else { return }
+
+        let fileManager = FileManager.default
+        let path = metricsFilePath.pathString
+
+        if !fileManager.fileExists(atPath: path) {
+            let dir = metricsFilePath.parentDirectory.pathString
+            try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            fileManager.createFile(atPath: path, contents: nil)
+        }
+
+        guard let handle = FileHandle(forWritingAtPath: path) else { return }
+        defer { handle.closeFile() }
+        handle.seekToEndOfFile()
+        handle.write(Data((line + "\n").utf8))
+    }
+
+    private func trimSamples() {
+        let path = metricsFilePath.pathString
+        guard let data = FileManager.default.contents(atPath: path),
+              let content = String(data: data, encoding: .utf8)
+        else { return }
+
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
+        let cutoff = Date().timeIntervalSince1970 - 3600
+
+        let decoder = JSONDecoder()
+        let recentLines = lines.filter { line in
+            guard let lineData = line.data(using: .utf8),
+                  let sample = try? decoder.decode(MachineMetricSample.self, from: lineData)
+            else { return false }
+            return sample.timestamp >= cutoff
+        }
+
+        let newContent = recentLines.joined(separator: "\n") + (recentLines.isEmpty ? "" : "\n")
+        try? newContent.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+}
+#endif

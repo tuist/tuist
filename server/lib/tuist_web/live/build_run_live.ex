@@ -6,12 +6,14 @@ defmodule TuistWeb.BuildRunLive do
   import Phoenix.Component
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
+  alias Tuist.MachineMetrics
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Tests
@@ -61,6 +63,7 @@ defmodule TuistWeb.BuildRunLive do
 
     cas_metrics = Builds.cas_output_metrics(run.id)
     cacheable_task_latency_metrics = Builds.cacheable_task_latency_metrics(run.id)
+    machine_metrics = MachineMetrics.get_machine_metrics_by_build_run_id(run.id)
 
     test_run =
       case Tests.get_latest_test_by_build_run_id(run.id) do
@@ -75,6 +78,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:test_run, test_run)
       |> assign(:cas_metrics, cas_metrics)
       |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
+      |> assign(:machine_metrics, machine_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,

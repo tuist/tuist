@@ -3,10 +3,12 @@ defmodule TuistWeb.GradleBuildLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Gradle
+  alias Tuist.MachineMetrics
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Utilities.ByteFormatter
@@ -48,6 +50,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
+    machine_metrics = MachineMetrics.get_machine_metrics_by_gradle_build_id(build.id)
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
@@ -81,6 +84,7 @@ defmodule TuistWeb.GradleBuildLive do
     |> assign(:upload_throughput, upload_throughput)
     |> assign(:title, title)
     |> assign(:head_title, "#{title} · #{slug} · Tuist")
+    |> assign(:machine_metrics, machine_metrics)
   end
 
   @doc """

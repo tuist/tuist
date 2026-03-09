@@ -10,6 +10,37 @@ import TuistHTTP
 
     public typealias BuildCustomMetadata = Operations.createBuild.Input.Body.jsonPayload.custom_metadataPayload
 
+    public struct ServerMachineMetricSample {
+        public let timestampOffsetMs: Int
+        public let cpuUsagePercent: Double
+        public let memoryUsedBytes: Int64
+        public let memoryTotalBytes: Int64
+        public let networkBytesIn: Int64
+        public let networkBytesOut: Int64
+        public let diskBytesRead: Int64
+        public let diskBytesWritten: Int64
+
+        public init(
+            timestampOffsetMs: Int,
+            cpuUsagePercent: Double,
+            memoryUsedBytes: Int64,
+            memoryTotalBytes: Int64,
+            networkBytesIn: Int64,
+            networkBytesOut: Int64,
+            diskBytesRead: Int64,
+            diskBytesWritten: Int64
+        ) {
+            self.timestampOffsetMs = timestampOffsetMs
+            self.cpuUsagePercent = cpuUsagePercent
+            self.memoryUsedBytes = memoryUsedBytes
+            self.memoryTotalBytes = memoryTotalBytes
+            self.networkBytesIn = networkBytesIn
+            self.networkBytesOut = networkBytesOut
+            self.diskBytesRead = diskBytesRead
+            self.diskBytesWritten = diskBytesWritten
+        }
+    }
+
     @Mockable
     public protocol CreateBuildServicing {
         func createBuild(
@@ -38,7 +69,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            machineMetrics: [ServerMachineMetricSample]
         ) async throws -> ServerBuild
     }
 
@@ -104,7 +136,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            machineMetrics: [ServerMachineMetricSample]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -174,6 +207,8 @@ import TuistHTTP
                             is_ci: isCI,
                             issues: issues
                                 .map(Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload.init),
+                            machine_metrics: machineMetrics.isEmpty ? nil : machineMetrics
+                                .map(Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload.init),
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
                             scheme: scheme,
@@ -389,6 +424,21 @@ import TuistHTTP
                 operation: operation,
                 size: casOutput.size,
                 _type: type
+            )
+        }
+    }
+
+    extension Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload {
+        fileprivate init(_ sample: ServerMachineMetricSample) {
+            self.init(
+                cpu_usage_percent: sample.cpuUsagePercent,
+                disk_bytes_read: Int(sample.diskBytesRead),
+                disk_bytes_written: Int(sample.diskBytesWritten),
+                memory_total_bytes: Int(sample.memoryTotalBytes),
+                memory_used_bytes: Int(sample.memoryUsedBytes),
+                network_bytes_in: Int(sample.networkBytesIn),
+                network_bytes_out: Int(sample.networkBytesOut),
+                timestamp_offset_ms: sample.timestampOffsetMs
             )
         }
     }

@@ -14,6 +14,7 @@ defmodule Tuist.Builds do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.MachineMetrics
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -28,6 +29,7 @@ defmodule Tuist.Builds do
   def create_build(attrs) do
     cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
     cas_outputs = Map.get(attrs, :cas_outputs, [])
+    machine_metrics = Map.get(attrs, :machine_metrics, [])
 
     cacheable_task_counts = %{
       cacheable_tasks_count: Map.get(attrs, :cacheable_tasks_count) || length(cacheable_tasks),
@@ -62,7 +64,8 @@ defmodule Tuist.Builds do
           Task.async(fn -> create_build_files(build_map, Map.get(attrs, :files, [])) end),
           Task.async(fn -> create_build_targets(build_map, Map.get(attrs, :targets, [])) end),
           Task.async(fn -> create_cacheable_tasks(build_map, cacheable_tasks) end),
-          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end)
+          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end),
+          Task.async(fn -> create_machine_metrics(build_map, machine_metrics) end)
         ],
         30_000
       )
@@ -180,6 +183,10 @@ defmodule Tuist.Builds do
       end)
 
     IngestRepo.insert_all(CacheableTask, tasks)
+  end
+
+  defp create_machine_metrics(build, metrics) do
+    MachineMetrics.create_machine_metrics(metrics, build_run_id: build.id)
   end
 
   defp create_cas_outputs(build, outputs) do

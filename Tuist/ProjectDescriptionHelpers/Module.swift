@@ -72,6 +72,7 @@ public enum Module: String, CaseIterable {
     case shareCommand = "TuistShareCommand"
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
+    case insights = "TuistInsights"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -311,7 +312,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
-             .runCommand, .shareCommand, .inspectCommand, .android:
+             .runCommand, .shareCommand, .inspectCommand, .android, .insights:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -464,7 +465,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http, .har, .configLoader:
+            .http, .har, .configLoader, .insights:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
@@ -718,6 +719,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.launchctl.targetName),
+                    .target(name: Module.insights.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.http.targetName),
@@ -1324,6 +1326,10 @@ public enum Module: String, CaseIterable {
                     .external(name: "Command", condition: .when([.macos])),
                     .external(name: "Mockable"),
                 ]
+            case .insights:
+                [
+                    .target(name: Module.environment.targetName),
+                ]
             case .shareCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1394,6 +1400,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcActivityLog.targetName),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.insights.targetName),
                     .target(name: Module.ci.targetName, condition: .when([.macos])),
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
@@ -1423,7 +1430,7 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
-                 .runCommand, .shareCommand, .inspectCommand, .android:
+                 .runCommand, .shareCommand, .inspectCommand, .android, .insights:
                 []
             case .testCommand:
                 [

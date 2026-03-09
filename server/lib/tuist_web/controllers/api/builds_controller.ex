@@ -783,6 +783,33 @@ defmodule TuistWeb.API.BuildsController do
                  description: "Key-value pairs for structured data. URL values will auto-link in the UI."
                }
              }
+           },
+           machine_metrics: %Schema{
+             type: :array,
+             description: "Machine performance metrics collected during the build.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp_offset_ms: %Schema{type: :integer, description: "Milliseconds from build start."},
+                 cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
+                 memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
+                 memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
+                 network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
+                 network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
+                 disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+               },
+               required: [
+                 :timestamp_offset_ms,
+                 :cpu_usage_percent,
+                 :memory_used_bytes,
+                 :memory_total_bytes,
+                 :network_bytes_in,
+                 :network_bytes_out,
+                 :disk_bytes_read,
+                 :disk_bytes_written
+               ]
+             }
            }
          },
          required: [
@@ -874,7 +901,8 @@ defmodule TuistWeb.API.BuildsController do
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, []),
           custom_tags: Map.get(custom_metadata, :tags, []),
-          custom_values: Map.get(custom_metadata, :values, %{})
+          custom_values: Map.get(custom_metadata, :values, %{}),
+          machine_metrics: Map.get(params, :machine_metrics, [])
         }
 
         build_attrs

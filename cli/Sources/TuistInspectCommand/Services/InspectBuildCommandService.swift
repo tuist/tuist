@@ -9,6 +9,7 @@
     import TuistCore
     import TuistEnvironment
     import TuistGit
+    import TuistInsights
     import TuistLoader
     import TuistLogging
     import TuistProcess
@@ -50,6 +51,7 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
+        private let machineMetricsReader: MachineMetricsReader
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -64,7 +66,8 @@
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
-            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
+            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
+            machineMetricsReader: MachineMetricsReader = MachineMetricsReader()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -79,6 +82,7 @@
             self.gitController = gitController
             self.ciController = ciController
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
+            self.machineMetricsReader = machineMetricsReader
         }
 
         func run(
@@ -188,6 +192,28 @@
             let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
             let ciInfo = ciController.ciInfo()
             let customMetadata = readCustomMetadata()
+
+            let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
+            let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
+            let metricsFilePath = Environment.current.stateDirectory.appending(component: "machine_metrics.jsonl")
+            let rawMetrics = machineMetricsReader.readSamples(
+                from: metricsFilePath,
+                startDate: buildStartDate,
+                endDate: buildEndDate
+            )
+            let machineMetrics = rawMetrics.map { sample in
+                ServerMachineMetricSample(
+                    timestampOffsetMs: Int((sample.timestamp - buildStartDate.timeIntervalSince1970) * 1000),
+                    cpuUsagePercent: sample.cpuUsagePercent,
+                    memoryUsedBytes: sample.memoryUsedBytes,
+                    memoryTotalBytes: sample.memoryTotalBytes,
+                    networkBytesIn: sample.networkBytesIn,
+                    networkBytesOut: sample.networkBytesOut,
+                    diskBytesRead: sample.diskBytesRead,
+                    diskBytesWritten: sample.diskBytesWritten
+                )
+            }
+
             let build = try await createBuildService.createBuild(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
@@ -216,7 +242,8 @@
                 ciProvider: ciInfo?.provider,
                 cacheableTasks: xcactivityLog.cacheableTasks,
                 casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
-                    xcactivityLog.casOutputs.filter { $0.operation != .upload }
+                    xcactivityLog.casOutputs.filter { $0.operation != .upload },
+                machineMetrics: machineMetrics
             )
             AlertController.current.success(
                 .alert("View the analyzed build at \(build.url.absoluteString)")

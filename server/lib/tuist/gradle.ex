@@ -13,6 +13,7 @@ defmodule Tuist.Gradle do
   alias Tuist.Gradle.CacheEvent
   alias Tuist.Gradle.Task
   alias Tuist.IngestRepo
+  alias Tuist.MachineMetrics
 
   @doc """
   Creates a Gradle build with associated tasks.
@@ -69,6 +70,12 @@ defmodule Tuist.Gradle do
 
     if !Enum.empty?(tasks) do
       create_tasks(build_id, attrs.project_id, tasks, now)
+    end
+
+    machine_metrics = Map.get(attrs, :machine_metrics, [])
+
+    if !Enum.empty?(machine_metrics) do
+      MachineMetrics.create_machine_metrics(machine_metrics, gradle_build_id: build_id)
     end
 
     {:ok, build_id}
