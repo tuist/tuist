@@ -104,7 +104,7 @@ services:
         value: http://tuist-fmpt:4317
       - key: TUIST_LOKI_URL
         value: http://tuist-fmpt:3100
-      - key: PROCESSOR_URL
+      - key: TUIST_PROCESSOR_URL
         value: http://processor-staging.tuist.dev:4002
     domains:
       - staging.tuist.dev

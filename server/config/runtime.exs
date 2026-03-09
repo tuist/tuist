@@ -362,7 +362,7 @@ config :tuist, Tuist.PromEx,
   ]
 
 # Processor
-config :tuist, :processor_url, System.get_env("PROCESSOR_URL")
+config :tuist, :processor_url, System.get_env("TUIST_PROCESSOR_URL")
 
 if otel_endpoint do
   config :opentelemetry,
