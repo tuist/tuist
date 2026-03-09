@@ -13,7 +13,8 @@ public struct MachineMetricsReader {
 
     public func readSamples(
         startDate: Date,
-        endDate: Date
+        endDate: Date,
+        maxCount: Int = 3600
     ) -> [MachineMetricSample] {
         let startTimestamp = startDate.timeIntervalSince1970
         let endTimestamp = endDate.timeIntervalSince1970
@@ -30,12 +31,22 @@ public struct MachineMetricsReader {
         let decoder = JSONDecoder()
         let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
 
-        return lines.compactMap { line -> MachineMetricSample? in
+        let samples = lines.compactMap { line -> MachineMetricSample? in
             guard let lineData = line.data(using: .utf8),
                   let sample = try? decoder.decode(MachineMetricSample.self, from: lineData)
             else { return nil }
             guard sample.timestamp >= startTimestamp, sample.timestamp <= endTimestamp else { return nil }
             return sample
+        }
+
+        return Self.downsample(samples, maxCount: maxCount)
+    }
+
+    static func downsample(_ samples: [MachineMetricSample], maxCount: Int) -> [MachineMetricSample] {
+        guard samples.count > maxCount, maxCount >= 2 else { return samples }
+        let step = Double(samples.count - 1) / Double(maxCount - 1)
+        return (0 ..< maxCount).map { i in
+            samples[min(Int(Double(i) * step), samples.count - 1)]
         }
     }
 
