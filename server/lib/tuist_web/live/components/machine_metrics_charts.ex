@@ -104,7 +104,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                 yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
                 tooltip: %{valueFormat: "{value} MiB/s"},
                 title: %{text: "Network", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}},
-                legend: %{left: "right", top: "top", textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 10}}
+                legend: %{left: "center", top: "top", textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 10}}
               }}
             />
           </div>
@@ -126,7 +126,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                 yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
                 tooltip: %{valueFormat: "{value} MiB/s"},
                 title: %{text: "Disk I/O", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}},
-                legend: %{left: "right", top: "top", textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 10}}
+                legend: %{left: "center", top: "top", textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 10}}
               }}
             />
           </div>
