@@ -408,7 +408,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     return targetName
                 }
 
-                if targetsByName[dependencyName] != nil {
+                if let depTarget = targetsByName[dependencyName] {
+                    if depTarget.type == .binary,
+                       let depPath = depTarget.path,
+                       URL(fileURLWithPath: depPath).deletingPathExtension().lastPathComponent == singleProduct.name
+                    {
+                        return targetName
+                    }
                     queue.append(dependencyName)
                 }
             }
