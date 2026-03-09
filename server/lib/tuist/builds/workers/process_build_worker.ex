@@ -17,45 +17,67 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       }) do
     processor_url = Application.get_env(:tuist, :processor_url)
 
-    if is_nil(processor_url) or processor_url == "" do
-      mark_build_failed(build_id, project_id, account_id)
-      {:error, "processor_url_not_configured"}
-    else
-      payload = %{
-        build_id: build_id,
-        storage_key: storage_key,
-        account_id: account_id,
-        project_id: project_id
-      }
-
-      Logger.info("Sending build #{build_id} to processor at #{processor_url}")
-
-      case Req.post("#{processor_url}/webhooks/process-build",
-             json: payload,
-             receive_timeout: 300_000
-           ) do
-        {:ok, %{status: 200, body: parsed_data}} ->
-          Logger.info(
-            "Processor returned parsed data for build #{build_id}: " <>
-              "#{length(Map.get(parsed_data, "targets", []))} targets, " <>
-              "#{length(Map.get(parsed_data, "issues", []))} issues, " <>
-              "#{length(Map.get(parsed_data, "files", []))} files, " <>
-              "#{length(Map.get(parsed_data, "cacheable_tasks", []))} cacheable_tasks, " <>
-              "#{length(Map.get(parsed_data, "cas_outputs", []))} cas_outputs"
-          )
-
-          replace_build_run(build_id, project_id, account_id, parsed_data)
-
-        {:ok, %{status: status, body: body}} ->
-          Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
-          mark_build_failed(build_id, project_id, account_id)
-          {:error, "processor_error_#{status}: #{inspect(body)}"}
-
-        {:error, reason} ->
-          Logger.error("Processor request failed for build #{build_id}: #{inspect(reason)}")
-          mark_build_failed(build_id, project_id, account_id)
-          {:error, reason}
+    result =
+      if is_nil(processor_url) or processor_url == "" do
+        process_locally(build_id, storage_key, account_id)
+      else
+        send_to_processor(processor_url, build_id, storage_key, account_id, project_id)
       end
+
+    case result do
+      {:ok, parsed_data} ->
+        parsed_data = Map.put(parsed_data, "project_id", project_id)
+        replace_build_run(build_id, project_id, account_id, parsed_data)
+
+      {:error, reason} ->
+        mark_build_failed(build_id, project_id, account_id)
+        {:error, reason}
+    end
+  end
+
+  defp process_locally(build_id, storage_key, account_id) do
+    if Code.ensure_loaded?(Processor.BuildProcessor) do
+      Logger.info("Processing build #{build_id} locally")
+      Processor.BuildProcessor.process(storage_key, account_id)
+    else
+      Logger.error("No processor available for build #{build_id}: processor_url not configured and Processor.BuildProcessor not loaded")
+      {:error, "processor_not_available"}
+    end
+  end
+
+  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id) do
+    payload = %{
+      build_id: build_id,
+      storage_key: storage_key,
+      account_id: account_id,
+      project_id: project_id
+    }
+
+    Logger.info("Sending build #{build_id} to processor at #{processor_url}")
+
+    case Req.post("#{processor_url}/webhooks/process-build",
+           json: payload,
+           receive_timeout: 300_000
+         ) do
+      {:ok, %{status: 200, body: parsed_data}} ->
+        Logger.info(
+          "Processor returned parsed data for build #{build_id}: " <>
+            "#{length(Map.get(parsed_data, "targets", []))} targets, " <>
+            "#{length(Map.get(parsed_data, "issues", []))} issues, " <>
+            "#{length(Map.get(parsed_data, "files", []))} files, " <>
+            "#{length(Map.get(parsed_data, "cacheable_tasks", []))} cacheable_tasks, " <>
+            "#{length(Map.get(parsed_data, "cas_outputs", []))} cas_outputs"
+        )
+
+        {:ok, parsed_data}
+
+      {:ok, %{status: status, body: body}} ->
+        Logger.error("Processor returned #{status} for build #{build_id}: #{inspect(body)}")
+        {:error, "processor_error_#{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        Logger.error("Processor request failed for build #{build_id}: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 

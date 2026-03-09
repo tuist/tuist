@@ -1,8 +1,27 @@
 ARG ELIXIR_VERSION=1.19.1
 ARG OTP_VERSION=28.1
 ARG DEBIAN_VERSION=bookworm-20251020-slim
+ARG SWIFT_VERSION=6.1.2
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
+
+# ========================================
+# Stage: Swift NIF builder
+# Only built when referenced by selfhosted target (BuildKit skips otherwise)
+# ========================================
+FROM swift:${SWIFT_VERSION}-bookworm AS swift-builder
+
+RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /nif
+
+COPY processor/native/xcactivitylog_nif/Package.swift .
+COPY processor/native/xcactivitylog_nif/Package.resolved .
+COPY processor/native/xcactivitylog_nif/Sources/ Sources/
+COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
+
+RUN swift build -c release --replace-scm-with-registry
 
 # ========================================
 # Stage 1: NPM dependencies
@@ -34,6 +53,8 @@ ARG MIX_ENV=prod
 ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
 ENV TUIST_HOSTED=$TUIST_HOSTED
+ARG TUIST_PROCESSOR_URL
+ENV TUIST_PROCESSOR_URL=$TUIST_PROCESSOR_URL
 
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
@@ -43,6 +64,9 @@ COPY server/runner/mix.exs runner/mix.exs
 
 # Copy tuist_common for path dependency
 COPY tuist_common /tuist_common
+
+# Copy processor source for path dependency (when TUIST_PROCESSOR_URL not set)
+COPY processor /processor
 
 RUN mix deps.get --only $MIX_ENV
 
@@ -116,9 +140,29 @@ RUN mix assets.deploy
 RUN mix release
 
 # ========================================
-# Stage 5: Final runtime image
+# Stage: NIF bridge builder (for selfhosted)
+# Compiles the C NIF bridge linking against the Swift library
 # ========================================
-FROM ${RUNNER_IMAGE}
+FROM builder AS nif-bridge-builder
+
+COPY processor/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
+COPY --from=swift-builder /nif/.build/release/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
+
+RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
+    ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
+    cc -shared -fPIC \
+      -o /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/xcactivitylog_nif.so \
+      /tmp/nif/nif_bridge.c \
+      -I"$ERL_INCLUDE" \
+      -L/tmp/nif \
+      -lXCActivityLogNIF \
+      -Wl,-rpath,'$ORIGIN' && \
+    cp /tmp/nif/libXCActivityLogNIF.so /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/
+
+# ========================================
+# Stage 5: Common runtime base
+# ========================================
+FROM ${RUNNER_IMAGE} AS runner-base
 
 RUN apt-get update -y && \
   apt-get upgrade -y && \
@@ -175,6 +219,42 @@ ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
 COPY --from=runner-binary-builder /app/build/runner /app/bin/runner
+
+# ========================================
+# Stage 6: Default runtime (hosted) — no Swift NIF
+# BuildKit skips swift-builder since it's not referenced by this target
+# ========================================
+FROM runner-base AS runner
+
+USER nobody
+
+CMD ["sh", "-c", "/app/bin/start"]
+
+# ========================================
+# Stage 7: Self-hosted runtime — includes Swift NIF + runtime libs
+# Build with: docker build --target runner-selfhosted .
+# ========================================
+FROM runner-base AS runner-selfhosted
+
+# Copy Swift runtime libraries needed by the NIF
+COPY --from=swift-builder /usr/lib/swift/linux/libswiftCore.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libswiftGlibc.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libswift_Concurrency.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libswift_StringProcessing.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libswift_RegexParser.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libswiftSynchronization.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libswiftDispatch.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libFoundation.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libFoundationEssentials.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libFoundationInternationalization.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/lib_FoundationICU.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libdispatch.so /usr/lib/
+COPY --from=swift-builder /usr/lib/swift/linux/libBlocksRuntime.so /usr/lib/
+
+# Copy compiled NIF .so files into processor priv dir
+COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
+
+RUN ldconfig
 
 USER nobody
 

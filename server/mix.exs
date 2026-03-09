@@ -36,6 +36,9 @@ defmodule Tuist.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      if(is_nil(System.get_env("TUIST_PROCESSOR_URL")),
+        do: {:processor, path: "../processor", runtime: false}
+      ),
       {:phoenix, "~> 1.7"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.12"},
@@ -156,6 +159,7 @@ defmodule Tuist.MixProject do
       {:opentelemetry_broadway, "~> 0.3"},
       {:loki_logger_handler, "~> 0.2"}
     ]
+    |> Enum.reject(&is_nil/1)
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
