@@ -44,49 +44,71 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
       |> assign(:disk_read_data, disk_read_data)
       |> assign(:disk_write_data, disk_write_data)
 
+    legend_config = %{
+      left: "left",
+      top: "bottom",
+      orient: "horizontal",
+      textStyle: %{
+        color: "var:noora-surface-label-secondary",
+        fontFamily: "monospace",
+        fontWeight: 400,
+        fontSize: 10,
+        lineHeight: 12
+      },
+      icon:
+        "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+      itemWidth: 8,
+      itemHeight: 4
+    }
+
+    assigns = assign(assigns, :legend_config, legend_config)
+
     ~H"""
     <.card title="Machine Metrics" icon="chart_arcs" data-part="machine-metrics">
       <.card_section data-part="machine-metrics-charts">
-        <div data-part="charts-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 16px;">
+        <div data-part="charts-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--noora-spacing-9) var(--noora-spacing-7); padding: var(--noora-spacing-8);">
           <div>
+            <span data-part="chart-title">CPU</span>
             <.chart
               id="cpu-usage-chart"
               type="line"
-              style="height: 250px"
+              style="height: 220px"
               labels={@labels}
               smooth={true}
               series={[
-                %{name: "CPU Usage", values: @cpu_data}
+                %{name: "Usage", values: @cpu_data}
               ]}
+              show_legend={false}
               extra_options={%{
-                grid: %{width: "90%", left: "8%", height: "65%", top: "15%"},
+                grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
                 xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, max: 100, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}},
-                tooltip: %{valueFormat: "{value}%"},
-                title: %{text: "CPU Usage", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}}
+                tooltip: %{valueFormat: "{value}%"}
               }}
             />
           </div>
           <div>
+            <span data-part="chart-title">Memory</span>
             <.chart
               id="memory-usage-chart"
               type="line"
-              style="height: 250px"
+              style="height: 220px"
               labels={@labels}
               smooth={true}
               series={[
-                %{name: "Memory Used", values: @memory_data}
+                %{name: "Used", values: @memory_data}
               ]}
+              show_legend={false}
               extra_options={%{
-                grid: %{width: "90%", left: "8%", height: "65%", top: "15%"},
+                grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
                 xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, max: @memory_total, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GB"}},
-                tooltip: %{valueFormat: "{value} GB"},
-                title: %{text: "Memory Usage", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}}
+                tooltip: %{valueFormat: "{value} GB"}
               }}
             />
           </div>
           <div>
+            <span data-part="chart-title">Network</span>
             <.chart
               id="network-io-chart"
               type="line"
@@ -99,16 +121,16 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               ]}
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={%{
-                grid: %{width: "90%", left: "8%", height: "60%", top: "15%"},
+                grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
                 xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
                 tooltip: %{valueFormat: "{value} MiB/s"},
-                title: %{text: "Network", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}},
-                legend: %{left: "center", top: "top", textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 10}}
+                legend: @legend_config
               }}
             />
           </div>
           <div>
+            <span data-part="chart-title">Disk I/O</span>
             <.chart
               id="disk-io-chart"
               type="line"
@@ -121,12 +143,11 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               ]}
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={%{
-                grid: %{width: "90%", left: "8%", height: "60%", top: "15%"},
+                grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
                 xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
                 tooltip: %{valueFormat: "{value} MiB/s"},
-                title: %{text: "Disk I/O", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}},
-                legend: %{left: "center", top: "top", textStyle: %{color: "var:noora-surface-label-secondary", fontSize: 10}}
+                legend: @legend_config
               }}
             />
           </div>

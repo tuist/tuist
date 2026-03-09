@@ -1,0 +1,6 @@
+[data-part="machine-metrics"] {
+  & [data-part="chart-title"] {
+    font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+    color: var(--noora-surface-label-primary);
+  }
+}
