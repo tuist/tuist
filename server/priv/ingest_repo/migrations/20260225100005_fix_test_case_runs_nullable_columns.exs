@@ -14,6 +14,17 @@ defmodule Tuist.IngestRepo.Migrations.FixTestCaseRunsNullableColumns do
   @disable_migration_lock true
 
   def up do
+    # Kill stuck mutations from previous failed deploy attempts.
+    # These will never complete on their own because the originating
+    # process crashed mid-migration.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    KILL MUTATION
+    WHERE database = currentDatabase()
+      AND table = 'test_case_runs'
+      AND is_done = 0
+    """
+
     # Wait for any pending mutations from previous migrations to finish
     # before submitting more. ClickHouse rejects new mutations when the
     # queue is too deep (CANNOT_ASSIGN_ALTER).
