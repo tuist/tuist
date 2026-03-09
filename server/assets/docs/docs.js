@@ -44,50 +44,6 @@ const DocsInstallTabs = {
   },
 };
 
-const DocsMobileMenu = {
-  mounted() {
-    const nav = this.el;
-    const toggle = nav.querySelector("[data-part='menu-toggle']");
-    const sidebar = document.getElementById("docs-mobile-sidebar");
-
-    if (toggle && sidebar) {
-      toggle.addEventListener("click", () => {
-        const isOpen = nav.getAttribute("data-mobile-menu-open") === "true";
-        if (isOpen) {
-          nav.removeAttribute("data-mobile-menu-open");
-          sidebar.removeAttribute("data-open");
-          document.body.style.overflow = "";
-        } else {
-          nav.setAttribute("data-mobile-menu-open", "true");
-          sidebar.setAttribute("data-open", "");
-          document.body.style.overflow = "hidden";
-        }
-      });
-    }
-
-    this._onKeydown = (e) => {
-      if (e.key === "Escape" && nav.getAttribute("data-mobile-menu-open") === "true") {
-        nav.removeAttribute("data-mobile-menu-open");
-        sidebar?.removeAttribute("data-open");
-        document.body.style.overflow = "";
-      }
-    };
-    document.addEventListener("keydown", this._onKeydown);
-
-    this._onNavigate = () => {
-      nav.removeAttribute("data-mobile-menu-open");
-      sidebar?.removeAttribute("data-open");
-      document.body.style.overflow = "";
-    };
-    window.addEventListener("phx:navigate", this._onNavigate);
-  },
-  destroyed() {
-    document.removeEventListener("keydown", this._onKeydown);
-    window.removeEventListener("phx:navigate", this._onNavigate);
-    document.body.style.overflow = "";
-  },
-};
-
 const DocsActivePage = {
   mounted() {
     this._updateSidebar();
@@ -133,13 +89,70 @@ const DocsActivePage = {
   },
 };
 
+const DocsMobileSidebar = {
+  mounted() {
+    const sidebar = document.getElementById("docs-sidebar");
+    const overlay = document.getElementById("docs-mobile-sidebar-overlay");
+    const body = document.body;
+
+    const open = () => {
+      body.setAttribute("data-sidebar-open", "");
+      sidebar?.setAttribute("data-mobile-open", "");
+    };
+
+    const close = () => {
+      body.removeAttribute("data-sidebar-open");
+      sidebar?.removeAttribute("data-mobile-open");
+    };
+
+    this.el.addEventListener("click", () => {
+      const isOpen = body.hasAttribute("data-sidebar-open");
+      isOpen ? close() : open();
+    });
+
+    const navToggle = document.querySelector("[data-action='toggle-sidebar']");
+    navToggle?.addEventListener("click", () => {
+      const isOpen = body.hasAttribute("data-sidebar-open");
+      isOpen ? close() : open();
+    });
+
+    overlay?.addEventListener("click", close);
+
+    sidebar?.addEventListener("click", (e) => {
+      if (e.target.closest("a[data-part='nav-link'], a[data-part='trigger']")) {
+        close();
+      }
+    });
+  },
+};
+
+const DocsMobileToc = {
+  mounted() {
+    this.el.addEventListener("click", () => {
+      const toc = document.getElementById("docs-mobile-toc");
+      if (!toc) return;
+      const isOpen = toc.getAttribute("data-state") === "open";
+      toc.setAttribute("data-state", isOpen ? "closed" : "open");
+    });
+
+    const toc = document.getElementById("docs-mobile-toc");
+    if (toc) {
+      toc.addEventListener("click", (e) => {
+        if (e.target.closest("[data-part='mobile-toc-item'], .noora-link-button")) {
+          toc.setAttribute("data-state", "closed");
+        }
+      });
+    }
+  },
+};
+
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
-  hooks: { ...Noora.Hooks, DocsActivePage, DocsContent, DocsInstallTabs, DocsMobileMenu },
+  hooks: { ...Noora.Hooks, DocsActivePage, DocsContent, DocsInstallTabs, DocsMobileSidebar, DocsMobileToc },
 });
 liveSocket.connect();
 

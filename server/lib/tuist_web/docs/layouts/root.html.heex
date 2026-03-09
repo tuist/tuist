@@ -26,12 +26,12 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
-    <nav id="docs-nav" phx-hook="DocsMobileMenu">
+    <nav id="docs-nav">
       <div data-part="header">
         <.link navigate="/docs/en" data-part="logo-link">
           <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
+          <span data-part="logo-text">Tuist</span>
         </.link>
-        <span data-part="logo-text">Tuist</span>
         <.button_group size="large" id="docs-nav-tabs">
           <.button_group_item
             label={dgettext("docs", "Guides")}
@@ -80,15 +80,25 @@
         </div>
       </div>
       <div data-part="mobile-actions">
-        <.neutral_button size="small" data-action="search">
+        <.neutral_button size="large">
           <.icon name="search" />
         </.neutral_button>
-        <button data-part="menu-toggle" aria-label="Toggle menu">
-          <span data-part="menu-icon"><.icon name="menu" /></span>
-          <span data-part="close-icon"><.icon name="x" /></span>
-        </button>
+        <.neutral_button size="large" data-action="toggle-sidebar">
+          <.icon name="menu" />
+        </.neutral_button>
       </div>
     </nav>
+    <div id="docs-mobile-menu-bar">
+      <button type="button" data-part="mobile-menu-btn" id="docs-mobile-menu-trigger" phx-hook="DocsMobileSidebar">
+        <.icon name="menu_3" />
+        <span>{dgettext("docs", "Menu")}</span>
+      </button>
+      <button type="button" data-part="mobile-toc-btn" id="docs-mobile-toc-trigger" phx-hook="DocsMobileToc">
+        <span>{dgettext("docs", "On this page")}</span>
+        <.icon name="news" />
+      </button>
+    </div>
+    <div id="docs-mobile-sidebar-overlay"></div>
     {@inner_content}
   </body>
 </html>

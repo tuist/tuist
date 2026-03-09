@@ -8,3 +8,16 @@
     gap: var(--noora-spacing-5);
   }
 }
+
+@media (max-width: 1280px) {
+  #docs-page-layout [data-part="layout"] {
+    grid-template-columns: 1fr 800px;
+  }
+}
+
+@media (max-width: 1024px) {
+  #docs-page-layout [data-part="layout"] {
+    grid-template-columns: 1fr;
+    padding: 0 var(--noora-spacing-4);
+  }
+}
