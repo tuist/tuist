@@ -8,8 +8,6 @@ defmodule Cache.GradleCacheEventsPipeline do
 
   alias Broadway.Message
 
-  require Logger
-
   def start_link(_opts) do
     batch_size = Application.get_env(:cache, :events_batch_size, 100)
     batch_timeout = Application.get_env(:cache, :events_batch_timeout, 5_000)
@@ -55,13 +53,6 @@ defmodule Cache.GradleCacheEventsPipeline do
   end
 
   defp send_batch(events) do
-    case Cache.Config.api_key() do
-      nil -> :ok
-      secret -> do_send_batch(secret, events)
-    end
-  end
-
-  defp do_send_batch(secret, events) do
     server_url = Cache.Authentication.server_url()
     url = "#{server_url}/webhooks/gradle-cache"
 
@@ -78,44 +69,6 @@ defmodule Cache.GradleCacheEventsPipeline do
 
     body = Jason.encode!(%{events: api_events})
 
-    signature =
-      :hmac
-      |> :crypto.mac(:sha256, secret, body)
-      |> Base.encode16(case: :lower)
-
-    headers = [
-      {"x-cache-signature", signature},
-      {"content-type", "application/json"}
-    ]
-
-    req_options = Application.get_env(:cache, :req_options, [])
-
-    options =
-      Keyword.merge(
-        [
-          url: url,
-          method: :post,
-          headers: headers,
-          body: body,
-          finch: Cache.Finch,
-          retry: false,
-          cache: false
-        ],
-        req_options
-      )
-
-    case Req.request(options) do
-      {:ok, %{status: status}} when status in 200..299 ->
-        :ok
-
-      {:ok, %{status: status, body: body}} ->
-        Logger.error("Failed to send Gradle cache analytics (status #{status}): #{inspect(body)}")
-
-        :ok
-
-      {:error, reason} ->
-        Logger.error("Failed to send Gradle cache analytics: #{inspect(reason)}")
-        :ok
-    end
+    Cache.WebhookClient.signed_post(url, body, "Gradle cache analytics")
   end
 end

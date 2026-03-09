@@ -40,7 +40,8 @@ defmodule TuistWeb.BundlesLive do
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"

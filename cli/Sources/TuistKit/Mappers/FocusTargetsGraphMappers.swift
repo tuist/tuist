@@ -34,43 +34,59 @@ public struct FocusTargetsGraphMappers: GraphMapping {
     /// The targets to be kept as non prunable with their respective dependencies and tests targets.
     public let includedTargets: Set<TargetQuery>
     public let excludedTargets: Set<TargetQuery>
+    /// When no explicit filters are provided, only targets matching these products
+    /// and their dependencies are kept as non-prunable.
+    public let includedProducts: Set<Product>
 
     public init(
         testPlan: String? = nil,
         includedTargets: Set<TargetQuery>,
-        excludedTargets: Set<TargetQuery> = []
+        excludedTargets: Set<TargetQuery> = [],
+        includedProducts: Set<Product> = []
     ) {
         self.testPlan = testPlan
         self.includedTargets = includedTargets
         self.excludedTargets = excludedTargets
+        self.includedProducts = includedProducts
     }
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         let graphTraverser = GraphTraverser(graph: graph)
         var graph = graph
-        let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(
-            basedOn: graphTraverser.allTargets(),
-            testPlan: testPlan,
-            includedTargets: includedTargets,
-            excludedTargets: excludedTargets,
-            excludingExternalTargets: true
-        )
 
-        let includedTargetNames: [String] = includedTargets.compactMap {
-            guard case let .named(name) = $0 else { return nil }
-            return name
-        }
-        let unavailableIncludedTargets = Set(includedTargetNames).subtracting(userSpecifiedSourceTargets.map(\.target.name))
-        if !unavailableIncludedTargets.isEmpty {
-            throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
-        }
+        let hasExplicitFilters = !includedTargets.isEmpty || !excludedTargets.isEmpty || testPlan != nil
+        let sourceTargets: Set<GraphTarget>
 
-        if !includedTargets.isEmpty || !excludedTargets.isEmpty, userSpecifiedSourceTargets.isEmpty {
-            throw FocusTargetsGraphMappersError.noTargetsFound
+        if !includedProducts.isEmpty, !hasExplicitFilters {
+            sourceTargets = graphTraverser.allTargets().filter { includedProducts.contains($0.target.product) }
+        } else {
+            let userSpecifiedSourceTargets = graphTraverser.filterIncludedTargets(
+                basedOn: graphTraverser.allTargets(),
+                testPlan: testPlan,
+                includedTargets: includedTargets,
+                excludedTargets: excludedTargets,
+                excludingExternalTargets: true
+            )
+
+            let includedTargetNames: [String] = includedTargets.compactMap {
+                guard case let .named(name) = $0 else { return nil }
+                return name
+            }
+            let unavailableIncludedTargets = Set(includedTargetNames)
+                .subtracting(userSpecifiedSourceTargets.map(\.target.name))
+            if !unavailableIncludedTargets.isEmpty {
+                throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
+            }
+
+            if !includedTargets.isEmpty || !excludedTargets.isEmpty, userSpecifiedSourceTargets.isEmpty {
+                throw FocusTargetsGraphMappersError.noTargetsFound
+            }
+
+            sourceTargets = userSpecifiedSourceTargets
         }
 
         let filteredTargets = Set(try topologicalSort(
-            Array(userSpecifiedSourceTargets),
+            Array(sourceTargets),
             successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)).map(\.graphTarget) }
         ))
 

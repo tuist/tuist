@@ -75,7 +75,8 @@ defmodule TuistWeb.TestRunLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
     uri = build_uri(params)
     selected_tab = selected_tab(params)
     selected_test_tab = params["test-tab"] || "test-cases"

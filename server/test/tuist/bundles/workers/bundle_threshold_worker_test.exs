@@ -146,7 +146,13 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       stub(Environment, :github_app_configured?, fn -> true end)
       stub(Environment, :app_url, fn -> "https://tuist.dev" end)
 
+      expect(Client, :get_pull_request, fn params ->
+        assert params.pr_number == 1
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
+
       expect(Client, :create_check_run, fn params ->
+        assert params.head_sha == "real-head-sha"
         assert params.conclusion == "success"
         assert params.output.title == "Bundle size check passed"
         {:ok, %{"id" => 1}}
@@ -199,7 +205,12 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
       stub(Environment, :github_app_configured?, fn -> true end)
       stub(Environment, :app_url, fn -> "https://tuist.dev" end)
 
+      expect(Client, :get_pull_request, fn _params ->
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
+
       expect(Client, :create_check_run, fn params ->
+        assert params.head_sha == "real-head-sha"
         assert params.conclusion == "action_required"
         assert params.output.title == "Bundle size threshold exceeded"
         assert params.output.summary =~ "Strict"
@@ -260,6 +271,10 @@ defmodule Tuist.Bundles.Workers.BundleThresholdWorkerTest do
 
       stub(Environment, :github_app_configured?, fn -> true end)
       stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      expect(Client, :get_pull_request, fn _params ->
+        {:ok, %{"head" => %{"sha" => "real-head-sha"}}}
+      end)
 
       expect(Client, :create_check_run, fn params ->
         assert params.conclusion == "action_required"
