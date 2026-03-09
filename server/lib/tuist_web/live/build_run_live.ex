@@ -49,41 +49,18 @@ defmodule TuistWeb.BuildRunLive do
       |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
       |> Tuist.ClickHouseRepo.preload([:issues])
 
-    command_event =
-      case CommandEvents.get_command_event_by_build_run_id(run.id) do
-        {:ok, event} -> event
-        {:error, :not_found} -> nil
-      end
-
     if run.project.id != project.id do
       raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
     end
 
-    cas_metrics = Builds.cas_output_metrics(run.id)
-    cacheable_task_latency_metrics = Builds.cacheable_task_latency_metrics(run.id)
-
-    test_run =
-      case Tests.get_latest_test_by_build_run_id(run.id) do
-        {:ok, test} -> test
-        {:error, :not_found} -> nil
-      end
+    if connected?(socket) and run.status == "processing" do
+      Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
+    end
 
     socket =
       socket
       |> assign(:run, run)
-      |> assign(:command_event, command_event)
-      |> assign(:test_run, test_run)
-      |> assign(:cas_metrics, cas_metrics)
-      |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
-      |> assign(
-        :warnings_grouped_by_path,
-        run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
-      )
-      |> assign(
-        :errors_grouped_by_path,
-        run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.group_by(& &1.path)
-      )
       |> assign(:file_breakdown_available_filters, define_file_breakdown_filters())
       |> assign(:file_breakdown_active_filters, [])
       |> assign(:module_breakdown_available_filters, define_module_breakdown_filters())
@@ -96,11 +73,61 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:selected_write_latency_type, "avg")
       |> assign(:expanded_task_keys, MapSet.new())
       |> assign(:task_cas_outputs_map, %{})
-      |> assign_async(:has_result_bundle, fn ->
-        {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
-      end)
+      |> assign_build_data(run)
 
     {:ok, socket}
+  end
+
+  defp assign_build_data(socket, run) do
+    command_event =
+      case CommandEvents.get_command_event_by_build_run_id(run.id) do
+        {:ok, event} -> event
+        {:error, :not_found} -> nil
+      end
+
+    cas_metrics = Builds.cas_output_metrics(run.id)
+    cacheable_task_latency_metrics = Builds.cacheable_task_latency_metrics(run.id)
+
+    test_run =
+      case Tests.get_latest_test_by_build_run_id(run.id) do
+        {:ok, test} -> test
+        {:error, :not_found} -> nil
+      end
+
+    socket
+    |> assign(:command_event, command_event)
+    |> assign(:test_run, test_run)
+    |> assign(:cas_metrics, cas_metrics)
+    |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
+    |> assign(
+      :warnings_grouped_by_path,
+      run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.group_by(& &1.path)
+    )
+    |> assign(
+      :errors_grouped_by_path,
+      run.issues |> Enum.filter(&(&1.type == "error")) |> Enum.group_by(& &1.path)
+    )
+    |> assign_async(:has_result_bundle, fn ->
+      {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
+    end)
+  end
+
+  @impl true
+  def handle_info({:build_created, build}, socket) do
+    if build.id == socket.assigns.run.id do
+      run =
+        Builds.get_build(build.id)
+        |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+        |> Tuist.ClickHouseRepo.preload([:issues])
+
+      {:noreply, socket |> assign(:run, run) |> assign_build_data(run)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(_event, socket) do
+    {:noreply, socket}
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do

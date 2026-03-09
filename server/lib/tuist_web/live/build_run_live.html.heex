@@ -28,6 +28,16 @@
               <.alert_circle />
             </div>
           </div>
+          <div :if={@run.status == "processing"} data-part="badge-processing">
+            <div data-part="icon">
+              <.circle_dashed />
+            </div>
+          </div>
+          <div :if={@run.status == "failed_processing"} data-part="badge-warning">
+            <div data-part="icon">
+              <.alert_hexagon />
+            </div>
+          </div>
           <h1 data-part="label">
             {if(@run.scheme == "",
               do: dgettext("dashboard_builds", "Unknown scheme"),
@@ -86,7 +96,7 @@
           href={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/download-archive"
           }
-          label={dgettext("dashboard_builds", "Download build archive")}
+          label={dgettext("dashboard_builds", "Download build")}
           variant="secondary"
           size="medium"
         >
@@ -104,7 +114,17 @@
         </.button>
       </div>
     </div>
-    <.tab_menu_horizontal>
+    <div :if={@run.status == "processing"} data-part="processing-state">
+      <div data-part="labels">
+        <span data-part="title">
+          {dgettext("dashboard_builds", "Your build is being processed")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_builds", "This usually takes a few seconds. The page will update automatically.")}
+        </span>
+      </div>
+    </div>
+    <.tab_menu_horizontal :if={@run.status != "processing"}>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard_builds", "Overview")}
         selected={@selected_tab == "overview"}
@@ -127,7 +147,7 @@
         patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
       />
     </.tab_menu_horizontal>
-    <%= if @selected_tab == "overview" do %>
+    <%= if @selected_tab == "overview" and @run.status != "processing" do %>
       <.card
         title={dgettext("dashboard_builds", "Build Details")}
         icon="chart_arcs"
@@ -171,9 +191,21 @@
                   style="fill"
                 />
                 <.badge
-                  :if={@run.status != "success"}
+                  :if={@run.status == "failure"}
                   label={dgettext("dashboard_builds", "Failed")}
                   color="destructive"
+                  style="fill"
+                />
+                <.badge
+                  :if={@run.status == "failed_processing"}
+                  label={dgettext("dashboard_builds", "Failed processing")}
+                  color="warning"
+                  style="fill"
+                />
+                <.badge
+                  :if={@run.status == "processing"}
+                  label={dgettext("dashboard_builds", "Processing")}
+                  color="neutral"
                   style="fill"
                 />
               </div>
@@ -659,7 +691,7 @@
         </.card_section>
       </.card>
     <% end %>
-    <%= if @selected_tab == "warnings" do %>
+    <%= if @selected_tab == "warnings" and @run.status != "processing" do %>
       <.card
         title={dgettext("dashboard_builds", "Warnings")}
         icon="alert_hexagon"
@@ -700,7 +732,7 @@
         </.card_section>
       </.card>
     <% end %>
-    <%= if @selected_tab == "errors" do %>
+    <%= if @selected_tab == "errors" and @run.status != "processing" do %>
       <.card
         title={dgettext("dashboard_builds", "Errors")}
         icon="alert_circle"
@@ -743,7 +775,7 @@
         </.card_section>
       </.card>
     <% end %>
-    <%= if @selected_tab == "xcode-cache" do %>
+    <%= if @selected_tab == "xcode-cache" and @run.status != "processing" do %>
       <div data-part="cache">
         <.card
           title={dgettext("dashboard_builds", "Cache Summary")}

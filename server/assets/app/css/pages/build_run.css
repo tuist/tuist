@@ -61,8 +61,24 @@
           }
         }
 
+        & > [data-part="badge-processing"] {
+          background: var(--noora-surface-background-secondary);
+          & > [data-part="icon"] {
+            color: var(--noora-surface-label-secondary);
+          }
+        }
+
+        & > [data-part="badge-warning"] {
+          background: var(--noora-icon-warning-background);
+          & > [data-part="icon"] {
+            color: var(--noora-icon-warning-label);
+          }
+        }
+
         & > [data-part="badge-success"],
-        & > [data-part="badge-failure"] {
+        & > [data-part="badge-failure"],
+        & > [data-part="badge-processing"],
+        & > [data-part="badge-warning"] {
           border-radius: var(--noora-radius-large);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);
@@ -460,6 +476,30 @@
             }
           }
         }
+      }
+    }
+  }
+
+  & > [data-part="processing-state"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--noora-spacing-9) 0;
+
+    & > [data-part="labels"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
     }
   }

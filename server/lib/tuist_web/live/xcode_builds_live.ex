@@ -289,12 +289,15 @@ defmodule TuistWeb.XcodeBuildsLive do
             preload: [:ran_by_account]
           )
 
+        recent_builds =
+          Enum.reject(recent_builds, fn run -> run.status in ["processing", "failed_processing"] end)
+
         recent_builds_chart_data =
           Enum.map(recent_builds, fn run ->
             color =
               case run.status do
                 "success" -> "var:noora-chart-primary"
-                "failure" -> "var:noora-chart-destructive"
+                _ -> "var:noora-chart-destructive"
               end
 
             value = run.duration
