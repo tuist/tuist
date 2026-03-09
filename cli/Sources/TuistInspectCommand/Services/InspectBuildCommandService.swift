@@ -195,11 +195,11 @@
 
             let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
             let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
-            let rawMetrics = machineMetricsReader.readSamples(
+            let metricsSamples = machineMetricsReader.readSamples(
                 startDate: buildStartDate,
                 endDate: buildEndDate
             )
-            let machineMetrics = rawMetrics.map { sample in
+            let machineMetrics = metricsSamples.map { sample in
                 ServerMachineMetricSample(
                     timestampOffsetMs: Int((sample.timestamp - buildStartDate.timeIntervalSince1970) * 1000),
                     cpuUsagePercent: sample.cpuUsagePercent,
