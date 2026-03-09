@@ -3,20 +3,23 @@
 #endif
 import Foundation
 import Path
+import TuistEnvironment
 
 public struct MachineMetricsReader {
+    public static let metricsFilePath: AbsolutePath = Environment.current.stateDirectory
+        .appending(component: "machine_metrics.jsonl")
+
     public init() {}
 
     public func readSamples(
-        from filePath: AbsolutePath,
         startDate: Date,
         endDate: Date
     ) -> [MachineMetricSample] {
         let startTimestamp = startDate.timeIntervalSince1970
         let endTimestamp = endDate.timeIntervalSince1970
 
-        let content: String? = withSharedFileLock(filePath) {
-            guard let data = FileManager.default.contents(atPath: filePath.pathString),
+        let content: String? = withSharedFileLock(Self.metricsFilePath) {
+            guard let data = FileManager.default.contents(atPath: Self.metricsFilePath.pathString),
                   let str = String(data: data, encoding: .utf8)
             else { return nil }
             return str

@@ -195,9 +195,7 @@
 
             let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
             let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
-            let metricsFilePath = Environment.current.stateDirectory.appending(component: "machine_metrics.jsonl")
             let allMetrics = machineMetricsReader.readSamples(
-                from: metricsFilePath,
                 startDate: buildStartDate,
                 endDate: buildEndDate
             )

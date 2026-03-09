@@ -8,8 +8,8 @@ import TuistEnvironment
 public final class MachineMetricsSampler: @unchecked Sendable {
     private let metricsFilePath: AbsolutePath
 
-    public init(metricsFilePath: AbsolutePath? = nil) {
-        self.metricsFilePath = metricsFilePath ?? Environment.current.stateDirectory.appending(component: "machine_metrics.jsonl")
+    public init() {
+        self.metricsFilePath = MachineMetricsReader.metricsFilePath
     }
 
     public func run() async throws {
