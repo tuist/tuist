@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* prevent multiple commands produce when static product depends on same-named xcframework by [@pepicrft](https://github.com/pepicrft) in [#9758](https://github.com/tuist/tuist/pull/9758)
 * exclude non-test-dependency targets from workspace scheme build action by [@fortmarek](https://github.com/fortmarek) in [#9741](https://github.com/tuist/tuist/pull/9741)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.3
