@@ -256,7 +256,10 @@
                 },
                 tooltip:
                   if @analytics_preset == "last-24-hours" do
-                    %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
+                    %{
+                      valueFormat: @analytics_chart_data.result.value_formatter,
+                      dateFormat: "hour"
+                    }
                   else
                     %{valueFormat: @analytics_chart_data.result.value_formatter}
                   end,

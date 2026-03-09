@@ -90,7 +90,9 @@
             }
             value={if @qa_runs_analytics.ok?, do: @qa_runs_analytics.result.count}
             id="widget-qa-run-count"
-            trend_value={if @qa_runs_analytics.ok?, do: @qa_runs_analytics.result.trend, else: nil}
+            trend_value={
+              if @qa_runs_analytics.ok?, do: @qa_runs_analytics.result.trend, else: nil
+            }
             trend_type={:neutral}
             trend_label={@analytics_trend_label}
             phx_click="select_widget"

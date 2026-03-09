@@ -100,7 +100,9 @@
           id="widget-test-case-run-count"
           legend_color="primary"
           trend_value={
-            if @test_case_runs_analytics.ok?, do: @test_case_runs_analytics.result.trend, else: nil
+            if @test_case_runs_analytics.ok?,
+              do: @test_case_runs_analytics.result.trend,
+              else: nil
           }
           trend_type={:neutral}
           trend_label={@analytics_trend_label}
@@ -275,7 +277,10 @@
                 },
                 tooltip:
                   if @analytics_preset == "last-24-hours" do
-                    %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
+                    %{
+                      valueFormat: @analytics_chart_data.result.value_formatter,
+                      dateFormat: "hour"
+                    }
                   else
                     %{valueFormat: @analytics_chart_data.result.value_formatter}
                   end,
