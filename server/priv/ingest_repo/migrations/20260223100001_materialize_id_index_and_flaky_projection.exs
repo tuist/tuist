@@ -18,16 +18,6 @@ defmodule Tuist.IngestRepo.Migrations.MaterializeIdIndexAndFlakyProjection do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE test_case_runs ADD COLUMN IF NOT EXISTS is_new Bool DEFAULT false"
 
-    # Kill any stuck mutations from previous failed attempts so the new
-    # MATERIALIZE mutations can proceed.
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    KILL MUTATION
-    WHERE database = currentDatabase()
-      AND table = 'test_case_runs'
-      AND is_done = 0
-    """
-
     # Force-merge all data parts so every part includes the is_new column.
     # Old parts created before the ADD COLUMN lack the column file, causing
     # MATERIALIZE mutations to fail with "Missing columns: 'is_new'".
