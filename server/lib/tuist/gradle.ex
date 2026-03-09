@@ -68,13 +68,13 @@ defmodule Tuist.Gradle do
 
     Build.Buffer.insert(build_entry)
 
-    if !Enum.empty?(tasks) do
+    unless Enum.empty?(tasks) do
       create_tasks(build_id, attrs.project_id, tasks, now)
     end
 
     machine_metrics = Map.get(attrs, :machine_metrics, [])
 
-    if !Enum.empty?(machine_metrics) do
+    unless Enum.empty?(machine_metrics) do
       MachineMetrics.create_machine_metrics(machine_metrics, gradle_build_id: build_id)
     end
 

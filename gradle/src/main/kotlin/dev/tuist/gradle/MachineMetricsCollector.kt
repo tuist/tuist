@@ -5,7 +5,7 @@ import java.lang.management.ManagementFactory
 
 class MachineMetricsCollector {
     private val samples = mutableListOf<MachineMetricSample>()
-    private var running = false
+    @Volatile private var running = false
     private var thread: Thread? = null
     private val startTime = System.currentTimeMillis()
     private val osMXBean = ManagementFactory.getOperatingSystemMXBean()
@@ -111,10 +111,10 @@ class MachineMetricsCollector {
     private fun readNetworkBytes(): Pair<Long, Long> {
         return try {
             val procNetDev = File("/proc/net/dev")
-            if (procNetDev.exists()) {
-                readNetworkBytesLinux(procNetDev)
-            } else {
-                readNetworkBytesMacOS()
+            when {
+                procNetDev.exists() -> readNetworkBytesLinux(procNetDev)
+                MacOSSystemMetrics.isAvailable -> MacOSSystemMetrics.readNetworkBytes()
+                else -> readNetworkBytesMacOSFallback()
             }
         } catch (e: Exception) {
             Pair(0L, 0L)
@@ -134,9 +134,7 @@ class MachineMetricsCollector {
         return Pair(totalIn, totalOut)
     }
 
-    private fun readNetworkBytesMacOS(): Pair<Long, Long> {
-        // netstat -ib columns: Name Mtu Network Address Ipkts Ierrs Ibytes Opkts Oerrs Obytes Coll
-        // Only sum <Link#N> rows to avoid double-counting
+    private fun readNetworkBytesMacOSFallback(): Pair<Long, Long> {
         val process = ProcessBuilder("netstat", "-ib")
             .redirectErrorStream(true)
             .start()
@@ -160,10 +158,10 @@ class MachineMetricsCollector {
     private fun readDiskBytes(): Pair<Long, Long> {
         return try {
             val diskStats = File("/proc/diskstats")
-            if (diskStats.exists()) {
-                readDiskBytesLinux(diskStats)
-            } else {
-                readDiskBytesMacOS()
+            when {
+                diskStats.exists() -> readDiskBytesLinux(diskStats)
+                MacOSSystemMetrics.isAvailable -> MacOSSystemMetrics.readDiskBytes()
+                else -> readDiskBytesMacOSFallback()
             }
         } catch (e: Exception) {
             Pair(0L, 0L)
@@ -183,8 +181,7 @@ class MachineMetricsCollector {
         return Pair(totalRead, totalWritten)
     }
 
-    private fun readDiskBytesMacOS(): Pair<Long, Long> {
-        // ioreg reports cumulative "Bytes (Read)" and "Bytes (Write)" from IOBlockStorageDriver
+    private fun readDiskBytesMacOSFallback(): Pair<Long, Long> {
         val process = ProcessBuilder("ioreg", "-c", "IOBlockStorageDriver", "-r", "-w0")
             .redirectErrorStream(true)
             .start()

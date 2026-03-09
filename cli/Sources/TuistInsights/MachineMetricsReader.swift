@@ -1,3 +1,6 @@
+#if os(macOS)
+    import Darwin
+#endif
 import Foundation
 import Path
 
@@ -12,9 +15,14 @@ public struct MachineMetricsReader {
         let startTimestamp = startDate.timeIntervalSince1970
         let endTimestamp = endDate.timeIntervalSince1970
 
-        guard let data = FileManager.default.contents(atPath: filePath.pathString),
-              let content = String(data: data, encoding: .utf8)
-        else { return [] }
+        let content: String? = withSharedFileLock(filePath) {
+            guard let data = FileManager.default.contents(atPath: filePath.pathString),
+                  let str = String(data: data, encoding: .utf8)
+            else { return nil }
+            return str
+        }
+
+        guard let content else { return [] }
 
         let decoder = JSONDecoder()
         let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
@@ -26,5 +34,15 @@ public struct MachineMetricsReader {
             guard sample.timestamp >= startTimestamp, sample.timestamp <= endTimestamp else { return nil }
             return sample
         }
+    }
+
+    private func withSharedFileLock<T>(_ filePath: AbsolutePath, _ body: () -> T) -> T? {
+        let lockPath = filePath.pathString + ".lock"
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        guard flock(fd, LOCK_SH) == 0 else { return nil }
+        defer { flock(fd, LOCK_UN) }
+        return body()
     }
 }

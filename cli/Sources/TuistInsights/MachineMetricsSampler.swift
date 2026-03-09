@@ -62,11 +62,13 @@ public final class MachineMetricsSampler: @unchecked Sendable {
     private func cpuTicks() -> CPUTicks {
         var loadInfo = host_cpu_load_info_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let hostPort = mach_host_self()
         let result = withUnsafeMutablePointer(to: &loadInfo) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+                host_statistics(hostPort, HOST_CPU_LOAD_INFO, $0, &count)
             }
         }
+        mach_port_deallocate(mach_task_self_, hostPort)
         guard result == KERN_SUCCESS else {
             return CPUTicks(user: 0, system: 0, idle: 0, nice: 0)
         }
@@ -96,11 +98,13 @@ public final class MachineMetricsSampler: @unchecked Sendable {
     private func memoryInfo() -> MemoryInfo {
         var vmStats = vm_statistics64_data_t()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
+        let hostPort = mach_host_self()
         let result = withUnsafeMutablePointer(to: &vmStats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(hostPort, HOST_VM_INFO64, $0, &count)
             }
         }
+        mach_port_deallocate(mach_task_self_, hostPort)
 
         let totalMemory = Int64(ProcessInfo.processInfo.physicalMemory)
         guard result == KERN_SUCCESS else {
@@ -183,46 +187,60 @@ public final class MachineMetricsSampler: @unchecked Sendable {
         return DiskBytes(bytesRead: totalRead, bytesWritten: totalWritten)
     }
 
+    private func withFileLock<T>(exclusive: Bool = true, _ body: () -> T) -> T? {
+        let lockPath = metricsFilePath.pathString + ".lock"
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        guard flock(fd, exclusive ? LOCK_EX : LOCK_SH) == 0 else { return nil }
+        defer { flock(fd, LOCK_UN) }
+        return body()
+    }
+
     private func appendSample(_ sample: MachineMetricSample) {
         let encoder = JSONEncoder()
         guard let data = try? encoder.encode(sample),
               let line = String(data: data, encoding: .utf8)
         else { return }
 
-        let fileManager = FileManager.default
-        let path = metricsFilePath.pathString
+        withFileLock {
+            let fileManager = FileManager.default
+            let path = metricsFilePath.pathString
 
-        if !fileManager.fileExists(atPath: path) {
-            let dir = metricsFilePath.parentDirectory.pathString
-            try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            fileManager.createFile(atPath: path, contents: nil)
+            if !fileManager.fileExists(atPath: path) {
+                let dir = metricsFilePath.parentDirectory.pathString
+                try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                fileManager.createFile(atPath: path, contents: nil)
+            }
+
+            guard let handle = FileHandle(forWritingAtPath: path) else { return }
+            defer { handle.closeFile() }
+            handle.seekToEndOfFile()
+            handle.write(Data((line + "\n").utf8))
         }
-
-        guard let handle = FileHandle(forWritingAtPath: path) else { return }
-        defer { handle.closeFile() }
-        handle.seekToEndOfFile()
-        handle.write(Data((line + "\n").utf8))
     }
 
     private func trimSamples() {
-        let path = metricsFilePath.pathString
-        guard let data = FileManager.default.contents(atPath: path),
-              let content = String(data: data, encoding: .utf8)
-        else { return }
+        withFileLock {
+            let path = metricsFilePath.pathString
+            guard let data = FileManager.default.contents(atPath: path),
+                  let content = String(data: data, encoding: .utf8)
+            else { return }
 
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
-        let cutoff = Date().timeIntervalSince1970 - 3600
+            let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
+            let cutoff = Date().timeIntervalSince1970 - 3600
 
-        let decoder = JSONDecoder()
-        let recentLines = lines.filter { line in
-            guard let lineData = line.data(using: .utf8),
-                  let sample = try? decoder.decode(MachineMetricSample.self, from: lineData)
-            else { return false }
-            return sample.timestamp >= cutoff
+            let decoder = JSONDecoder()
+            let recentLines = lines.filter { line in
+                guard let lineData = line.data(using: .utf8),
+                      let sample = try? decoder.decode(MachineMetricSample.self, from: lineData)
+                else { return false }
+                return sample.timestamp >= cutoff
+            }
+
+            let newContent = recentLines.joined(separator: "\n") + (recentLines.isEmpty ? "" : "\n")
+            try? newContent.write(toFile: path, atomically: true, encoding: .utf8)
         }
-
-        let newContent = recentLines.joined(separator: "\n") + (recentLines.isEmpty ? "" : "\n")
-        try? newContent.write(toFile: path, atomically: true, encoding: .utf8)
     }
 }
 #endif

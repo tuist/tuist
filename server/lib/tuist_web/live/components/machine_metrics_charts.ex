@@ -15,12 +15,12 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
       |> Enum.map(fn {_, samples} -> List.last(samples) end)
 
     labels = Enum.map(metrics, fn m -> format_time(m.timestamp_offset_ms) end)
-    cpu_data = Enum.map(metrics, fn m -> Float.round(m.cpu_usage_percent / 1, 1) end)
-    memory_data = Enum.map(metrics, fn m -> bytes_to_gb(m.memory_used_bytes) end)
+    cpu_data = Enum.map(metrics, fn m -> Float.round(m.cpu_usage_percent + 0.0, 1) end)
+    memory_data = Enum.map(metrics, fn m -> bytes_to_gib(m.memory_used_bytes) end)
 
     memory_total =
       case metrics do
-        [first | _] -> bytes_to_gb(first.memory_total_bytes)
+        [first | _] -> bytes_to_gib(first.memory_total_bytes)
         _ -> 0
       end
 
@@ -64,7 +64,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     assigns = assign(assigns, :legend_config, legend_config)
 
     ~H"""
-    <.card title="Machine Metrics" icon="chart_arcs" data-part="machine-metrics">
+    <.card title={dgettext("dashboard", "Machine Metrics")} icon="chart_arcs" data-part="machine-metrics">
       <.card_section data-part="machine-metrics-charts">
         <div data-part="charts-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--noora-spacing-9) var(--noora-spacing-7); padding: var(--noora-spacing-8);">
           <div>
@@ -102,8 +102,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               extra_options={%{
                 grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
                 xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
-                yAxis: %{min: 0, max: @memory_total, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GB"}},
-                tooltip: %{valueFormat: "{value} GB"}
+                yAxis: %{min: 0, max: @memory_total, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GiB"}},
+                tooltip: %{valueFormat: "{value} GiB"}
               }}
             />
           </div>
@@ -157,8 +157,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     """
   end
 
-  defp bytes_to_gb(bytes) do
-    Float.round(bytes / (1000 * 1000 * 1000), 1)
+  defp bytes_to_gib(bytes) do
+    Float.round(bytes / (1024 * 1024 * 1024), 1)
   end
 
   defp bytes_to_mib(bytes) do

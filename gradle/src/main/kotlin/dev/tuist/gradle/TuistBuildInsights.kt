@@ -280,8 +280,8 @@ abstract class TuistBuildInsightsService :
             listenerManager?.removeListener(this)
         } catch (_: Exception) {}
 
-        val machineMetrics = machineMetricsCollector.stop()
-val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
+        val machineMetrics = downsample(machineMetricsCollector.stop(), maxCount = 3600)
+        val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading build insights in the background...")
@@ -374,6 +374,14 @@ val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
         } else {
             logger.warn("Tuist: Failed to report build insights.")
         }
+    }
+}
+
+internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
+    if (samples.size <= maxCount || maxCount < 2) return samples
+    val step = (samples.size - 1).toDouble() / (maxCount - 1).toDouble()
+    return (0 until maxCount).map { i ->
+        samples[minOf((i * step).toInt(), samples.size - 1)]
     }
 }
 

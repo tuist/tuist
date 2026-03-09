@@ -66,8 +66,8 @@
     <.tab_menu_horizontal_item
       :if={length(@machine_metrics) > 0}
       label={dgettext("dashboard_gradle", "Machine Metrics")}
-      selected={@selected_tab == "timeline"}
-      patch={"?#{Query.put(@uri.query, "tab", "timeline")}"}
+      selected={@selected_tab == "machine-metrics"}
+      patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
     />
   </.tab_menu_horizontal>
   <%= if @selected_tab == "overview" do %>
@@ -289,7 +289,7 @@
       </.card_section>
     </.card>
   <% end %>
-  <%= if @selected_tab == "timeline" do %>
+  <%= if @selected_tab == "machine-metrics" do %>
     <.machine_metrics_charts metrics={@machine_metrics} />
   <% end %>
   <%= if @selected_tab == "gradle-cache" do %>

@@ -70,6 +70,51 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.cacheable_tasks_count == 2
     end
 
+    test "creates a build with machine metrics", %{conn: conn, user: user, project: project} do
+      body = %{
+        duration_ms: 10_000,
+        status: "success",
+        tasks: [],
+        machine_metrics: [
+          %{
+            timestamp_offset_ms: 1000,
+            cpu_usage_percent: 55.0,
+            memory_used_bytes: 8_000_000_000,
+            memory_total_bytes: 16_000_000_000,
+            network_bytes_in: 1_000_000,
+            network_bytes_out: 500_000,
+            disk_bytes_read: 2_000_000,
+            disk_bytes_written: 1_500_000
+          },
+          %{
+            timestamp_offset_ms: 2000,
+            cpu_usage_percent: 80.0,
+            memory_used_bytes: 12_000_000_000,
+            memory_total_bytes: 16_000_000_000,
+            network_bytes_in: 3_000_000,
+            network_bytes_out: 1_500_000,
+            disk_bytes_read: 5_000_000,
+            disk_bytes_written: 3_000_000
+          }
+        ]
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{user.account.name}/#{project.name}/gradle/builds", body)
+
+      response = json_response(conn, 201)
+      assert is_binary(response["id"])
+
+      Buffer.flush()
+
+      metrics = Tuist.MachineMetrics.get_machine_metrics_by_gradle_build_id(response["id"])
+      assert length(metrics) == 2
+      assert_in_delta Enum.at(metrics, 0).cpu_usage_percent, 55.0, 0.01
+      assert_in_delta Enum.at(metrics, 1).cpu_usage_percent, 80.0, 0.01
+    end
+
     test "creates a build with no tasks", %{conn: conn, user: user, project: project} do
       body = %{
         duration_ms: 1000,

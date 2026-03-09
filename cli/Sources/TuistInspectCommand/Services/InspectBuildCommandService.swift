@@ -196,11 +196,12 @@
             let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
             let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
             let metricsFilePath = Environment.current.stateDirectory.appending(component: "machine_metrics.jsonl")
-            let rawMetrics = machineMetricsReader.readSamples(
+            let allMetrics = machineMetricsReader.readSamples(
                 from: metricsFilePath,
                 startDate: buildStartDate,
                 endDate: buildEndDate
             )
+            let rawMetrics = Self.downsample(allMetrics, maxCount: 3600)
             let machineMetrics = rawMetrics.map { sample in
                 ServerMachineMetricSample(
                     timestampOffsetMs: Int((sample.timestamp - buildStartDate.timeIntervalSince1970) * 1000),
@@ -270,6 +271,14 @@
                 )
             } else {
                 return currentWorkingDirectory
+            }
+        }
+
+        static func downsample(_ samples: [MachineMetricSample], maxCount: Int) -> [MachineMetricSample] {
+            guard samples.count > maxCount, maxCount >= 2 else { return samples }
+            let step = Double(samples.count - 1) / Double(maxCount - 1)
+            return (0 ..< maxCount).map { i in
+                samples[min(Int(Double(i) * step), samples.count - 1)]
             }
         }
 
