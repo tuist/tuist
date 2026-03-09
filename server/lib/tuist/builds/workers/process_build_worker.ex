@@ -42,8 +42,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       Logger.info("Processing build #{build_id} locally")
 
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
-           {:ok, %{body: archive_bytes}} <- Storage.get_object_as_string(storage_key, account) do
+           archive_bytes when is_binary(archive_bytes) <- Storage.get_object_as_string(storage_key, account) do
         Processor.BuildProcessor.process_archive(archive_bytes)
+      else
+        nil -> {:error, :archive_not_found}
+        {:error, _} = error -> error
       end
     else
       Logger.error("No processor available for build #{build_id}: processor_url not configured and Processor.BuildProcessor not loaded")
