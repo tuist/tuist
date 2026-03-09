@@ -34,6 +34,11 @@ defmodule Cache.KeyValue.PromExPlugin do
         event_name: [:cache, :kv, :get, :miss],
         description: "KeyValue GET misses."
       ),
+      counter([:cache, :kv, :get, :contention, :total],
+        event_name: [:cache, :kv, :get, :contention],
+        measurement: :count,
+        description: "KeyValue GET read-through SQLite contention events."
+      ),
       sum([:cache, :kv, :get, :bytes],
         event_name: [:cache, :kv, :get, :hit],
         measurement: :bytes,

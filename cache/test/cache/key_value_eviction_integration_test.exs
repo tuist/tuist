@@ -108,7 +108,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     expect(KeyValueEntries, :delete_one_expired_batch, fn 1, opts ->
       assert opts[:batch_size] == 1000
       :counters.add(call_count, 1, 1)
-      {%{{"acme", "ios"} => ["SIZE_HASH"]}, 5}
+      {%{{"acme", "ios"} => ["SIZE_HASH"]}, 5, :complete}
     end)
 
     {measurements, metadata} =
@@ -139,7 +139,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     end)
 
     expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
-      {%{}, 0}
+      {%{}, 0, :complete}
     end)
 
     {measurements, metadata} =
@@ -165,7 +165,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     end)
 
     expect(KeyValueEntries, :delete_expired, fn _retention_days, _opts ->
-      raise %Exqlite.Error{message: "database is locked"}
+      {%{}, 0, :busy}
     end)
 
     {measurements, metadata} =

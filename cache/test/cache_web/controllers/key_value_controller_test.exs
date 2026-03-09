@@ -2,8 +2,6 @@ defmodule CacheWeb.KeyValueControllerTest do
   use CacheWeb.ConnCase
   use Mimic
 
-  import ExUnit.CaptureLog
-
   alias Cache.Authentication
   alias Cache.KeyValueStore
 
@@ -96,7 +94,7 @@ defmodule CacheWeb.KeyValueControllerTest do
       assert response["message"] == "Unauthorized or not found"
     end
 
-    test "returns 500 when read-through exceeds contention budget", %{conn: conn} do
+    test "returns not found when store absorbs read-through contention as a miss", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       cas_id = "busy_cas_id"
@@ -106,16 +104,13 @@ defmodule CacheWeb.KeyValueControllerTest do
       end)
 
       expect(KeyValueStore, :get_key_value, fn ^cas_id, ^account_handle, ^project_handle ->
-        raise Cache.KeyValueStore.ReadContentionError
+        {:error, :not_found}
       end)
 
-      capture_log(fn ->
-        assert_error_sent 500, fn ->
-          conn
-          |> put_req_header("authorization", "Bearer valid-token")
-          |> get("/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
-        end
-      end)
+      conn
+      |> put_req_header("authorization", "Bearer valid-token")
+      |> get("/api/cache/keyvalue/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+      |> json_response(:not_found)
     end
   end
 

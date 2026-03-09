@@ -22,7 +22,7 @@ defmodule Cache.KeyValueEntries do
 
   The return shape is `{grouped_hashes, deleted_count, status}` where
   `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`
-  and `status` is `:complete` or `:time_limit_reached`.
+  and `status` is `:complete`, `:time_limit_reached`, or `:busy`.
   """
   def delete_expired(max_age_days \\ 30, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
@@ -42,8 +42,9 @@ defmodule Cache.KeyValueEntries do
   Entries with NULL `last_accessed_at` are evicted first, followed by the
   oldest non-NULL entries that exceed the given age threshold.
 
-  Returns `{grouped_hashes, deleted_count}` where
-  `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`.
+  Returns `{grouped_hashes, deleted_count, status}` where
+  `grouped_hashes` is `%{{account_handle, project_handle} => [cas_hash, ...]}`
+  and `status` is `:complete`, `:time_limit_reached`, or `:busy`.
   """
   def delete_one_expired_batch(max_age_days, opts \\ []) do
     cutoff = DateTime.add(DateTime.utc_now(), -max_age_days, :day)
@@ -52,22 +53,31 @@ defmodule Cache.KeyValueEntries do
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
 
     with_repo_busy_timeout(fn ->
-      if time_limit_reached?(deadline_ms) do
-        {%{}, 0}
-      else
-        set_remaining_busy_timeout!(deadline_ms)
+      try do
+        if time_limit_reached?(deadline_ms) do
+          {%{}, 0, :time_limit_reached}
+        else
+          set_remaining_busy_timeout!(deadline_ms)
 
-        case candidate_batch(cutoff, batch_size, nil) do
-          [] ->
-            {%{}, 0}
+          case candidate_batch(cutoff, batch_size, nil) do
+            [] ->
+              {%{}, 0, :complete}
 
-          batch ->
-            ids_to_delete = Enum.map(batch, &elem(&1, 0))
-            set_remaining_busy_timeout!(deadline_ms)
-            {hash_sets, count} = delete_expired_entries(ids_to_delete, cutoff)
-            :timer.sleep(@batch_sleep_ms)
-            {to_sorted_hash_lists(hash_sets), count}
+            batch ->
+              ids_to_delete = Enum.map(batch, &elem(&1, 0))
+              set_remaining_busy_timeout!(deadline_ms)
+              {hash_sets, count, status} = delete_expired_entries(ids_to_delete, cutoff)
+              :timer.sleep(@batch_sleep_ms)
+              {to_sorted_hash_lists(hash_sets), count, status}
+          end
         end
+      rescue
+        error ->
+          if busy_error?(error) do
+            {%{}, 0, :busy}
+          else
+            reraise error, __STACKTRACE__
+          end
       end
     end)
   end
@@ -138,28 +148,48 @@ defmodule Cache.KeyValueEntries do
     if time_limit_reached?(deadline_ms) do
       {to_sorted_hash_lists(hash_sets_acc), count_acc, :time_limit_reached}
     else
-      set_remaining_busy_timeout!(deadline_ms)
+      try do
+        set_remaining_busy_timeout!(deadline_ms)
 
-      case candidate_batch(cutoff, batch_size, cursor) do
-        [] ->
-          {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
+        case candidate_batch(cutoff, batch_size, cursor) do
+          [] ->
+            {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
 
-        batch ->
-          ids_to_delete = Enum.map(batch, &elem(&1, 0))
+          batch ->
+            ids_to_delete = Enum.map(batch, &elem(&1, 0))
 
-          set_remaining_busy_timeout!(deadline_ms)
-          {batch_hash_sets, batch_deleted_count} = delete_expired_entries(ids_to_delete, cutoff)
+            set_remaining_busy_timeout!(deadline_ms)
 
-          :timer.sleep(@batch_sleep_ms)
+            {batch_hash_sets, batch_deleted_count, batch_status} =
+              delete_expired_entries(ids_to_delete, cutoff)
 
-          do_delete_expired_batches(
-            cutoff,
-            batch_size,
-            deadline_ms,
-            batch_cursor(batch),
-            merge_grouped_hash_sets(hash_sets_acc, batch_hash_sets),
-            count_acc + batch_deleted_count
-          )
+            merged_hash_sets = merge_grouped_hash_sets(hash_sets_acc, batch_hash_sets)
+            total_count = count_acc + batch_deleted_count
+
+            case batch_status do
+              :busy ->
+                {to_sorted_hash_lists(merged_hash_sets), total_count, :busy}
+
+              :complete ->
+                :timer.sleep(@batch_sleep_ms)
+
+                do_delete_expired_batches(
+                  cutoff,
+                  batch_size,
+                  deadline_ms,
+                  batch_cursor(batch),
+                  merged_hash_sets,
+                  total_count
+                )
+            end
+        end
+      rescue
+        error ->
+          if busy_error?(error) do
+            {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
+          else
+            reraise error, __STACKTRACE__
+          end
       end
     end
   end
@@ -248,15 +278,26 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp delete_expired_entries(ids_to_delete, cutoff) do
-    {grouped_hash_sets, deleted_count} =
+    {grouped_hash_sets, deleted_count, status} =
       ids_to_delete
       |> Enum.chunk_every(@id_chunk_size)
-      |> Enum.reduce({%{}, 0}, fn ids_chunk, {hash_sets_acc, count_acc} ->
-        {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
-        {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count}
+      |> Enum.reduce_while({%{}, 0, :complete}, fn ids_chunk, {hash_sets_acc, count_acc, _status} ->
+        try do
+          {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
+
+          {:cont,
+           {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count, :complete}}
+        rescue
+          error ->
+            if busy_error?(error) do
+              {:halt, {hash_sets_acc, count_acc, :busy}}
+            else
+              reraise error, __STACKTRACE__
+            end
+        end
       end)
 
-    {grouped_hash_sets, deleted_count}
+    {grouped_hash_sets, deleted_count, status}
   end
 
   defp delete_chunk(ids_chunk, cutoff) do
@@ -311,6 +352,12 @@ defmodule Cache.KeyValueEntries do
   defp remaining_time(deadline_ms) do
     max(deadline_ms - System.monotonic_time(:millisecond), 0)
   end
+
+  defp busy_error?(%Exqlite.Error{message: message}) when is_binary(message) do
+    String.contains?(message, ["database is locked", "SQLITE_BUSY"])
+  end
+
+  defp busy_error?(_), do: false
 
   defp hash_references_for_entries([]), do: %{}
 

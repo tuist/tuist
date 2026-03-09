@@ -232,10 +232,11 @@ defmodule Cache.KeyValueEntriesTest do
 
     :ok = KeyValueEntries.replace_entry_hashes([entry])
 
-    {grouped_hashes, count} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 10)
+    {grouped_hashes, count, status} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 10)
 
     assert count == 1
     assert grouped_hashes == %{{"acme", "ios"} => ["BATCH_HASH"]}
+    assert status == :complete
     assert Repo.get(KeyValueEntry, entry.id) == nil
   end
 
@@ -248,10 +249,11 @@ defmodule Cache.KeyValueEntriesTest do
       last_accessed_at: now
     })
 
-    {grouped_hashes, count} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 10)
+    {grouped_hashes, count, status} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 10)
 
     assert count == 0
     assert grouped_hashes == %{}
+    assert status == :complete
   end
 
   test "delete_one_expired_batch evicts null last_accessed_at entries first" do
@@ -274,10 +276,11 @@ defmodule Cache.KeyValueEntriesTest do
 
     :ok = KeyValueEntries.replace_entry_hashes([null_entry, old_entry])
 
-    {grouped_hashes, count} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 1)
+    {grouped_hashes, count, status} = KeyValueEntries.delete_one_expired_batch(30, batch_size: 1)
 
     assert count == 1
     assert grouped_hashes == %{{"acme", "ios"} => ["NULL_HASH"]}
+    assert status == :complete
     assert Repo.get(KeyValueEntry, null_entry.id) == nil
     assert Repo.get(KeyValueEntry, old_entry.id)
   end

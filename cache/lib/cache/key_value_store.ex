@@ -1,8 +1,3 @@
-defmodule Cache.KeyValueStore.ReadContentionError do
-  @moduledoc false
-  defexception message: "KV read-through exceeded SQLite contention budget"
-end
-
 defmodule Cache.KeyValueStore do
   @moduledoc """
   Read-through key-value cache backed by Cachex and persisted to SQLite.
@@ -14,12 +9,12 @@ defmodule Cache.KeyValueStore do
   alias Cache.Config
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
-  alias Cache.KeyValueStore.ReadContentionError
   alias Cache.Repo
 
   require Logger
 
   @cache_name :cache_keyvalue_store
+  @contention_event [:cache, :kv, :get, :contention]
   # 1 week
   @ttl_ms to_timeout(week: 1)
 
@@ -114,7 +109,8 @@ defmodule Cache.KeyValueStore do
     error ->
       if busy_error?(error) do
         Logger.warning("KV read-through exceeded SQLite contention budget")
-        raise ReadContentionError
+        :telemetry.execute(@contention_event, %{count: 1}, %{})
+        {:error, :not_found}
       else
         reraise error, __STACKTRACE__
       end

@@ -91,22 +91,13 @@ defmodule Cache.KeyValueEvictionWorker do
     if deadline_reached?(deadline_ms) do
       {:time, %{}, 0, :time_limit_reached}
     else
-      try do
-        {grouped_hashes, count, status} =
-          KeyValueEntries.delete_expired(max_age_days,
-            max_duration_ms: remaining_time(deadline_ms),
-            batch_size: @default_batch_size
-          )
+      {grouped_hashes, count, status} =
+        KeyValueEntries.delete_expired(max_age_days,
+          max_duration_ms: remaining_time(deadline_ms),
+          batch_size: @default_batch_size
+        )
 
-        {:time, grouped_hashes, count, status}
-      rescue
-        error ->
-          if busy_error?(error) do
-            {:time, %{}, 0, :busy}
-          else
-            reraise error, __STACKTRACE__
-          end
-      end
+      {:time, grouped_hashes, count, status}
     end
   end
 
@@ -121,28 +112,28 @@ defmodule Cache.KeyValueEvictionWorker do
       Logger.warning("Key-value size eviction reached worker deadline")
       {:size, hashes_acc, count_acc, :time_limit_reached}
     else
-      try do
-        {batch_hashes, batch_count} =
-          KeyValueEntries.delete_one_expired_batch(min_retention_days,
-            batch_size: @default_batch_size,
-            max_duration_ms: remaining_time(deadline_ms)
-          )
+      {batch_hashes, batch_count, batch_status} =
+        KeyValueEntries.delete_one_expired_batch(min_retention_days,
+          batch_size: @default_batch_size,
+          max_duration_ms: remaining_time(deadline_ms)
+        )
 
-        merged_hashes = merge_grouped_hashes(hashes_acc, batch_hashes)
-        total_count = count_acc + batch_count
+      merged_hashes = merge_grouped_hashes(hashes_acc, batch_hashes)
+      total_count = count_acc + batch_count
 
-        if batch_count == 0 do
-          Logger.warning("KV SQLite size remains over release watermark at retention floor")
-          {:size, merged_hashes, total_count, :floor_limited}
-        else
-          after_batch_step(min_retention_days, deadline_ms, release_bytes, merged_hashes, total_count)
-        end
-      rescue
-        error ->
-          if busy_error?(error) do
-            {:size, hashes_acc, count_acc, :busy}
+      case batch_status do
+        :busy ->
+          {:size, merged_hashes, total_count, :busy}
+
+        :time_limit_reached ->
+          {:size, merged_hashes, total_count, :time_limit_reached}
+
+        :complete ->
+          if batch_count == 0 do
+            Logger.warning("KV SQLite size remains over release watermark at retention floor")
+            {:size, merged_hashes, total_count, :floor_limited}
           else
-            reraise error, __STACKTRACE__
+            after_batch_step(min_retention_days, deadline_ms, release_bytes, merged_hashes, total_count)
           end
       end
     end

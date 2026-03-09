@@ -312,7 +312,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     expect(KeyValueEntries, :delete_one_expired_batch, fn 1, opts ->
       assert opts[:batch_size] == 1000
       :counters.add(call_count, 1, 1)
-      {%{{"acme", "ios"} => ["SIZE_HASH"]}, 5}
+      {%{{"acme", "ios"} => ["SIZE_HASH"]}, 5, :complete}
     end)
 
     {measurements, metadata} =
@@ -341,7 +341,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     end)
 
     expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
-      {%{}, 0}
+      {%{}, 0, :complete}
     end)
 
     {measurements, metadata} =
@@ -387,7 +387,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     end)
 
     expect(KeyValueEntries, :delete_expired, fn _retention_days, _opts ->
-      raise %Exqlite.Error{message: "database is locked"}
+      {%{}, 0, :busy}
     end)
 
     {measurements, metadata} =
@@ -398,6 +398,62 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert metadata == %{trigger: :time, status: :busy}
     assert measurements.entries_deleted == 0
     assert measurements.duration_ms >= 0
+  end
+
+  test "time-based eviction preserves partial cleanup work on busy contention" do
+    stub(Repo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
+        query == "PRAGMA page_count" -> {:ok, %{rows: [[10]]}}
+        query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
+        query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
+      end
+    end)
+
+    expect(KeyValueEntries, :delete_expired, fn _retention_days, _opts ->
+      {%{{"acme", "ios"} => ["HASH1", "HASH2"]}, 2, :busy}
+    end)
+
+    {measurements, metadata} =
+      capture_eviction_telemetry(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+    assert metadata == %{trigger: :time, status: :busy}
+    assert measurements.entries_deleted == 2
+
+    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert args["account_handle"] == "acme"
+    assert args["project_handle"] == "ios"
+    assert args["cas_hashes"] == ["HASH1", "HASH2"]
+  end
+
+  test "size-based eviction preserves partial cleanup work on busy contention" do
+    stub(Repo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
+        query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
+        query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
+        query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
+      end
+    end)
+
+    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
+      {%{{"acme", "ios"} => ["SIZE_HASH"]}, 3, :busy}
+    end)
+
+    {measurements, metadata} =
+      capture_eviction_telemetry(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+    assert metadata == %{trigger: :size, status: :busy}
+    assert measurements.entries_deleted == 3
+
+    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert args["account_handle"] == "acme"
+    assert args["project_handle"] == "ios"
+    assert args["cas_hashes"] == ["SIZE_HASH"]
   end
 
   defp capture_eviction_telemetry(fun) do
