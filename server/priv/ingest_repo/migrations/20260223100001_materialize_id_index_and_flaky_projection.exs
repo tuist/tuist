@@ -13,6 +13,21 @@ defmodule Tuist.IngestRepo.Migrations.MaterializeIdIndexAndFlakyProjection do
   @disable_migration_lock true
 
   def up do
+    # Ensure the is_new column exists — it may be missing if migration
+    # 20260119100000 was recorded but the ALTER TABLE did not take effect.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "ALTER TABLE test_case_runs ADD COLUMN IF NOT EXISTS is_new Bool DEFAULT false"
+
+    # Kill any stuck mutations from previous failed attempts so the new
+    # MATERIALIZE mutations can proceed.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    KILL MUTATION
+    WHERE database = currentDatabase()
+      AND table = 'test_case_runs'
+      AND is_done = 0
+    """
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE test_case_runs MATERIALIZE INDEX idx_id SETTINGS mutations_sync = 1"
 
