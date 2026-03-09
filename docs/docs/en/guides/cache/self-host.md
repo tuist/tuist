@@ -229,6 +229,12 @@ The service runs database migrations automatically on startup.
 
 That includes both SQLite databases: the primary metadata DB and the dedicated KV DB.
 
+If you are upgrading from an older version that stored KV metadata in `repo.sqlite`, this transition is an intentional cold start for the KV store. Existing `key_value_entries` and `key_value_entry_hashes` rows are disposable cache metadata, so they are not copied into `key_value.sqlite`.
+
+After the upgrade, the cache service reads and writes KV metadata only from the dedicated KV database. Expect a brief warm-up period where KV entries are repopulated from new traffic.
+
+The legacy KV tables in `repo.sqlite` are no longer used after rollout. You can leave them in place temporarily, or remove them during a maintenance window once all cache nodes are running the version that uses `key_value.sqlite` if you want to reclaim that space.
+
 ## Troubleshooting {#troubleshooting}
 
 ### Cache not being used {#troubleshooting-caching}

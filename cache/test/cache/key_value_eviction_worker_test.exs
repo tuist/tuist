@@ -331,6 +331,51 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert args["cas_hashes"] == ["SIZE_HASH"]
   end
 
+  test "size-based eviction can complete after maintenance-only shrink" do
+    maintenance_runs = :counters.new(1, [:atomics])
+
+    stub(KeyValueRepo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") ->
+          {:ok, %{rows: []}}
+
+        query == "PRAGMA page_count" ->
+          if :counters.get(maintenance_runs, 1) > 0 do
+            {:ok, %{rows: [[5_000_000]]}}
+          else
+            {:ok, %{rows: [[8_000_000]]}}
+          end
+
+        query == "PRAGMA freelist_count" ->
+          {:ok, %{rows: [[0]]}}
+
+        query == "PRAGMA page_size" ->
+          {:ok, %{rows: [[4096]]}}
+
+        query == "PRAGMA wal_checkpoint(PASSIVE)" ->
+          {:ok, %{rows: [[0, 0, 0]]}}
+
+        query == "PRAGMA incremental_vacuum(1000)" ->
+          :counters.add(maintenance_runs, 1, 1)
+          {:ok, %{rows: []}}
+      end
+    end)
+
+    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
+      {%{}, 0, :complete}
+    end)
+
+    {measurements, metadata} =
+      capture_eviction_telemetry(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+    assert metadata == %{trigger: :size, status: :complete}
+    assert measurements.entries_deleted == 0
+    assert measurements.duration_ms >= 0
+    assert [] = all_enqueued(worker: CASCleanupWorker)
+  end
+
   test "size-based eviction reports floor_limited when no entries to delete" do
     stub(KeyValueRepo, :query, fn query ->
       cond do
@@ -338,6 +383,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
         query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
         query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
+        query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
+        query == "PRAGMA incremental_vacuum(1000)" -> {:ok, %{rows: []}}
       end
     end)
 
@@ -353,6 +400,74 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert metadata == %{trigger: :size, status: :floor_limited}
     assert measurements.entries_deleted == 0
     assert measurements.duration_ms >= 0
+  end
+
+  test "size-based eviction reports busy when maintenance pass hits lock contention at retention floor" do
+    stub(KeyValueRepo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") ->
+          {:ok, %{rows: []}}
+
+        query == "PRAGMA page_count" ->
+          {:ok, %{rows: [[8_000_000]]}}
+
+        query == "PRAGMA freelist_count" ->
+          {:ok, %{rows: [[0]]}}
+
+        query == "PRAGMA page_size" ->
+          {:ok, %{rows: [[4096]]}}
+
+        query == "PRAGMA wal_checkpoint(PASSIVE)" ->
+          raise %Exqlite.Error{message: "database is locked"}
+      end
+    end)
+
+    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
+      {%{}, 0, :complete}
+    end)
+
+    {measurements, metadata} =
+      capture_eviction_telemetry(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+    assert metadata == %{trigger: :size, status: :busy}
+    assert measurements.entries_deleted == 0
+    assert measurements.duration_ms >= 0
+  end
+
+  test "size-based eviction reports time_limit_reached when deadline expires before maintenance at retention floor" do
+    stub(Config, :key_value_eviction_max_duration_ms, fn -> 50 end)
+
+    stub(KeyValueRepo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") ->
+          {:ok, %{rows: []}}
+
+        query == "PRAGMA page_count" ->
+          {:ok, %{rows: [[8_000_000]]}}
+
+        query == "PRAGMA freelist_count" ->
+          {:ok, %{rows: [[0]]}}
+
+        query == "PRAGMA page_size" ->
+          {:ok, %{rows: [[4096]]}}
+      end
+    end)
+
+    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
+      Process.sleep(75)
+      {%{}, 0, :complete}
+    end)
+
+    {measurements, metadata} =
+      capture_eviction_telemetry(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+    assert metadata == %{trigger: :size, status: :time_limit_reached}
+    assert measurements.entries_deleted == 0
+    assert measurements.duration_ms >= 50
   end
 
   test "size-based eviction stops at worker deadline" do

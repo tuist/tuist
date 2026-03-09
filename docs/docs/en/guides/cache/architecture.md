@@ -58,6 +58,10 @@ The cache service uses two SQLite databases:
 
 The key-value store is split into its own database so it can use SQLite incremental auto-vacuum without affecting artifact metadata and orphan cleanup state.
 
+For upgrades from older cache-service versions, this repo split is an intentional cold start for KV metadata. Existing `key_value_entries` and `key_value_entry_hashes` rows in the primary metadata DB are disposable cache state, so they are not backfilled into the dedicated KV DB.
+
+After rollout, the dedicated KV DB is the only database used for KV reads and writes. The legacy KV tables in the primary DB can be removed later during a maintenance window if you want to reclaim that space.
+
 ### S3 Integration {#s3}
 
 S3 provides durable storage:

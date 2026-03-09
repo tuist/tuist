@@ -130,12 +130,38 @@ defmodule Cache.KeyValueEvictionWorker do
 
         :complete ->
           if batch_count == 0 do
-            Logger.warning("KV SQLite size remains over release watermark at retention floor")
-            {:size, merged_hashes, total_count, :floor_limited}
+            finish_size_eviction_at_retention_floor(deadline_ms, release_bytes, merged_hashes, total_count)
           else
             after_batch_step(min_retention_days, deadline_ms, release_bytes, merged_hashes, total_count)
           end
       end
+    end
+  end
+
+  defp finish_size_eviction_at_retention_floor(deadline_ms, release_bytes, hashes_acc, count_acc) do
+    case run_size_maintenance_pass(deadline_ms) do
+      :ok ->
+        case fetch_size_state(deadline_ms) do
+          {:ok, size_state} ->
+            if below_release?(size_state, release_bytes) do
+              {:size, hashes_acc, count_acc, :complete}
+            else
+              Logger.warning("KV SQLite size remains over release watermark at retention floor")
+              {:size, hashes_acc, count_acc, :floor_limited}
+            end
+
+          {:error, :busy} ->
+            {:size, hashes_acc, count_acc, :busy}
+
+          {:error, :deadline_exhausted} ->
+            {:size, hashes_acc, count_acc, :time_limit_reached}
+        end
+
+      {:error, :busy} ->
+        {:size, hashes_acc, count_acc, :busy}
+
+      {:error, :deadline_exhausted} ->
+        {:size, hashes_acc, count_acc, :time_limit_reached}
     end
   end
 
