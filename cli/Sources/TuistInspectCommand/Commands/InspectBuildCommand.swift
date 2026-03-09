@@ -34,7 +34,7 @@
         var derivedDataPath: String?
 
         @Option(
-            wrappedValue: .remote,
+            wrappedValue: .local,
             name: .long,
             help: "The processing mode for xcactivitylog parsing. 'remote' uploads the raw log for server-side processing. 'local' parses the log on this machine.",
             envKey: .inspectBuildMode
