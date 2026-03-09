@@ -28,6 +28,13 @@ defmodule Tuist.IngestRepo.Migrations.MaterializeIdIndexAndFlakyProjection do
       AND is_done = 0
     """
 
+    # Force-merge all data parts so every part includes the is_new column.
+    # Old parts created before the ADD COLUMN lack the column file, causing
+    # MATERIALIZE mutations to fail with "Missing columns: 'is_new'".
+    # OPTIMIZE TABLE FINAL rewrites parts with the current schema.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "OPTIMIZE TABLE test_case_runs FINAL"
+
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE test_case_runs MATERIALIZE INDEX idx_id SETTINGS mutations_sync = 1"
 
