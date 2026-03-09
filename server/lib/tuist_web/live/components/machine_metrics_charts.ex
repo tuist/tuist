@@ -8,6 +8,12 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
 
   def machine_metrics_charts(assigns) do
     metrics = assigns.metrics
+    metrics =
+      metrics
+      |> Enum.group_by(fn m -> div(m.timestamp_offset_ms, 1000) end)
+      |> Enum.sort_by(fn {k, _} -> k end)
+      |> Enum.map(fn {_, samples} -> List.last(samples) end)
+
     labels = Enum.map(metrics, fn m -> format_time(m.timestamp_offset_ms) end)
     cpu_data = Enum.map(metrics, fn m -> Float.round(m.cpu_usage_percent / 1, 1) end)
     memory_data = Enum.map(metrics, fn m -> bytes_to_gb(m.memory_used_bytes) end)
@@ -23,9 +29,13 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     disk_read_data = Enum.map(metrics, fn m -> bytes_to_mib(m.disk_bytes_read) end)
     disk_write_data = Enum.map(metrics, fn m -> bytes_to_mib(m.disk_bytes_written) end)
 
+    label_count = length(labels)
+    label_interval = max(div(label_count, 8) - 1, 0)
+
     assigns =
       assigns
       |> assign(:labels, labels)
+      |> assign(:label_interval, label_interval)
       |> assign(:cpu_data, cpu_data)
       |> assign(:memory_data, memory_data)
       |> assign(:memory_total, memory_total)
@@ -50,7 +60,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               ]}
               extra_options={%{
                 grid: %{width: "90%", left: "8%", height: "65%", top: "15%"},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary"}},
+                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, max: 100, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}},
                 tooltip: %{valueFormat: "{value}%"},
                 title: %{text: "CPU Usage", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}}
@@ -69,7 +79,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               ]}
               extra_options={%{
                 grid: %{width: "90%", left: "8%", height: "65%", top: "15%"},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary"}},
+                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, max: @memory_total, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GB"}},
                 tooltip: %{valueFormat: "{value} GB"},
                 title: %{text: "Memory Usage", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}}
@@ -90,7 +100,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={%{
                 grid: %{width: "90%", left: "8%", height: "60%", top: "15%"},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary"}},
+                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
                 tooltip: %{valueFormat: "{value} MiB/s"},
                 title: %{text: "Network", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}},
@@ -112,7 +122,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={%{
                 grid: %{width: "90%", left: "8%", height: "60%", top: "15%"},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary"}},
+                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
                 yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
                 tooltip: %{valueFormat: "{value} MiB/s"},
                 title: %{text: "Disk I/O", textStyle: %{fontSize: 14, color: "var:noora-surface-label-primary"}},
