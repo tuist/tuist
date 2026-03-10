@@ -14,8 +14,8 @@ defmodule TuistWeb.BuildArchiveController do
            Projects.get_project_by_slug("#{account_handle}/#{project_handle}", preload: [:account]),
          :ok <- Authorization.authorize(:build_read, user, project),
          %Builds.Build{} = build <- Builds.get_build(build_id),
-         true <- build.project_id == project.id,
-         storage_key when not is_nil(storage_key) and storage_key != "" <- build.storage_key do
+         true <- build.project_id == project.id do
+      storage_key = Builds.build_storage_key(account_handle, project_handle, build_id)
       url = Storage.generate_download_url(storage_key, project.account)
 
       conn

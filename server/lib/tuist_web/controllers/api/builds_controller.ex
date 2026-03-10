@@ -868,11 +868,6 @@ defmodule TuistWeb.API.BuildsController do
         status = Map.get(params, :status, "success")
         processing? = status == "processing"
 
-        storage_key =
-          if processing?,
-            do: "#{params.project.account.name}/#{params.project.name}/builds/#{params.id}/build.zip",
-            else: nil
-
         build_attrs = %{
           id: params.id,
           duration: Map.get(params, :duration, 0),
@@ -899,7 +894,6 @@ defmodule TuistWeb.API.BuildsController do
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, []),
           xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
-          storage_key: storage_key,
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{})
         }
@@ -907,6 +901,8 @@ defmodule TuistWeb.API.BuildsController do
         case Builds.create_build(build_attrs) |> handle_build_creation_result(params.id) do
           {:ok, build} = result ->
             if processing? do
+              storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, build.id)
+
               %{
                 build_id: build.id,
                 storage_key: storage_key,
