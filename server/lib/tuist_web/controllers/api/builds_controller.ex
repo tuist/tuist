@@ -825,37 +825,31 @@ defmodule TuistWeb.API.BuildsController do
       |> Map.put(:project, selected_project)
       |> Map.put(:account, account)
 
-    result = get_or_create_build(run_params)
+    {:ok, build} = get_or_create_build(run_params)
 
-    case result do
-      {:ok, build} ->
-        Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-          git_commit_sha: build.git_commit_sha,
-          git_ref: build.git_ref,
-          git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-          project_id: selected_project.id,
-          preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-          preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-          command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-          test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-          bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-          build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
-        })
+    Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+      git_commit_sha: build.git_commit_sha,
+      git_ref: build.git_ref,
+      git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+      project_id: selected_project.id,
+      preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
+      preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
+      command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+      test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
+      bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
+      build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+    })
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          type: "build",
-          id: build.id,
-          status: build.status,
-          duration: build.duration,
-          project_id: build.project_id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
-        })
-
-      {:error, _changeset} ->
-        conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
-    end
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      type: "build",
+      id: build.id,
+      status: build.status,
+      duration: build.duration,
+      project_id: build.project_id,
+      url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
+    })
   end
 
   defp get_or_create_build(params) do
@@ -865,8 +859,6 @@ defmodule TuistWeb.API.BuildsController do
 
       nil ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
-        status = Map.get(params, :status, "success")
-        processing? = status == "processing"
 
         build_attrs = %{
           id: params.id,
@@ -879,7 +871,7 @@ defmodule TuistWeb.API.BuildsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: status,
+          status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
@@ -898,27 +890,23 @@ defmodule TuistWeb.API.BuildsController do
           custom_values: Map.get(custom_metadata, :values, %{})
         }
 
-        case Builds.create_build(build_attrs) |> handle_build_creation_result(params.id) do
-          {:ok, build} = result ->
-            if processing? do
-              storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, build.id)
+        {:ok, build} = Builds.create_build(build_attrs) |> handle_build_creation_result(params.id)
 
-              %{
-                build_id: build.id,
-                storage_key: storage_key,
-                account_id: params.account.id,
-                project_id: params.project.id,
-                xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
-              }
-              |> Tuist.Builds.Workers.ProcessBuildWorker.new()
-              |> Oban.insert()
-            end
+        if build.status == "processing" do
+          storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, build.id)
 
-            result
-
-          error ->
-            error
+          %{
+            build_id: build.id,
+            storage_key: storage_key,
+            account_id: params.account.id,
+            project_id: params.project.id,
+            xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
+          }
+          |> Tuist.Builds.Workers.ProcessBuildWorker.new()
+          |> Oban.insert()
         end
+
+        {:ok, build}
     end
   end
 
