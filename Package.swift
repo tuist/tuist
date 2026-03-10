@@ -1052,6 +1052,16 @@ targets.append(contentsOf: [
         path: "cli/Sources/ProjectDescription",
         exclude: ["AGENTS.md"]
     ),
+    .target(
+        name: "TuistMachineMetrics",
+        dependencies: [
+            fileSystemDependency,
+            swiftToolsSupportDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistMachineMetrics",
+        exclude: ["AGENTS.md"]
+    ),
 ])
 
 // MARK: - macOS-only targets
@@ -1512,16 +1522,6 @@ targets.append(contentsOf: [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    ),
-    .target(
-        name: "TuistMachineMetrics",
-        dependencies: [
-            fileSystemDependency,
-            swiftToolsSupportDependency,
-            "TuistEnvironment",
-        ],
-        path: "cli/Sources/TuistMachineMetrics",
-        exclude: ["AGENTS.md"]
     ),
 ])
 #endif
