@@ -101,18 +101,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp replace_build_run(build_id, project_id, account_id, parsed_data) do
+  defp replace_build_run(build_id, _project_id, _account_id, parsed_data) do
     original_build = Builds.get_build(build_id)
     parsed = atomize_keys(parsed_data)
 
     base_attrs =
-      if original_build do
-        original_build
-        |> Map.from_struct()
-        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
-      else
-        %{id: build_id, project_id: project_id, account_id: account_id, is_ci: false}
-      end
+      original_build
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
 
     attrs =
       Map.merge(base_attrs, %{
