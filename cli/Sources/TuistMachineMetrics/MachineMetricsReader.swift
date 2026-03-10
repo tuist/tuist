@@ -19,14 +19,9 @@ public struct MachineMetricsReader {
         let startTimestamp = startDate.timeIntervalSince1970
         let endTimestamp = endDate.timeIntervalSince1970
 
-        let content: String? = withSharedFileLock(Self.metricsFilePath) {
-            guard let data = FileManager.default.contents(atPath: Self.metricsFilePath.pathString),
-                  let str = String(data: data, encoding: .utf8)
-            else { return nil }
-            return str
-        }
-
-        guard let content else { return [] }
+        guard let data = withSharedFileLock(Self.metricsFilePath, {
+            FileManager.default.contents(atPath: Self.metricsFilePath.pathString) ?? Data()
+        }), let content = String(data: data, encoding: .utf8) else { return [] }
 
         let decoder = JSONDecoder()
         let lines = content.split(separator: "\n", omittingEmptySubsequences: true)

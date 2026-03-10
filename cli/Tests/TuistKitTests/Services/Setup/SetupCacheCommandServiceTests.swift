@@ -28,8 +28,10 @@ struct SetupCacheCommandServiceTests {
 
     init() {
         subject = SetupCacheCommandService(
-            fileSystem: fileSystem,
-            launchctlController: launchctlController,
+            launchAgentService: LaunchAgentService(
+                fileSystem: fileSystem,
+                launchctlController: launchctlController
+            ),
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
             manifestLoader: manifestLoader
@@ -330,7 +332,7 @@ struct SetupCacheCommandServiceTests {
         environment.currentExecutablePathStub = nil
 
         // When/Then
-        await #expect(throws: SetupCacheCommandServiceError.missingExecutablePath) {
+        await #expect(throws: LaunchAgentServiceError.missingExecutablePath) {
             try await subject.run(path: nil)
         }
     }
@@ -351,7 +353,7 @@ struct SetupCacheCommandServiceTests {
             .willThrow(NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Load failed"]))
 
         // When/Then
-        await #expect(throws: SetupCacheCommandServiceError.failedToLoadLaunchDaemon("Load failed")) {
+        await #expect(throws: LaunchAgentServiceError.failedToLoadLaunchAgent("Load failed")) {
             try await subject.run(path: nil)
         }
     }

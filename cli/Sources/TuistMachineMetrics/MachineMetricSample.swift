@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MachineMetricSample: Codable, Sendable {
+public struct MachineMetricSample: Codable, Sendable, Equatable {
     public let timestamp: Double
     public let cpuUsagePercent: Double
     public let memoryUsedBytes: Int

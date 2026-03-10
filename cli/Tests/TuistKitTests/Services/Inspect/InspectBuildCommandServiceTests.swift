@@ -10,6 +10,7 @@ import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGit
 import TuistLoader
+import TuistMachineMetrics
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -128,7 +129,7 @@ struct InspectBuildCommandServiceTests {
         Matcher.register([XCActivityIssue].self)
         Matcher.register([XCActivityBuildFile].self)
         Matcher.register([XCActivityTarget].self)
-        Matcher.register([ServerMachineMetricSample].self)
+        Matcher.register([MachineMetricSample].self)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
