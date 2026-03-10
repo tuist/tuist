@@ -9,7 +9,26 @@
 
 The registry works out of the box on CI without any additional authentication setup. By default, unauthenticated requests are rate-limited to **1,000 requests per minute** per IP address.
 
-If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by setting the `TUIST_TOKEN` environment variable. You can create a project token by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
+If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by running `tuist registry login`. This requires the `TUIST_TOKEN` environment variable to be set. You can create a project token by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
+
+::: info ONLY XCODE INTEGRATION
+<!-- -->
+Creating a new pre-unlocked keychain is required only if you are using the Xcode integration of packages.
+<!-- -->
+:::
+
+Since `tuist registry login` stores credentials in a keychain, you need to ensure the keychain can be accessed in the CI environment. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
+```bash
+TMP_DIRECTORY=$(mktemp -d)
+KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
+KEYCHAIN_PASSWORD=$(uuidgen)
+security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+security default-keychain -s $KEYCHAIN_PATH
+security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
+```
+
+Ensure that your default keychain is created and unlocked _before_ running `tuist registry login`.
 
 ### Incremental resolution across environments {#incremental-resolution-across-environments}
 
