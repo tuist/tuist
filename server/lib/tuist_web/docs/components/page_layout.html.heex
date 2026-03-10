@@ -5,7 +5,14 @@
   data-current-slug={@current_slug}
   data-current-tab={@tab}
 >
-  <div :if={@headings != []} id="docs-mobile-toc" data-state="closed" data-part="mobile-toc" role="navigation" aria-label={dgettext("docs", "Table of contents")}>
+  <div
+    :if={@headings != []}
+    id="docs-mobile-toc"
+    data-state="closed"
+    data-part="mobile-toc"
+    role="navigation"
+    aria-label={dgettext("docs", "Table of contents")}
+  >
     <.link_button
       label={dgettext("docs", "Return to top")}
       variant="primary"

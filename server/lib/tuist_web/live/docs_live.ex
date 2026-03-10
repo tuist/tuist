@@ -200,7 +200,10 @@ defmodule TuistWeb.DocsLive do
                 </p>
               </div>
             </.link>
-            <.link navigate="/docs/en/guides/features/test-insights/flaky-tests" data-part="feature-card">
+            <.link
+              navigate="/docs/en/guides/features/test-insights/flaky-tests"
+              data-part="feature-card"
+            >
               <div data-part="feature-card-image">
                 <span data-part="feature-card-icon"><.progress_x /></span>
                 <span data-part="feature-card-title">Flaky Tests</span>
