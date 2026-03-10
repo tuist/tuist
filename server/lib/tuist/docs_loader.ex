@@ -135,8 +135,8 @@ defmodule Tuist.Docs.Loader do
   end
 
   @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
-  @copy_icon File.read!(Path.join(@noora_icons_path, "copy.svg")) |> String.trim()
-  @copy_check_icon File.read!(Path.join(@noora_icons_path, "copy-check.svg")) |> String.trim()
+  @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
+  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
   @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
 
   defp render_markdown(markdown) do
@@ -244,17 +244,18 @@ defmodule Tuist.Docs.Loader do
       content = Regex.replace(@home_card_icon_regex, content, "")
 
       cards =
-        Regex.scan(@home_card_regex, content)
+        @home_card_regex
+        |> Regex.scan(content)
         |> Enum.map_join("", fn [_, attrs_str] ->
           attrs =
-            Regex.scan(@home_card_attr_regex, attrs_str)
-            |> Enum.map(fn [_, key, value] -> {key, value} end)
-            |> Map.new()
+            @home_card_attr_regex
+            |> Regex.scan(attrs_str)
+            |> Map.new(fn [_, key, value] -> {key, value} end)
 
           title = Map.get(attrs, "title", "")
           details = Map.get(attrs, "details", "")
           link = Map.get(attrs, "link", "")
-          link_href = if link != "", do: "/docs/en#{link}", else: "#"
+          link_href = if link == "", do: "#", else: "/docs/en#{link}"
 
           ~s(<a href="#{link_href}" class="docs-home-card">) <>
             ~s(<div class="docs-home-card-image"><strong>#{title}</strong></div>) <>

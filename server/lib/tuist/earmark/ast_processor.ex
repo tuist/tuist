@@ -4,8 +4,8 @@ defmodule Tuist.Earmark.ASTProcessor do
   """
 
   @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
-  @copy_icon File.read!(Path.join(@noora_icons_path, "copy.svg")) |> String.trim()
-  @copy_check_icon File.read!(Path.join(@noora_icons_path, "copy-check.svg")) |> String.trim()
+  @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
+  @copy_check_icon @noora_icons_path |> Path.join("copy-check.svg") |> File.read!() |> String.trim()
 
   def process({"pre", _, [{"code", code_attrs, code_children, code_opts}], %{}}) do
     language =
