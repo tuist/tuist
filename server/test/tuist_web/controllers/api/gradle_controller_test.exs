@@ -77,7 +77,7 @@ defmodule TuistWeb.API.GradleControllerTest do
         tasks: [],
         machine_metrics: [
           %{
-            timestamp_offset_ms: 1000,
+            timestamp: 1_741_500_001.0,
             cpu_usage_percent: 55.0,
             memory_used_bytes: 8_000_000_000,
             memory_total_bytes: 16_000_000_000,
@@ -87,7 +87,7 @@ defmodule TuistWeb.API.GradleControllerTest do
             disk_bytes_written: 1_500_000
           },
           %{
-            timestamp_offset_ms: 2000,
+            timestamp: 1_741_500_002.0,
             cpu_usage_percent: 80.0,
             memory_used_bytes: 12_000_000_000,
             memory_total_bytes: 16_000_000_000,

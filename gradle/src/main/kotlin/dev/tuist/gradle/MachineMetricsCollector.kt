@@ -7,7 +7,6 @@ class MachineMetricsCollector {
     private val samples = mutableListOf<MachineMetricSample>()
     @Volatile private var running = false
     private var thread: Thread? = null
-    private val startTime = System.currentTimeMillis()
     private val osMXBean = ManagementFactory.getOperatingSystemMXBean()
 
     private var previousNetworkBytesIn = 0L
@@ -47,7 +46,7 @@ class MachineMetricsCollector {
     }
 
     private fun collectSample() {
-        val offsetMs = (System.currentTimeMillis() - startTime).toInt()
+        val timestamp = System.currentTimeMillis() / 1000.0
 
         val cpuUsage = getCpuUsage()
         val memory = getMemoryInfo()
@@ -65,7 +64,7 @@ class MachineMetricsCollector {
         previousDiskBytesWritten = disk.second
 
         val sample = MachineMetricSample(
-            timestampOffsetMs = offsetMs,
+            timestamp = timestamp,
             cpuUsagePercent = cpuUsage,
             memoryUsedBytes = memory.first,
             memoryTotalBytes = memory.second,

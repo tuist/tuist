@@ -93,7 +93,7 @@ defmodule TuistWeb.API.GradleController do
              items: %Schema{
                type: :object,
                properties: %{
-                 timestamp_offset_ms: %Schema{type: :integer, description: "Milliseconds from build start."},
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
                  cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
                  memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
                  memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
@@ -102,7 +102,7 @@ defmodule TuistWeb.API.GradleController do
                  disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
                  disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
                },
-               required: [:timestamp_offset_ms, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes,
+               required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes,
                           :network_bytes_in, :network_bytes_out, :disk_bytes_read, :disk_bytes_written]
              }
            }

@@ -5,41 +5,11 @@ import TuistHTTP
 
 #if canImport(TuistXCActivityLog)
     import TuistCI
+    import TuistMachineMetrics
     import TuistSupport
     import TuistXCActivityLog
 
     public typealias BuildCustomMetadata = Operations.createBuild.Input.Body.jsonPayload.custom_metadataPayload
-
-    public struct ServerMachineMetricSample {
-        public let timestampOffsetMs: Int
-        public let cpuUsagePercent: Double
-        public let memoryUsedBytes: Int
-        public let memoryTotalBytes: Int
-        public let networkBytesIn: Int
-        public let networkBytesOut: Int
-        public let diskBytesRead: Int
-        public let diskBytesWritten: Int
-
-        public init(
-            timestampOffsetMs: Int,
-            cpuUsagePercent: Double,
-            memoryUsedBytes: Int,
-            memoryTotalBytes: Int,
-            networkBytesIn: Int,
-            networkBytesOut: Int,
-            diskBytesRead: Int,
-            diskBytesWritten: Int
-        ) {
-            self.timestampOffsetMs = timestampOffsetMs
-            self.cpuUsagePercent = cpuUsagePercent
-            self.memoryUsedBytes = memoryUsedBytes
-            self.memoryTotalBytes = memoryTotalBytes
-            self.networkBytesIn = networkBytesIn
-            self.networkBytesOut = networkBytesOut
-            self.diskBytesRead = diskBytesRead
-            self.diskBytesWritten = diskBytesWritten
-        }
-    }
 
     @Mockable
     public protocol CreateBuildServicing {
@@ -70,7 +40,7 @@ import TuistHTTP
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
             casOutputs: [CASOutput],
-            machineMetrics: [ServerMachineMetricSample]
+            machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild
     }
 
@@ -137,7 +107,7 @@ import TuistHTTP
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
             casOutputs: [CASOutput],
-            machineMetrics: [ServerMachineMetricSample]
+            machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -429,7 +399,7 @@ import TuistHTTP
     }
 
     extension Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload {
-        fileprivate init(_ sample: ServerMachineMetricSample) {
+        fileprivate init(_ sample: MachineMetricSample) {
             self.init(
                 cpu_usage_percent: sample.cpuUsagePercent,
                 disk_bytes_read: sample.diskBytesRead,
@@ -438,7 +408,7 @@ import TuistHTTP
                 memory_used_bytes: sample.memoryUsedBytes,
                 network_bytes_in: sample.networkBytesIn,
                 network_bytes_out: sample.networkBytesOut,
-                timestamp_offset_ms: sample.timestampOffsetMs
+                timestamp: sample.timestamp
             )
         }
     }

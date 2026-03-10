@@ -2907,10 +2907,10 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/network_bytes_out`.
                 public var network_bytes_out: Swift.Int
-                /// Milliseconds from build start.
+                /// Unix timestamp in seconds.
                 ///
-                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/timestamp_offset_ms`.
-                public var timestamp_offset_ms: Swift.Int
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/timestamp`.
+                public var timestamp: Swift.Double
                 /// Creates a new `machine_metricsPayloadPayload`.
                 ///
                 /// - Parameters:
@@ -2921,7 +2921,7 @@ public enum Components {
                 ///   - memory_used_bytes: Memory used in bytes.
                 ///   - network_bytes_in: Network bytes received per second.
                 ///   - network_bytes_out: Network bytes sent per second.
-                ///   - timestamp_offset_ms: Milliseconds from build start.
+                ///   - timestamp: Unix timestamp in seconds.
                 public init(
                     cpu_usage_percent: Swift.Double,
                     disk_bytes_read: Swift.Int,
@@ -2930,7 +2930,7 @@ public enum Components {
                     memory_used_bytes: Swift.Int,
                     network_bytes_in: Swift.Int,
                     network_bytes_out: Swift.Int,
-                    timestamp_offset_ms: Swift.Int
+                    timestamp: Swift.Double
                 ) {
                     self.cpu_usage_percent = cpu_usage_percent
                     self.disk_bytes_read = disk_bytes_read
@@ -2939,7 +2939,7 @@ public enum Components {
                     self.memory_used_bytes = memory_used_bytes
                     self.network_bytes_in = network_bytes_in
                     self.network_bytes_out = network_bytes_out
-                    self.timestamp_offset_ms = timestamp_offset_ms
+                    self.timestamp = timestamp
                 }
                 public enum CodingKeys: String, CodingKey {
                     case cpu_usage_percent
@@ -2949,7 +2949,7 @@ public enum Components {
                     case memory_used_bytes
                     case network_bytes_in
                     case network_bytes_out
-                    case timestamp_offset_ms
+                    case timestamp
                 }
             }
             /// Machine performance metrics collected during the build.
@@ -22099,10 +22099,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/network_bytes_out`.
                         public var network_bytes_out: Swift.Int
-                        /// Milliseconds from build start.
+                        /// Unix timestamp in seconds.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/timestamp_offset_ms`.
-                        public var timestamp_offset_ms: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/timestamp`.
+                        public var timestamp: Swift.Double
                         /// Creates a new `machine_metricsPayloadPayload`.
                         ///
                         /// - Parameters:
@@ -22113,7 +22113,7 @@ public enum Operations {
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
                         ///   - network_bytes_out: Network bytes sent per second.
-                        ///   - timestamp_offset_ms: Milliseconds from build start.
+                        ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
                             disk_bytes_read: Swift.Int,
@@ -22122,7 +22122,7 @@ public enum Operations {
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
                             network_bytes_out: Swift.Int,
-                            timestamp_offset_ms: Swift.Int
+                            timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
                             self.disk_bytes_read = disk_bytes_read
@@ -22131,7 +22131,7 @@ public enum Operations {
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
                             self.network_bytes_out = network_bytes_out
-                            self.timestamp_offset_ms = timestamp_offset_ms
+                            self.timestamp = timestamp
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
@@ -22141,7 +22141,7 @@ public enum Operations {
                             case memory_used_bytes
                             case network_bytes_in
                             case network_bytes_out
-                            case timestamp_offset_ms
+                            case timestamp
                         }
                     }
                     /// Machine performance metrics collected during the build.
@@ -23465,10 +23465,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/network_bytes_out`.
                         public var network_bytes_out: Swift.Int
-                        /// Milliseconds from build start.
+                        /// Unix timestamp in seconds.
                         ///
-                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/timestamp_offset_ms`.
-                        public var timestamp_offset_ms: Swift.Int
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/timestamp`.
+                        public var timestamp: Swift.Double
                         /// Creates a new `machine_metricsPayloadPayload`.
                         ///
                         /// - Parameters:
@@ -23479,7 +23479,7 @@ public enum Operations {
                         ///   - memory_used_bytes: Memory used in bytes.
                         ///   - network_bytes_in: Network bytes received per second.
                         ///   - network_bytes_out: Network bytes sent per second.
-                        ///   - timestamp_offset_ms: Milliseconds from build start.
+                        ///   - timestamp: Unix timestamp in seconds.
                         public init(
                             cpu_usage_percent: Swift.Double,
                             disk_bytes_read: Swift.Int,
@@ -23488,7 +23488,7 @@ public enum Operations {
                             memory_used_bytes: Swift.Int,
                             network_bytes_in: Swift.Int,
                             network_bytes_out: Swift.Int,
-                            timestamp_offset_ms: Swift.Int
+                            timestamp: Swift.Double
                         ) {
                             self.cpu_usage_percent = cpu_usage_percent
                             self.disk_bytes_read = disk_bytes_read
@@ -23497,7 +23497,7 @@ public enum Operations {
                             self.memory_used_bytes = memory_used_bytes
                             self.network_bytes_in = network_bytes_in
                             self.network_bytes_out = network_bytes_out
-                            self.timestamp_offset_ms = timestamp_offset_ms
+                            self.timestamp = timestamp
                         }
                         public enum CodingKeys: String, CodingKey {
                             case cpu_usage_percent
@@ -23507,7 +23507,7 @@ public enum Operations {
                             case memory_used_bytes
                             case network_bytes_in
                             case network_bytes_out
-                            case timestamp_offset_ms
+                            case timestamp
                         }
                     }
                     /// Machine performance metrics collected during the build.

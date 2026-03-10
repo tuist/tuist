@@ -790,7 +790,7 @@ defmodule TuistWeb.API.BuildsController do
              items: %Schema{
                type: :object,
                properties: %{
-                 timestamp_offset_ms: %Schema{type: :integer, description: "Milliseconds from build start."},
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
                  cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
                  memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
                  memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
@@ -800,7 +800,7 @@ defmodule TuistWeb.API.BuildsController do
                  disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
                },
                required: [
-                 :timestamp_offset_ms,
+                 :timestamp,
                  :cpu_usage_percent,
                  :memory_used_bytes,
                  :memory_total_bytes,

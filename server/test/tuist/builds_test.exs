@@ -48,9 +48,11 @@ defmodule Tuist.BuildsTest do
       project_id = ProjectsFixtures.project_fixture().id
       account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
 
+      base_ts = 1_741_500_000.0
+
       machine_metrics = [
         %{
-          timestamp_offset_ms: 1000,
+          timestamp: base_ts + 1.0,
           cpu_usage_percent: 45.5,
           memory_used_bytes: 8_000_000_000,
           memory_total_bytes: 16_000_000_000,
@@ -60,7 +62,7 @@ defmodule Tuist.BuildsTest do
           disk_bytes_written: 1_500_000
         },
         %{
-          timestamp_offset_ms: 2000,
+          timestamp: base_ts + 2.0,
           cpu_usage_percent: 72.3,
           memory_used_bytes: 10_000_000_000,
           memory_total_bytes: 16_000_000_000,
@@ -93,9 +95,9 @@ defmodule Tuist.BuildsTest do
       # Then
       metrics = Tuist.MachineMetrics.get_machine_metrics_by_build_run_id(build.id)
       assert length(metrics) == 2
-      assert Enum.at(metrics, 0).timestamp_offset_ms == 1000
+      assert Enum.at(metrics, 0).timestamp_offset_ms == 0
       assert_in_delta Enum.at(metrics, 0).cpu_usage_percent, 45.5, 0.01
-      assert Enum.at(metrics, 1).timestamp_offset_ms == 2000
+      assert Enum.at(metrics, 1).timestamp_offset_ms == 1000
       assert_in_delta Enum.at(metrics, 1).cpu_usage_percent, 72.3, 0.01
     end
 

@@ -3,7 +3,7 @@ package dev.tuist.gradle
 import com.google.gson.annotations.SerializedName
 
 data class MachineMetricSample(
-    @SerializedName("timestamp_offset_ms") val timestampOffsetMs: Int,
+    @SerializedName("timestamp") val timestamp: Double,
     @SerializedName("cpu_usage_percent") val cpuUsagePercent: Float,
     @SerializedName("memory_used_bytes") val memoryUsedBytes: Long,
     @SerializedName("memory_total_bytes") val memoryTotalBytes: Long,

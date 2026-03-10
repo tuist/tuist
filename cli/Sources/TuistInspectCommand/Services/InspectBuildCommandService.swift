@@ -195,22 +195,10 @@
 
             let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
             let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
-            let metricsSamples = machineMetricsReader.readSamples(
+            let machineMetrics = machineMetricsReader.readSamples(
                 startDate: buildStartDate,
                 endDate: buildEndDate
             )
-            let machineMetrics = metricsSamples.map { sample in
-                ServerMachineMetricSample(
-                    timestampOffsetMs: Int((sample.timestamp - buildStartDate.timeIntervalSince1970) * 1000),
-                    cpuUsagePercent: sample.cpuUsagePercent,
-                    memoryUsedBytes: sample.memoryUsedBytes,
-                    memoryTotalBytes: sample.memoryTotalBytes,
-                    networkBytesIn: sample.networkBytesIn,
-                    networkBytesOut: sample.networkBytesOut,
-                    diskBytesRead: sample.diskBytesRead,
-                    diskBytesWritten: sample.diskBytesWritten
-                )
-            }
 
             let build = try await createBuildService.createBuild(
                 fullHandle: fullHandle,

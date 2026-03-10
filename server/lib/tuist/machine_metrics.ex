@@ -17,12 +17,17 @@ defmodule Tuist.MachineMetrics do
     gradle_build_id = Keyword.get(opts, :gradle_build_id) || @zero_uuid
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
+    min_timestamp =
+      metrics_list
+      |> Enum.map(& &1.timestamp)
+      |> Enum.min(fn -> 0.0 end)
+
     entries =
       Enum.map(metrics_list, fn metric ->
         %{
           build_run_id: build_run_id,
           gradle_build_id: gradle_build_id,
-          timestamp_offset_ms: metric.timestamp_offset_ms,
+          timestamp_offset_ms: round((metric.timestamp - min_timestamp) * 1000),
           cpu_usage_percent: metric.cpu_usage_percent,
           memory_used_bytes: metric.memory_used_bytes,
           memory_total_bytes: metric.memory_total_bytes,

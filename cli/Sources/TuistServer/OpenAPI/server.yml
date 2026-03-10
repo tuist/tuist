@@ -886,13 +886,13 @@ components:
                 type: integer
                 x-struct:
                 x-validate:
-              timestamp_offset_ms:
-                description: Milliseconds from build start.
-                type: integer
+              timestamp:
+                description: Unix timestamp in seconds.
+                type: number
                 x-struct:
                 x-validate:
             required:
-              - timestamp_offset_ms
+              - timestamp
               - cpu_usage_percent
               - memory_used_bytes
               - memory_total_bytes
@@ -8795,13 +8795,13 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
-                      timestamp_offset_ms:
-                        description: Milliseconds from build start.
-                        type: integer
+                      timestamp:
+                        description: Unix timestamp in seconds.
+                        type: number
                         x-struct:
                         x-validate:
                     required:
-                      - timestamp_offset_ms
+                      - timestamp
                       - cpu_usage_percent
                       - memory_used_bytes
                       - memory_total_bytes
@@ -9254,13 +9254,13 @@ paths:
                         type: integer
                         x-struct:
                         x-validate:
-                      timestamp_offset_ms:
-                        description: Milliseconds from build start.
-                        type: integer
+                      timestamp:
+                        description: Unix timestamp in seconds.
+                        type: number
                         x-struct:
                         x-validate:
                     required:
-                      - timestamp_offset_ms
+                      - timestamp
                       - cpu_usage_percent
                       - memory_used_bytes
                       - memory_total_bytes
