@@ -6,17 +6,9 @@ defmodule Processor.BuildProcessor do
   def process(storage_key) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
 
-    case ExAws.S3.get_object(bucket, storage_key) |> ExAws.request() do
-      {:ok, %{body: body}} ->
-        process_archive(body)
+    {:ok, %{body: body}} = ExAws.S3.get_object(bucket, storage_key) |> ExAws.request()
 
-      {:error, reason} ->
-        Logger.error(
-          "Failed to download build archive (storage_key: #{storage_key}): #{inspect(reason)}"
-        )
-
-        {:error, {:download_failed, reason}}
-    end
+    process_archive(body)
   end
 
   def process_archive(archive_bytes) do
