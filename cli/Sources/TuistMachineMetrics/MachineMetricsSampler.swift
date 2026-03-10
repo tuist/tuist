@@ -1,5 +1,6 @@
 #if os(macOS)
     import Darwin
+    import FileSystem
     import Foundation
     import IOKit
     import Path
@@ -9,8 +10,12 @@
     public final class MachineMetricsSampler: @unchecked Sendable {
         private let metricsFilePath: Path.AbsolutePath
         private let fileLock: TSCBasic.FileLock
+        private let fileSystem: FileSysteming
 
-        public init() {
+        public init(
+            fileSystem: FileSysteming = FileSystem()
+        ) {
+            self.fileSystem = fileSystem
             metricsFilePath = MachineMetricsReader.metricsFilePath
             // swiftlint:disable:next force_try
             fileLock = TSCBasic.FileLock(at: try! TSCBasic.AbsolutePath(validating: metricsFilePath.pathString + ".lock"))
@@ -197,17 +202,15 @@
                   let line = String(data: data, encoding: .utf8)
             else { return }
 
-            let fileManager = FileManager.default
-            let dir = metricsFilePath.parentDirectory.pathString
-            if !fileManager.fileExists(atPath: dir) {
-                try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            if try await !fileSystem.exists(metricsFilePath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: metricsFilePath.parentDirectory)
             }
 
             try await fileLock.withLock(type: .exclusive) {
                 let path = metricsFilePath.pathString
 
-                if !fileManager.fileExists(atPath: path) {
-                    fileManager.createFile(atPath: path, contents: nil)
+                if try await !fileSystem.exists(metricsFilePath) {
+                    try await fileSystem.writeText("", at: metricsFilePath)
                 }
 
                 guard let handle = FileHandle(forWritingAtPath: path) else { return }
@@ -219,10 +222,8 @@
 
         private func trimSamples() async throws {
             try await fileLock.withLock(type: .exclusive) {
-                let path = metricsFilePath.pathString
-                guard let data = FileManager.default.contents(atPath: path),
-                      let content = String(data: data, encoding: .utf8)
-                else { return }
+                guard try await fileSystem.exists(metricsFilePath) else { return }
+                let content = try await fileSystem.readTextFile(at: metricsFilePath)
 
                 let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
                 let cutoff = Date().timeIntervalSince1970 - 3600
@@ -236,7 +237,7 @@
                 }
 
                 let newContent = recentLines.joined(separator: "\n") + (recentLines.isEmpty ? "" : "\n")
-                try? newContent.write(toFile: path, atomically: true, encoding: .utf8)
+                try await fileSystem.writeText(newContent, at: metricsFilePath)
             }
         }
     }
