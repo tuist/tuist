@@ -1,0 +1,4 @@
+servers:
+  web:
+    hosts:
+      - processor-canary.tuist.dev

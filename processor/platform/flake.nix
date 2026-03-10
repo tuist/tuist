@@ -10,6 +10,8 @@
   }: let
     machines = [
       "processor-staging"
+      "processor-canary"
+      "processor-production"
     ];
 
     sharedModules = [

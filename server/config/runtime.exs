@@ -363,6 +363,7 @@ config :tuist, Tuist.PromEx,
 
 # Processor
 config :tuist, :processor_url, System.get_env("TUIST_PROCESSOR_URL")
+config :tuist, :processor_webhook_secret, System.get_env("TUIST_PROCESSOR_WEBHOOK_SECRET")
 
 if otel_endpoint do
   config :opentelemetry,

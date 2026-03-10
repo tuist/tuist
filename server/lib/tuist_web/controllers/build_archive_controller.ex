@@ -22,6 +22,12 @@ defmodule TuistWeb.BuildArchiveController do
       |> redirect(external: url)
       |> halt()
     else
+      {:error, :forbidden} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "You are not authorized to access this resource"})
+        |> halt()
+
       _ ->
         conn
         |> put_status(:not_found)

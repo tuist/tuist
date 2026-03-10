@@ -5,8 +5,12 @@ defmodule ProcessorWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :webhook_auth do
+    plug ProcessorWeb.Plugs.WebhookAuthPlug
+  end
+
   scope "/webhooks", ProcessorWeb do
-    pipe_through :api
+    pipe_through [:api, :webhook_auth]
 
     post "/process-build", WebhookController, :process_build
   end

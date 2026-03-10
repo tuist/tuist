@@ -2,7 +2,7 @@
 #MISE description "Deploy processor with Kamal"
 #MISE raw=true
 #USAGE arg "<environment>" help="Target environment" {
-#USAGE   choices "staging"
+#USAGE   choices "staging" "canary" "production"
 #USAGE }
 set -euo pipefail
 

@@ -7,7 +7,8 @@ defmodule ProcessorWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:json],
     pass: ["application/json"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    body_reader: {ProcessorWeb.Plugs.CacheBodyReader, :read_body, []}
 
   plug ProcessorWeb.Router
 end

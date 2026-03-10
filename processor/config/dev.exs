@@ -4,7 +4,8 @@ config :processor, ProcessorWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   check_origin: false,
   debug_errors: true,
-  secret_key_base: "dev-only-secret-key-base-that-is-at-least-64-bytes-long-for-development-use-only"
+  secret_key_base:
+    "dev-only-secret-key-base-that-is-at-least-64-bytes-long-for-development-use-only"
 
 config :logger, :console, format: "[$level] $message\n"
 
