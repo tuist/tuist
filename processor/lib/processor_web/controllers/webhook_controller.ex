@@ -3,11 +3,14 @@ defmodule ProcessorWeb.WebhookController do
 
   require Logger
 
-  def process_build(conn, %{
-        "build_id" => build_id,
-        "storage_key" => storage_key,
-        "project_id" => project_id
-      } = params) do
+  def process_build(
+        conn,
+        %{
+          "build_id" => build_id,
+          "storage_key" => storage_key,
+          "project_id" => project_id
+        } = params
+      ) do
     xcode_cache_upload_enabled = Map.get(params, "xcode_cache_upload_enabled", false)
     Logger.info("Processing build #{build_id} (storage_key: #{storage_key})")
 

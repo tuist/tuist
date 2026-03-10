@@ -70,6 +70,5 @@ defmodule ProcessorWeb.WebhookControllerTest do
       assert response["targets"] == []
       assert response["project_id"] == "project-789"
     end
-
   end
 end

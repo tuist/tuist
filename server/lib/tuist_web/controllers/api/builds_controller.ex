@@ -918,7 +918,7 @@ defmodule TuistWeb.API.BuildsController do
           machine_metrics: Map.get(params, :machine_metrics, [])
         }
 
-        {:ok, build} = Builds.create_build(build_attrs) |> handle_build_creation_result(params.id)
+        {:ok, build} = build_attrs |> Builds.create_build() |> handle_build_creation_result(params.id)
 
         if build.status == "processing" do
           storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, build.id)
@@ -1049,11 +1049,10 @@ defmodule TuistWeb.API.BuildsController do
   def multipart_generate_url(
         %{
           assigns: %{selected_project: selected_project},
-          body_params:
-            %{
-              build_id: build_id,
-              multipart_upload_part: %{part_number: part_number, upload_id: multipart_upload_id} = multipart_upload_part
-            }
+          body_params: %{
+            build_id: build_id,
+            multipart_upload_part: %{part_number: part_number, upload_id: multipart_upload_id} = multipart_upload_part
+          }
         } = conn,
         _params
       ) do
@@ -1075,8 +1074,7 @@ defmodule TuistWeb.API.BuildsController do
 
   operation(:multipart_complete,
     summary: "Complete a multipart upload for a build.",
-    description:
-      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
     operation_id: "completeBuildsMultipartUpload",
     parameters: [
       account_handle: [
@@ -1119,11 +1117,10 @@ defmodule TuistWeb.API.BuildsController do
   def multipart_complete(
         %{
           assigns: %{selected_project: selected_project},
-          body_params:
-            %{
-              build_id: build_id,
-              multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: multipart_upload_id}
-            }
+          body_params: %{
+            build_id: build_id,
+            multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: multipart_upload_id}
+          }
         } = conn,
         _params
       ) do
@@ -1141,5 +1138,4 @@ defmodule TuistWeb.API.BuildsController do
 
     json(conn, %{status: "success", data: %{}})
   end
-
 end

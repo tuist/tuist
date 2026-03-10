@@ -137,7 +137,8 @@ defmodule TuistWeb.BuildRunLive do
   def handle_info({:build_created, build}, socket) do
     if build.id == socket.assigns.run.id do
       run =
-        Builds.get_build(build.id)
+        build.id
+        |> Builds.get_build()
         |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
         |> Tuist.ClickHouseRepo.preload([:issues])
 

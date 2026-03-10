@@ -10,12 +10,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args: %{
-          "build_id" => build_id,
-          "storage_key" => storage_key,
-          "account_id" => account_id,
-          "project_id" => project_id
-        } = args
+        args:
+          %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
+            args
       }) do
     processor_url = Tuist.Environment.processor_url()
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
@@ -77,7 +74,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     webhook_secret = Tuist.Environment.processor_webhook_secret() || ""
 
     signature =
-      :crypto.mac(:hmac, :sha256, webhook_secret, json_body)
+      :hmac
+      |> :crypto.mac(:sha256, webhook_secret, json_body)
       |> Base.encode16(case: :lower)
 
     case Req.post("#{processor_url}/webhooks/process-build",

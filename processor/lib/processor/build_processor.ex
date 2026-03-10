@@ -29,7 +29,9 @@ defmodule Processor.BuildProcessor do
     xcactivitylog_path = find_xcactivitylog(temp_dir)
     cas_path = Path.join(temp_dir, "cas_metadata")
 
-    {:ok, parsed_data} = Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
+    {:ok, parsed_data} =
+      Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
+
     {:ok, parsed_data}
   end
 

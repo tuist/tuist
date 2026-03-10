@@ -1,4 +1,6 @@
 defmodule ProcessorWeb do
+  @moduledoc false
+
   def controller do
     quote do
       use Phoenix.Controller,
