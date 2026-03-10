@@ -69,7 +69,6 @@ struct GraphService {
         targetsToFilter: [String],
         path: AbsolutePath,
         outputPath: AbsolutePath,
-        interactive: Bool = false,
         port: Int = 8081
     ) async throws {
         let config = try await configLoader.loadConfig(path: path)
@@ -83,15 +82,15 @@ struct GraphService {
             graph = try await xcodeGraphMapper.map(at: path)
         }
 
-        if interactive {
+        if format == .html {
             if skipTestTargets || skipExternalDependencies || platformToFilter != nil || !targetsToFilter.isEmpty {
-                Logger.current.warning("Filter flags are ignored in interactive mode — use the web UI to filter the graph")
+                Logger.current.warning("Filter flags are ignored in html mode — use the web UI to filter the graph")
             }
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             let jsonData = try encoder.encode(graph)
             let server = GraphServer(graphJSON: jsonData, port: port, openBrowser: open)
-            Logger.current.notice("Starting interactive graph server at http://localhost:\(port) — press Ctrl-C to stop")
+            Logger.current.notice("Starting graph server at http://localhost:\(port) — press Ctrl-C to stop")
             try server.start()
             return
         }

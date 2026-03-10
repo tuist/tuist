@@ -41,7 +41,7 @@ public struct GraphCommand: AsyncParsableCommand {
 
     @Option(
         name: [.customShort("f"), .long],
-        help: "Available formats: dot, json, png, svg",
+        help: "Available formats: dot, json, png, svg, html",
         envKey: .graphFormat
     )
     var format: GraphFormat = .png
@@ -81,15 +81,8 @@ public struct GraphCommand: AsyncParsableCommand {
     )
     var outputPath: String?
 
-    @Flag(
-        name: [.customShort("i"), .long],
-        help: "Start an interactive graph server in the browser.",
-        envKey: .graphInteractive
-    )
-    var interactive: Bool = false
-
     @Option(
-        help: "The port to use for the interactive graph server.",
+        help: "The port to use for the html graph server.",
         envKey: .graphPort
     )
     var port: Int = 8081
@@ -113,14 +106,13 @@ public struct GraphCommand: AsyncParsableCommand {
             outputPath: outputPath
                 .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
                 .currentPath,
-            interactive: interactive,
             port: port
         )
     }
 }
 
 enum GraphFormat: String, ExpressibleByArgument, CaseIterable {
-    case dot, json, legacyJSON, png, svg
+    case dot, json, legacyJSON, png, svg, html
 }
 
 extension GraphViz.LayoutAlgorithm: ArgumentParser.ExpressibleByArgument {
