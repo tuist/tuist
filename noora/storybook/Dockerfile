@@ -24,14 +24,15 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
 COPY package.json js/ css/ /app/noora/
-COPY priv/ /app/noora/priv/
 COPY lib/ /app/noora/lib/
 COPY mix.exs /app/noora/
 
 WORKDIR /app/noora
 RUN pnpm install
 
+RUN mkdir -p priv/static
 RUN pnpm run build
+RUN ./node_modules/.bin/esbuild css/noora.css --bundle --minify --outfile=./priv/static/noora.css
 
 FROM ${BUILDER_IMAGE} as builder
 

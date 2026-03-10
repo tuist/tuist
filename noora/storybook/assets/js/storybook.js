@@ -1,3 +1,3 @@
-import Noora from "../../../web/js/index.js";
+import Noora from "../../../js/index.js";
 
 window.storybook = { Hooks: Noora.Hooks };

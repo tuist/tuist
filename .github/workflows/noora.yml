@@ -61,6 +61,8 @@ jobs:
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      MIX_ENV: dev
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
