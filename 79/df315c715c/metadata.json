@@ -3,7 +3,7 @@
   "checkpoint_id": "79df315c715c",
   "strategy": "manual-commit",
   "branch": "feat/comparison-skills",
-  "checkpoints_count": 3,
+  "checkpoints_count": 1,
   "files_touched": [
     "cli/Sources/TuistBuildCommand/BuildIssueListCommandService.swift",
     "cli/Sources/TuistBundleCommand/Services/BundleArtifactListCommandService.swift",
@@ -36,10 +36,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 26,
-    "cache_creation_tokens": 7672,
-    "cache_read_tokens": 1725665,
-    "output_tokens": 4821,
-    "api_call_count": 18
+    "input_tokens": 37,
+    "cache_creation_tokens": 109014,
+    "cache_read_tokens": 3483492,
+    "output_tokens": 5864,
+    "api_call_count": 33
   }
 }

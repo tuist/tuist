@@ -32,3 +32,44 @@ Note that in the mcp we namespaced some of the builds sub-models with xcode. Did
 
 This should be var fullHandle: String? project in the new commands. I believe that's the convention that we started following, no?
 
+### Prompt 7
+
+I see some foormatting logic across services? Can't we use a Swift built-in formatter or reuse those? Aren't we doing that already?
+private func formatSize(_ bytes: Int) -> String {
+        if bytes < 1024 {
+            return "\(bytes)B"
+        } else if bytes < 1_048_576 {
+            let kb = Double(bytes) / 1024.0
+            return String(format: "%.1fKB", kb)
+        } else if bytes < 1_073_741_824 {
+            let mb = Double(bytes) / 1_048_576.0
+            return String(format: "%.1fM...
+
+### Prompt 8
+
+[Request interrupted by user]
+
+### Prompt 9
+
+Do we need this? Is this also in some other part of the codebase? All the values are the keys with _hash, no?
+
+### Prompt 10
+
+[Request interrupted by user]
+
+### Prompt 11
+
+@hash_fields [
+    {:sources, :sources_hash},
+    {:resources, :resources_hash},
+    {:copy_files, :copy_files_hash},
+    {:core_data_models, :core_data_models_hash},
+    {:target_scripts, :target_scripts_hash},
+    {:environment, :environment_hash},
+    {:headers, :headers_hash},
+    {:deployment_target, :deployment_target_hash},
+    {:info_plist, :info_plist_hash},
+    {:entitlements, :entitlements_hash},
+    {:dependencies, :dependencies_hash},
+    {:project_settings, :project_settings_hash},...
+
