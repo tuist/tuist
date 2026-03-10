@@ -27,7 +27,7 @@ COPY package.json /app/noora/
 COPY js/ /app/noora/js/
 COPY css/ /app/noora/css/
 COPY lib/ /app/noora/lib/
-COPY mix.exs /app/noora/
+COPY mix.exs README.md /app/noora/
 
 WORKDIR /app/noora
 RUN pnpm install
