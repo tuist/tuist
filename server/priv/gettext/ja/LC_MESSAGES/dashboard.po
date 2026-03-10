@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-03-02 13:28+0000\n"
+"PO-Revision-Date: 2026-03-10 20:47+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard-1/ja/>\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.1\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -406,8 +406,9 @@ msgstr "プレビューAPKが存在しないか、期限切れです。"
 msgid "SSO"
 msgstr "SSO"
 
+#, fuzzy
 msgid "Machine Metrics"
-msgstr ""
+msgstr "マシンメトリクス"
 
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."
