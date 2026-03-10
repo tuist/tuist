@@ -118,48 +118,6 @@ defmodule Cache.S3TransferWorkerTest do
       assert count == 0
     end
 
-    test "on CAS download fallback_hit, enqueues backfill upload" do
-      suffix = :erlang.unique_integer([:positive])
-      key = "account/project/cas/ar/ti/artifact-fallback-#{suffix}"
-
-      :ok = S3Transfers.enqueue_cas_download("account", "project", key)
-      :ok = S3TransfersBuffer.flush()
-
-      {:ok, tmp_dir} = Briefly.create(directory: true)
-      tmp_file = Path.join(tmp_dir, "test_artifact")
-      File.write!(tmp_file, "test content")
-
-      expect(Cache.S3, :download, fn ^key, [type: :cas] ->
-        {:ok, :fallback_hit}
-      end)
-
-      expect(Cache.Disk, :artifact_path, fn ^key -> tmp_file end)
-
-      capture_log(fn ->
-        assert :ok = S3TransferWorker.perform(%Oban.Job{})
-      end)
-
-      :ok = S3TransfersBuffer.flush()
-
-      download_count =
-        Repo.aggregate(
-          from(t in S3Transfer, where: t.key == ^key and t.type == :download),
-          :count,
-          :id
-        )
-
-      assert download_count == 0
-
-      upload_count =
-        Repo.aggregate(
-          from(t in S3Transfer, where: t.key == ^key and t.type == :upload and t.artifact_type == :xcode_cas),
-          :count,
-          :id
-        )
-
-      assert upload_count == 1
-    end
-
     test "deletes transfers on non-retryable failure" do
       suffix = :erlang.unique_integer([:positive])
       key = "account/project/cas/ar/ti/artifact1-#{suffix}"

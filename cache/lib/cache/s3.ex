@@ -5,8 +5,7 @@ defmodule Cache.S3 do
   Isolated behind a module for easy testing without mutating global config.
 
   Artifacts are stored across three buckets:
-  - `:cas` — dedicated CAS bucket (`S3_CAS_BUCKET`), falls back to the shared
-    cache bucket during migration when `S3_CAS_BUCKET` differs from `S3_BUCKET`.
+  - `:cas` — dedicated CAS bucket (`S3_CAS_BUCKET`).
   - `:cache` — shared cache bucket (`S3_BUCKET`) for module and Gradle artifacts.
   - `:registry` — registry bucket (`S3_REGISTRY_BUCKET`) for Swift package registry.
   """
@@ -41,10 +40,6 @@ defmodule Cache.S3 do
 
   Returns `{:ok, url}` on success or `{:error, reason}` on failure.
   Returns `{:error, :registry_disabled}` if type is `:registry` and registry storage is not configured.
-
-  When type is `:cas` and a CAS fallback bucket is active (migration mode),
-  checks the primary CAS bucket first via HEAD, then falls back to the legacy
-  shared bucket for the presigned URL.
   """
   def presign_download_url(key, opts \\ []) when is_binary(key) do
     type = Keyword.get(opts, :type, :cache)
@@ -54,29 +49,8 @@ defmodule Cache.S3 do
         {:error, :registry_disabled}
 
       bucket ->
-        case {type, cas_fallback_bucket()} do
-          {:cas, fallback} when is_binary(fallback) ->
-            presign_with_cas_fallback(key, bucket, fallback)
-
-          _ ->
-            config = ExAws.Config.new(:s3)
-            ExAws.S3.presigned_url(config, :get, bucket, key, expires_in: 600)
-        end
-    end
-  end
-
-  defp presign_with_cas_fallback(key, primary_bucket, fallback_bucket) do
-    config = ExAws.Config.new(:s3)
-
-    case head_object_exists?(primary_bucket, key) do
-      {:ok, true} ->
-        ExAws.S3.presigned_url(config, :get, primary_bucket, key, expires_in: 600)
-
-      {:ok, false} ->
-        ExAws.S3.presigned_url(config, :get, fallback_bucket, key, expires_in: 600)
-
-      {:error, reason} ->
-        {:error, reason}
+        config = ExAws.Config.new(:s3)
+        ExAws.S3.presigned_url(config, :get, bucket, key, expires_in: 600)
     end
   end
 
@@ -137,39 +111,16 @@ defmodule Cache.S3 do
   defp do_exists?(key, opts) do
     type = Keyword.get(opts, :type, :cache)
 
-    case {type, bucket_for_type(type), cas_fallback_bucket()} do
-      {:cas, nil, _fallback_bucket} ->
+    case bucket_for_type(type) do
+      nil ->
         {:ok, false}
 
-      {:cas, primary_bucket, fallback_bucket} when is_binary(fallback_bucket) ->
-        exists_in_primary_or_fallback?(primary_bucket, fallback_bucket, key)
-
-      {_type, nil, _fallback_bucket} ->
-        {:ok, false}
-
-      {_type, bucket, _fallback_bucket} ->
+      bucket ->
         case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
           :exists -> {:ok, true}
           :not_found -> {:ok, false}
           {:error, reason} -> {:error, reason}
         end
-    end
-  end
-
-  defp exists_in_primary_or_fallback?(primary_bucket, fallback_bucket, key) do
-    case head_object_status(primary_bucket, key, http_opts: [receive_timeout: 2_000]) do
-      :exists ->
-        {:ok, true}
-
-      :not_found ->
-        case head_object_status(fallback_bucket, key, http_opts: [receive_timeout: 2_000]) do
-          :exists -> {:ok, true}
-          :not_found -> {:ok, false}
-          {:error, reason} -> {:error, reason}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 
@@ -212,8 +163,7 @@ defmodule Cache.S3 do
 
     * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
 
-  Returns `{:ok, :hit}` on success, `{:ok, :fallback_hit}` when found in the
-  legacy bucket during CAS migration, `{:error, :rate_limited}` on 429 errors
+  Returns `{:ok, :hit}` on success, `{:error, :rate_limited}` on 429 errors
   (should be retried), or `{:error, reason}` on other failures.
   If the artifact does not exist in S3, returns `{:ok, :miss}`.
   """
@@ -223,24 +173,7 @@ defmodule Cache.S3 do
 
     Logger.info("Starting S3 download for artifact: #{key}")
 
-    case download_from_bucket(key, bucket) do
-      {:ok, :miss} when type == :cas ->
-        case cas_fallback_bucket() do
-          nil ->
-            {:ok, :miss}
-
-          fallback ->
-            Logger.info("CAS artifact not in primary bucket, trying fallback: #{key}")
-
-            case download_from_bucket(key, fallback) do
-              {:ok, :hit} -> {:ok, :fallback_hit}
-              other -> other
-            end
-        end
-
-      other ->
-        other
-    end
+    download_from_bucket(key, bucket)
   end
 
   defp download_from_bucket(key, bucket) do
@@ -444,15 +377,6 @@ defmodule Cache.S3 do
   defp bucket_for_type(:cache), do: Config.cache_bucket()
   defp bucket_for_type(:registry), do: Config.registry_bucket()
 
-  # Returns the legacy shared bucket when CAS has been split into its own
-  # bucket, enabling fallback reads during migration. Returns nil when no
-  # migration is active (CAS bucket not configured or same as cache bucket).
-  defp cas_fallback_bucket do
-    cas = Config.cas_bucket()
-    cache = Config.cache_bucket()
-    if cas != nil and cas != cache, do: cache
-  end
-
   defp head_object_status(bucket, key, request_opts \\ []) do
     {duration, result} =
       :timer.tc(fn ->
@@ -484,11 +408,4 @@ defmodule Cache.S3 do
     end
   end
 
-  defp head_object_exists?(bucket, key) do
-    case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
-      :exists -> {:ok, true}
-      :not_found -> {:ok, false}
-      {:error, reason} -> {:error, reason}
-    end
-  end
 end

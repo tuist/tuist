@@ -65,12 +65,6 @@ defmodule Cache.S3Test do
 
       expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn _, _ -> {:ok, %{status_code: 200}} end)
-
       expect(ExAws.S3, :presigned_url, fn _config, :get, "test-cas-bucket", ^key, opts ->
         assert Keyword.get(opts, :expires_in) == 600
         {:ok, "https://example.com/#{key}?token=xyz"}
@@ -78,69 +72,6 @@ defmodule Cache.S3Test do
 
       assert {:ok, url} = S3.presign_download_url(key, type: :cas)
       assert url == "https://example.com/#{key}?token=xyz"
-    end
-
-    test "CAS type falls back to shared bucket when not in primary" do
-      key = "acc/proj/cas/abc"
-
-      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
-
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn _, _ -> {:error, {:http_error, 404, "Not Found"}} end)
-
-      expect(ExAws.S3, :presigned_url, fn _config, :get, "test-bucket", ^key, opts ->
-        assert Keyword.get(opts, :expires_in) == 600
-        {:ok, "https://example.com/#{key}?token=xyz"}
-      end)
-
-      assert {:ok, url} = S3.presign_download_url(key, type: :cas)
-      assert url == "https://example.com/#{key}?token=xyz"
-    end
-
-    test "CAS type propagates primary bucket HEAD errors instead of falling back" do
-      key = "acc/proj/cas/primary-timeout"
-
-      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
-
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn _, _ -> {:error, :timeout} end)
-
-      assert {:error, :timeout} = S3.presign_download_url(key, type: :cas)
-    end
-
-    test "CAS type propagates primary bucket rate limiting instead of falling back" do
-      key = "acc/proj/cas/primary-rate-limited"
-
-      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
-
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn _, _ -> {:error, {:http_error, 429, %{body: "Too many requests"}}} end)
-
-      assert {:error, :rate_limited} = S3.presign_download_url(key, type: :cas)
-    end
-
-    test "CAS type propagates primary bucket 5xx errors instead of falling back" do
-      key = "acc/proj/cas/primary-5xx"
-
-      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
-
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-      end)
-
-      expect(ExAws, :request, fn _, _ -> {:error, {:http_error, 503, "Service Unavailable"}} end)
-
-      assert {:error, {:http_error, 503, "Service Unavailable"}} =
-               S3.presign_download_url(key, type: :cas)
     end
 
     test "propagates error from presigned_url" do
@@ -204,26 +135,16 @@ defmodule Cache.S3Test do
       assert S3.exists?(key, type: :cas) == true
     end
 
-    test "returns true for CAS when object exists only in fallback bucket" do
-      key = "acc/proj/cas/fallback-exists-test"
+    test "returns false for CAS when object does not exist in dedicated bucket" do
+      key = "acc/proj/cas/nonexistent-cas"
 
-      expect(ExAws.S3, :head_object, 2, fn
-        "test-cas-bucket", ^key ->
-          %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-
-        "test-bucket", ^key ->
-          %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
       end)
 
-      expect(ExAws, :request, 2, fn
-        %ExAws.Operation.S3{bucket: "test-cas-bucket"}, _opts ->
-          {:error, {:http_error, 404, "Not Found"}}
+      expect(ExAws, :request, fn _head_object, _opts -> {:error, {:http_error, 404, "Not Found"}} end)
 
-        %ExAws.Operation.S3{bucket: "test-bucket"}, _opts ->
-          {:ok, %{status_code: 200}}
-      end)
-
-      assert S3.exists?(key, type: :cas) == true
+      assert S3.exists?(key, type: :cas) == false
     end
 
     test "returns false when file does not exist in S3 (404)" do
@@ -487,54 +408,14 @@ defmodule Cache.S3Test do
       end)
     end
 
-    test "CAS download falls back to shared bucket and returns {:ok, :fallback_hit}" do
-      key = "test_account/test_project/cas/TE/ST/test_hash"
-      {:ok, tmp_dir} = Briefly.create(directory: true)
-      local_path = Path.join(tmp_dir, "test_hash")
-
-      expect(ExAws.S3, :head_object, 2, fn
-        "test-cas-bucket", ^key ->
-          %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-
-        "test-bucket", ^key ->
-          %ExAws.Operation.S3{bucket: "test-bucket", path: key}
-      end)
-
-      expect(Cache.Disk, :artifact_path, 2, fn ^key -> local_path end)
-
-      expect(ExAws, :request, 3, fn
-        %ExAws.Operation.S3{bucket: "test-cas-bucket"} ->
-          {:error, {:http_error, 404, "Not Found"}}
-
-        %ExAws.Operation.S3{bucket: "test-bucket"} ->
-          {:ok, %{status_code: 200}}
-
-        {:download_operation, "test-bucket", _, _} ->
-          File.write!(local_path, "downloaded content")
-          {:ok, :done}
-      end)
-
-      expect(ExAws.S3, :download_file, fn "test-bucket", ^key, ^local_path ->
-        {:download_operation, "test-bucket", key, local_path}
-      end)
-
-      capture_log(fn ->
-        assert {:ok, :fallback_hit} = S3.download(key, type: :cas)
-      end)
-    end
-
-    test "CAS download returns {:ok, :miss} when not in primary or fallback bucket" do
+    test "CAS download returns {:ok, :miss} when not in dedicated bucket" do
       key = "test_account/test_project/cas/TE/ST/test_hash"
 
-      expect(ExAws.S3, :head_object, 2, fn
-        "test-cas-bucket", ^key ->
-          %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
-
-        "test-bucket", ^key ->
-          %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
       end)
 
-      expect(ExAws, :request, 2, fn %ExAws.Operation.S3{} ->
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
         {:error, {:http_error, 404, "Not Found"}}
       end)
 

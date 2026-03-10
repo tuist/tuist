@@ -94,19 +94,6 @@ defmodule Cache.S3TransferWorker do
     transfer.id
   end
 
-  defp handle_result(:download, {:ok, {transfer, {:ok, :fallback_hit}}}) do
-    {:ok, %{size: size}} = transfer.key |> Disk.artifact_path() |> File.stat()
-
-    :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_hit], %{size: size}, %{
-      account_handle: transfer.account_handle,
-      project_handle: transfer.project_handle
-    })
-
-    S3Transfers.enqueue_cas_upload(transfer.account_handle, transfer.project_handle, transfer.key)
-
-    transfer.id
-  end
-
   defp handle_result(:download, {:ok, {transfer, {:ok, :miss}}}) do
     :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_miss], %{}, %{
       account_handle: transfer.account_handle,
