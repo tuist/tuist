@@ -67,7 +67,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     1. **Overall**: duration change, status change, pass/regress verdict.
     2. **Top regressions**: up to 5 items sorted by absolute time increase.
     3. **Cache changes**: hit-rate delta, notable changes.
-    4. **New issues**: errors and warnings added (Xcode only).
+    4. **New issues**: new errors and warnings (Xcode only).
     5. **Recommendations**: actionable next steps. Since the developer is likely on the head branch, suggest concrete local fixes.
     """
   end
