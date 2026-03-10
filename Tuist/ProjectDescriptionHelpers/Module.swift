@@ -1441,6 +1441,7 @@ public enum Module: String, CaseIterable {
             case .machineMetrics:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -1580,6 +1581,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcResultService.targetName),
                     .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
                     .target(name: Module.launchctl.targetName),
+                    .target(name: Module.machineMetrics.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
@@ -1842,8 +1844,12 @@ public enum Module: String, CaseIterable {
             case .launchctl:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .external(name: "Command"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .oidc:
                 [
