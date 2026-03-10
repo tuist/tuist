@@ -146,6 +146,12 @@
         selected={@selected_tab == "errors"}
         patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
       />
+      <.tab_menu_horizontal_item
+        :if={length(@machine_metrics) > 0}
+        label={dgettext("dashboard_builds", "Machine Metrics")}
+        selected={@selected_tab == "machine-metrics"}
+        patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
+      />
     </.tab_menu_horizontal>
     <%= if @selected_tab == "overview" and @run.status != "processing" do %>
       <.card
@@ -189,12 +195,14 @@
                   label={dgettext("dashboard_builds", "Passed")}
                   color="success"
                   style="fill"
+                  size="large"
                 />
                 <.badge
                   :if={@run.status == "failure"}
                   label={dgettext("dashboard_builds", "Failed")}
                   color="destructive"
                   style="fill"
+                  size="large"
                 />
                 <.badge
                   :if={@run.status == "failed_processing"}
@@ -240,6 +248,7 @@
                       else: @run.category |> String.capitalize()
                   }
                   style="fill"
+                  size="large"
                 />
               </div>
               <div data-part="metadata">
@@ -357,7 +366,7 @@
             <.button
               variant="secondary"
               label={dgettext("dashboard_builds", "View more")}
-              size="small"
+              size="medium"
               patch={"?#{Query.put(@uri.query, "tab", "warnings")}"}
             />
           </div>
@@ -1578,6 +1587,9 @@
           </.card_section>
         </.card>
       </div>
+    <% end %>
+    <%= if @selected_tab == "machine-metrics" do %>
+      <.machine_metrics_charts metrics={@machine_metrics} />
     <% end %>
   </div>
 <% end %>

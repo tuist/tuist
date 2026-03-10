@@ -25,6 +25,7 @@ defmodule Tuist.Cache do
           size: event.size,
           cas_id: event.cas_id,
           project_id: event.project_id,
+          cache_endpoint: event.cache_endpoint,
           inserted_at: now
         }
       end)

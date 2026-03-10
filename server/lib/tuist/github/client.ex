@@ -252,6 +252,24 @@ defmodule Tuist.GitHub.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
+  def get_pull_request(%{
+        repository_full_handle: repository_full_handle,
+        installation_id: installation_id,
+        pr_number: pr_number
+      }) do
+    url =
+      URI.to_string(%URI{
+        scheme: "https",
+        host: "api.github.com",
+        path: "/repos/#{repository_full_handle}/pulls/#{pr_number}"
+      })
+
+    github_request(&Req.get/1,
+      url: url,
+      installation_id: installation_id
+    )
+  end
+
   def create_check_run(%{repository_full_handle: repository_full_handle, installation_id: installation_id} = params) do
     url =
       URI.to_string(%URI{scheme: "https", host: "api.github.com", path: "/repos/#{repository_full_handle}/check-runs"})

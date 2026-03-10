@@ -883,6 +883,65 @@ components:
           type: array
           x-struct:
           x-validate:
+        machine_metrics:
+          description: Machine performance metrics collected during the build.
+          items:
+            properties:
+              cpu_usage_percent:
+                description: CPU usage percentage (0-100).
+                type: number
+                x-struct:
+                x-validate:
+              disk_bytes_read:
+                description: Disk bytes read per second.
+                type: integer
+                x-struct:
+                x-validate:
+              disk_bytes_written:
+                description: Disk bytes written per second.
+                type: integer
+                x-struct:
+                x-validate:
+              memory_total_bytes:
+                description: Total memory in bytes.
+                type: integer
+                x-struct:
+                x-validate:
+              memory_used_bytes:
+                description: Memory used in bytes.
+                type: integer
+                x-struct:
+                x-validate:
+              network_bytes_in:
+                description: Network bytes received per second.
+                type: integer
+                x-struct:
+                x-validate:
+              network_bytes_out:
+                description: Network bytes sent per second.
+                type: integer
+                x-struct:
+                x-validate:
+              timestamp:
+                description: Unix timestamp in seconds.
+                type: number
+                x-struct:
+                x-validate:
+            required:
+              - timestamp
+              - cpu_usage_percent
+              - memory_used_bytes
+              - memory_total_bytes
+              - network_bytes_in
+              - network_bytes_out
+              - disk_bytes_read
+              - disk_bytes_written
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
         macos_version:
           description: The version of macOS used during the build.
           type: string
@@ -8784,6 +8843,65 @@ paths:
                   type: array
                   x-struct:
                   x-validate:
+                machine_metrics:
+                  description: Machine performance metrics collected during the build.
+                  items:
+                    properties:
+                      cpu_usage_percent:
+                        description: CPU usage percentage (0-100).
+                        type: number
+                        x-struct:
+                        x-validate:
+                      disk_bytes_read:
+                        description: Disk bytes read per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      disk_bytes_written:
+                        description: Disk bytes written per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      memory_total_bytes:
+                        description: Total memory in bytes.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      memory_used_bytes:
+                        description: Memory used in bytes.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      network_bytes_in:
+                        description: Network bytes received per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      network_bytes_out:
+                        description: Network bytes sent per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      timestamp:
+                        description: Unix timestamp in seconds.
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - timestamp
+                      - cpu_usage_percent
+                      - memory_used_bytes
+                      - memory_total_bytes
+                      - network_bytes_in
+                      - network_bytes_out
+                      - disk_bytes_read
+                      - disk_bytes_written
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
                 macos_version:
                   description: The version of macOS used during the build.
                   type: string
@@ -9260,6 +9378,65 @@ paths:
                   description: Java version.
                   nullable: true
                   type: string
+                  x-struct:
+                  x-validate:
+                machine_metrics:
+                  description: Machine performance metrics collected during the build.
+                  items:
+                    properties:
+                      cpu_usage_percent:
+                        description: CPU usage percentage (0-100).
+                        type: number
+                        x-struct:
+                        x-validate:
+                      disk_bytes_read:
+                        description: Disk bytes read per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      disk_bytes_written:
+                        description: Disk bytes written per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      memory_total_bytes:
+                        description: Total memory in bytes.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      memory_used_bytes:
+                        description: Memory used in bytes.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      network_bytes_in:
+                        description: Network bytes received per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      network_bytes_out:
+                        description: Network bytes sent per second.
+                        type: integer
+                        x-struct:
+                        x-validate:
+                      timestamp:
+                        description: Unix timestamp in seconds.
+                        type: number
+                        x-struct:
+                        x-validate:
+                    required:
+                      - timestamp
+                      - cpu_usage_percent
+                      - memory_used_bytes
+                      - memory_total_bytes
+                      - network_bytes_in
+                      - network_bytes_out
+                      - disk_bytes_read
+                      - disk_bytes_written
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
                   x-struct:
                   x-validate:
                 root_project_name:

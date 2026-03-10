@@ -19,7 +19,7 @@ Test insights are collected automatically when the Tuist Gradle plugin is applie
 
 You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
-![Dashboard with test insights](/images/guides/features/insights/tests-dashboard.png)
+![Dashboard with test insights](/images/guides/features/build-insights/tests-dashboard.png)
 
 ## What is tracked {#what-is-tracked}
 

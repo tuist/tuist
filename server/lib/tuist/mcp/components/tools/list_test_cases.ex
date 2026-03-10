@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.ListTestCases do
   @moduledoc """
-  List test cases for a project.
+  List test cases for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -32,18 +32,16 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   end
 
   @impl true
-  def execute(%{account_handle: account_handle, project_handle: project_handle} = arguments, frame) do
+  def execute(arguments, frame) do
     with {:ok, project} <-
-           ToolSupport.load_and_authorize_project_by_handle(
-             account_handle,
-             project_handle,
+           ToolSupport.resolve_and_authorize_project(
+             arguments,
              frame,
              @authorization_action,
-             @authorization_category,
-             "You do not have access to project: #{account_handle}/#{project_handle}"
+             @authorization_category
            ) do
-      page = arguments |> Map.get(:page) |> integer_argument(1)
-      page_size = arguments |> Map.get(:page_size) |> integer_argument(20) |> min(100)
+      page = ToolSupport.page(arguments)
+      page_size = ToolSupport.page_size(arguments)
       filters = build_filters(arguments)
 
       {test_cases, meta} =
@@ -71,22 +69,12 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
               avg_duration: test_case.avg_duration
             }
           end),
-        pagination_metadata: %{
-          has_next_page: meta.has_next_page?,
-          has_previous_page: meta.has_previous_page?,
-          total_count: meta.total_count,
-          total_pages: meta.total_pages,
-          current_page: meta.current_page,
-          page_size: meta.page_size
-        }
+        pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
       {:reply, Response.json(Response.tool(), data), frame}
     end
   end
-
-  defp integer_argument(value, _default) when is_integer(value) and value > 0, do: value
-  defp integer_argument(_value, default), do: default
 
   defp build_filters(arguments) do
     arguments

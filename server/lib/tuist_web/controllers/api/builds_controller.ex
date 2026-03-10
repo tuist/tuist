@@ -798,6 +798,33 @@ defmodule TuistWeb.API.BuildsController do
                }
              }
            },
+           machine_metrics: %Schema{
+             type: :array,
+             description: "Machine performance metrics collected during the build.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
+                 cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
+                 memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
+                 memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
+                 network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
+                 network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
+                 disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+               },
+               required: [
+                 :timestamp,
+                 :cpu_usage_percent,
+                 :memory_used_bytes,
+                 :memory_total_bytes,
+                 :network_bytes_in,
+                 :network_bytes_out,
+                 :disk_bytes_read,
+                 :disk_bytes_written
+               ]
+             }
+           }
          },
          required: [
            :id,
@@ -887,7 +914,8 @@ defmodule TuistWeb.API.BuildsController do
           cas_outputs: Map.get(params, :cas_outputs, []),
           xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
           custom_tags: Map.get(custom_metadata, :tags, []),
-          custom_values: Map.get(custom_metadata, :values, %{})
+          custom_values: Map.get(custom_metadata, :values, %{}),
+          machine_metrics: Map.get(params, :machine_metrics, [])
         }
 
         {:ok, build} = Builds.create_build(build_attrs) |> handle_build_creation_result(params.id)

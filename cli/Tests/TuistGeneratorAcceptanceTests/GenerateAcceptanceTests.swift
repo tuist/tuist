@@ -1397,22 +1397,22 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
+            resource: "App_ProjectResourcesFramework.bundle/**/greeting.txt"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "App_ProjectResourcesFramework.bundle/**/Info.plist"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
@@ -1440,17 +1440,17 @@ struct GenerateAcceptanceTestAppWithMacBundle {
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "Frameworks/ProjectResourcesFramework.framework"
+            resource: "App_ProjectResourcesFramework.bundle"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/greeting.txt"
+            resource: "App_ProjectResourcesFramework.bundle/**/greeting.txt"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "ProjectResourcesFramework.framework/Resources/Info.plist"
+            resource: "App_ProjectResourcesFramework.bundle/**/Info.plist"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
