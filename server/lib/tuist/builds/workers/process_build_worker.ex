@@ -93,15 +93,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
            receive_timeout: 300_000
          ) do
       {:ok, %{status: 200, body: parsed_data}} ->
-        Logger.info(
-          "Processor returned parsed data for build #{build_id}: " <>
-            "#{length(Map.get(parsed_data, "targets", []))} targets, " <>
-            "#{length(Map.get(parsed_data, "issues", []))} issues, " <>
-            "#{length(Map.get(parsed_data, "files", []))} files, " <>
-            "#{length(Map.get(parsed_data, "cacheable_tasks", []))} cacheable_tasks, " <>
-            "#{length(Map.get(parsed_data, "cas_outputs", []))} cas_outputs"
-        )
-
         {:ok, parsed_data}
 
       {:ok, %{status: status, body: body}} ->
