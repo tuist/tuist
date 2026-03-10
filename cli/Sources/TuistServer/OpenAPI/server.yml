@@ -951,6 +951,11 @@ components:
           type: array
           x-struct:
           x-validate:
+        xcode_cache_upload_enabled:
+          description: Whether Xcode cache upload was enabled for this build.
+          type: boolean
+          x-struct:
+          x-validate:
         xcode_version:
           description: The version of Xcode used during the build.
           type: string
@@ -8845,6 +8850,11 @@ paths:
                     x-struct:
                     x-validate:
                   type: array
+                  x-struct:
+                  x-validate:
+                xcode_cache_upload_enabled:
+                  description: Whether Xcode cache upload was enabled for this build.
+                  type: boolean
                   x-struct:
                   x-validate:
                 xcode_version:

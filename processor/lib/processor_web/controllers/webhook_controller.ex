@@ -7,10 +7,11 @@ defmodule ProcessorWeb.WebhookController do
         "build_id" => build_id,
         "storage_key" => storage_key,
         "project_id" => project_id
-      }) do
+      } = params) do
+    xcode_cache_upload_enabled = Map.get(params, "xcode_cache_upload_enabled", false)
     Logger.info("Processing build #{build_id} (storage_key: #{storage_key})")
 
-    case Processor.BuildProcessor.process(storage_key) do
+    case Processor.BuildProcessor.process(storage_key, xcode_cache_upload_enabled) do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
 

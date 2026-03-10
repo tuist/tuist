@@ -1,22 +1,22 @@
 defmodule Processor.BuildProcessor do
   @moduledoc false
 
-  def process(storage_key) do
+  def process(storage_key, xcode_cache_upload_enabled) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
 
     {:ok, %{body: body}} = ExAws.S3.get_object(bucket, storage_key) |> ExAws.request()
 
-    process_build(body)
+    process_build(body, xcode_cache_upload_enabled)
   end
 
-  def process_build(build_bytes) do
+  def process_build(build_bytes, xcode_cache_upload_enabled) do
     temp_dir = extract_build(build_bytes)
 
     try do
       xcactivitylog_path = find_xcactivitylog(temp_dir)
       cas_path = Path.join(temp_dir, "cas_metadata")
 
-      {:ok, parsed_data} = Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, true)
+      {:ok, parsed_data} = Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
       {:ok, parsed_data}
     after
       cleanup_temp(temp_dir)

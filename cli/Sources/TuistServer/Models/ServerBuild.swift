@@ -4,6 +4,7 @@ public enum ServerBuildStatus: String, Codable {
     case success
     case failure
     case processing
+    case failedProcessing = "failed_processing"
 }
 
 /// Server build run
@@ -36,6 +37,8 @@ extension ServerBuild {
             status = .failure
         case .processing:
             status = .processing
+        case .failed_processing:
+            status = .failedProcessing
         case .none:
             status = nil
         }

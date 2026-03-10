@@ -15,15 +15,16 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           "storage_key" => storage_key,
           "account_id" => account_id,
           "project_id" => project_id
-        }
+        } = args
       }) do
     processor_url = Application.get_env(:tuist, :processor_url)
+    xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
 
     result =
       if is_nil(processor_url) or processor_url == "" do
-        process_locally(build_id, storage_key, account_id)
+        process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled)
       else
-        send_to_processor(processor_url, build_id, storage_key, account_id, project_id)
+        send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled)
       end
 
     case result do
@@ -37,13 +38,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp process_locally(build_id, storage_key, account_id) do
+  defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
     if Code.ensure_loaded?(Processor.BuildProcessor) do
       Logger.info("Processing build #{build_id} locally")
 
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
            build_bytes when is_binary(build_bytes) <- Storage.get_object_as_string(storage_key, account) do
-        Processor.BuildProcessor.process_build(build_bytes)
+        Processor.BuildProcessor.process_build(build_bytes, xcode_cache_upload_enabled)
       else
         nil -> {:error, :build_not_found}
         {:error, _} = error -> error
@@ -57,12 +58,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id) do
+  defp send_to_processor(processor_url, build_id, storage_key, account_id, project_id, xcode_cache_upload_enabled) do
     payload = %{
       build_id: build_id,
       storage_key: storage_key,
       account_id: account_id,
-      project_id: project_id
+      project_id: project_id,
+      xcode_cache_upload_enabled: xcode_cache_upload_enabled
     }
 
     Logger.info("Sending build #{build_id} to processor at #{processor_url}")
@@ -138,6 +140,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       ci_provider: (original_build && original_build.ci_provider) || "",
       custom_tags: (original_build && original_build.custom_tags) || [],
       custom_values: (original_build && original_build.custom_values) || %{},
+      xcode_cache_upload_enabled: (original_build && original_build.xcode_cache_upload_enabled) || false,
       storage_key: original_build && original_build.storage_key,
       targets: convert_targets(parsed[:targets] || []),
       issues: convert_issues(parsed[:issues] || []),

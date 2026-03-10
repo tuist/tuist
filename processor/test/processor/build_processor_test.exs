@@ -6,7 +6,7 @@ defmodule Processor.BuildProcessorTest do
 
   setup :verify_on_exit!
 
-  describe "process/1" do
+  describe "process/2" do
     test "downloads from S3 and processes the build" do
       storage_key = "builds/test-build.zip"
       build_bytes = build_test_zip()
@@ -26,12 +26,11 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:ok, %{"duration" => 1000, "status" => "success"}} =
-               BuildProcessor.process(storage_key)
+               BuildProcessor.process(storage_key, true)
     end
-
   end
 
-  describe "process_build/1" do
+  describe "process_build/2" do
     test "extracts build and parses xcactivitylog" do
       build_bytes = build_test_zip()
 
@@ -42,24 +41,34 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:ok, %{"duration" => 500, "status" => "success", "targets" => []}} =
-               BuildProcessor.process_build(build_bytes)
+               BuildProcessor.process_build(build_bytes, true)
+    end
+
+    test "passes xcode_cache_upload_enabled to NIF" do
+      build_bytes = build_test_zip()
+
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, false ->
+        {:ok, %{"status" => "success"}}
+      end)
+
+      assert {:ok, _} = BuildProcessor.process_build(build_bytes, false)
     end
 
     test "ignores manifest when present" do
-      build_bytes = build_test_zip(manifest: %{"cache_upload_enabled" => true})
+      build_bytes = build_test_zip(manifest: %{"xcode_cache_upload_enabled" => true})
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:ok, %{"status" => "success"}}
       end)
 
-      assert {:ok, _} = BuildProcessor.process_build(build_bytes)
+      assert {:ok, _} = BuildProcessor.process_build(build_bytes, true)
     end
 
     test "raises when xcactivitylog directory is missing" do
       build_bytes = build_test_zip(include_xcactivitylog: false)
 
       assert_raise MatchError, fn ->
-        BuildProcessor.process_build(build_bytes)
+        BuildProcessor.process_build(build_bytes, true)
       end
     end
 
@@ -71,13 +80,13 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert_raise MatchError, fn ->
-        BuildProcessor.process_build(build_bytes)
+        BuildProcessor.process_build(build_bytes, true)
       end
     end
 
     test "raises for invalid zip data" do
       assert_raise MatchError, fn ->
-        BuildProcessor.process_build("not a zip file")
+        BuildProcessor.process_build("not a zip file", true)
       end
     end
   end

@@ -11,7 +11,8 @@ defmodule ProcessorWeb.WebhookControllerTest do
     "build_id" => "build-123",
     "storage_key" => "some/storage/key.xcactivitylog",
     "account_id" => "account-456",
-    "project_id" => "project-789"
+    "project_id" => "project-789",
+    "xcode_cache_upload_enabled" => true
   }
 
   defp sign_body(body) do
@@ -50,7 +51,7 @@ defmodule ProcessorWeb.WebhookControllerTest do
     end
 
     test "returns 200 with parsed data when signature is valid and processing succeeds" do
-      expect(Processor.BuildProcessor, :process, fn _storage_key ->
+      expect(Processor.BuildProcessor, :process, fn _storage_key, true ->
         {:ok, %{"duration" => 1200, "targets" => []}}
       end)
 
@@ -71,7 +72,7 @@ defmodule ProcessorWeb.WebhookControllerTest do
     end
 
     test "returns 500 when processing fails" do
-      expect(Processor.BuildProcessor, :process, fn _storage_key ->
+      expect(Processor.BuildProcessor, :process, fn _storage_key, true ->
         {:error, :processing_failed}
       end)
 

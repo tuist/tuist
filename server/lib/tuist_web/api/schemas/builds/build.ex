@@ -15,7 +15,7 @@ defmodule TuistWeb.API.Schemas.Builds.Build do
       id: %Schema{type: :string, description: "The unique identifier of the build run"},
       status: %Schema{
         type: :string,
-        enum: ["success", "failure", "processing"],
+        enum: ["success", "failure", "processing", "failed_processing"],
         description: "The status of the build run"
       },
       duration: %Schema{type: :integer, description: "The duration of the build run in milliseconds"},

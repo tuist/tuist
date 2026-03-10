@@ -17,12 +17,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     %{account: account}
   end
 
-  defp job_args(account_id) do
+  defp job_args(account_id, opts \\ []) do
+    xcode_cache_upload_enabled = Keyword.get(opts, :xcode_cache_upload_enabled, true)
+
     %{
       "build_id" => @build_id,
       "storage_key" => @storage_key,
       "account_id" => account_id,
-      "project_id" => @project_id
+      "project_id" => @project_id,
+      "xcode_cache_upload_enabled" => xcode_cache_upload_enabled
     }
   end
 
@@ -55,6 +58,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         body = Jason.decode!(opts[:body])
         assert body["build_id"] == @build_id
         assert body["storage_key"] == @storage_key
+        assert body["xcode_cache_upload_enabled"] == true
         assert Enum.any?(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
         {:ok, %{status: 200, body: parsed_data()}}
       end)
@@ -111,7 +115,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "fake build bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes" ->
+      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes", true ->
         {:ok, parsed_data()}
       end)
 
@@ -147,7 +151,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "fake build bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn _bytes ->
+      expect(Processor.BuildProcessor, :process_build, fn _bytes, _xcode_cache_upload_enabled ->
         {:error, {:parse_failed, "NIF not loaded"}}
       end)
 
@@ -186,7 +190,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "fake build bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes" ->
+      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes", true ->
         {:ok, parsed_data()}
       end)
 

@@ -31,6 +31,7 @@ import TuistHTTP
             macOSVersion: String,
             scheme: String?,
             targets: [XCActivityTarget],
+            xcodeCacheUploadEnabled: Bool,
             xcodeVersion: String?,
             status: ServerBuildRunStatus,
             ciRunId: String?,
@@ -97,6 +98,7 @@ import TuistHTTP
             macOSVersion: String,
             scheme: String?,
             targets: [XCActivityTarget],
+            xcodeCacheUploadEnabled: Bool,
             xcodeVersion: String?,
             status: ServerBuildRunStatus,
             ciRunId: String?,
@@ -182,6 +184,7 @@ import TuistHTTP
                             status: status,
                             targets: targets
                                 .map(Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload.init),
+                            xcode_cache_upload_enabled: xcodeCacheUploadEnabled,
                             xcode_version: xcodeVersion
                         )
                     )

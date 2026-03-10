@@ -3089,6 +3089,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/targets`.
             public var targets: Components.Schemas.BuildParams.targetsPayload?
+            /// Whether Xcode cache upload was enabled for this build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildParams/xcode_cache_upload_enabled`.
+            public var xcode_cache_upload_enabled: Swift.Bool?
             /// The version of Xcode used during the build.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/xcode_version`.
@@ -3119,6 +3123,7 @@ public enum Components {
             ///   - scheme: The scheme used for the build.
             ///   - status: The status of the build run.
             ///   - targets: Targets with build metadata associated with the build run.
+            ///   - xcode_cache_upload_enabled: Whether Xcode cache upload was enabled for this build.
             ///   - xcode_version: The version of Xcode used during the build.
             public init(
                 cacheable_tasks: Components.Schemas.BuildParams.cacheable_tasksPayload? = nil,
@@ -3144,6 +3149,7 @@ public enum Components {
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildParams.statusPayload? = nil,
                 targets: Components.Schemas.BuildParams.targetsPayload? = nil,
+                xcode_cache_upload_enabled: Swift.Bool? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
@@ -3169,6 +3175,7 @@ public enum Components {
                 self.scheme = scheme
                 self.status = status
                 self.targets = targets
+                self.xcode_cache_upload_enabled = xcode_cache_upload_enabled
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -3195,6 +3202,7 @@ public enum Components {
                 case scheme
                 case status
                 case targets
+                case xcode_cache_upload_enabled
                 case xcode_version
             }
         }
@@ -22262,6 +22270,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/targets`.
                     public var targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload?
+                    /// Whether Xcode cache upload was enabled for this build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/xcode_cache_upload_enabled`.
+                    public var xcode_cache_upload_enabled: Swift.Bool?
                     /// The version of Xcode used during the build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/xcode_version`.
@@ -22292,6 +22304,7 @@ public enum Operations {
                     ///   - scheme: The scheme used for the build.
                     ///   - status: The status of the build run.
                     ///   - targets: Targets with build metadata associated with the build run.
+                    ///   - xcode_cache_upload_enabled: Whether Xcode cache upload was enabled for this build.
                     ///   - xcode_version: The version of Xcode used during the build.
                     public init(
                         cacheable_tasks: Operations.createBuild.Input.Body.jsonPayload.cacheable_tasksPayload? = nil,
@@ -22317,6 +22330,7 @@ public enum Operations {
                         scheme: Swift.String? = nil,
                         status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? = nil,
                         targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload? = nil,
+                        xcode_cache_upload_enabled: Swift.Bool? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.cacheable_tasks = cacheable_tasks
@@ -22342,6 +22356,7 @@ public enum Operations {
                         self.scheme = scheme
                         self.status = status
                         self.targets = targets
+                        self.xcode_cache_upload_enabled = xcode_cache_upload_enabled
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -22368,6 +22383,7 @@ public enum Operations {
                         case scheme
                         case status
                         case targets
+                        case xcode_cache_upload_enabled
                         case xcode_version
                     }
                 }

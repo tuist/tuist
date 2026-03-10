@@ -777,6 +777,10 @@ defmodule TuistWeb.API.BuildsController do
                required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
              }
            },
+           xcode_cache_upload_enabled: %Schema{
+             type: :boolean,
+             description: "Whether Xcode cache upload was enabled for this build."
+           },
            custom_metadata: %Schema{
              type: :object,
              description: "Custom metadata for the build run.",
@@ -884,6 +888,7 @@ defmodule TuistWeb.API.BuildsController do
       ci_project_handle: Map.get(params, :ci_project_handle),
       ci_host: Map.get(params, :ci_host),
       ci_provider: Map.get(params, :ci_provider),
+      xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
       storage_key: storage_key,
       custom_tags: Map.get(custom_metadata, :tags, []),
       custom_values: Map.get(custom_metadata, :values, %{})
@@ -895,7 +900,8 @@ defmodule TuistWeb.API.BuildsController do
           build_id: build.id,
           storage_key: storage_key,
           account_id: account.id,
-          project_id: selected_project.id
+          project_id: selected_project.id,
+          xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
         }
         |> Tuist.Builds.Workers.ProcessBuildWorker.new()
         |> Oban.insert()
@@ -940,6 +946,7 @@ defmodule TuistWeb.API.BuildsController do
           targets: Map.get(params, :targets, []),
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, []),
+          xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{})
         }
