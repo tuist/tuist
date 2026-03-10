@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "acea5e373048",
+  "strategy": "manual-commit",
+  "branch": "feat/comparison-skills",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
+    "skills/skills/compare-builds/SKILL.md",
+    "skills/skills/compare-bundles/SKILL.md",
+    "skills/skills/compare-cache-runs/SKILL.md",
+    "skills/skills/compare-generations/SKILL.md",
+    "skills/skills/compare-test-case/SKILL.md",
+    "skills/skills/compare-test-runs/SKILL.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ac/ea5e373048/0/metadata.json",
+      "transcript": "/ac/ea5e373048/0/full.jsonl",
+      "context": "/ac/ea5e373048/0/context.md",
+      "content_hash": "/ac/ea5e373048/0/content_hash.txt",
+      "prompt": "/ac/ea5e373048/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 2911,
+    "cache_creation_tokens": 66311,
+    "cache_read_tokens": 984511,
+    "output_tokens": 14331,
+    "api_call_count": 19
+  }
+}
