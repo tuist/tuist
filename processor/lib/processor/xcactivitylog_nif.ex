@@ -10,21 +10,12 @@ defmodule Processor.XCActivityLogNIF do
 
   @on_load :load_nif
 
-  require Logger
-
   def load_nif do
     nif_path = ~c"#{:code.priv_dir(:processor)}/native/xcactivitylog_nif"
 
     case :erlang.load_nif(nif_path, 0) do
-      :ok ->
-        :ok
-
-      {:error, {:reload, _}} ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("Failed to load xcactivitylog NIF: #{inspect(reason)}. Parse calls will fail.")
-        :ok
+      :ok -> :ok
+      {:error, {:reload, _}} -> :ok
     end
   end
 
