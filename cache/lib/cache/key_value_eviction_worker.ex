@@ -105,7 +105,16 @@ defmodule Cache.KeyValueEvictionWorker do
   # Single oldest-first batched eviction loop. Each iteration deletes one
   # batch, runs a maintenance pass, and re-checks DB size before continuing.
   defp run_size_based_eviction(min_retention_days, deadline_ms, release_bytes) do
-    size_eviction_loop(min_retention_days, deadline_ms, release_bytes, %{}, 0)
+    case run_size_maintenance_pass(deadline_ms) do
+      :ok ->
+        continue_size_eviction(min_retention_days, deadline_ms, release_bytes, %{}, 0)
+
+      {:error, :busy} ->
+        {:size, %{}, 0, :busy}
+
+      {:error, :deadline_exhausted} ->
+        {:size, %{}, 0, :time_limit_reached}
+    end
   end
 
   defp size_eviction_loop(min_retention_days, deadline_ms, release_bytes, hashes_acc, count_acc) do

@@ -361,8 +361,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       end
     end)
 
-    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
-      {%{}, 0, :complete}
+    stub(KeyValueEntries, :delete_one_expired_batch, fn _min_retention_days, _opts ->
+      flunk("expected maintenance to shrink before deleting any KV entries")
     end)
 
     {measurements, metadata} =
@@ -402,7 +402,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert measurements.duration_ms >= 0
   end
 
-  test "size-based eviction reports busy when maintenance pass hits lock contention at retention floor" do
+  test "size-based eviction reports busy when initial maintenance hits lock contention" do
     stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") ->
@@ -420,10 +420,6 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA wal_checkpoint(PASSIVE)" ->
           raise %Exqlite.Error{message: "database is locked"}
       end
-    end)
-
-    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
-      {%{}, 0, :complete}
     end)
 
     {measurements, metadata} =
@@ -577,6 +573,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
         query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
         query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
+        query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
+        query == "PRAGMA incremental_vacuum(1000)" -> {:ok, %{rows: []}}
       end
     end)
 

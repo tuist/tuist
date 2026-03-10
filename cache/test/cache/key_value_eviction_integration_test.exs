@@ -159,8 +159,8 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
       end
     end)
 
-    expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
-      {%{}, 0, :complete}
+    stub(KeyValueEntries, :delete_one_expired_batch, fn _min_retention_days, _opts ->
+      flunk("expected maintenance to shrink before deleting any KV entries")
     end)
 
     {measurements, metadata} =
