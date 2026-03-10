@@ -3,7 +3,9 @@ package dev.tuist.gradle
 import java.io.File
 import java.lang.management.ManagementFactory
 
-class MachineMetricsCollector {
+class MachineMetricsCollector(
+    private val sampleIntervalMs: Long = 1000
+) {
     private val samples = mutableListOf<MachineMetricSample>()
     @Volatile private var running = false
     private var thread: Thread? = null
@@ -26,7 +28,7 @@ class MachineMetricsCollector {
         thread = Thread({
             while (running) {
                 try {
-                    Thread.sleep(1000)
+                    Thread.sleep(sampleIntervalMs)
                     if (!running) break
                     collectSample()
                 } catch (e: InterruptedException) {
@@ -83,6 +85,7 @@ class MachineMetricsCollector {
         return try {
             val sunBean = osMXBean as? com.sun.management.OperatingSystemMXBean
             val cpuLoad = sunBean?.cpuLoad ?: sunBean?.systemLoadAverage?.let { it / (osMXBean.availableProcessors) } ?: 0.0
+            if (cpuLoad < 0 || cpuLoad.isNaN()) return 0f
             (cpuLoad * 100).toFloat().coerceIn(0f, 100f)
         } catch (e: Exception) {
             0f

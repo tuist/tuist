@@ -59,6 +59,7 @@ listOf(configurations.apiElements, configurations.runtimeElements).forEach { con
 
 tasks.test {
     useJUnitPlatform()
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }
 
 gradlePlugin {

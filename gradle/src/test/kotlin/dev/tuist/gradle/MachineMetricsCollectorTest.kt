@@ -6,29 +6,31 @@ import kotlin.test.assertTrue
 
 class MachineMetricsCollectorTest {
 
+    private fun createCollector() = MachineMetricsCollector(sampleIntervalMs = 50)
+
     @Test
     fun `stop returns empty list when no samples collected`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         val samples = collector.stop()
         assertEquals(emptyList(), samples)
     }
 
     @Test
     fun `stop returns collected samples after running`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(2500)
+        Thread.sleep(150)
         val samples = collector.stop()
 
-        assertTrue(samples.isNotEmpty(), "Expected at least one sample after 2.5 seconds")
+        assertTrue(samples.isNotEmpty(), "Expected at least one sample")
     }
 
     @Test
     fun `samples contain valid timestamps`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         val beforeStart = System.currentTimeMillis() / 1000.0
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val samples = collector.stop()
         val afterStop = System.currentTimeMillis() / 1000.0
 
@@ -41,9 +43,9 @@ class MachineMetricsCollectorTest {
 
     @Test
     fun `samples contain non-negative cpu usage`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val samples = collector.stop()
 
         assertTrue(samples.isNotEmpty())
@@ -55,9 +57,9 @@ class MachineMetricsCollectorTest {
 
     @Test
     fun `samples contain non-negative memory values`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val samples = collector.stop()
 
         assertTrue(samples.isNotEmpty())
@@ -73,9 +75,9 @@ class MachineMetricsCollectorTest {
 
     @Test
     fun `samples contain non-negative network and disk values`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val samples = collector.stop()
 
         assertTrue(samples.isNotEmpty())
@@ -89,9 +91,9 @@ class MachineMetricsCollectorTest {
 
     @Test
     fun `stop can be called multiple times safely`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val firstResult = collector.stop()
         val secondResult = collector.stop()
 
@@ -101,13 +103,13 @@ class MachineMetricsCollectorTest {
 
     @Test
     fun `start can be called after stop for a new session`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val firstSamples = collector.stop()
 
         collector.start()
-        Thread.sleep(1500)
+        Thread.sleep(150)
         val secondSamples = collector.stop()
 
         assertTrue(firstSamples.isNotEmpty())
@@ -116,12 +118,12 @@ class MachineMetricsCollectorTest {
 
     @Test
     fun `multiple samples have increasing timestamps`() {
-        val collector = MachineMetricsCollector()
+        val collector = createCollector()
         collector.start()
-        Thread.sleep(3500)
+        Thread.sleep(200)
         val samples = collector.stop()
 
-        assertTrue(samples.size >= 2, "Expected at least 2 samples after 3.5 seconds")
+        assertTrue(samples.size >= 2, "Expected at least 2 samples")
         for (i in 1 until samples.size) {
             assertTrue(
                 samples[i].timestamp >= samples[i - 1].timestamp,
