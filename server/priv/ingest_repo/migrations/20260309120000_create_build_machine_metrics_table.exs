@@ -6,11 +6,11 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildMachineMetricsTable do
              primary_key: false,
              engine: "MergeTree",
              options:
-               "ORDER BY (inserted_at, timestamp_offset_ms) TTL inserted_at + INTERVAL 90 DAY"
+               "ORDER BY (inserted_at, timestamp) TTL inserted_at + INTERVAL 90 DAY"
            ) do
       add :build_run_id, :"Nullable(UUID)"
       add :gradle_build_id, :"Nullable(UUID)"
-      add :timestamp_offset_ms, :Int32, null: false
+      add :timestamp, :Float64, null: false
       add :cpu_usage_percent, :Float32, null: false
       add :memory_used_bytes, :Int64, null: false
       add :memory_total_bytes, :Int64, null: false

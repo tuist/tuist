@@ -15,17 +15,12 @@ defmodule Tuist.MachineMetrics do
     gradle_build_id = Keyword.get(opts, :gradle_build_id)
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
-    min_timestamp =
-      metrics_list
-      |> Enum.map(& &1.timestamp)
-      |> Enum.min(fn -> 0.0 end)
-
     entries =
       Enum.map(metrics_list, fn metric ->
         %{
           build_run_id: build_run_id,
           gradle_build_id: gradle_build_id,
-          timestamp_offset_ms: round((metric.timestamp - min_timestamp) * 1000),
+          timestamp: metric.timestamp,
           cpu_usage_percent: metric.cpu_usage_percent,
           memory_used_bytes: metric.memory_used_bytes,
           memory_total_bytes: metric.memory_total_bytes,
@@ -48,7 +43,7 @@ defmodule Tuist.MachineMetrics do
   def get_machine_metrics_by_build_run_id(build_run_id) do
     from(m in BuildMachineMetric,
       where: m.build_run_id == ^build_run_id,
-      order_by: [asc: m.timestamp_offset_ms]
+      order_by: [asc: m.timestamp]
     )
     |> ClickHouseRepo.all()
   end
@@ -56,7 +51,7 @@ defmodule Tuist.MachineMetrics do
   def get_machine_metrics_by_gradle_build_id(gradle_build_id) do
     from(m in BuildMachineMetric,
       where: m.gradle_build_id == ^gradle_build_id,
-      order_by: [asc: m.timestamp_offset_ms]
+      order_by: [asc: m.timestamp]
     )
     |> ClickHouseRepo.all()
   end

@@ -35,7 +35,7 @@ defmodule Tuist.MachineMetricsTest do
   end
 
   describe "create_machine_metrics/2" do
-    test "inserts metrics with build_run_id and computes offset from earliest timestamp" do
+    test "inserts metrics with build_run_id and stores timestamps" do
       build_run_id = UUIDv7.generate()
 
       assert :ok = MachineMetrics.create_machine_metrics(sample_metrics(), build_run_id: build_run_id)
@@ -43,7 +43,7 @@ defmodule Tuist.MachineMetricsTest do
       metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.build_run_id == ^build_run_id))
       assert length(metrics) == 2
 
-      first = Enum.find(metrics, &(&1.timestamp_offset_ms == 0))
+      first = Enum.find(metrics, &(&1.timestamp == @base_timestamp + 1.0))
       assert first != nil
       assert_in_delta first.cpu_usage_percent, 45.5, 0.01
       assert first.memory_used_bytes == 8_000_000_000
@@ -54,7 +54,7 @@ defmodule Tuist.MachineMetricsTest do
       assert first.disk_bytes_written == 1_500_000
       assert first.gradle_build_id == nil
 
-      second = Enum.find(metrics, &(&1.timestamp_offset_ms == 1000))
+      second = Enum.find(metrics, &(&1.timestamp == @base_timestamp + 2.0))
       assert second != nil
     end
 
@@ -66,7 +66,7 @@ defmodule Tuist.MachineMetricsTest do
       metrics = ClickHouseRepo.all(from(m in BuildMachineMetric, where: m.gradle_build_id == ^gradle_build_id))
       assert length(metrics) == 2
 
-      first = Enum.find(metrics, &(&1.timestamp_offset_ms == 0))
+      first = Enum.find(metrics, &(&1.timestamp == @base_timestamp + 1.0))
       assert first.build_run_id == nil
     end
 
@@ -80,7 +80,7 @@ defmodule Tuist.MachineMetricsTest do
         entry = hd(entries)
         assert entry.build_run_id == nil
         assert entry.gradle_build_id == nil
-        assert entry.timestamp_offset_ms == 0
+        assert entry.timestamp == @base_timestamp + 1.0
         {1, nil}
       end)
 
@@ -89,14 +89,14 @@ defmodule Tuist.MachineMetricsTest do
   end
 
   describe "get_machine_metrics_by_build_run_id/1" do
-    test "returns metrics ordered by timestamp_offset_ms" do
+    test "returns metrics ordered by timestamp" do
       build_run_id = UUIDv7.generate()
       MachineMetrics.create_machine_metrics(sample_metrics(), build_run_id: build_run_id)
 
       metrics = MachineMetrics.get_machine_metrics_by_build_run_id(build_run_id)
       assert length(metrics) == 2
-      assert Enum.at(metrics, 0).timestamp_offset_ms == 0
-      assert Enum.at(metrics, 1).timestamp_offset_ms == 1000
+      assert Enum.at(metrics, 0).timestamp == @base_timestamp + 1.0
+      assert Enum.at(metrics, 1).timestamp == @base_timestamp + 2.0
     end
 
     test "returns empty list when no metrics exist" do
@@ -113,14 +113,14 @@ defmodule Tuist.MachineMetricsTest do
   end
 
   describe "get_machine_metrics_by_gradle_build_id/1" do
-    test "returns metrics ordered by timestamp_offset_ms" do
+    test "returns metrics ordered by timestamp" do
       gradle_build_id = UUIDv7.generate()
       MachineMetrics.create_machine_metrics(sample_metrics(), gradle_build_id: gradle_build_id)
 
       metrics = MachineMetrics.get_machine_metrics_by_gradle_build_id(gradle_build_id)
       assert length(metrics) == 2
-      assert Enum.at(metrics, 0).timestamp_offset_ms == 0
-      assert Enum.at(metrics, 1).timestamp_offset_ms == 1000
+      assert Enum.at(metrics, 0).timestamp == @base_timestamp + 1.0
+      assert Enum.at(metrics, 1).timestamp == @base_timestamp + 2.0
     end
 
     test "returns empty list when no metrics exist" do

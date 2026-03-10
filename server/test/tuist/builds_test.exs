@@ -95,9 +95,9 @@ defmodule Tuist.BuildsTest do
       # Then
       metrics = Tuist.MachineMetrics.get_machine_metrics_by_build_run_id(build.id)
       assert length(metrics) == 2
-      assert Enum.at(metrics, 0).timestamp_offset_ms == 0
+      assert_in_delta Enum.at(metrics, 0).timestamp, base_ts + 1.0, 0.001
       assert_in_delta Enum.at(metrics, 0).cpu_usage_percent, 45.5, 0.01
-      assert Enum.at(metrics, 1).timestamp_offset_ms == 1000
+      assert_in_delta Enum.at(metrics, 1).timestamp, base_ts + 2.0, 0.001
       assert_in_delta Enum.at(metrics, 1).cpu_usage_percent, 72.3, 0.01
     end
 

@@ -8,13 +8,20 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
 
   def machine_metrics_charts(assigns) do
     metrics = assigns.metrics
+
+    min_timestamp =
+      case metrics do
+        [first | _] -> first.timestamp
+        _ -> 0.0
+      end
+
     metrics =
       metrics
-      |> Enum.group_by(fn m -> div(m.timestamp_offset_ms, 1000) end)
+      |> Enum.group_by(fn m -> trunc(m.timestamp - min_timestamp) end)
       |> Enum.sort_by(fn {k, _} -> k end)
       |> Enum.map(fn {_, samples} -> List.last(samples) end)
 
-    labels = Enum.map(metrics, fn m -> format_time(m.timestamp_offset_ms) end)
+    labels = Enum.map(metrics, fn m -> format_time(trunc((m.timestamp - min_timestamp) * 1000)) end)
     cpu_data = Enum.map(metrics, fn m -> Float.round(m.cpu_usage_percent + 0.0, 1) end)
     memory_data = Enum.map(metrics, fn m -> bytes_to_gib(m.memory_used_bytes) end)
 
