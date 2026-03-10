@@ -2,7 +2,9 @@ defmodule Tuist.GradleTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Gradle
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "cache_hit_rate/1" do
     test "returns 100.0 when all cacheable tasks are cache hits" do
@@ -84,9 +86,7 @@ defmodule Tuist.GradleTest do
   describe "create_build/1" do
     test "stores requested_tasks" do
       build_id =
-        GradleFixtures.build_fixture(
-          requested_tasks: ["assembleDebug", "test"]
-        )
+        GradleFixtures.build_fixture(requested_tasks: ["assembleDebug", "test"])
 
       {:ok, build} = Gradle.get_build(build_id)
       assert build.requested_tasks == ["assembleDebug", "test"]
@@ -102,8 +102,8 @@ defmodule Tuist.GradleTest do
 
   describe "list_builds/3" do
     test "filters builds containing a specific requested task" do
-      project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture()
-      account = TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       GradleFixtures.build_fixture(
         project_id: project.id,
@@ -118,17 +118,15 @@ defmodule Tuist.GradleTest do
       )
 
       {builds, _meta} =
-        Gradle.list_builds(project.id, %{page_size: 10, page: 1},
-          requested_tasks_filters: [{:has, "assembleDebug"}]
-        )
+        Gradle.list_builds(project.id, %{page_size: 10, page: 1}, requested_tasks_filters: [{:has, "assembleDebug"}])
 
       assert length(builds) == 1
       assert hd(builds).requested_tasks == ["assembleDebug"]
     end
 
     test "filters builds not containing a specific requested task" do
-      project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture()
-      account = TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       GradleFixtures.build_fixture(
         project_id: project.id,
@@ -143,9 +141,7 @@ defmodule Tuist.GradleTest do
       )
 
       {builds, _meta} =
-        Gradle.list_builds(project.id, %{page_size: 10, page: 1},
-          requested_tasks_filters: [{:not_has, "assembleDebug"}]
-        )
+        Gradle.list_builds(project.id, %{page_size: 10, page: 1}, requested_tasks_filters: [{:not_has, "assembleDebug"}])
 
       assert length(builds) == 1
       assert hd(builds).requested_tasks == ["assembleRelease"]
