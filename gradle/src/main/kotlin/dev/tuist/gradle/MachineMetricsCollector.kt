@@ -113,7 +113,8 @@ class MachineMetricsCollector {
             when {
                 procNetDev.exists() -> readNetworkBytesLinux(procNetDev)
                 MacOSSystemMetrics.isAvailable -> MacOSSystemMetrics.readNetworkBytes()
-                else -> readNetworkBytesMacOSFallback()
+                // Unsupported platform (e.g. Windows)
+                else -> Pair(0L, 0L)
             }
         } catch (e: Exception) {
             Pair(0L, 0L)
@@ -133,25 +134,6 @@ class MachineMetricsCollector {
         return Pair(totalIn, totalOut)
     }
 
-    private fun readNetworkBytesMacOSFallback(): Pair<Long, Long> {
-        val process = ProcessBuilder("netstat", "-ib")
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        process.waitFor()
-
-        var totalIn = 0L
-        var totalOut = 0L
-        output.lines().drop(1).forEach { line ->
-            val parts = line.trim().split("\\s+".toRegex())
-            if (parts.size >= 11 && parts[2].startsWith("<Link#")) {
-                totalIn += parts[6].toLongOrNull() ?: 0L
-                totalOut += parts[9].toLongOrNull() ?: 0L
-            }
-        }
-        return Pair(totalIn, totalOut)
-    }
-
     // -- Disk --
 
     private fun readDiskBytes(): Pair<Long, Long> {
@@ -160,7 +142,8 @@ class MachineMetricsCollector {
             when {
                 diskStats.exists() -> readDiskBytesLinux(diskStats)
                 MacOSSystemMetrics.isAvailable -> MacOSSystemMetrics.readDiskBytes()
-                else -> readDiskBytesMacOSFallback()
+                // Unsupported platform (e.g. Windows)
+                else -> Pair(0L, 0L)
             }
         } catch (e: Exception) {
             Pair(0L, 0L)
@@ -177,22 +160,6 @@ class MachineMetricsCollector {
                 totalWritten += (parts[9].toLongOrNull() ?: 0L) * 512
             }
         }
-        return Pair(totalRead, totalWritten)
-    }
-
-    private fun readDiskBytesMacOSFallback(): Pair<Long, Long> {
-        val process = ProcessBuilder("ioreg", "-c", "IOBlockStorageDriver", "-r", "-w0")
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText()
-        process.waitFor()
-
-        var totalRead = 0L
-        var totalWritten = 0L
-        val readRegex = """"Bytes \(Read\)"=(\d+)""".toRegex()
-        val writeRegex = """"Bytes \(Write\)"=(\d+)""".toRegex()
-        readRegex.findAll(output).forEach { totalRead += it.groupValues[1].toLongOrNull() ?: 0L }
-        writeRegex.findAll(output).forEach { totalWritten += it.groupValues[1].toLongOrNull() ?: 0L }
         return Pair(totalRead, totalWritten)
     }
 }
