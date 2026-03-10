@@ -123,7 +123,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
 
     requested_tasks_query_filters =
       Enum.flat_map(requested_tasks_filters, fn
-        %{value: value, operator: :contains} when is_binary(value) and value != "" ->
+        %{value: value, operator: :=~} when is_binary(value) and value != "" ->
           [{:has, value}]
 
         _ ->
@@ -217,7 +217,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
         field: :requested_tasks,
         display_name: dgettext("dashboard_gradle", "Requested tasks"),
         type: :list,
-        operator: :contains,
+        operator: :=~,
         value: ""
       },
       %Filter.Filter{
