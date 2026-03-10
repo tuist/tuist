@@ -196,4 +196,7 @@
   &[data-status="attention"] [data-part="icon"] {
     color: var(--noora-badge-status-attention);
   }
+  &[data-status="in_progress"] [data-part="icon"] {
+    color: var(--noora-surface-label-secondary);
+  }
 }
