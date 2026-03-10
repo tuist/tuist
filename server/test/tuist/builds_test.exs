@@ -93,12 +93,12 @@ defmodule Tuist.BuildsTest do
         })
 
       # Then
-      metrics = Tuist.MachineMetrics.get_machine_metrics_by_build_run_id(build.id)
-      assert length(metrics) == 2
-      assert_in_delta Enum.at(metrics, 0).timestamp, base_ts + 1.0, 0.001
-      assert_in_delta Enum.at(metrics, 0).cpu_usage_percent, 45.5, 0.01
-      assert_in_delta Enum.at(metrics, 1).timestamp, base_ts + 2.0, 0.001
-      assert_in_delta Enum.at(metrics, 1).cpu_usage_percent, 72.3, 0.01
+      build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
+      assert length(build.machine_metrics) == 2
+      assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
+      assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
+      assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001
+      assert_in_delta Enum.at(build.machine_metrics, 1).cpu_usage_percent, 72.3, 0.01
     end
 
     test "creates a build with cacheable tasks and calculates counts correctly" do

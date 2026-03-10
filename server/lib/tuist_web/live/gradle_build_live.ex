@@ -7,8 +7,8 @@ defmodule TuistWeb.GradleBuildLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Tuist.ClickHouseRepo
   alias Tuist.Gradle
-  alias Tuist.MachineMetrics
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Utilities.ByteFormatter
@@ -48,9 +48,11 @@ defmodule TuistWeb.GradleBuildLive do
         {:error, :not_found} -> nil
       end
 
+    build = ClickHouseRepo.preload(build, [:machine_metrics])
+
     build_started_at = Gradle.build_started_at(build.id)
     aggregates = Gradle.task_cache_aggregates(build.id)
-    machine_metrics = MachineMetrics.get_machine_metrics_by_gradle_build_id(build.id)
+    machine_metrics = build.machine_metrics
 
     download_throughput =
       if aggregates.download_duration_ms > 0,

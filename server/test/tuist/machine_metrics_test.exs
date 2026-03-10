@@ -2,6 +2,8 @@ defmodule Tuist.MachineMetricsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -85,54 +87,6 @@ defmodule Tuist.MachineMetricsTest do
       end)
 
       MachineMetrics.create_machine_metrics([hd(sample_metrics())])
-    end
-  end
-
-  describe "get_machine_metrics_by_build_run_id/1" do
-    test "returns metrics ordered by timestamp" do
-      build_run_id = UUIDv7.generate()
-      MachineMetrics.create_machine_metrics(sample_metrics(), build_run_id: build_run_id)
-
-      metrics = MachineMetrics.get_machine_metrics_by_build_run_id(build_run_id)
-      assert length(metrics) == 2
-      assert Enum.at(metrics, 0).timestamp == @base_timestamp + 1.0
-      assert Enum.at(metrics, 1).timestamp == @base_timestamp + 2.0
-    end
-
-    test "returns empty list when no metrics exist" do
-      assert [] == MachineMetrics.get_machine_metrics_by_build_run_id(UUIDv7.generate())
-    end
-
-    test "does not return metrics for other builds" do
-      build_run_id = UUIDv7.generate()
-      other_build_run_id = UUIDv7.generate()
-      MachineMetrics.create_machine_metrics(sample_metrics(), build_run_id: build_run_id)
-
-      assert [] == MachineMetrics.get_machine_metrics_by_build_run_id(other_build_run_id)
-    end
-  end
-
-  describe "get_machine_metrics_by_gradle_build_id/1" do
-    test "returns metrics ordered by timestamp" do
-      gradle_build_id = UUIDv7.generate()
-      MachineMetrics.create_machine_metrics(sample_metrics(), gradle_build_id: gradle_build_id)
-
-      metrics = MachineMetrics.get_machine_metrics_by_gradle_build_id(gradle_build_id)
-      assert length(metrics) == 2
-      assert Enum.at(metrics, 0).timestamp == @base_timestamp + 1.0
-      assert Enum.at(metrics, 1).timestamp == @base_timestamp + 2.0
-    end
-
-    test "returns empty list when no metrics exist" do
-      assert [] == MachineMetrics.get_machine_metrics_by_gradle_build_id(UUIDv7.generate())
-    end
-
-    test "does not return metrics for other builds" do
-      gradle_build_id = UUIDv7.generate()
-      other_gradle_build_id = UUIDv7.generate()
-      MachineMetrics.create_machine_metrics(sample_metrics(), gradle_build_id: gradle_build_id)
-
-      assert [] == MachineMetrics.get_machine_metrics_by_gradle_build_id(other_gradle_build_id)
     end
   end
 end

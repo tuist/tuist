@@ -39,5 +39,6 @@ defmodule Tuist.Gradle.Build do
     field :tasks_no_source_count, Ch, type: "UInt32"
     field :cacheable_tasks_count, Ch, type: "UInt32"
     field :inserted_at, Ch, type: "DateTime"
+    has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :gradle_build_id, references: :id
   end
 end

@@ -66,6 +66,7 @@ defmodule Tuist.Builds.Build do
     has_many :issues, Tuist.Builds.BuildIssue, foreign_key: :build_run_id
     has_many :files, Tuist.Builds.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Builds.BuildTarget, foreign_key: :build_run_id
+    has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :build_run_id
   end
 
   def create_changeset(build \\ %__MODULE__{}, attrs) do

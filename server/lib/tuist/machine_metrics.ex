@@ -4,10 +4,7 @@ defmodule Tuist.MachineMetrics do
   Handles both Xcode and Gradle build metrics.
   """
 
-  import Ecto.Query
-
   alias Tuist.Builds.BuildMachineMetric
-  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
 
   def create_machine_metrics(metrics_list, opts \\ []) when is_list(metrics_list) do
@@ -40,19 +37,4 @@ defmodule Tuist.MachineMetrics do
     end
   end
 
-  def get_machine_metrics_by_build_run_id(build_run_id) do
-    from(m in BuildMachineMetric,
-      where: m.build_run_id == ^build_run_id,
-      order_by: [asc: m.timestamp]
-    )
-    |> ClickHouseRepo.all()
-  end
-
-  def get_machine_metrics_by_gradle_build_id(gradle_build_id) do
-    from(m in BuildMachineMetric,
-      where: m.gradle_build_id == ^gradle_build_id,
-      order_by: [asc: m.timestamp]
-    )
-    |> ClickHouseRepo.all()
-  end
 end

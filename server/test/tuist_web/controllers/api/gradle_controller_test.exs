@@ -2,6 +2,8 @@ defmodule TuistWeb.API.GradleControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -109,10 +111,17 @@ defmodule TuistWeb.API.GradleControllerTest do
 
       Buffer.flush()
 
-      metrics = Tuist.MachineMetrics.get_machine_metrics_by_gradle_build_id(response["id"])
-      assert length(metrics) == 2
-      assert_in_delta Enum.at(metrics, 0).cpu_usage_percent, 55.0, 0.01
-      assert_in_delta Enum.at(metrics, 1).cpu_usage_percent, 80.0, 0.01
+      build_id = response["id"]
+
+      build =
+        Tuist.ClickHouseRepo.one(
+          from(b in Tuist.Gradle.Build, where: b.id == ^build_id)
+        )
+
+      build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
+      assert length(build.machine_metrics) == 2
+      assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 55.0, 0.01
+      assert_in_delta Enum.at(build.machine_metrics, 1).cpu_usage_percent, 80.0, 0.01
     end
 
     test "creates a build with no tasks", %{conn: conn, user: user, project: project} do
