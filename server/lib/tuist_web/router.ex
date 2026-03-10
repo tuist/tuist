@@ -410,6 +410,9 @@ defmodule TuistWeb.Router do
         end
 
         post "/uploads", UploadsController, :create
+        post "/uploads/start", UploadsController, :multipart_start
+        post "/uploads/generate-url", UploadsController, :multipart_generate_url
+        post "/uploads/complete", UploadsController, :multipart_complete
 
         scope "/builds" do
           get "/", BuildsController, :index

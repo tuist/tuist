@@ -4,8 +4,8 @@
     import Mockable
     import OpenAPIRuntime
     import Path
-    import TuistSupport
     import TuistHTTP
+    import TuistSupport
 
     @Mockable
     public protocol UploadBuildArchiveServicing {
@@ -22,36 +22,28 @@
         case forbidden(String)
         case notFound(String)
         case unauthorized(String)
-        case badRequest(String)
-        case uploadFailed(Int)
-        case uploadError(String)
 
         var errorDescription: String? {
             switch self {
             case let .unknownError(statusCode):
                 return
-                    "The build archive could not be uploaded due to an unknown server response of \(statusCode)."
-            case let .forbidden(message), let .notFound(message), let .unauthorized(message),
-                 let .badRequest(message):
+                    "The upload could not be completed due to an unknown server response of \(statusCode)."
+            case let .forbidden(message), let .notFound(message), let .unauthorized(message):
                 return message
-            case let .uploadFailed(statusCode):
-                return "The build archive upload to storage failed with status \(statusCode)."
-            case let .uploadError(message):
-                return "The build archive upload to storage failed: \(message)."
             }
         }
     }
 
     public struct UploadBuildArchiveService: UploadBuildArchiveServicing {
-        private let fileSystem: FileSysteming
         private let fullHandleService: FullHandleServicing
+        private let multipartUploadArtifactService: MultipartUploadArtifactServicing
 
         public init(
-            fileSystem: FileSysteming = FileSystem(),
-            fullHandleService: FullHandleServicing = FullHandleService()
+            fullHandleService: FullHandleServicing = FullHandleService(),
+            multipartUploadArtifactService: MultipartUploadArtifactServicing = MultipartUploadArtifactService()
         ) {
-            self.fileSystem = fileSystem
             self.fullHandleService = fullHandleService
+            self.multipartUploadArtifactService = multipartUploadArtifactService
         }
 
         public func uploadBuildArchive(
@@ -60,70 +52,178 @@
             serverURL: URL,
             archivePath: AbsolutePath
         ) async throws {
-            let contentLength = Int(try await fileSystem.fileSizeInBytes(at: archivePath) ?? 0)
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
+            let accountHandle = handles.accountHandle
+            let projectHandle = handles.projectHandle
 
-            let response = try await client.createUpload(
-                path: .init(
-                    account_handle: handles.accountHandle,
-                    project_handle: handles.projectHandle
-                ),
-                body: .json(
-                    .init(
-                        content_length: contentLength,
-                        id: id,
-                        purpose: .build_archive
-                    )
-                )
+            let uploadId = try await startMultipartUpload(
+                client: client,
+                id: id,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle
             )
 
-            let uploadURL: URL
+            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                artifactPath: archivePath,
+                generateUploadURL: { part in
+                    try await generatePartURL(
+                        client: client,
+                        id: id,
+                        accountHandle: accountHandle,
+                        projectHandle: projectHandle,
+                        uploadId: uploadId,
+                        part: part
+                    )
+                },
+                updateProgress: { _ in }
+            )
+
+            try await completeMultipartUpload(
+                client: client,
+                id: id,
+                accountHandle: accountHandle,
+                projectHandle: projectHandle,
+                uploadId: uploadId,
+                parts: parts
+            )
+        }
+
+        private func startMultipartUpload(
+            client: Client,
+            id: String,
+            accountHandle: String,
+            projectHandle: String
+        ) async throws -> String {
+            let response = try await client.startUploadsMultipartUpload(
+                path: .init(
+                    account_handle: accountHandle,
+                    project_handle: projectHandle
+                ),
+                body: .json(.init(id: id, purpose: .build_archive))
+            )
+
             switch response {
             case let .ok(okResponse):
                 switch okResponse.body {
-                case let .json(uploadResponse):
-                    guard let url = URL(string: uploadResponse.upload_url) else {
-                        throw UploadBuildArchiveServiceError.badRequest("Invalid upload URL returned by server.")
-                    }
-                    uploadURL = url
-                }
-            case let .forbidden(forbiddenResponse):
-                switch forbiddenResponse.body {
-                case let .json(error):
-                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                case let .json(upload):
+                    return upload.data.upload_id
                 }
             case let .unauthorized(unauthorizedResponse):
                 switch unauthorizedResponse.body {
                 case let .json(error):
                     throw UploadBuildArchiveServiceError.unauthorized(error.message)
                 }
+            case let .forbidden(forbiddenResponse):
+                switch forbiddenResponse.body {
+                case let .json(error):
+                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                }
             case let .notFound(notFoundResponse):
                 switch notFoundResponse.body {
                 case let .json(error):
                     throw UploadBuildArchiveServiceError.notFound(error.message)
                 }
-            case let .badRequest(badRequestResponse):
-                switch badRequestResponse.body {
+            case let .undocumented(statusCode: statusCode, _):
+                throw UploadBuildArchiveServiceError.unknownError(statusCode)
+            }
+        }
+
+        private func generatePartURL(
+            client: Client,
+            id: String,
+            accountHandle: String,
+            projectHandle: String,
+            uploadId: String,
+            part: MultipartUploadArtifactPart
+        ) async throws -> String {
+            let response = try await client.generateUploadsMultipartUploadURL(
+                path: .init(
+                    account_handle: accountHandle,
+                    project_handle: projectHandle
+                ),
+                body: .json(.init(
+                    id: id,
+                    multipart_upload_part: .init(
+                        content_length: part.contentLength,
+                        part_number: part.number,
+                        upload_id: uploadId
+                    ),
+                    purpose: .build_archive
+                ))
+            )
+
+            switch response {
+            case let .ok(okResponse):
+                switch okResponse.body {
+                case let .json(urlResponse):
+                    return urlResponse.data.url
+                }
+            case let .unauthorized(unauthorizedResponse):
+                switch unauthorizedResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.badRequest(error.message)
+                    throw UploadBuildArchiveServiceError.unauthorized(error.message)
+                }
+            case let .forbidden(forbiddenResponse):
+                switch forbiddenResponse.body {
+                case let .json(error):
+                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                }
+            case let .notFound(notFoundResponse):
+                switch notFoundResponse.body {
+                case let .json(error):
+                    throw UploadBuildArchiveServiceError.notFound(error.message)
                 }
             case let .undocumented(statusCode: statusCode, _):
                 throw UploadBuildArchiveServiceError.unknownError(statusCode)
             }
+        }
 
-            var request = URLRequest(url: uploadURL)
-            request.httpMethod = "PUT"
-            request.setValue("application/zip", forHTTPHeaderField: "Content-Type")
-            request.setValue("\(contentLength)", forHTTPHeaderField: "Content-Length")
+        private func completeMultipartUpload(
+            client: Client,
+            id: String,
+            accountHandle: String,
+            projectHandle: String,
+            uploadId: String,
+            parts: [(etag: String, partNumber: Int)]
+        ) async throws {
+            let response = try await client.completeUploadsMultipartUpload(
+                path: .init(
+                    account_handle: accountHandle,
+                    project_handle: projectHandle
+                ),
+                body: .json(.init(
+                    id: id,
+                    multipart_upload_parts: .init(
+                        parts: parts.map {
+                            .init(etag: $0.etag, part_number: $0.partNumber)
+                        },
+                        upload_id: uploadId
+                    ),
+                    purpose: .build_archive
+                ))
+            )
 
-            let fileURL = URL(fileURLWithPath: archivePath.pathString)
-            let (_, uploadResponse) = try await URLSession.shared.upload(for: request, fromFile: fileURL)
-            guard let httpResponse = uploadResponse as? HTTPURLResponse else {
-                throw UploadBuildArchiveServiceError.uploadError("No HTTP response received")
-            }
-            guard (200 ... 299).contains(httpResponse.statusCode) else {
-                throw UploadBuildArchiveServiceError.uploadFailed(httpResponse.statusCode)
+            switch response {
+            case .ok:
+                return
+            case let .unauthorized(unauthorizedResponse):
+                switch unauthorizedResponse.body {
+                case let .json(error):
+                    throw UploadBuildArchiveServiceError.unauthorized(error.message)
+                }
+            case let .forbidden(forbiddenResponse):
+                switch forbiddenResponse.body {
+                case let .json(error):
+                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                }
+            case let .notFound(notFoundResponse):
+                switch notFoundResponse.body {
+                case let .json(error):
+                    throw UploadBuildArchiveServiceError.notFound(error.message)
+                }
+            case let .undocumented(statusCode: statusCode, _):
+                throw UploadBuildArchiveServiceError.unknownError(statusCode)
             }
         }
     }

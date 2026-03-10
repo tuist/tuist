@@ -1128,6 +1128,25 @@ components:
       type: integer
       x-struct:
       x-validate:
+    ArtifactMultipartUploadCompletion:
+      description: This response confirms that the upload has been completed successfully.
+      properties:
+        data:
+          properties: {}
+          type: object
+          x-struct:
+          x-validate:
+        status:
+          default: success
+          enum:
+            - success
+          type: string
+          x-struct:
+          x-validate:
+      title: ArtifactMultipartUploadCompletion
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.ArtifactMultipartUploadCompletion
+      x-validate:
     Account:
       properties:
         handle:
@@ -4792,6 +4811,160 @@ paths:
       summary: It completes a multi-part upload.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/uploads/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.
+      operationId: generateUploadsMultipartUploadURL
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                id:
+                  description: The identifier for the upload.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+                purpose:
+                  description: The purpose of the upload.
+                  enum:
+                    - build_archive
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - purpose
+                - id
+                - multipart_upload_part
+              type: object
+              x-struct:
+              x-validate:
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Generate a signed URL for uploading a part.
+      tags:
+        - Uploads
+  /api/projects/{account_handle}/{project_handle}/uploads/start:
+    post:
+      callbacks: {}
+      operationId: startUploadsMultipartUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                id:
+                  description: The identifier for the upload.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                purpose:
+                  description: The purpose of the upload.
+                  enum:
+                    - build_archive
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - purpose
+                - id
+              type: object
+              x-struct:
+              x-validate:
+        description: Multipart upload start params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The multipart upload has been started
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Start a multipart upload.
+      tags:
+        - Uploads
   /api/analytics:
     post:
       callbacks: {}
@@ -11171,6 +11344,85 @@ paths:
       summary: Get a Gradle build by ID.
       tags:
         - Gradle
+  /api/projects/{account_handle}/{project_handle}/uploads/complete:
+    post:
+      callbacks: {}
+      description: Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.
+      operationId: completeUploadsMultipartUpload
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                id:
+                  description: The identifier for the upload.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
+                multipart_upload_parts:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+                purpose:
+                  description: The purpose of the upload.
+                  enum:
+                    - build_archive
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - purpose
+                - id
+                - multipart_upload_parts
+              type: object
+              x-struct:
+              x-validate:
+        description: Upload multipart upload completion
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadCompletion'
+          description: The upload has been completed
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: Complete a multipart upload.
+      tags:
+        - Uploads
   /api/projects/{account_handle}/{project_handle}:
     get:
       callbacks: {}
