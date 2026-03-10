@@ -173,6 +173,100 @@
             }
         }
 
+        @Test(.withMockedEnvironment()) func login_when_ci_and_account_token() async throws {
+            try await withMockedDependencies {
+                try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
+                    // Given
+                    given(configLoader)
+                        .loadConfig(path: .any)
+                        .willReturn(.test(fullHandle: "tuist/tuist"))
+                    given(fullHandleService)
+                        .parse(.any)
+                        .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                    given(serverEnvironmentService)
+                        .url(configServerURL: .any)
+                        .willReturn(.test())
+                    let mockEnvironment = try #require(Environment.mocked)
+                    mockEnvironment.variables = ["CI": "1"]
+                    let accountJWT = try JWT.make(
+                        expiryDate: Date().addingTimeInterval(+60),
+                        typ: "access",
+                        type: "account"
+                    )
+                    given(serverAuthenticationController)
+                        .authenticationToken(serverURL: .any)
+                        .willReturn(.account(try JWT.parse(accountJWT.token)))
+                    given(swiftPackageManagerController)
+                        .packageRegistryLogin(token: .any, registryURL: .any)
+                        .willReturn()
+                    given(manifestFilesLocator)
+                        .locatePackageManifest(at: .any)
+                        .willReturn(path)
+
+                    // When
+                    try await subject.run(path: nil)
+
+                    // Then
+                    verify(swiftPackageManagerController)
+                        .packageRegistryLogin(token: .any, registryURL: .any)
+                        .called(1)
+                }
+            }
+        }
+
+        @Test(.withMockedEnvironment()) func login_when_ci_and_account_token_and_xcode_project() async throws {
+            try await withMockedDependencies {
+                // Given
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(fullHandle: "tuist/tuist"))
+                given(fullHandleService)
+                    .parse(.any)
+                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(.test())
+                let mockEnvironment = try #require(Environment.mocked)
+                mockEnvironment.variables = ["CI": "1"]
+                let accountJWT = try JWT.make(
+                    expiryDate: Date().addingTimeInterval(+60),
+                    typ: "access",
+                    type: "account"
+                )
+                given(serverAuthenticationController)
+                    .authenticationToken(serverURL: .any)
+                    .willReturn(.account(try JWT.parse(accountJWT.token)))
+                given(securityController)
+                    .addInternetPassword(
+                        accountName: .any,
+                        serverName: .any,
+                        password: .any,
+                        securityProtocol: .any,
+                        update: .any,
+                        applications: .any
+                    )
+                    .willReturn()
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willReturn(nil)
+
+                // When
+                try await subject.run(path: nil)
+
+                // Then
+                verify(securityController)
+                    .addInternetPassword(
+                        accountName: .any,
+                        serverName: .any,
+                        password: .any,
+                        securityProtocol: .any,
+                        update: .any,
+                        applications: .any
+                    )
+                    .called(1)
+            }
+        }
+
         @Test(.withMockedEnvironment()) func login_when_full_handle_is_missing() async throws {
             // Given
             given(configLoader)

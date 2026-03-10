@@ -12,7 +12,7 @@
 
     enum RegistryLoginCommandServiceError: Equatable, LocalizedError {
         case missingFullHandle
-        case missingProjectToken
+        case missingCIToken
         case missingHost(URL)
 
         var errorDescription: String? {
@@ -20,9 +20,9 @@
             case .missingFullHandle:
                 return
                     "Login to the registry failed because the project is missing the 'fullHandle' in the 'Tuist.swift' file."
-            case .missingProjectToken:
+            case .missingCIToken:
                 return
-                    "The project token is needed to interact with the registry on the CI. Make sure the 'TUIST_TOKEN' environment variable is present and valid."
+                    "A project token or OIDC account token is needed to interact with the registry on the CI. Make sure the 'TUIST_TOKEN' environment variable is present and valid, or that OIDC authentication is configured."
             case let .missingHost(url):
                 return "Failed getting host from the Tuist server URL \(url.absoluteString)."
             }
@@ -117,37 +117,42 @@
             serverURL: URL,
             path: AbsolutePath
         ) async throws {
+            let token: String
             switch try await serverAuthenticationController.authenticationToken(serverURL: serverURL) {
             case let .project(projectToken):
-                if try await manifestFilesLocator.locatePackageManifest(at: path) == nil {
-                    guard let host = serverURL.host else {
-                        throw RegistryLoginCommandServiceError.missingHost(serverURL)
-                    }
-                    let xcode = try await xcodeController.selected()
-                    try await securityController.addInternetPassword(
-                        accountName: "token",
-                        serverName: host,
-                        password: projectToken,
-                        securityProtocol: .https,
-                        update: true,
-                        applications: [
-                            "/usr/bin/security",
-                            "/usr/bin/codesign",
-                            "/usr/bin/xcodebuild",
-                            "/usr/bin/swift",
-                            xcode.path.appending(
-                                components: "Contents", "Developer", "usr", "bin", "xcodebuild"
-                            ).pathString,
-                        ]
-                    )
-                } else {
-                    try await swiftPackageManagerController.packageRegistryLogin(
-                        token: projectToken,
-                        registryURL: registryURL
-                    )
+                token = projectToken
+            case let .account(jwt):
+                token = jwt.token
+            case .user, .none:
+                throw RegistryLoginCommandServiceError.missingCIToken
+            }
+
+            if try await manifestFilesLocator.locatePackageManifest(at: path) == nil {
+                guard let host = serverURL.host else {
+                    throw RegistryLoginCommandServiceError.missingHost(serverURL)
                 }
-            case .user, .account, .none:
-                throw RegistryLoginCommandServiceError.missingProjectToken
+                let xcode = try await xcodeController.selected()
+                try await securityController.addInternetPassword(
+                    accountName: "token",
+                    serverName: host,
+                    password: token,
+                    securityProtocol: .https,
+                    update: true,
+                    applications: [
+                        "/usr/bin/security",
+                        "/usr/bin/codesign",
+                        "/usr/bin/xcodebuild",
+                        "/usr/bin/swift",
+                        xcode.path.appending(
+                            components: "Contents", "Developer", "usr", "bin", "xcodebuild"
+                        ).pathString,
+                    ]
+                )
+            } else {
+                try await swiftPackageManagerController.packageRegistryLogin(
+                    token: token,
+                    registryURL: registryURL
+                )
             }
         }
 
