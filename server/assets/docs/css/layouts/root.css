@@ -1,6 +1,6 @@
 #docs-page-layout {
   /* Left sidebar navigation */
-  & [data-part="sidebar"] {
+  & #docs-sidebar {
     display: flex;
     position: sticky;
     top: var(--docs-nav-height);
@@ -64,7 +64,7 @@
   }
 
   /* Compact tab_menu_vertical inside sidebar */
-  & [data-part="sidebar"] .noora-tab-menu-vertical {
+  & #docs-sidebar .noora-tab-menu-vertical {
     border-radius: var(--noora-radius-medium);
     padding: var(--noora-spacing-3) var(--noora-spacing-4);
 
@@ -75,7 +75,7 @@
   }
 
   /* Collapsible trigger */
-  & [data-part="sidebar"] [data-part="trigger"] {
+  & #docs-sidebar [data-part="trigger"] {
     cursor: pointer;
     user-select: none;
     text-decoration: unset;
@@ -86,29 +86,29 @@
   }
 
   /* Indicator visibility (chevron up/down toggle) */
-  & [data-part="sidebar"] [data-part="trigger"]:not([data-state="open"]) [data-part="indicator-up"] {
+  & #docs-sidebar [data-part="trigger"]:not([data-state="open"]) [data-part="indicator-up"] {
     display: none;
   }
 
-  & [data-part="sidebar"] [data-part="trigger"][data-state="open"] [data-part="indicator-down"] {
+  & #docs-sidebar [data-part="trigger"][data-state="open"] [data-part="indicator-down"] {
     display: none;
   }
 
   /* Also handle indicator state from the root element */
-  & [data-part="sidebar"] [data-part="root"]:not([data-state="open"]) > [data-part="trigger"] [data-part="indicator-up"] {
+  & #docs-sidebar [data-part="root"]:not([data-state="open"]) > [data-part="trigger"] [data-part="indicator-up"] {
     display: none;
   }
 
-  & [data-part="sidebar"] [data-part="root"][data-state="open"] > [data-part="trigger"] [data-part="indicator-down"] {
+  & #docs-sidebar [data-part="root"][data-state="open"] > [data-part="trigger"] [data-part="indicator-down"] {
     display: none;
   }
 
   /* Collapsible content visibility */
-  & [data-part="sidebar"] [data-part="root"]:not([data-state="open"]) > [data-part="content"] {
+  & #docs-sidebar [data-part="root"]:not([data-state="open"]) > [data-part="content"] {
     display: none;
   }
 
-  & [data-part="sidebar"] [data-part="root"][data-state="open"] > [data-part="content"] {
+  & #docs-sidebar [data-part="root"][data-state="open"] > [data-part="content"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);
@@ -119,24 +119,24 @@
   }
 
   /* Main content area */
-  & [data-part="layout"] > [data-part="content"] {
+  & #docs-layout > #docs-content {
     padding: var(--noora-spacing-7) 0;
     min-width: 0;
   }
 
   /* Responsive */
   @media (max-width: 1280px) {
-    & [data-part="toc"] {
+    & #docs-toc {
       display: none;
     }
   }
 
   @media (max-width: 1024px) {
-    & [data-part="sidebar"] {
+    & #docs-sidebar {
       display: none;
     }
 
-    & [data-part="sidebar"][data-mobile-open] {
+    & #docs-sidebar[data-mobile-open] {
       display: flex;
       position: fixed;
       top: 0;

@@ -52,14 +52,6 @@ defmodule TuistWeb.Endpoint do
     cache_control_for_etags: "public, max-age=31536000, immutable",
     only: TuistWeb.static_paths()
 
-  if Code.ensure_loaded?(Tidewave) do
-    plug Tidewave
-  end
-
-  if Mix.env() == :dev do
-    plug Tidewave
-  end
-
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do

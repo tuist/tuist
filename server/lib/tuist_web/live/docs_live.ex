@@ -4,7 +4,6 @@ defmodule TuistWeb.DocsLive do
   use Noora
 
   alias Tuist.Docs
-  alias Tuist.Docs.Redirects
   alias TuistWeb.Errors.NotFoundError
 
   def mount(_params, _session, socket) do
@@ -39,31 +38,23 @@ defmodule TuistWeb.DocsLive do
   defp handle_show(params, socket) do
     path = build_path(params)
 
-    case Redirects.redirect_path(path) do
+    case Docs.get_page(path) do
       nil ->
-        case Docs.get_page(path) do
-          nil ->
-            raise NotFoundError, dgettext("errors", "Page not found")
+        raise NotFoundError, dgettext("errors", "Page not found")
 
-          page ->
-            head_title =
-              case page.title_template do
-                nil -> "#{page.title} · Docs · Tuist"
-                template -> String.replace(template, ":title", page.title)
-              end
+      page ->
+        head_title =
+          case page.title_template do
+            nil -> "#{page.title} · Docs · Tuist"
+            template -> String.replace(template, ":title", page.title)
+          end
 
-            {:noreply,
-             socket
-             |> assign(:view, :show)
-             |> assign(:page, page)
-             |> assign(:head_title, head_title)
-             |> assign(:head_description, page.description)}
-        end
-
-      destination ->
-        query_string = URI.parse(socket.assigns.current_path).query
-        target = if query_string, do: "/docs#{destination}?#{query_string}", else: "/docs#{destination}"
-        {:noreply, redirect(socket, to: target)}
+        {:noreply,
+         socket
+         |> assign(:view, :show)
+         |> assign(:page, page)
+         |> assign(:head_title, head_title)
+         |> assign(:head_description, page.description)}
     end
   end
 

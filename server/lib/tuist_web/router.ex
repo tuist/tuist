@@ -126,11 +126,7 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug UeberauthHostPlug
-    plug Ueberauth
-    plug :fetch_current_user
     plug SentryContextPlug
-    plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
@@ -339,16 +335,6 @@ defmodule TuistWeb.Router do
     live_session :docs do
       live "/en", DocsLive, :overview, metadata: %{type: :docs}
       live "/en/*path", DocsLive, :show, metadata: %{type: :docs}
-    end
-
-    for prefix <- Tuist.Docs.Redirects.route_prefixes() do
-      get "/#{prefix}", DocsController, :legacy, metadata: %{type: :docs}, private: %{locale: "en"}
-
-      get "/#{prefix}/*path",
-          DocsController,
-          :legacy,
-          metadata: %{type: :docs},
-          private: %{locale: "en"}
     end
   end
 

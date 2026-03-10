@@ -6,7 +6,7 @@ import DocsContentHook from "./hooks/docs-content-hook.js";
 import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
 import DocsActivePageHook from "./hooks/docs-active-page-hook.js";
 import DocsMobileSidebarHook from "./hooks/docs-mobile-sidebar-hook.js";
-import DocsMobileTocHook from "./hooks/docs-mobile-toc-hook.js";
+
 import "./docs.css";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -21,7 +21,6 @@ let liveSocket = new LiveSocket("/live", Socket, {
     DocsContent: DocsContentHook,
     DocsInstallTabs: DocsInstallTabsHook,
     DocsMobileSidebar: DocsMobileSidebarHook,
-    DocsMobileToc: DocsMobileTocHook,
   },
 });
 liveSocket.connect();
