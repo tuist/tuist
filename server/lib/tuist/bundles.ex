@@ -86,13 +86,8 @@ defmodule Tuist.Bundles do
   end
 
   def get_bundle_artifact_tree(bundle_id) do
-    from(a in Artifact,
-      where: a.bundle_id == ^bundle_id,
-      order_by: [asc: a.path]
-    )
-    |> Repo.all()
+    Repo.all(from(a in Artifact, where: a.bundle_id == ^bundle_id, order_by: [asc: a.path]))
   end
-
 
   defp bundle_artifacts(%Bundle{id: id}) do
     # Get all artifacts for this bundle in a single query
