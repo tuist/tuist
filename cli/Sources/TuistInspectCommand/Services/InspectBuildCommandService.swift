@@ -89,8 +89,7 @@
 
         func run(
             path: String?,
-            derivedDataPath: String? = nil,
-            mode: InspectBuildMode = .remote
+            derivedDataPath: String? = nil
         ) async throws {
             let referenceDate = dateService.now()
             guard let executablePath = Bundle.main.executablePath else {
@@ -138,8 +137,8 @@
                 referenceDate: referenceDate
             )
 
-            switch mode {
-            case .remote:
+            let useRemoteProcessing = Environment.current.variables["TUIST_INSPECT_BUILD_MODE"] == "remote"
+            if useRemoteProcessing {
                 do {
                     try await createRemoteBuild(
                         mostRecentActivityLogPath: mostRecentActivityLogPath,
@@ -152,7 +151,7 @@
                         projectPath: projectPath
                     )
                 }
-            case .local:
+            } else {
                 try await createLocalBuild(
                     mostRecentActivityLogPath: mostRecentActivityLogPath,
                     projectPath: projectPath

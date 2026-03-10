@@ -123,10 +123,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
                 .filter({ $0.title.starts(with: "Build target") }).map({
                     ($0.signature, $0.subSteps.reduce(into: 0) { duration, subStep in
-                        duration += subStep.compilationDuration * 1000
+                        duration += subStep.compilationDuration * 1000 // From seconds to miliseconds
                     })
                 })
             {
+                // If a target supports multiple platforms, the time will persist is the time of the latest platform that we
+                // built.
                 buildTimes[targetName] = targetBuildDuration
             }
         }
@@ -196,6 +198,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
         return logFile
     }
 
+    /// Parses an xcactivitylog file into an `XCActivityLog` model.
+    /// This is temporary and will be fully removed once all build processing happens server-side.
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
         let casMetadataPath = Environment.current.stateDirectory.pathString
         let rootDirectory = try await rootDirectory()
