@@ -9,9 +9,9 @@
     import TuistCore
     import TuistEnvironment
     import TuistGit
-    import TuistMachineMetrics
     import TuistLoader
     import TuistLogging
+    import TuistMachineMetrics
     import TuistProcess
     import TuistServer
     import TuistSupport
