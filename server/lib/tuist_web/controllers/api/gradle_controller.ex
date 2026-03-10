@@ -138,7 +138,7 @@ defmodule TuistWeb.API.GradleController do
     }
   )
 
-  def create_build(%{assigns: %{selected_project: project, selected_account: account}, body_params: body} = conn, _params) do
+  def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
     tasks =
       Enum.map(body.tasks, fn task ->
         %{
@@ -156,7 +156,7 @@ defmodule TuistWeb.API.GradleController do
     attrs = %{
       id: body[:id] || UUIDv7.generate(),
       project_id: project.id,
-      account_id: account.id,
+      account_id: TuistWeb.Authentication.authenticated_subject_account(conn).id,
       duration_ms: body.duration_ms,
       status: body.status,
       gradle_version: body[:gradle_version],

@@ -69,6 +69,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.gradle_version == "8.5"
       assert build.is_ci == true
       assert build.requested_tasks == ["assembleDebug", "test"]
+      assert build.account_id == user.account.id
       assert build.tasks_executed_count == 1
       assert build.tasks_local_hit_count == 1
       assert build.cacheable_tasks_count == 2
@@ -122,6 +123,35 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert length(build.machine_metrics) == 2
       assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 55.0, 0.01
       assert_in_delta Enum.at(build.machine_metrics, 1).cpu_usage_percent, 80.0, 0.01
+    end
+
+    test "attributes the build to the authenticated user, not the organization", %{conn: conn} do
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+
+      member = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: member, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+
+      conn = Authentication.put_current_user(conn, member)
+
+      body = %{
+        duration_ms: 5000,
+        status: "success",
+        tasks: []
+      }
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{organization.account.name}/#{project.name}/gradle/builds", body)
+
+      response = json_response(conn, 201)
+
+      Buffer.flush()
+
+      {:ok, build} = Gradle.get_build(response["id"])
+      assert build.account_id == member.account.id
+      refute build.account_id == organization.account.id
     end
 
     test "creates a build with no tasks", %{conn: conn, user: user, project: project} do
