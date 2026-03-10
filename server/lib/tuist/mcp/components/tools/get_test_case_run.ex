@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   @moduledoc """
-  Get detailed information about a specific test case run including failures and repetitions.
+  Get detailed information about a specific test case run including failures and repetitions. Use list_test_case_run_attachments to inspect attachments.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -16,14 +16,16 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   schema do
     field :test_case_run_id, :string,
       required: true,
-      description: "The UUID of the test case run."
+      description: "The ID of the test case run."
   end
 
   @impl true
   def execute(%{test_case_run_id: test_case_run_id}, frame) do
     with {:ok, run} <-
            ToolSupport.load_resource(
-             Tests.get_test_case_run_by_id(test_case_run_id, preload: [:failures, :repetitions]),
+             Tests.get_test_case_run_by_id(test_case_run_id,
+               preload: [:failures, :repetitions]
+             ),
              "Test case run not found: #{test_case_run_id}",
              frame
            ),

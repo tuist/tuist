@@ -56,7 +56,56 @@ defmodule Tuist.MCP.Components.ToolSupport do
     end
   end
 
+  def resolve_and_authorize_project(
+        %{account_handle: account_handle, project_handle: project_handle},
+        frame,
+        action,
+        category
+      )
+      when is_binary(account_handle) and is_binary(project_handle) do
+    load_and_authorize_project_by_handle(
+      account_handle,
+      project_handle,
+      frame,
+      action,
+      category,
+      "You do not have access to project: #{account_handle}/#{project_handle}"
+    )
+  end
+
+  def resolve_and_authorize_project(_arguments, frame, _action, _category) do
+    invalid_params("Provide account_handle and project_handle.", frame)
+  end
+
   def invalid_params(message, frame) do
     {:error, Error.protocol(:invalid_params, %{message: message}), frame}
+  end
+
+  @max_page_size 100
+  @default_page_size 20
+
+  def page(arguments) do
+    case Map.get(arguments, :page) do
+      value when is_integer(value) and value > 0 -> value
+      _ -> 1
+    end
+  end
+
+  def page_size(arguments) do
+    case Map.get(arguments, :page_size) do
+      value when is_integer(value) and value > 0 -> min(value, @max_page_size)
+      _ -> @default_page_size
+    end
+  end
+
+  def pagination_metadata(meta) do
+    %{
+      has_next_page: meta.has_next_page?,
+      has_previous_page: meta.has_previous_page?,
+      total_count: meta.total_count,
+      total_pages: meta.total_pages,
+      current_page: meta.current_page,
+      page_size: meta.page_size
+    }
   end
 end
