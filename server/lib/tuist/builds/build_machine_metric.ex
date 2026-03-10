@@ -7,8 +7,8 @@ defmodule Tuist.Builds.BuildMachineMetric do
 
   @primary_key false
   schema "build_machine_metrics" do
-    field :build_run_id, Ch, type: "UUID"
-    field :gradle_build_id, Ch, type: "UUID"
+    field :build_run_id, Ch, type: "Nullable(UUID)"
+    field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :timestamp_offset_ms, Ch, type: "Int32"
     field :cpu_usage_percent, Ch, type: "Float32"
     field :memory_used_bytes, Ch, type: "Int64"

@@ -7,7 +7,6 @@ defmodule Tuist.MachineMetricsTest do
   alias Tuist.IngestRepo
   alias Tuist.MachineMetrics
 
-  @zero_uuid "00000000-0000-0000-0000-000000000000"
   @base_timestamp 1_741_500_000.0
 
   defp sample_metrics do
@@ -53,7 +52,7 @@ defmodule Tuist.MachineMetricsTest do
       assert first.network_bytes_out == 500_000
       assert first.disk_bytes_read == 2_000_000
       assert first.disk_bytes_written == 1_500_000
-      assert first.gradle_build_id == @zero_uuid
+      assert first.gradle_build_id == nil
 
       second = Enum.find(metrics, &(&1.timestamp_offset_ms == 1000))
       assert second != nil
@@ -68,19 +67,19 @@ defmodule Tuist.MachineMetricsTest do
       assert length(metrics) == 2
 
       first = Enum.find(metrics, &(&1.timestamp_offset_ms == 0))
-      assert first.build_run_id == @zero_uuid
+      assert first.build_run_id == nil
     end
 
     test "returns :ok for empty list without inserting" do
       assert :ok = MachineMetrics.create_machine_metrics([])
     end
 
-    test "uses zero UUID when no IDs are provided" do
+    test "uses nil when no IDs are provided" do
       expect(IngestRepo, :insert_all, fn BuildMachineMetric, entries ->
         assert length(entries) == 1
         entry = hd(entries)
-        assert entry.build_run_id == @zero_uuid
-        assert entry.gradle_build_id == @zero_uuid
+        assert entry.build_run_id == nil
+        assert entry.gradle_build_id == nil
         assert entry.timestamp_offset_ms == 0
         {1, nil}
       end)

@@ -10,11 +10,9 @@ defmodule Tuist.MachineMetrics do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
 
-  @zero_uuid "00000000-0000-0000-0000-000000000000"
-
   def create_machine_metrics(metrics_list, opts \\ []) when is_list(metrics_list) do
-    build_run_id = Keyword.get(opts, :build_run_id) || @zero_uuid
-    gradle_build_id = Keyword.get(opts, :gradle_build_id) || @zero_uuid
+    build_run_id = Keyword.get(opts, :build_run_id)
+    gradle_build_id = Keyword.get(opts, :gradle_build_id)
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
     min_timestamp =
