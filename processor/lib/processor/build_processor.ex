@@ -40,7 +40,7 @@ defmodule Processor.BuildProcessor do
   end
 
   defp find_xcactivitylog(temp_dir) do
-    xcactivitylog_dir = Path.join(temp_dir, "build_archive/xcactivitylog")
+    xcactivitylog_dir = Path.join(temp_dir, "build/xcactivitylog")
 
     {:ok, files} = File.ls(xcactivitylog_dir)
     file = Enum.find(files, &String.ends_with?(&1, ".xcactivitylog"))

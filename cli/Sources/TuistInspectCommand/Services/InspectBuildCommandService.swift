@@ -262,8 +262,8 @@
 
             let buildId = UUID().uuidString
 
-            let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build_archive") { tempDirectory in
-                let archivePath = try await bundleBuildArchive(
+            let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
+                let archivePath = try await bundleBuild(
                     mostRecentActivityLogPath: mostRecentActivityLogPath,
                     into: tempDirectory
                 )
@@ -312,14 +312,14 @@
             )
         }
 
-        private func bundleBuildArchive(
+        private func bundleBuild(
             mostRecentActivityLogPath: AbsolutePath,
             into tempDirectory: AbsolutePath
         ) async throws -> AbsolutePath {
-            let archiveDirectory = tempDirectory.appending(component: "build_archive")
-            try await fileSystem.makeDirectory(at: archiveDirectory)
+            let buildDirectory = tempDirectory.appending(component: "build")
+            try await fileSystem.makeDirectory(at: buildDirectory)
 
-            let xcactivitylogDir = archiveDirectory.appending(component: "xcactivitylog")
+            let xcactivitylogDir = buildDirectory.appending(component: "xcactivitylog")
             try await fileSystem.makeDirectory(at: xcactivitylogDir)
             try await fileSystem.copy(
                 mostRecentActivityLogPath,
@@ -327,7 +327,7 @@
             )
 
             let stateDir = Environment.current.stateDirectory
-            let casMetadataDir = archiveDirectory.appending(component: "cas_metadata")
+            let casMetadataDir = buildDirectory.appending(component: "cas_metadata")
             try await fileSystem.makeDirectory(at: casMetadataDir)
 
             for subdirectory in ["nodes", "cas", "keyvalue"] {
@@ -339,7 +339,7 @@
             }
 
             let zipPath = tempDirectory.appending(component: "build.zip")
-            try await fileSystem.zipFileOrDirectoryContent(at: archiveDirectory, to: zipPath)
+            try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
             return zipPath
         }
 
