@@ -312,34 +312,28 @@
         private func bundleBuildArchive(
             mostRecentActivityLogPath: AbsolutePath
         ) async throws -> Data {
-            let tempDirectory = try FileManager.default.url(
-                for: .itemReplacementDirectory,
-                in: .userDomainMask,
-                appropriateFor: URL(fileURLWithPath: NSTemporaryDirectory()),
-                create: true
-            )
-            defer { try? FileManager.default.removeItem(at: tempDirectory) }
+            let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "build_archive")
+            defer { try? FileManager.default.removeItem(atPath: tempDirectory.pathString) }
 
-            let archiveDirectory = tempDirectory.appendingPathComponent("build_archive")
-            try FileManager.default.createDirectory(at: archiveDirectory, withIntermediateDirectories: true)
+            let archiveDirectory = tempDirectory.appending(component: "build_archive")
+            try await fileSystem.makeDirectory(at: archiveDirectory)
 
-            let xcactivitylogDir = archiveDirectory.appendingPathComponent("xcactivitylog")
-            try FileManager.default.createDirectory(at: xcactivitylogDir, withIntermediateDirectories: true)
-            let logURL = URL(fileURLWithPath: mostRecentActivityLogPath.pathString)
-            try FileManager.default.copyItem(
-                at: logURL,
-                to: xcactivitylogDir.appendingPathComponent(logURL.lastPathComponent)
+            let xcactivitylogDir = archiveDirectory.appending(component: "xcactivitylog")
+            try await fileSystem.makeDirectory(at: xcactivitylogDir)
+            try await fileSystem.copy(
+                mostRecentActivityLogPath,
+                to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
             )
 
-            let stateDir = URL(fileURLWithPath: Environment.current.stateDirectory.pathString)
-            let casMetadataDir = archiveDirectory.appendingPathComponent("cas_metadata")
-            try FileManager.default.createDirectory(at: casMetadataDir, withIntermediateDirectories: true)
+            let stateDir = Environment.current.stateDirectory
+            let casMetadataDir = archiveDirectory.appending(component: "cas_metadata")
+            try await fileSystem.makeDirectory(at: casMetadataDir)
 
             for subdirectory in ["nodes", "cas", "keyvalue"] {
-                let sourceDir = stateDir.appendingPathComponent(subdirectory)
-                if FileManager.default.fileExists(atPath: sourceDir.path) {
-                    let destDir = casMetadataDir.appendingPathComponent(subdirectory)
-                    try FileManager.default.copyItem(at: sourceDir, to: destDir)
+                let sourceDir = stateDir.appending(component: subdirectory)
+                if try await fileSystem.exists(sourceDir) {
+                    let destDir = casMetadataDir.appending(component: subdirectory)
+                    try await fileSystem.copy(sourceDir, to: destDir)
                 }
             }
 
@@ -349,14 +343,14 @@
                 modelIdentifier: machineEnvironment.modelIdentifier(),
                 xcodeVersion: try await xcodeBuildController.version()?.description
             )
-            let manifestData = try JSONEncoder().encode(manifest)
-            try manifestData.write(to: archiveDirectory.appendingPathComponent("manifest.json"))
+            try await fileSystem.writeAsJSON(manifest, at: archiveDirectory.appending(component: "manifest.json"))
 
+            let archiveURL = URL(fileURLWithPath: archiveDirectory.pathString)
             let coordinator = NSFileCoordinator()
             var coordinatorError: NSError?
             var archiveData: Data?
             coordinator.coordinate(
-                readingItemAt: archiveDirectory,
+                readingItemAt: archiveURL,
                 options: [.forUploading],
                 error: &coordinatorError
             ) { zipFileURL in
