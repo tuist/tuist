@@ -4,7 +4,6 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import TuistHTTP
-import TuistSupport
 
 @Mockable
 public protocol UploadBuildServicing {
