@@ -1,0 +1,41 @@
+.noora-pagination-group {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+
+  & > [data-part="ellipsis"] {
+    padding: var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & > [data-part="page-button"] {
+    cursor: pointer;
+    outline: unset;
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-button-secondary-background);
+    padding: var(--noora-spacing-3);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-decoration: unset;
+
+    &:hover {
+      background: var(--noora-button-background-secondary-hover);
+    }
+
+    &:active,
+    &[data-selected] {
+      box-shadow: var(--noora-border-light-focus);
+      color: var(--noora-surface-label-secondary);
+    }
+
+    & > [data-part="label"] {
+      display: inline-block;
+      width: 20px;
+      text-align: center;
+    }
+  }
+}
