@@ -267,14 +267,11 @@
                     mostRecentActivityLogPath: mostRecentActivityLogPath,
                     into: tempDirectory
                 )
-                let contentLength = try await fileSystem.fileSizeInBytes(at: archivePath) ?? 0
-
                 try await uploadBuildArchiveService.uploadBuildArchive(
                     id: buildId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    archivePath: archivePath,
-                    contentLength: Int(contentLength)
+                    archivePath: archivePath
                 )
 
                 let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
@@ -339,14 +336,6 @@
                     try await fileSystem.copy(sourceDir, to: destDir)
                 }
             }
-
-            let manifest = BuildArchiveManifest(
-                cacheUploadEnabled: true,
-                macOSVersion: machineEnvironment.macOSVersion,
-                modelIdentifier: machineEnvironment.modelIdentifier(),
-                xcodeVersion: try await xcodeBuildController.version()?.description
-            )
-            try await fileSystem.writeAsJSON(manifest, at: archiveDirectory.appending(component: "manifest.json"))
 
             let zipPath = tempDirectory.appending(component: "build.zip")
             try await fileSystem.zipFileOrDirectoryContent(at: archiveDirectory, to: zipPath)

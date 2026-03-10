@@ -7,10 +7,6 @@ struct ParsedBuildData: Encodable {
     let duration: Int
     let status: String
     let category: String
-    let is_ci: Bool
-    let macos_version: String
-    let xcode_version: String
-    let model_identifier: String
     let targets: [ParsedTarget]
     let issues: [ParsedIssue]
     let files: [ParsedFile]
@@ -116,23 +112,13 @@ enum CASMetadataReader {
     }
 }
 
-// MARK: - Manifest
-
-struct BuildArchiveManifest: Decodable {
-    let cache_upload_enabled: Bool
-    let macos_version: String
-    let model_identifier: String?
-    let xcode_version: String?
-}
-
 // MARK: - Parser
 
 enum XCActivityLogParser {
     static func parse(
         xcactivitylogPath: String,
         casMetadataPath: String,
-        cacheUploadEnabled: Bool,
-        manifest: BuildArchiveManifest?
+        cacheUploadEnabled: Bool
     ) throws -> Data {
         let url = URL(fileURLWithPath: xcactivitylogPath)
         let activityLog = try ActivityParser().parseActivityLogInURL(
@@ -187,10 +173,6 @@ enum XCActivityLogParser {
             duration: duration,
             status: errorCount == 0 ? "success" : "failure",
             category: category == .clean ? "clean" : "incremental",
-            is_ci: false,
-            macos_version: manifest?.macos_version ?? "",
-            xcode_version: manifest?.xcode_version ?? "",
-            model_identifier: manifest?.model_identifier ?? "",
             targets: targets,
             issues: Array(issues.prefix(1000)),
             files: files,
@@ -641,20 +623,11 @@ public func parseXCActivityLog(
     let casMetadataPath = String(cString: casMetadataPathPtr)
     let cacheUploadEnabledBool = cacheUploadEnabled != 0
 
-    // Try to read manifest from the archive directory (parent of xcactivitylog dir)
-    let archiveDir = (URL(fileURLWithPath: path).deletingLastPathComponent().deletingLastPathComponent()).path
-    let manifestPath = (archiveDir as NSString).appendingPathComponent("manifest.json")
-    let manifest: BuildArchiveManifest? = {
-        guard let data = FileManager.default.contents(atPath: manifestPath) else { return nil }
-        return try? JSONDecoder().decode(BuildArchiveManifest.self, from: data)
-    }()
-
     do {
         let jsonData = try XCActivityLogParser.parse(
             xcactivitylogPath: path,
             casMetadataPath: casMetadataPath,
-            cacheUploadEnabled: cacheUploadEnabledBool,
-            manifest: manifest
+            cacheUploadEnabled: cacheUploadEnabledBool
         )
 
         let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: jsonData.count)

@@ -1,4 +1,5 @@
 #if canImport(TuistXCActivityLog)
+    import FileSystem
     import Foundation
     import Mockable
     import OpenAPIRuntime
@@ -12,8 +13,7 @@
             id: String,
             fullHandle: String,
             serverURL: URL,
-            archivePath: AbsolutePath,
-            contentLength: Int
+            archivePath: AbsolutePath
         ) async throws
     }
 
@@ -43,11 +43,14 @@
     }
 
     public struct UploadBuildArchiveService: UploadBuildArchiveServicing {
+        private let fileSystem: FileSysteming
         private let fullHandleService: FullHandleServicing
 
         public init(
+            fileSystem: FileSysteming = FileSystem(),
             fullHandleService: FullHandleServicing = FullHandleService()
         ) {
+            self.fileSystem = fileSystem
             self.fullHandleService = fullHandleService
         }
 
@@ -55,9 +58,9 @@
             id: String,
             fullHandle: String,
             serverURL: URL,
-            archivePath: AbsolutePath,
-            contentLength: Int
+            archivePath: AbsolutePath
         ) async throws {
+            let contentLength = Int(try await fileSystem.fileSizeInBytes(at: archivePath) ?? 0)
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 

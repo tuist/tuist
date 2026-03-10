@@ -11,23 +11,33 @@ defmodule Processor.BuildProcessor do
         process_archive(body)
 
       {:error, reason} ->
-        Logger.error("Failed to download build archive (storage_key: #{storage_key}): #{inspect(reason)}")
+        Logger.error(
+          "Failed to download build archive (storage_key: #{storage_key}): #{inspect(reason)}"
+        )
+
         {:error, {:download_failed, reason}}
     end
   end
 
   def process_archive(archive_bytes) do
-    with {:ok, temp_dir} <- extract_archive(archive_bytes),
-         {:ok, manifest} <- read_manifest(temp_dir),
-         {:ok, xcactivitylog_path} <- find_xcactivitylog(temp_dir),
-         cas_path = Path.join(temp_dir, "cas_metadata"),
-         {:ok, parsed_data} <- parse_xcactivitylog(xcactivitylog_path, cas_path, manifest) do
-      cleanup_temp(temp_dir)
-      {:ok, parsed_data}
-    else
+    case extract_archive(archive_bytes) do
+      {:ok, temp_dir} ->
+        try do
+          with {:ok, xcactivitylog_path} <- find_xcactivitylog(temp_dir),
+               cas_path = Path.join(temp_dir, "cas_metadata"),
+               {:ok, parsed_data} <- parse_xcactivitylog(xcactivitylog_path, cas_path) do
+            {:ok, parsed_data}
+          else
+            {:error, reason} ->
+              Logger.error("Failed to process build archive: #{inspect(reason)}")
+              {:error, reason}
+          end
+        after
+          cleanup_temp(temp_dir)
+        end
+
       {:error, reason} ->
         Logger.error("Failed to process build archive: #{inspect(reason)}")
-        cleanup_temp(nil)
         {:error, reason}
     end
   end
@@ -41,19 +51,6 @@ defmodule Processor.BuildProcessor do
     case :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}]) do
       {:ok, _} -> {:ok, temp_dir}
       {:error, reason} -> {:error, {:unzip_failed, reason}}
-    end
-  end
-
-  defp read_manifest(temp_dir) do
-    manifest_path = Path.join(temp_dir, "build_archive/manifest.json")
-
-    if File.exists?(manifest_path) do
-      case File.read(manifest_path) do
-        {:ok, content} -> Jason.decode(content)
-        {:error, reason} -> {:error, {:manifest_read_failed, reason}}
-      end
-    else
-      {:ok, %{}}
     end
   end
 
@@ -72,10 +69,8 @@ defmodule Processor.BuildProcessor do
     end
   end
 
-  defp parse_xcactivitylog(xcactivitylog_path, cas_path, manifest) do
-    cache_upload_enabled = Map.get(manifest, "cache_upload_enabled", false)
-
-    case Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, cache_upload_enabled) do
+  defp parse_xcactivitylog(xcactivitylog_path, cas_path) do
+    case Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, true) do
       {:ok, parsed_data} -> {:ok, parsed_data}
       {:error, reason} -> {:error, {:parse_failed, reason}}
     end

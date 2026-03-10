@@ -2,11 +2,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   @moduledoc false
   use Oban.Worker, queue: :build_processing, max_attempts: 3
 
-  require Logger
-
   alias Tuist.Accounts
   alias Tuist.Builds
   alias Tuist.Storage
+
+  require Logger
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -49,7 +49,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         {:error, _} = error -> error
       end
     else
-      Logger.error("No processor available for build #{build_id}: processor_url not configured and Processor.BuildProcessor not loaded")
+      Logger.error(
+        "No processor available for build #{build_id}: processor_url not configured and Processor.BuildProcessor not loaded"
+      )
+
       {:error, "processor_not_available"}
     end
   end
@@ -64,8 +67,19 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
     Logger.info("Sending build #{build_id} to processor at #{processor_url}")
 
+    json_body = Jason.encode!(payload)
+    webhook_secret = Application.get_env(:tuist, :processor_webhook_secret, "")
+
+    signature =
+      :crypto.mac(:hmac, :sha256, webhook_secret, json_body)
+      |> Base.encode16(case: :lower)
+
     case Req.post("#{processor_url}/webhooks/process-build",
-           json: payload,
+           body: json_body,
+           headers: [
+             {"content-type", "application/json"},
+             {"x-webhook-signature", signature}
+           ],
            receive_timeout: 300_000
          ) do
       {:ok, %{status: 200, body: parsed_data}} ->
@@ -109,10 +123,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       duration: parsed[:duration] || 0,
       status: parsed[:status] || "success",
       category: parsed[:category],
-      is_ci: parsed[:is_ci] || (original_build && original_build.is_ci) || false,
-      macos_version: parsed[:macos_version] || (original_build && original_build.macos_version) || "",
-      xcode_version: parsed[:xcode_version] || (original_build && original_build.xcode_version) || "",
-      model_identifier: parsed[:model_identifier] || (original_build && original_build.model_identifier) || "",
+      is_ci: (original_build && original_build.is_ci) || false,
+      macos_version: (original_build && original_build.macos_version) || "",
+      xcode_version: (original_build && original_build.xcode_version) || "",
+      model_identifier: (original_build && original_build.model_identifier) || "",
       scheme: (original_build && original_build.scheme) || "",
       configuration: (original_build && original_build.configuration) || "",
       git_branch: (original_build && original_build.git_branch) || "",
@@ -124,7 +138,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       ci_provider: (original_build && original_build.ci_provider) || "",
       custom_tags: (original_build && original_build.custom_tags) || [],
       custom_values: (original_build && original_build.custom_values) || %{},
-      storage_key: (original_build && original_build.storage_key),
+      storage_key: original_build && original_build.storage_key,
       targets: convert_targets(parsed[:targets] || []),
       issues: convert_issues(parsed[:issues] || []),
       files: convert_files(parsed[:files] || []),
@@ -132,7 +146,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
     }
 
-    Logger.info("Writing parsed build #{build_id} to ClickHouse (status: #{attrs[:status]}, duration: #{attrs[:duration]}ms)")
+    Logger.info(
+      "Writing parsed build #{build_id} to ClickHouse (status: #{attrs[:status]}, duration: #{attrs[:duration]}ms)"
+    )
 
     case Builds.create_build(attrs) do
       {:ok, _build} ->
@@ -150,20 +166,23 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       id: build_id,
       project_id: project_id,
       account_id: account_id,
-      status: "failure",
+      status: "failed_processing",
       duration: 0,
       is_ci: false
     })
   end
 
   defp atomize_keys(map) when is_map(map) do
-    Map.new(map, fn {k, v} when is_binary(k) -> {String.to_atom(k), v}; other -> other end)
+    Map.new(map, fn
+      {k, v} when is_binary(k) -> {String.to_existing_atom(k), v}
+      other -> other
+    end)
   end
 
   defp convert_files(files) do
     Enum.map(files, fn f ->
       f = atomize_keys(f)
-      Map.update!(f, :type, &String.to_atom/1)
+      Map.update!(f, :type, &String.to_existing_atom/1)
     end)
   end
 
@@ -172,15 +191,15 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       i = atomize_keys(i)
 
       i
-      |> Map.update!(:type, &String.to_atom/1)
-      |> Map.update!(:step_type, &String.to_atom/1)
+      |> Map.update!(:type, &String.to_existing_atom/1)
+      |> Map.update!(:step_type, &String.to_existing_atom/1)
     end)
   end
 
   defp convert_targets(targets) do
     Enum.map(targets, fn t ->
       t = atomize_keys(t)
-      Map.update!(t, :status, &String.to_atom/1)
+      Map.update!(t, :status, &String.to_existing_atom/1)
     end)
   end
 
@@ -189,8 +208,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       t = atomize_keys(t)
 
       t
-      |> Map.update!(:type, &String.to_atom/1)
-      |> Map.update!(:status, &String.to_atom/1)
+      |> Map.update!(:type, &String.to_existing_atom/1)
+      |> Map.update!(:status, &String.to_existing_atom/1)
     end)
   end
 end

@@ -19,7 +19,7 @@ defmodule Processor.BuildProcessorTest do
         {:ok, %{body: archive_bytes}}
       end)
 
-      expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, false ->
+      expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
         assert String.ends_with?(path, "test.xcactivitylog")
         assert String.ends_with?(cas_path, "cas_metadata")
         {:ok, %{"duration" => 1000, "status" => "success"}}
@@ -47,7 +47,7 @@ defmodule Processor.BuildProcessorTest do
     test "extracts archive and parses xcactivitylog" do
       archive_bytes = build_test_archive()
 
-      expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, false ->
+      expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
         assert String.ends_with?(path, "test.xcactivitylog")
         assert String.ends_with?(cas_path, "cas_metadata")
         {:ok, %{"duration" => 500, "status" => "success", "targets" => []}}
@@ -57,7 +57,7 @@ defmodule Processor.BuildProcessorTest do
                BuildProcessor.process_archive(archive_bytes)
     end
 
-    test "reads manifest when present" do
+    test "ignores manifest when present" do
       archive_bytes = build_test_archive(manifest: %{"cache_upload_enabled" => true})
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
@@ -77,7 +77,7 @@ defmodule Processor.BuildProcessorTest do
     test "returns error when NIF parsing fails" do
       archive_bytes = build_test_archive()
 
-      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, false ->
+      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:error, "parse_failed"}
       end)
 
