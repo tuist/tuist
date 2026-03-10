@@ -177,6 +177,14 @@ components:
       type: object
       x-struct:
       x-validate:
+    BuildCacheTasksIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildCacheTasksIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -213,6 +221,15 @@ components:
       maximum: 500
       minimum: 1
       title: TestCasesIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    BuildCASOutputsIndexPageSize:
+      default: 20
+      description: The maximum number of CAS outputs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildCASOutputsIndexPageSize
       type: integer
       x-struct:
       x-validate:
@@ -260,6 +277,14 @@ components:
       title: CacheArtifactDownloadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheArtifactDownloadURL
+      x-validate:
+    ModuleCacheTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: ModuleCacheTargetsPage
+      type: integer
+      x-struct:
       x-validate:
     Tokens:
       description: A list of project tokens.
@@ -366,6 +391,14 @@ components:
       type: string
       x-struct:
       x-validate:
+    BuildFilesIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildFilesIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     CacheActionItemUploadParams:
       properties:
         hash:
@@ -383,6 +416,14 @@ components:
       minimum: 1
       title: CacheRunsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    BuildFileType:
+      enum:
+        - swift
+        - c
+      title: BuildFileType
+      type: string
       x-struct:
       x-validate:
     ArtifactMultipartUploadPart:
@@ -1025,6 +1066,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
       x-validate:
+    TestSuiteRunsPageSize:
+      default: 20
+      description: The maximum number of suite runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestSuiteRunsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     Invitation:
       properties:
         id:
@@ -1067,6 +1117,15 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestSuiteRunStatus:
+      enum:
+        - success
+        - failure
+        - skipped
+      title: TestSuiteRunStatus
+      type: string
+      x-struct:
+      x-validate:
     GenerationsIndexPage:
       default: 1
       description: The page number to return.
@@ -1093,6 +1152,14 @@ components:
       title: Account
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Account
+      x-validate:
+    TestModuleRunStatus:
+      enum:
+        - success
+        - failure
+      title: TestModuleRunStatus
+      type: string
+      x-struct:
       x-validate:
     OrganizationMember:
       description: An organization member
@@ -1299,6 +1366,23 @@ components:
       type: object
       x-struct:
       x-validate:
+    CASOutputOperation:
+      enum:
+        - download
+        - upload
+      title: CASOutputOperation
+      type: string
+      x-struct:
+      x-validate:
+    BuildCacheTasksIndexPageSize:
+      default: 20
+      description: The maximum number of cache tasks to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildCacheTasksIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
     PreviewSupportedPlatform:
       enum:
         - ios
@@ -1426,6 +1510,15 @@ components:
       title: TestCase
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.TestCase
+      x-validate:
+    TestRunsIndexPageSize:
+      default: 20
+      description: The maximum number of test runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestRunsIndexPageSize
+      type: integer
+      x-struct:
       x-validate:
     Preview:
       properties:
@@ -2383,6 +2476,22 @@ components:
       title: RunParams
       x-struct:
       x-validate:
+    BuildTargetStatus:
+      enum:
+        - success
+        - failure
+      title: BuildTargetStatus
+      type: string
+      x-struct:
+      x-validate:
+    BuildCASOutputsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildCASOutputsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     RunsIndexPageSize:
       default: 20
       description: The maximum number of runs to return in a single page.
@@ -2484,6 +2593,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Bundle
       x-validate:
+    BuildFileSortBy:
+      default: compilation_duration
+      enum:
+        - compilation_duration
+        - path
+      title: BuildFileSortBy
+      type: string
+      x-struct:
+      x-validate:
     TestCaseRunsByTestCasePageSize:
       default: 20
       description: The maximum number of test case runs to return in a single page.
@@ -2491,6 +2609,14 @@ components:
       minimum: 1
       title: TestCaseRunsByTestCasePageSize
       type: integer
+      x-struct:
+      x-validate:
+    CacheTaskType:
+      enum:
+        - clang
+        - swift
+      title: CacheTaskType
+      type: string
       x-struct:
       x-validate:
     BundleArtifact:
@@ -2903,6 +3029,40 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestModuleRunsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestModuleRunsPage
+      type: integer
+      x-struct:
+      x-validate:
+    TestRunsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestRunsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
+    CacheTaskStatus:
+      enum:
+        - hit_local
+        - hit_remote
+        - miss
+      title: CacheTaskStatus
+      type: string
+      x-struct:
+      x-validate:
+    BuildTargetsIndexPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildTargetsIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
     OrganizationUsage:
       description: The usage of an organization.
       properties:
@@ -2935,6 +3095,66 @@ components:
       type: object
       x-struct:
       x-validate:
+    CASOutputType:
+      enum:
+        - swift
+        - sil
+        - sib
+        - image
+        - dSYM
+        - dependencies
+        - emit-module-dependencies
+        - autolink
+        - swiftmodule
+        - swiftdoc
+        - swiftinterface
+        - object
+        - ast-dump
+        - raw-sil
+        - raw-sib
+        - raw-llvm-ir
+        - llvm-ir
+        - llvm-bc
+        - private-swiftinterface
+        - package-swiftinterface
+        - objc-header
+        - swift-dependencies
+        - dependency-scanner-cache
+        - json-dependencies
+        - json-target-info
+        - json-supported-features
+        - json-module-artifacts
+        - imported-modules
+        - module-trace
+        - index-data
+        - index-unit-output-path
+        - yaml-opt-record
+        - bitstream-opt-record
+        - diagnostics
+        - emit-module-diagnostics
+        - dependency-scan-diagnostics
+        - api-baseline-json
+        - abi-baseline-json
+        - const-values
+        - api-descriptor-json
+        - swift-module-summary
+        - module-semantic-info
+        - cached-diagnostics
+        - json-supported-swift-features
+        - modulemap
+        - pch
+        - pcm
+        - tbd
+        - remap
+        - localization-strings
+        - clang-header
+        - swiftsourceinfo
+        - assembly
+        - unknown
+      title: CASOutputType
+      type: string
+      x-struct:
+      x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
       properties:
@@ -2954,6 +3174,15 @@ components:
       title: ArtifactUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadURL
+      x-validate:
+    BuildFilesIndexPageSize:
+      default: 20
+      description: The maximum number of files to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildFilesIndexPageSize
+      type: integer
+      x-struct:
       x-validate:
     TestCaseRunsByTestRunPage:
       default: 1
@@ -2980,6 +3209,23 @@ components:
       title: TestCaseRunsList
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRunsList
+      x-validate:
+    TestModuleRunsPageSize:
+      default: 20
+      description: The maximum number of module runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestModuleRunsPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    BuildTargetsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildTargetsIndexPage
+      type: integer
+      x-struct:
       x-validate:
     DeviceCodeAuthenticationTokens:
       description: Token to authenticate the user with.
@@ -3026,6 +3272,14 @@ components:
           x-validate:
       title: AbsentCacheArtifact
       type: object
+      x-struct:
+      x-validate:
+    BuildIssueType:
+      enum:
+        - warning
+        - error
+      title: BuildIssueType
+      type: string
       x-struct:
       x-validate:
     Error:
@@ -3417,6 +3671,15 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestRunStatus:
+      enum:
+        - success
+        - failure
+        - skipped
+      title: TestRunStatus
+      type: string
+      x-struct:
+      x-validate:
     TestCaseRun:
       description: A single test case run.
       properties:
@@ -3679,6 +3942,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
       x-validate:
+    CacheStatus:
+      enum:
+        - miss
+        - local
+        - remote
+      title: CacheStatus
+      type: string
+      x-struct:
+      x-validate:
     GenerationsIndexPageSize:
       default: 20
       description: The maximum number of generations to return in a single page.
@@ -3704,6 +3976,14 @@ components:
       title: BundleSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.BundleSupportedPlatform
+      x-validate:
+    TestSuiteRunsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestSuiteRunsPage
+      type: integer
+      x-struct:
       x-validate:
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
@@ -4459,6 +4739,15 @@ components:
       maximum: 500
       minimum: 1
       title: TestCaseRunsByTestRunPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    ModuleCacheTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: ModuleCacheTargetsPageSize
       type: integer
       x-struct:
       x-validate:
@@ -5399,6 +5688,177 @@ paths:
       summary: Get a build by ID.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}/cache-tasks:
+    get:
+      callbacks: {}
+      operationId: listBuildCacheTasks
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by cache status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - hit_local
+              - hit_remote
+              - miss
+            title: CacheTaskStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by task type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - clang
+              - swift
+            title: CacheTaskType
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of cache tasks to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildCacheTasksIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildCacheTasksIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  tasks:
+                    items:
+                      properties:
+                        cas_output_node_ids:
+                          description: CAS output node IDs associated with this task.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        description:
+                          description: Description of the cacheable task.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        key:
+                          description: The cache key.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        read_duration:
+                          description: Read duration in milliseconds.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The cache status.
+                          enum:
+                            - hit_local
+                            - hit_remote
+                            - miss
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The task type.
+                          enum:
+                            - clang
+                            - swift
+                          type: string
+                          x-struct:
+                          x-validate:
+                        write_duration:
+                          description: Write duration in milliseconds.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                        - status
+                        - key
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - tasks
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build cache tasks
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List cacheable tasks for a given build.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/previews/start:
     post:
       callbacks: {}
@@ -6027,6 +6487,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -6041,14 +6509,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -6576,6 +7036,275 @@ paths:
       summary: Create a new project token.
       tags:
         - Project tokens
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}/cas-outputs:
+    get:
+      callbacks: {}
+      operationId: listBuildCASOutputs
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by CAS operation type.
+          in: query
+          name: operation
+          required: false
+          schema:
+            enum:
+              - download
+              - upload
+            title: CASOutputOperation
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by CAS output type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - swift
+              - sil
+              - sib
+              - image
+              - dSYM
+              - dependencies
+              - emit-module-dependencies
+              - autolink
+              - swiftmodule
+              - swiftdoc
+              - swiftinterface
+              - object
+              - ast-dump
+              - raw-sil
+              - raw-sib
+              - raw-llvm-ir
+              - llvm-ir
+              - llvm-bc
+              - private-swiftinterface
+              - package-swiftinterface
+              - objc-header
+              - swift-dependencies
+              - dependency-scanner-cache
+              - json-dependencies
+              - json-target-info
+              - json-supported-features
+              - json-module-artifacts
+              - imported-modules
+              - module-trace
+              - index-data
+              - index-unit-output-path
+              - yaml-opt-record
+              - bitstream-opt-record
+              - diagnostics
+              - emit-module-diagnostics
+              - dependency-scan-diagnostics
+              - api-baseline-json
+              - abi-baseline-json
+              - const-values
+              - api-descriptor-json
+              - swift-module-summary
+              - module-semantic-info
+              - cached-diagnostics
+              - json-supported-swift-features
+              - modulemap
+              - pch
+              - pcm
+              - tbd
+              - remap
+              - localization-strings
+              - clang-header
+              - swiftsourceinfo
+              - assembly
+              - unknown
+            title: CASOutputType
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of CAS outputs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildCASOutputsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildCASOutputsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  outputs:
+                    items:
+                      properties:
+                        checksum:
+                          description: The checksum of the CAS object.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        compressed_size:
+                          description: The compressed size in bytes.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: The operation duration in milliseconds.
+                          type: number
+                          x-struct:
+                          x-validate:
+                        node_id:
+                          description: The CAS node identifier.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        operation:
+                          description: The CAS operation type.
+                          enum:
+                            - download
+                            - upload
+                          type: string
+                          x-struct:
+                          x-validate:
+                        size:
+                          description: The size in bytes.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The CAS output file type.
+                          enum:
+                            - swift
+                            - sil
+                            - sib
+                            - image
+                            - dSYM
+                            - dependencies
+                            - emit-module-dependencies
+                            - autolink
+                            - swiftmodule
+                            - swiftdoc
+                            - swiftinterface
+                            - object
+                            - ast-dump
+                            - raw-sil
+                            - raw-sib
+                            - raw-llvm-ir
+                            - llvm-ir
+                            - llvm-bc
+                            - private-swiftinterface
+                            - package-swiftinterface
+                            - objc-header
+                            - swift-dependencies
+                            - dependency-scanner-cache
+                            - json-dependencies
+                            - json-target-info
+                            - json-supported-features
+                            - json-module-artifacts
+                            - imported-modules
+                            - module-trace
+                            - index-data
+                            - index-unit-output-path
+                            - yaml-opt-record
+                            - bitstream-opt-record
+                            - diagnostics
+                            - emit-module-diagnostics
+                            - dependency-scan-diagnostics
+                            - api-baseline-json
+                            - abi-baseline-json
+                            - const-values
+                            - api-descriptor-json
+                            - swift-module-summary
+                            - module-semantic-info
+                            - cached-diagnostics
+                            - json-supported-swift-features
+                            - modulemap
+                            - pch
+                            - pcm
+                            - tbd
+                            - remap
+                            - localization-strings
+                            - clang-header
+                            - swiftsourceinfo
+                            - assembly
+                            - unknown
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - node_id
+                        - checksum
+                        - size
+                        - compressed_size
+                        - duration
+                        - operation
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - outputs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of CAS outputs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List CAS outputs for a given build.
+      tags:
+        - Builds
   /api/organizations/{organization_name}/usage:
     get:
       callbacks: {}
@@ -6980,6 +7709,175 @@ paths:
       summary: Completes artifacts uploads for a given run
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues:
+    get:
+      callbacks: {}
+      operationId: listBuildIssues
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by issue type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - warning
+              - error
+            title: BuildIssueType
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by target name.
+          in: query
+          name: target
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by compilation step type.
+          in: query
+          name: step_type
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  issues:
+                    items:
+                      properties:
+                        ending_column:
+                          description: The ending column number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        ending_line:
+                          description: The ending line number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        message:
+                          description: The detailed message.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The file path.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          description: The project name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        signature:
+                          description: The issue signature.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        starting_column:
+                          description: The starting column number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        starting_line:
+                          description: The starting line number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        step_type:
+                          description: The compilation step type.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          description: The issue title.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The issue type.
+                          enum:
+                            - warning
+                            - error
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                        - target
+                        - project
+                        - title
+                        - signature
+                        - step_type
+                        - starting_line
+                        - ending_line
+                        - starting_column
+                        - ending_column
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - issues
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build issues
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List build issues for a given build.
+      tags:
+        - Builds
   /api/cache/multipart/generate-url:
     post:
       callbacks: {}
@@ -7780,6 +8678,246 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/modules:
+    get:
+      callbacks: {}
+      operationId: listTestModuleRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by module run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: TestModuleRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestModuleRunsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of module runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestModuleRunsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  modules:
+                    items:
+                      properties:
+                        avg_test_case_duration:
+                          description: Average test case duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the module had flaky tests.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The module name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Module status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_case_count:
+                          description: Number of test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        test_suite_count:
+                          description: Number of test suites.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - modules
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test module runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List test module runs for a test run.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts:
+    get:
+      callbacks: {}
+      operationId: getBundleArtifactTree
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  artifacts:
+                    items:
+                      properties:
+                        artifact_type:
+                          description: The type of the artifact.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The artifact path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        size:
+                          description: The artifact size in bytes.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - artifact_type
+                        - path
+                        - size
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  bundle_id:
+                    description: The bundle ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - bundle_id
+                  - artifacts
+                type: object
+                x-struct:
+                x-validate:
+          description: Bundle artifact tree
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bundle not found
+      summary: Get the artifact tree for a bundle.
+      tags:
+        - Bundles
   /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
     get:
       callbacks: {}
@@ -8813,6 +9951,105 @@ paths:
       summary: Create a new build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments:
+    get:
+      callbacks: {}
+      operationId: listTestCaseRunAttachments
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case run.
+          in: path
+          name: test_case_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  attachments:
+                    items:
+                      properties:
+                        download_url:
+                          description: Presigned download URL.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        file_name:
+                          description: The file name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The attachment ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The attachment type.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - file_name
+                        - type
+                        - download_url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_case_run_id:
+                    description: The test case run ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_case_run_id
+                  - attachments
+                type: object
+                x-struct:
+                x-validate:
+          description: List of attachments
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test case run not found
+      summary: List attachments for a test case run.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -8970,6 +10207,14 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        requested_tasks:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         root_project_name:
                           nullable: true
                           type: string
@@ -9068,6 +10313,12 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                git_remote_url_origin:
+                  description: Git remote URL origin.
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
                 gradle_version:
                   description: Gradle version.
                   nullable: true
@@ -9089,6 +10340,16 @@ paths:
                   description: Java version.
                   nullable: true
                   type: string
+                  x-struct:
+                  x-validate:
+                requested_tasks:
+                  description: The tasks requested by the user (e.g., assembleRelease).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  nullable: true
+                  type: array
                   x-struct:
                   x-validate:
                 root_project_name:
@@ -9889,6 +11150,145 @@ paths:
       summary: List test cases associated with a given project.
       tags:
         - Test Cases
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}/targets:
+    get:
+      callbacks: {}
+      operationId: listBuildTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by target status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: BuildTargetStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildTargetsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildTargetsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        build_duration:
+                          description: Build duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        compilation_duration:
+                          description: Compilation duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          description: The target's project name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Target build status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - project
+                        - build_duration
+                        - compilation_duration
+                        - status
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List build targets for a given build.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -10994,6 +12394,14 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  requested_tasks:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
                   root_project_name:
                     nullable: true
                     type: string
@@ -11227,6 +12635,166 @@ paths:
       summary: Updates a project
       tags:
         - Projects
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}/files:
+    get:
+      callbacks: {}
+      operationId: listBuildFiles
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by target name.
+          in: query
+          name: target
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by file type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - swift
+              - c
+            title: BuildFileType
+            type: string
+            x-struct:
+            x-validate:
+        - description: Sort by field.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: compilation_duration
+            enum:
+              - compilation_duration
+              - path
+            title: BuildFileSortBy
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of files to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildFilesIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildFilesIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  files:
+                    items:
+                      properties:
+                        compilation_duration:
+                          description: Compilation duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The file path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          description: The project name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The file type.
+                          enum:
+                            - swift
+                            - c
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                        - target
+                        - project
+                        - path
+                        - compilation_duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - files
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build files
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List compiled files for a given build.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/runs:
     get:
       callbacks: {}
@@ -12323,6 +13891,163 @@ paths:
       summary: Updates a member in an organization
       tags:
         - Organizations
+  /api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets:
+    get:
+      callbacks: {}
+      operationId: listModuleCacheTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the command run.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by cache status.
+          in: query
+          name: cache_status
+          required: false
+          schema:
+            enum:
+              - miss
+              - local
+              - remote
+            title: CacheStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: ModuleCacheTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: ModuleCacheTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        bundle_id:
+                          description: The bundle identifier.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_hash:
+                          description: The cache hash.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_status:
+                          description: The cache status.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        product:
+                          description: The product type.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        product_name:
+                          description: The product name.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        subhashes:
+                          additionalProperties:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          description: Non-nil hash components.
+                          type: object
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of module cache targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Run not found
+      summary: List module cache targets for a run.
+      tags:
+        - Runs
   /api/projects/{account_handle}/{project_handle}/cache-runs:
     get:
       callbacks: {}
@@ -12771,6 +14496,159 @@ paths:
       summary: Uploads a preview icon.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites:
+    get:
+      callbacks: {}
+      operationId: listTestSuiteRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by module name.
+          in: query
+          name: module_name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by suite run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - skipped
+            title: TestSuiteRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestSuiteRunsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of suite runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestSuiteRunsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  suites:
+                    items:
+                      properties:
+                        avg_test_case_duration:
+                          description: Average test case duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the suite had flaky tests.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The suite name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Suite status.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_case_count:
+                          description: Number of test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - suites
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test suite runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List test suite runs for a test run.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/previews/complete:
     post:
       callbacks: {}
@@ -13309,6 +15187,189 @@ paths:
       tags:
         - Tests
   /api/projects/{account_handle}/{project_handle}/tests:
+    get:
+      callbacks: {}
+      operationId: listTestRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by test run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - skipped
+            title: TestRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by scheme name.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestRunsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of test runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestRunsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  test_runs:
+                    items:
+                      properties:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The test run ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the run was on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the run was flaky.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: ISO 8601 timestamp.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_tests:
+                          description: Number of test cases that ran.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: Build scheme.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        skipped_tests:
+                          description: Number of skipped test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Run status.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        total_test_count:
+                          description: Total number of test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - duration
+                        - status
+                        - is_ci
+                        - is_flaky
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_runs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List test runs for a project.
+      tags:
+        - Tests
     post:
       callbacks: {}
       operationId: createTest
@@ -13894,6 +15955,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:4002
     variables: {}
 tags: []
