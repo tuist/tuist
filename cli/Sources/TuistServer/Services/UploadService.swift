@@ -7,17 +7,22 @@
     import TuistHTTP
     import TuistSupport
 
+    public enum UploadPurpose: String {
+        case buildArchive = "build_archive"
+    }
+
     @Mockable
-    public protocol UploadBuildArchiveServicing {
-        func uploadBuildArchive(
+    public protocol UploadServicing {
+        func upload(
             id: String,
             fullHandle: String,
             serverURL: URL,
-            archivePath: AbsolutePath
+            filePath: AbsolutePath,
+            purpose: UploadPurpose
         ) async throws
     }
 
-    enum UploadBuildArchiveServiceError: LocalizedError {
+    enum UploadServiceError: LocalizedError {
         case unknownError(Int)
         case forbidden(String)
         case notFound(String)
@@ -34,7 +39,7 @@
         }
     }
 
-    public struct UploadBuildArchiveService: UploadBuildArchiveServicing {
+    public struct UploadService: UploadServicing {
         private let fullHandleService: FullHandleServicing
         private let multipartUploadArtifactService: MultipartUploadArtifactServicing
 
@@ -46,11 +51,12 @@
             self.multipartUploadArtifactService = multipartUploadArtifactService
         }
 
-        public func uploadBuildArchive(
+        public func upload(
             id: String,
             fullHandle: String,
             serverURL: URL,
-            archivePath: AbsolutePath
+            filePath: AbsolutePath,
+            purpose: UploadPurpose
         ) async throws {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -61,11 +67,12 @@
                 client: client,
                 id: id,
                 accountHandle: accountHandle,
-                projectHandle: projectHandle
+                projectHandle: projectHandle,
+                purpose: purpose
             )
 
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                artifactPath: archivePath,
+                artifactPath: filePath,
                 generateUploadURL: { part in
                     try await generatePartURL(
                         client: client,
@@ -73,7 +80,8 @@
                         accountHandle: accountHandle,
                         projectHandle: projectHandle,
                         uploadId: uploadId,
-                        part: part
+                        part: part,
+                        purpose: purpose
                     )
                 },
                 updateProgress: { _ in }
@@ -85,7 +93,8 @@
                 accountHandle: accountHandle,
                 projectHandle: projectHandle,
                 uploadId: uploadId,
-                parts: parts
+                parts: parts,
+                purpose: purpose
             )
         }
 
@@ -93,14 +102,15 @@
             client: Client,
             id: String,
             accountHandle: String,
-            projectHandle: String
+            projectHandle: String,
+            purpose: UploadPurpose
         ) async throws -> String {
             let response = try await client.startUploadsMultipartUpload(
                 path: .init(
                     account_handle: accountHandle,
                     project_handle: projectHandle
                 ),
-                body: .json(.init(id: id, purpose: .build_archive))
+                body: .json(.init(id: id, purpose: .init(rawValue: purpose.rawValue)!))
             )
 
             switch response {
@@ -112,20 +122,20 @@
             case let .unauthorized(unauthorizedResponse):
                 switch unauthorizedResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.unauthorized(error.message)
+                    throw UploadServiceError.unauthorized(error.message)
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                    throw UploadServiceError.forbidden(error.message)
                 }
             case let .notFound(notFoundResponse):
                 switch notFoundResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.notFound(error.message)
+                    throw UploadServiceError.notFound(error.message)
                 }
             case let .undocumented(statusCode: statusCode, _):
-                throw UploadBuildArchiveServiceError.unknownError(statusCode)
+                throw UploadServiceError.unknownError(statusCode)
             }
         }
 
@@ -135,7 +145,8 @@
             accountHandle: String,
             projectHandle: String,
             uploadId: String,
-            part: MultipartUploadArtifactPart
+            part: MultipartUploadArtifactPart,
+            purpose: UploadPurpose
         ) async throws -> String {
             let response = try await client.generateUploadsMultipartUploadURL(
                 path: .init(
@@ -149,7 +160,7 @@
                         part_number: part.number,
                         upload_id: uploadId
                     ),
-                    purpose: .build_archive
+                    purpose: .init(rawValue: purpose.rawValue)!
                 ))
             )
 
@@ -162,20 +173,20 @@
             case let .unauthorized(unauthorizedResponse):
                 switch unauthorizedResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.unauthorized(error.message)
+                    throw UploadServiceError.unauthorized(error.message)
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                    throw UploadServiceError.forbidden(error.message)
                 }
             case let .notFound(notFoundResponse):
                 switch notFoundResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.notFound(error.message)
+                    throw UploadServiceError.notFound(error.message)
                 }
             case let .undocumented(statusCode: statusCode, _):
-                throw UploadBuildArchiveServiceError.unknownError(statusCode)
+                throw UploadServiceError.unknownError(statusCode)
             }
         }
 
@@ -185,7 +196,8 @@
             accountHandle: String,
             projectHandle: String,
             uploadId: String,
-            parts: [(etag: String, partNumber: Int)]
+            parts: [(etag: String, partNumber: Int)],
+            purpose: UploadPurpose
         ) async throws {
             let response = try await client.completeUploadsMultipartUpload(
                 path: .init(
@@ -200,7 +212,7 @@
                         },
                         upload_id: uploadId
                     ),
-                    purpose: .build_archive
+                    purpose: .init(rawValue: purpose.rawValue)!
                 ))
             )
 
@@ -210,20 +222,20 @@
             case let .unauthorized(unauthorizedResponse):
                 switch unauthorizedResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.unauthorized(error.message)
+                    throw UploadServiceError.unauthorized(error.message)
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.forbidden(error.message)
+                    throw UploadServiceError.forbidden(error.message)
                 }
             case let .notFound(notFoundResponse):
                 switch notFoundResponse.body {
                 case let .json(error):
-                    throw UploadBuildArchiveServiceError.notFound(error.message)
+                    throw UploadServiceError.notFound(error.message)
                 }
             case let .undocumented(statusCode: statusCode, _):
-                throw UploadBuildArchiveServiceError.unknownError(statusCode)
+                throw UploadServiceError.unknownError(statusCode)
             }
         }
     }

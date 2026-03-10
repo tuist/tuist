@@ -45,7 +45,7 @@
         private let machineEnvironment: MachineEnvironmentRetrieving
         private let xcodeBuildController: XcodeBuildControlling
         private let createBuildService: CreateBuildServicing
-        private let uploadBuildArchiveService: UploadBuildArchiveServicing
+        private let uploadService: UploadServicing
         private let configLoader: ConfigLoading
         private let xcActivityLogController: XCActivityLogControlling
         private let backgroundProcessRunner: BackgroundProcessRunning
@@ -61,7 +61,7 @@
             machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
             xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
             createBuildService: CreateBuildServicing = CreateBuildService(),
-            uploadBuildArchiveService: UploadBuildArchiveServicing = UploadBuildArchiveService(),
+            uploadService: UploadServicing = UploadService(),
             configLoader: ConfigLoading = ConfigLoader(),
             xcActivityLogController: XCActivityLogControlling = XCActivityLogController(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
@@ -76,7 +76,7 @@
             self.machineEnvironment = machineEnvironment
             self.xcodeBuildController = xcodeBuildController
             self.createBuildService = createBuildService
-            self.uploadBuildArchiveService = uploadBuildArchiveService
+            self.uploadService = uploadService
             self.configLoader = configLoader
             self.xcActivityLogController = xcActivityLogController
             self.backgroundProcessRunner = backgroundProcessRunner
@@ -267,11 +267,12 @@
                     mostRecentActivityLogPath: mostRecentActivityLogPath,
                     into: tempDirectory
                 )
-                try await uploadBuildArchiveService.uploadBuildArchive(
+                try await uploadService.upload(
                     id: buildId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
-                    archivePath: archivePath
+                    filePath: archivePath,
+                    purpose: .buildArchive
                 )
 
                 let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
