@@ -70,8 +70,8 @@ S3_BUCKET=your-cache-bucket
 S3_HOST=s3.us-east-1.amazonaws.com
 S3_REGION=us-east-1
 
-# Optional: dedicated CAS bucket (see S3_CAS_BUCKET below)
-# S3_CAS_BUCKET=your-cas-bucket
+# Optional: dedicated Xcode cache bucket (see S3_XCODE_CACHE_BUCKET below)
+# S3_XCODE_CACHE_BUCKET=your-xcode-cache-bucket
 
 # S3 authentication (Option 1: static credentials)
 S3_ACCESS_KEY_ID=your-access-key
@@ -99,8 +99,8 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
 | `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
 | `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
-| `S3_BUCKET` | Yes | | S3 bucket for module and Gradle cache artifacts. Also used as a fallback for CAS reads when `S3_CAS_BUCKET` is set. |
-| `S3_CAS_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for CAS artifacts. When set to a different value than `S3_BUCKET`, CAS uploads go to this bucket and CAS reads check it first, falling back to `S3_BUCKET` for artifacts that predate the split. |
+| `S3_BUCKET` | Yes | | S3 bucket for module and Gradle cache artifacts. Also used for Xcode cache artifacts when `S3_XCODE_CACHE_BUCKET` is unset. |
+| `S3_XCODE_CACHE_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for Xcode cache artifacts. When set, Xcode cache reads and writes use this bucket directly. |
 | `S3_HOST` | Yes | | S3 endpoint hostname (e.g. `s3.us-east-1.amazonaws.com`). |
 | `S3_REGION` | Yes | | S3 region. Also accepted as `AWS_REGION`. |
 | `S3_ACCESS_KEY_ID` | Conditional | | S3 access key. Required when using static credentials. Also accepted as `AWS_ACCESS_KEY_ID`. See [S3 authentication](#s3-authentication). |
@@ -119,6 +119,8 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | | gRPC endpoint of an OpenTelemetry Collector for distributed tracing. |
 | `LOKI_URL` | No | | Base URL of a Loki-compatible endpoint for log forwarding. |
 | `DEPLOY_ENV` | No | `production` | Environment label used in traces and log labels (e.g. `production`, `staging`). |
+
+If you add `S3_XCODE_CACHE_BUCKET` to an existing deployment, migrate any Xcode cache artifacts you want to keep serving before enabling it because reads stop consulting `S3_BUCKET` once the dedicated bucket is configured.
 
 ### S3 authentication {#s3-authentication}
 
