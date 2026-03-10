@@ -7,7 +7,7 @@ defmodule Tuist.Docs.Loader do
   @english_docs_root Path.join(@docs_root, "en")
   @examples_root Path.expand("../../../examples/xcode", __DIR__)
   @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
-  @localized_link_regex ~r/<LocalizedLink\s+href="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
+  @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
   @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
   @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
