@@ -23,6 +23,7 @@ WORKDIR /nif
 COPY processor/native/xcactivitylog_nif/Package.swift .
 COPY processor/native/xcactivitylog_nif/Package.resolved .
 COPY processor/native/xcactivitylog_nif/Sources/ Sources/
+COPY processor/native/xcactivitylog_nif/Tests/ Tests/
 COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
 RUN ARCH=$(uname -m) && \

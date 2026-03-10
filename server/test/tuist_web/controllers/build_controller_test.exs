@@ -49,15 +49,13 @@ defmodule TuistWeb.BuildControllerTest do
 
       stub(Builds, :get_build, fn ^build_id -> nil end)
 
-      # When
-      conn =
+      # When/Then
+      assert_error_sent 404, fn ->
         get(
           conn,
           ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download"
         )
-
-      # Then
-      assert response(conn, 404) =~ "Build not found"
+      end
     end
 
     test "returns 404 when user does not have permission", %{conn: conn} do
@@ -94,15 +92,13 @@ defmodule TuistWeb.BuildControllerTest do
         }
       end)
 
-      # When
-      conn =
+      # When/Then
+      assert_error_sent 404, fn ->
         get(
           conn,
           ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download"
         )
-
-      # Then
-      assert response(conn, 404) =~ "Build not found"
+      end
     end
   end
 end
