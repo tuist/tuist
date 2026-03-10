@@ -337,7 +337,7 @@ abstract class TuistBuildInsightsService :
             val resolvedUrl = ServerUrlResolver.resolve(
                 extensionUrl = parameters.url.get(),
                 projectDir = java.io.File(System.getProperty("user.dir"))
-            ).trimEnd('/')
+            )
             val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
             val connection = httpClient.openConnection(url, config)
             try {
