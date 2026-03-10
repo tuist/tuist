@@ -620,7 +620,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let frameworksGroup = groups.frameworks
         let fileReference = frameworksGroup.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.name, "StytchCore.xcframework")
-        XCTAssertEqual(fileReference?.sourceTree, .absolute)
+        XCTAssertEqual(fileReference?.sourceTree, .sourceRoot)
 
         let projectGroupChildren = groups.sortedMain.group(named: projectGroupName)?.children ?? []
         let projectGroupHasXCFramework = projectGroupChildren.contains { element in
@@ -896,8 +896,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         let frameworkElement = subject.compiled[frameworkPath]
         XCTAssertNotNil(frameworkElement)
-        XCTAssertEqual(frameworkElement?.sourceTree, .absolute)
-        XCTAssertEqual(frameworkElement?.path, frameworkPath.pathString)
+        XCTAssertEqual(frameworkElement?.sourceTree, .sourceRoot)
+        XCTAssertEqual(frameworkElement?.path, frameworkPath.relative(to: sourceRootPath).pathString)
         XCTAssertEqual(frameworkElement?.name, frameworkPath.basename)
     }
 
@@ -951,8 +951,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         let frameworkElement = subject.compiled[frameworkPath]
         XCTAssertNotNil(frameworkElement)
-        XCTAssertEqual(frameworkElement?.sourceTree, .absolute)
-        XCTAssertEqual(frameworkElement?.path, frameworkPath.pathString)
+        XCTAssertEqual(frameworkElement?.sourceTree, .sourceRoot)
+        XCTAssertEqual(frameworkElement?.path, frameworkPath.relative(to: sourceRootPath).pathString)
         XCTAssertEqual(frameworkElement?.name, frameworkPath.basename)
 
         // Then

@@ -707,7 +707,7 @@ class ProjectFileElements {
 
     @discardableResult
     func addFileElementWithAbsolutePath(
-        from _: AbsolutePath,
+        from sourceRootPath: AbsolutePath,
         fileAbsolutePath: AbsolutePath,
         name: String?,
         expectedSignature: String?,
@@ -715,11 +715,12 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) -> PBXFileReference {
         let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
+        let relativePath = fileAbsolutePath.relative(to: sourceRootPath)
         let file = PBXFileReference(
-            sourceTree: .absolute,
+            sourceTree: .sourceRoot,
             name: name,
             lastKnownFileType: lastKnownFileType,
-            path: fileAbsolutePath.pathString,
+            path: relativePath.pathString,
             expectedSignature: expectedSignature,
             xcLanguageSpecificationIdentifier:
             xcLanguageSpecificationIdentifierFromLastKnownFileType(lastKnownFileType)
