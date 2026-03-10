@@ -1,8 +1,10 @@
 import Foundation
 import XCLogParser
 
-public enum XCActivityLogParser {
-    public static func parse(
+public struct XCActivityLogParser {
+    public init() {}
+
+    public func parse(
         xcactivitylogURL: URL,
         casMetadataPath: String,
         cacheUploadEnabled: Bool
@@ -74,7 +76,7 @@ public enum XCActivityLogParser {
 
     // MARK: - Build Steps
 
-    private static func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
+    private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
         steps.flatMap { step in
             var flattened = [step]
             if !step.subSteps.isEmpty {
@@ -90,7 +92,7 @@ public enum XCActivityLogParser {
         case clean, incremental
     }
 
-    private static func determineCategory(
+    private func determineCategory(
         steps: [BuildStep],
         targetSteps: [BuildStep],
         activityLog: IDEActivityLog
@@ -133,13 +135,13 @@ public enum XCActivityLogParser {
         return cleanCount > totalTargets / 2 ? .clean : .incremental
     }
 
-    private static func totalTargetCountFromDependencyGraph(_ activityLog: IDEActivityLog) -> Int {
+    private func totalTargetCountFromDependencyGraph(_ activityLog: IDEActivityLog) -> Int {
         var names = Set<String>()
         collectDependencyGraphTargets(from: activityLog.mainSection, into: &names)
         return names.count
     }
 
-    private static func collectDependencyGraphTargets(from section: IDEActivityLogSection, into names: inout Set<String>) {
+    private func collectDependencyGraphTargets(from section: IDEActivityLogSection, into names: inout Set<String>) {
         extractTargetNames(from: section.text, into: &names)
         for message in section.messages {
             extractTargetNames(from: message.title, into: &names)
@@ -149,7 +151,7 @@ public enum XCActivityLogParser {
         }
     }
 
-    private static func extractTargetNames(from text: String, into names: inout Set<String>) {
+    private func extractTargetNames(from text: String, into names: inout Set<String>) {
         guard text.contains("Target dependency graph") else { return }
         let pattern = "Target '([^']+)' in project"
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
@@ -161,7 +163,7 @@ public enum XCActivityLogParser {
         }
     }
 
-    private static func buildTargetIdentifiers(from steps: [BuildStep]) -> [String: String] {
+    private func buildTargetIdentifiers(from steps: [BuildStep]) -> [String: String] {
         let targetBuildSteps = steps.filter { $0.type == .target && $0.title.contains("Build target ") }
         var identifiers = [String: String]()
         for t in targetBuildSteps { identifiers[t.identifier] = t.identifier }
@@ -188,7 +190,7 @@ public enum XCActivityLogParser {
 
     // MARK: - Issues
 
-    private static func extractIssues(from steps: [BuildStep]) -> [ParsedIssue] {
+    private func extractIssues(from steps: [BuildStep]) -> [ParsedIssue] {
         var seen = Set<String>()
         var result = [ParsedIssue]()
         for step in steps {
@@ -233,7 +235,7 @@ public enum XCActivityLogParser {
 
     // MARK: - Files
 
-    private static func extractFiles(from steps: [BuildStep]) -> [ParsedFile] {
+    private func extractFiles(from steps: [BuildStep]) -> [ParsedFile] {
         steps.compactMap { step -> ParsedFile? in
             guard step.type == .detail else { return nil }
             let fileType: String
@@ -261,7 +263,7 @@ public enum XCActivityLogParser {
 
     // MARK: - Cache Analysis
 
-    private static func analyzeCacheableTasks(
+    private func analyzeCacheableTasks(
         buildSteps: [BuildStep],
         casMetadataPath: String
     ) -> [ParsedCacheableTask] {
@@ -344,7 +346,7 @@ public enum XCActivityLogParser {
 
     // MARK: - CAS Outputs
 
-    private static func analyzeCASOutputs(
+    private func analyzeCASOutputs(
         from buildSteps: [BuildStep],
         casMetadataPath: String,
         cacheUploadEnabled: Bool
@@ -394,7 +396,7 @@ public enum XCActivityLogParser {
         return results
     }
 
-    private static func createCASOutput(
+    private func createCASOutput(
         nodeID: String,
         type: String,
         operation: String,
@@ -416,7 +418,7 @@ public enum XCActivityLogParser {
 
     // MARK: - Regex Helpers
 
-    private static func extractCacheKey(from title: String) -> String? {
+    private func extractCacheKey(from title: String) -> String? {
         if title.contains("query key") || title.contains("materialize key") {
             return extractWithPattern("\\[\"([^\"]+)\"\\]", from: title)
         } else if title.contains("upload key") {
@@ -425,20 +427,20 @@ public enum XCActivityLogParser {
         return nil
     }
 
-    private static func extractCacheKeyFromNote(_ noteTitle: String) -> String? {
+    private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {
         let pattern = "(?i)(?:local cache found for key:|local cache miss for key:)\\s+(0~[A-Za-z0-9+/_=-]+)"
         return extractWithPattern(pattern, from: noteTitle)
     }
 
-    private static func extractNodeIDFromNote(_ noteTitle: String) -> String? {
+    private func extractNodeIDFromNote(_ noteTitle: String) -> String? {
         extractWithPattern("CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)", from: noteTitle)
     }
 
-    private static func extractNodeIDFromUploadNote(_ noteTitle: String) -> String? {
+    private func extractNodeIDFromUploadNote(_ noteTitle: String) -> String? {
         extractWithPattern("uploaded CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)", from: noteTitle)
     }
 
-    private static func extractNodeIDAndTypeFromNote(_ noteTitle: String) -> (nodeID: String, type: String)? {
+    private func extractNodeIDAndTypeFromNote(_ noteTitle: String) -> (nodeID: String, type: String)? {
         let pattern = "(?i)using CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: noteTitle, range: NSRange(noteTitle.startIndex..., in: noteTitle)),
@@ -448,7 +450,7 @@ public enum XCActivityLogParser {
         return (nodeID: String(noteTitle[nodeIDRange]), type: String(noteTitle[typeRange]))
     }
 
-    private static func extractNodeIDAndTypeFromUploadNote(_ noteTitle: String) -> (nodeID: String, type: String)? {
+    private func extractNodeIDAndTypeFromUploadNote(_ noteTitle: String) -> (nodeID: String, type: String)? {
         let pattern = "uploaded CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: noteTitle, range: NSRange(noteTitle.startIndex..., in: noteTitle)),
@@ -458,7 +460,7 @@ public enum XCActivityLogParser {
         return (nodeID: String(noteTitle[nodeIDRange]), type: String(noteTitle[typeRange]))
     }
 
-    private static func extractWithPattern(_ pattern: String, from text: String) -> String? {
+    private func extractWithPattern(_ pattern: String, from text: String) -> String? {
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let range = Range(match.range(at: 1), in: text)
@@ -466,19 +468,19 @@ public enum XCActivityLogParser {
         return String(text[range])
     }
 
-    private static func extractTargetFromSignature(_ signature: String) -> String {
+    private func extractTargetFromSignature(_ signature: String) -> String {
         extractWithPattern("in target '([^']+)'", from: signature) ?? ""
     }
 
-    private static func extractProjectFromSignature(_ signature: String) -> String {
+    private func extractProjectFromSignature(_ signature: String) -> String {
         extractWithPattern("from project '([^']+)'", from: signature) ?? ""
     }
 
-    private static func extractProject(from steps: [BuildStep]) -> [(project: String, Void)] {
+    private func extractProject(from steps: [BuildStep]) -> [(project: String, Void)] {
         steps.map { (project: extractProjectFromSignature($0.signature), ()) }
     }
 
-    private static func stepTypeString(from signature: String) -> String {
+    private func stepTypeString(from signature: String) -> String {
         if signature.hasPrefix("CompileC ") { return "c_compilation" }
         if signature.hasPrefix("SwiftCompile ") || signature.hasPrefix("CompileSwift ") || signature.hasPrefix("CompileSwiftSources ") { return "swift_compilation" }
         if signature.hasPrefix("PhaseScriptExecution ") { return "script_execution" }

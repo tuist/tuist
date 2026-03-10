@@ -14,7 +14,7 @@ public func parseXCActivityLog(
     let url = URL(fileURLWithPath: path)
 
     do {
-        let parsed = try XCActivityLogParser.parse(
+        let parsed = try XCActivityLogParser().parse(
             xcactivitylogURL: url,
             casMetadataPath: casMetadataPath,
             cacheUploadEnabled: cacheUploadEnabled != 0

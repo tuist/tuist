@@ -206,7 +206,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
 
         let parsed: ParsedBuildData
         do {
-            parsed = try XCActivityLogParser.parse(
+            parsed = try XCActivityLogParser().parse(
                 xcactivitylogURL: path.url,
                 casMetadataPath: casMetadataPath,
                 cacheUploadEnabled: true
