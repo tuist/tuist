@@ -252,8 +252,8 @@ Some companies support our community and open source efforts with contributions 
         </a>
       </td>
       <td width="20%" align="center">
-        <a href="https://musa.kz/" target="_blank">
-          <img src="assets/companies/musa_logo.svg" alt="musa_logo" height="75"/>
+        <a href="https://musa.kz/superapp" target="_blank">
+          <img src="assets/companies/musa_logo.png" alt="musa_logo" height="75"/>
         </a>
       </td>
       <td width="20%"></td>
