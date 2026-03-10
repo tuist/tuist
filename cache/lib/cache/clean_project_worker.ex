@@ -12,6 +12,8 @@ defmodule Cache.CleanProjectWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}) do
+    prefix = "#{account_handle}/#{project_handle}/"
+
     case Disk.delete_project(account_handle, project_handle) do
       :ok ->
         Logger.info("Cleaned disk cache for project #{account_handle}/#{project_handle}")
@@ -20,14 +22,19 @@ defmodule Cache.CleanProjectWorker do
         Logger.error("Failed to clean disk cache for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
     end
 
-    case S3.delete_all_with_prefix("#{account_handle}/#{project_handle}/") do
-      {:ok, count} ->
-        Logger.info("Cleaned #{count} S3 objects for project #{account_handle}/#{project_handle}")
-
-      {:error, reason} ->
-        Logger.error("Failed to clean S3 objects for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
-    end
+    delete_s3_artifacts(prefix, :cas, "CAS")
+    delete_s3_artifacts(prefix, :cache, "cache")
 
     :ok
+  end
+
+  defp delete_s3_artifacts(prefix, type, label) do
+    case S3.delete_all_with_prefix(prefix, type: type) do
+      {:ok, count} ->
+        Logger.info("Cleaned #{count} S3 #{label} objects with prefix #{prefix}")
+
+      {:error, reason} ->
+        Logger.error("Failed to clean S3 #{label} objects with prefix #{prefix}: #{inspect(reason)}")
+    end
   end
 end

@@ -39,7 +39,7 @@ config :cache, Oban,
   testing: :manual
 
 config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
-config :cache, :s3, bucket: "test-bucket", registry_bucket: "test-registry-bucket"
+config :cache, :s3, bucket: "test-bucket", cas_bucket: "test-cas-bucket", registry_bucket: "test-registry-bucket"
 
 config :cache,
   server_url: "http://localhost:8080",

@@ -292,9 +292,9 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      # Stub presign to return a deterministic URL
-      expect(Cache.S3, :presign_download_url, fn key ->
+      expect(Cache.S3, :presign_download_url, fn key, opts ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert Keyword.get(opts, :type) == :cas
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
       end)
 
@@ -330,8 +330,9 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      expect(Cache.S3, :presign_download_url, fn key ->
+      expect(Cache.S3, :presign_download_url, fn key, opts ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert Keyword.get(opts, :type) == :cas
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
       end)
 

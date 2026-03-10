@@ -63,9 +63,21 @@ defmodule Cache.S3TransferWorker do
     end
   end
 
+  defp execute_transfer(:upload, %{artifact_type: :xcode_cas, key: key}) do
+    local_path = Disk.artifact_path(key)
+
+    if File.exists?(local_path) do
+      S3.upload_file(key, local_path, type: :cas)
+    else
+      :ok
+    end
+  end
+
   defp execute_transfer(:upload, %{key: key}), do: S3.upload(key)
 
   defp execute_transfer(:download, %{artifact_type: :registry, key: key}), do: S3.download(key, type: :registry)
+
+  defp execute_transfer(:download, %{artifact_type: :xcode_cas, key: key}), do: S3.download(key, type: :cas)
 
   defp execute_transfer(:download, %{key: key}), do: S3.download(key)
 
@@ -78,6 +90,19 @@ defmodule Cache.S3TransferWorker do
       account_handle: transfer.account_handle,
       project_handle: transfer.project_handle
     })
+
+    transfer.id
+  end
+
+  defp handle_result(:download, {:ok, {transfer, {:ok, :fallback_hit}}}) do
+    {:ok, %{size: size}} = transfer.key |> Disk.artifact_path() |> File.stat()
+
+    :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_hit], %{size: size}, %{
+      account_handle: transfer.account_handle,
+      project_handle: transfer.project_handle
+    })
+
+    S3Transfers.enqueue_cas_upload(transfer.account_handle, transfer.project_handle, transfer.key)
 
     transfer.id
   end

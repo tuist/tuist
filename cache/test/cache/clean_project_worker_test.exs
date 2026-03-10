@@ -9,14 +9,15 @@ defmodule Cache.CleanProjectWorkerTest do
   alias Cache.S3
 
   describe "perform/1" do
-    test "cleans disk and S3 artifacts" do
+    test "cleans disk and S3 artifacts from both CAS and cache buckets" do
       account_handle = "test_account"
       project_handle = "test_project"
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
 
-      expect(S3, :delete_all_with_prefix, fn "test_account/test_project/" ->
-        {:ok, 5}
+      expect(S3, :delete_all_with_prefix, 2, fn
+        "test_account/test_project/", [type: :cas] -> {:ok, 3}
+        "test_account/test_project/", [type: :cache] -> {:ok, 2}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
@@ -32,8 +33,9 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> {:error, :eacces} end)
 
-      expect(S3, :delete_all_with_prefix, fn "test_account/test_project/" ->
-        {:ok, 0}
+      expect(S3, :delete_all_with_prefix, 2, fn
+        "test_account/test_project/", [type: :cas] -> {:ok, 0}
+        "test_account/test_project/", [type: :cache] -> {:ok, 0}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
@@ -52,8 +54,9 @@ defmodule Cache.CleanProjectWorkerTest do
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
 
-      expect(S3, :delete_all_with_prefix, fn "test_account/test_project/" ->
-        {:error, :timeout}
+      expect(S3, :delete_all_with_prefix, 2, fn
+        "test_account/test_project/", [type: :cas] -> {:error, :timeout}
+        "test_account/test_project/", [type: :cache] -> {:error, :timeout}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
@@ -63,7 +66,7 @@ defmodule Cache.CleanProjectWorkerTest do
           assert :ok = CleanProjectWorker.perform(job)
         end)
 
-      assert log =~ "Failed to clean S3 objects"
+      assert log =~ "Failed to clean S3"
     end
   end
 end

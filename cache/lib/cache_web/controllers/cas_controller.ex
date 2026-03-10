@@ -72,7 +72,7 @@ defmodule CacheWeb.CASController do
 
         S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
 
-        case S3.presign_download_url(key) do
+        case S3.presign_download_url(key, type: :cas) do
           {:ok, url} ->
             conn
             |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))

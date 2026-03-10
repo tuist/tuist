@@ -75,9 +75,18 @@ defmodule Cache.Config do
   end
 
   @doc """
-  Returns the bucket for cache artifacts (CAS and module).
+  Returns the bucket for cache artifacts (module and Gradle).
   """
   def cache_bucket, do: Application.get_env(:cache, :s3)[:bucket]
+
+  @doc """
+  Returns the dedicated bucket for CAS artifacts, or nil if not configured.
+
+  When nil, CAS artifacts use the shared cache bucket (`cache_bucket/0`).
+  When set to a different value than `cache_bucket/0`, the S3 module enables
+  migration-mode fallback reads from the shared bucket.
+  """
+  def cas_bucket, do: Application.get_env(:cache, :s3)[:cas_bucket]
 
   @doc """
   Returns the bucket for registry artifacts, or nil if not configured.
