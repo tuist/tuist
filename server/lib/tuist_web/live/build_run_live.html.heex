@@ -94,7 +94,7 @@
         <.button
           :if={@run.storage_key && @run.storage_key != ""}
           href={
-            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/download-archive"
+            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/download"
           }
           label={dgettext("dashboard_builds", "Download build")}
           variant="secondary"

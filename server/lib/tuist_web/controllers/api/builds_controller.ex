@@ -924,7 +924,7 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   operation(:multipart_start,
-    summary: "Start a multipart upload for a build archive.",
+    summary: "Start a multipart upload for a build.",
     operation_id: "startBuildsMultipartUpload",
     parameters: [
       account_handle: [
@@ -976,7 +976,7 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   operation(:multipart_generate_url,
-    summary: "Generate a signed URL for uploading a build archive part.",
+    summary: "Generate a signed URL for uploading a build part.",
     description:
       "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.",
     operation_id: "generateBuildsMultipartUploadURL",
@@ -1046,7 +1046,7 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   operation(:multipart_complete,
-    summary: "Complete a multipart upload for a build archive.",
+    summary: "Complete a multipart upload for a build.",
     description:
       "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
     operation_id: "completeBuildsMultipartUpload",

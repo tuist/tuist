@@ -34,7 +34,7 @@ defmodule TuistWeb.BuildControllerTest do
       conn =
         get(
           conn,
-          ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download-archive"
+          ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download"
         )
 
       # Then
@@ -54,7 +54,7 @@ defmodule TuistWeb.BuildControllerTest do
       conn =
         get(
           conn,
-          ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download-archive"
+          ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download"
         )
 
       # Then
@@ -75,7 +75,7 @@ defmodule TuistWeb.BuildControllerTest do
       assert_error_sent 404, fn ->
         get(
           conn,
-          ~p"/#{owner.account.name}/#{project.name}/builds/build-runs/#{build_id}/download-archive"
+          ~p"/#{owner.account.name}/#{project.name}/builds/build-runs/#{build_id}/download"
         )
       end
     end
@@ -99,7 +99,7 @@ defmodule TuistWeb.BuildControllerTest do
       conn =
         get(
           conn,
-          ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download-archive"
+          ~p"/#{user.account.name}/#{project.name}/builds/build-runs/#{build_id}/download"
         )
 
       # Then

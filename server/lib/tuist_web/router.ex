@@ -823,7 +823,7 @@ defmodule TuistWeb.Router do
       live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
-      get "/builds/build-runs/:build_run_id/download-archive", BuildController, :download
+      get "/builds/build-runs/:build_run_id/download", BuildController, :download
 
       get "/tests/test-cases/runs/:test_case_run_id/attachments/:file_name",
           TestCaseRunAttachmentsController,

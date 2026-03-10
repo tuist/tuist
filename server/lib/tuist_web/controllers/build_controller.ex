@@ -31,7 +31,7 @@ defmodule TuistWeb.BuildController do
       _ ->
         conn
         |> put_status(:not_found)
-        |> text("Build archive not found")
+        |> text("Build not found")
         |> halt()
     end
   end
