@@ -68,10 +68,15 @@ defmodule Cache.S3 do
   defp presign_with_cas_fallback(key, primary_bucket, fallback_bucket) do
     config = ExAws.Config.new(:s3)
 
-    if head_object_exists?(primary_bucket, key) do
-      ExAws.S3.presigned_url(config, :get, primary_bucket, key, expires_in: 600)
-    else
-      ExAws.S3.presigned_url(config, :get, fallback_bucket, key, expires_in: 600)
+    case head_object_exists?(primary_bucket, key) do
+      {:ok, true} ->
+        ExAws.S3.presigned_url(config, :get, primary_bucket, key, expires_in: 600)
+
+      {:ok, false} ->
+        ExAws.S3.presigned_url(config, :get, fallback_bucket, key, expires_in: 600)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -107,12 +112,21 @@ defmodule Cache.S3 do
   Returns `false` if type is `:registry` and registry storage is not configured.
   """
   def exists?(key, opts \\ []) when is_binary(key) do
-    case Cachex.get(@exists_cache, key) do
+    type = Keyword.get(opts, :type, :cache)
+    cache_key = {type, key}
+
+    case Cachex.get(@exists_cache, cache_key) do
       {:ok, nil} ->
-        result = do_exists?(key, opts)
-        ttl = if result, do: @exists_positive_ttl, else: @exists_negative_ttl
-        Cachex.put(@exists_cache, key, result, ttl: ttl)
-        result
+        case do_exists?(key, opts) do
+          {:ok, result} ->
+            ttl = if result, do: @exists_positive_ttl, else: @exists_negative_ttl
+            Cachex.put(@exists_cache, cache_key, result, ttl: ttl)
+            result
+
+          {:error, reason} ->
+            Logger.warning("S3 exists check failed for artifact #{key}: #{inspect(reason)}")
+            false
+        end
 
       {:ok, cached} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: 0}, %{result: :cache_hit})
@@ -123,35 +137,39 @@ defmodule Cache.S3 do
   defp do_exists?(key, opts) do
     type = Keyword.get(opts, :type, :cache)
 
-    case bucket_for_type(type) do
-      nil ->
-        false
+    case {type, bucket_for_type(type), cas_fallback_bucket()} do
+      {:cas, nil, _fallback_bucket} ->
+        {:ok, false}
 
-      bucket ->
-        {duration, result} =
-          :timer.tc(fn ->
-            bucket
-            |> ExAws.S3.head_object(key)
-            |> ExAws.request(http_opts: [receive_timeout: 2_000])
-          end)
+      {:cas, primary_bucket, fallback_bucket} when is_binary(fallback_bucket) ->
+        exists_in_primary_or_fallback?(primary_bucket, fallback_bucket, key)
 
-        case result do
-          {:ok, _response} ->
-            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
-            true
+      {_type, nil, _fallback_bucket} ->
+        {:ok, false}
 
-          {:error, {:http_error, 404, _}} ->
-            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
-            false
-
-          {:error, {:http_error, 429, _}} ->
-            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
-            false
-
-          {:error, _reason} ->
-            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
-            false
+      {_type, bucket, _fallback_bucket} ->
+        case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
+          :exists -> {:ok, true}
+          :not_found -> {:ok, false}
+          {:error, reason} -> {:error, reason}
         end
+    end
+  end
+
+  defp exists_in_primary_or_fallback?(primary_bucket, fallback_bucket, key) do
+    case head_object_status(primary_bucket, key, http_opts: [receive_timeout: 2_000]) do
+      :exists ->
+        {:ok, true}
+
+      :not_found ->
+        case head_object_status(fallback_bucket, key, http_opts: [receive_timeout: 2_000]) do
+          :exists -> {:ok, true}
+          :not_found -> {:ok, false}
+          {:error, reason} -> {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -228,17 +246,8 @@ defmodule Cache.S3 do
   defp download_from_bucket(key, bucket) do
     local_path = Cache.Disk.artifact_path(key)
 
-    {head_duration, head_result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.head_object(key)
-        |> ExAws.request()
-      end)
-
-    case head_result do
-      {:ok, _response} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :found})
-
+    case head_object_status(bucket, key) do
+      :exists ->
         local_path |> Path.dirname() |> File.mkdir_p!()
 
         {dl_duration, dl_result} =
@@ -264,18 +273,15 @@ defmodule Cache.S3 do
             {:error, reason}
         end
 
-      {:error, {:http_error, 404, _}} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :not_found})
+      :not_found ->
         {:ok, :miss}
 
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :rate_limited})
+      {:error, :rate_limited} ->
         Logger.warning("S3 exists check rate limited for artifact: #{key}")
         {:error, :rate_limited}
 
-      {:error, _reason} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: head_duration}, %{result: :error})
-        {:ok, :miss}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -447,12 +453,42 @@ defmodule Cache.S3 do
     if cas != nil and cas != cache, do: cache
   end
 
+  defp head_object_status(bucket, key, request_opts \\ []) do
+    {duration, result} =
+      :timer.tc(fn ->
+        request = ExAws.S3.head_object(bucket, key)
+
+        if request_opts == [] do
+          ExAws.request(request)
+        else
+          ExAws.request(request, request_opts)
+        end
+      end)
+
+    case result do
+      {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
+        :exists
+
+      {:error, {:http_error, 404, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
+        :not_found
+
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
+        {:error, :rate_limited}
+
+      {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
+        {:error, reason}
+    end
+  end
+
   defp head_object_exists?(bucket, key) do
-    case bucket
-         |> ExAws.S3.head_object(key)
-         |> ExAws.request(http_opts: [receive_timeout: 2_000]) do
-      {:ok, _} -> true
-      _ -> false
+    case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
+      :exists -> {:ok, true}
+      :not_found -> {:ok, false}
+      {:error, reason} -> {:error, reason}
     end
   end
 end

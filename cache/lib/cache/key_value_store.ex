@@ -10,6 +10,7 @@ defmodule Cache.KeyValueStore do
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
+  alias Cache.SQLiteHelpers
 
   require Logger
 
@@ -94,7 +95,7 @@ defmodule Cache.KeyValueStore do
   end
 
   defp load_from_persistence(key, cache) do
-    with_repo_busy_timeout(Config.repo_busy_timeout_ms(KeyValueRepo), fn ->
+    with_repo_busy_timeout(Config.key_value_read_busy_timeout_ms(), fn ->
       case KeyValueRepo.get_by(KeyValueEntry, key: key) do
         nil ->
           {:error, :not_found}
@@ -117,33 +118,10 @@ defmodule Cache.KeyValueStore do
   end
 
   defp with_repo_busy_timeout(timeout_ms, fun) do
-    KeyValueRepo.checkout(fn ->
-      set_busy_timeout!(timeout_ms)
-
-      try do
-        fun.()
-      after
-        set_busy_timeout!(Config.repo_busy_timeout_ms(KeyValueRepo))
-      end
-    end)
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fun)
   end
 
-  defp set_busy_timeout!(timeout_ms) do
-    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
-      {:ok, _result} -> :ok
-      {:error, error} -> raise error
-    end
-  end
-
-  defp busy_error?(error) do
-    case error do
-      %Exqlite.Error{message: msg} when is_binary(msg) ->
-        String.contains?(msg, ["database is locked", "SQLITE_BUSY"])
-
-      _ ->
-        false
-    end
-  end
+  defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
 
   defp encode_entries(values) do
     entries = Enum.map(values, &%{"value" => &1})

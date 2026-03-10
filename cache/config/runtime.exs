@@ -140,6 +140,7 @@ if config_env() == :prod do
       String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "#{25 * 1024 * 1024 * 1024}"),
     key_value_eviction_min_retention_days:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),
+    key_value_read_busy_timeout_ms: String.to_integer(System.get_env("KEY_VALUE_READ_BUSY_TIMEOUT_MS") || "2000"),
     key_value_eviction_max_duration_ms:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MAX_DURATION_MS") || "300000"),
     key_value_eviction_hysteresis_release_bytes:

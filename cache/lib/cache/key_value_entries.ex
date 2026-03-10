@@ -5,10 +5,10 @@ defmodule Cache.KeyValueEntries do
 
   import Ecto.Query
 
-  alias Cache.Config
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
   alias Cache.KeyValueRepo
+  alias Cache.SQLiteHelpers
 
   @id_chunk_size 500
   @hash_chunk_size 500
@@ -332,31 +332,18 @@ defmodule Cache.KeyValueEntries do
       try do
         fun.()
       after
-        set_busy_timeout!(Config.repo_busy_timeout_ms(KeyValueRepo))
+        SQLiteHelpers.restore_busy_timeout!(KeyValueRepo)
       end
     end)
   end
 
   defp set_remaining_busy_timeout!(deadline_ms) do
-    set_busy_timeout!(remaining_time(deadline_ms))
+    SQLiteHelpers.set_busy_timeout!(KeyValueRepo, remaining_time(deadline_ms))
   end
 
-  defp set_busy_timeout!(timeout_ms) do
-    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
-      {:ok, _result} -> :ok
-      {:error, error} -> raise error
-    end
-  end
+  defp remaining_time(deadline_ms), do: SQLiteHelpers.remaining_time(deadline_ms)
 
-  defp remaining_time(deadline_ms) do
-    max(deadline_ms - System.monotonic_time(:millisecond), 0)
-  end
-
-  defp busy_error?(%Exqlite.Error{message: message}) when is_binary(message) do
-    String.contains?(message, ["database is locked", "SQLITE_BUSY"])
-  end
-
-  defp busy_error?(_), do: false
+  defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
 
   defp hash_references_for_entries([]), do: %{}
 

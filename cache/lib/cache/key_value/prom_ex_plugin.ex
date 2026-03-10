@@ -8,6 +8,7 @@ defmodule Cache.KeyValue.PromExPlugin do
   use PromEx.Plugin
 
   alias Cache.KeyValueRepo
+  alias Cache.SQLiteHelpers
 
   require Logger
 
@@ -85,10 +86,10 @@ defmodule Cache.KeyValue.PromExPlugin do
         measurement: :entries_deleted,
         description: "Total KeyValue entries evicted."
       ),
-      distribution([:cache, :kv, :eviction, :duration, :seconds],
+      distribution([:cache, :kv, :eviction, :duration, :milliseconds],
         event_name: [:cache, :kv, :eviction, :complete],
         measurement: :duration_ms,
-        unit: {:native, :millisecond},
+        unit: :millisecond,
         description: "KeyValue eviction operation duration.",
         tags: [:trigger, :status],
         tag_values: fn metadata ->
@@ -158,11 +159,11 @@ defmodule Cache.KeyValue.PromExPlugin do
   end
 
   def execute_sqlite_metrics do
-    db_path = Application.get_env(:cache, KeyValueRepo)[:database] || "key_value.sqlite"
+    db_path = SQLiteHelpers.db_path(KeyValueRepo)
     wal_path = "#{db_path}-wal"
 
-    db_file_size = file_size(db_path)
-    wal_file_size = file_size(wal_path)
+    db_file_size = SQLiteHelpers.file_size(db_path)
+    wal_file_size = SQLiteHelpers.file_size(wal_path)
 
     case fetch_pragma_metrics() do
       {:ok, pragma_metrics} ->
@@ -234,11 +235,4 @@ defmodule Cache.KeyValue.PromExPlugin do
   end
 
   defp format_reason(reason), do: inspect(reason)
-
-  defp file_size(path) do
-    case File.stat(path) do
-      {:ok, %File.Stat{size: size}} -> size
-      _ -> 0
-    end
-  end
 end

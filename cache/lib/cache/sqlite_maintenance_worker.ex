@@ -5,6 +5,7 @@ defmodule Cache.SQLiteMaintenanceWorker do
   @impl Oban.Worker
   def perform(_job) do
     Cache.Repo.query("PRAGMA incremental_vacuum(128000)")
+    Cache.KeyValueRepo.query("PRAGMA incremental_vacuum(128000)")
     :ok
   end
 end

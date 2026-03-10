@@ -86,6 +86,7 @@ config :cache,
   key_value_eviction_max_age_days: 30,
   key_value_max_db_size_bytes: 25 * 1024 * 1024 * 1024,
   key_value_eviction_min_retention_days: 1,
+  key_value_read_busy_timeout_ms: 2_000,
   key_value_eviction_max_duration_ms: 300_000,
   key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024,
   registry_sync_limit: 1_000

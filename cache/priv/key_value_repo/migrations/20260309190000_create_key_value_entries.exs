@@ -11,7 +11,6 @@ defmodule Cache.KeyValueRepo.Migrations.CreateKeyValueEntries do
     end
 
     create unique_index(:key_value_entries, [:key])
-    create index(:key_value_entries, [:last_accessed_at])
     create index(:key_value_entries, [:last_accessed_at, :id])
   end
 end

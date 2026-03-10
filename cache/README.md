@@ -38,10 +38,11 @@ This service provides:
    - `SERVER_URL` - URL of the main Tuist server for authentication
    - `STORAGE_DIR` - Directory for artifact storage (default: `/storage`)
     - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `85`)
-    - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
-    - `S3_BUCKET` - S3 bucket for module and Gradle cache artifacts
-    - `S3_CAS_BUCKET` - Optional dedicated S3 bucket for CAS artifacts (defaults to `S3_BUCKET`). When set to a different value, CAS uploads go to this bucket and reads fall back to `S3_BUCKET` for pre-migration artifacts.
-    - `S3_REGISTRY_BUCKET` - S3 bucket for Swift package registry
+     - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
+     - `S3_BUCKET` - S3 bucket for module and Gradle cache artifacts
+     - `S3_CAS_BUCKET` - Optional dedicated S3 bucket for CAS artifacts (defaults to `S3_BUCKET`). When set to a different value, CAS uploads go to this bucket and reads fall back to `S3_BUCKET` for pre-migration artifacts.
+     - `S3_REGISTRY_BUCKET` - S3 bucket for Swift package registry
+     - `KEY_VALUE_READ_BUSY_TIMEOUT_MS` - Optional SQLite contention budget for KV read-through requests (default: `2000`)
 
 3. Start the server:
    ```bash
@@ -114,7 +115,7 @@ The cache service is optimized for the **read path**, specifically for handling 
 - **Volume mount**: `/storage` directory mounted for persistent storage
 - **Atomic operations**: Proper handling of concurrent writes and race conditions
 - **Automatic eviction**: Background worker uses SQLite-tracked access metadata to free least-recently-used artifacts when disk usage crosses the configured watermark, while retaining authoritative copies in S3
-- **Three S3 buckets**: CAS artifacts (`S3_CAS_BUCKET`), module/Gradle cache (`S3_BUCKET`), and Swift package registry (`S3_REGISTRY_BUCKET`). CAS reads fall back to the shared cache bucket during migration when `S3_CAS_BUCKET` differs from `S3_BUCKET`
+- **Three S3 buckets**: CAS artifacts (`S3_CAS_BUCKET`), module/Gradle cache (`S3_BUCKET`), and Swift package registry (`S3_REGISTRY_BUCKET`). CAS reads fall back to the shared cache bucket during migration when `S3_CAS_BUCKET` differs from `S3_BUCKET`, which temporarily adds one extra HEAD round-trip on fallback reads. Cleanup remains primary-bucket-first until the legacy shared bucket is drained.
 
 ## Deployment
 

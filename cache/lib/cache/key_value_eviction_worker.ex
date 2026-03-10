@@ -18,6 +18,7 @@ defmodule Cache.KeyValueEvictionWorker do
   alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueRepo
+  alias Cache.SQLiteHelpers
 
   require Logger
 
@@ -60,7 +61,7 @@ defmodule Cache.KeyValueEvictionWorker do
         finish_eviction(run_result, started_at, max_age_days)
 
       {:error, :busy} ->
-        emit_busy_and_finish(started_at, :size)
+        emit_busy_and_finish(started_at, :unknown)
 
       {:error, :deadline_exhausted} ->
         finish_eviction({:time, %{}, 0, :time_limit_reached}, started_at, max_age_days)
@@ -228,7 +229,7 @@ defmodule Cache.KeyValueEvictionWorker do
     else
       KeyValueRepo.checkout(fn ->
         try do
-          set_busy_timeout!(remaining_time(deadline_ms))
+          SQLiteHelpers.set_busy_timeout!(KeyValueRepo, remaining_time(deadline_ms))
           fun.()
         rescue
           error ->
@@ -238,7 +239,7 @@ defmodule Cache.KeyValueEvictionWorker do
               reraise error, __STACKTRACE__
             end
         after
-          restore_busy_timeout!()
+          SQLiteHelpers.restore_busy_timeout!(KeyValueRepo)
         end
       end)
     end
@@ -248,15 +249,15 @@ defmodule Cache.KeyValueEvictionWorker do
     page_count = pragma_value!("PRAGMA page_count")
     freelist_count = pragma_value!("PRAGMA freelist_count")
     page_size = pragma_value!("PRAGMA page_size")
-    wal_size = wal_file_size(db_path())
+    wal_size = SQLiteHelpers.wal_file_size(db_path())
 
     max(page_count - freelist_count, 0) * page_size + wal_size
   end
 
   defp allocated_plus_wal_bytes do
     path = db_path()
-    db_size = file_size(path)
-    wal_size = wal_file_size(path)
+    db_size = SQLiteHelpers.file_size(path)
+    wal_size = SQLiteHelpers.wal_file_size(path)
     db_size + wal_size
   end
 
@@ -272,18 +273,7 @@ defmodule Cache.KeyValueEvictionWorker do
     end
   end
 
-  defp db_path do
-    Application.get_env(:cache, KeyValueRepo)[:database] || "key_value.sqlite"
-  end
-
-  defp wal_file_size(path), do: file_size("#{path}-wal")
-
-  defp file_size(path) do
-    case File.stat(path) do
-      {:ok, %File.Stat{size: size}} -> size
-      _ -> 0
-    end
-  end
+  defp db_path, do: SQLiteHelpers.db_path(KeyValueRepo)
 
   defp exceeds_limit?(size_state, limit_bytes) do
     size_state.in_use_plus_wal_bytes > limit_bytes or
@@ -299,29 +289,13 @@ defmodule Cache.KeyValueEvictionWorker do
     System.monotonic_time(:millisecond) >= deadline_ms
   end
 
-  defp remaining_time(deadline_ms) do
-    max(deadline_ms - System.monotonic_time(:millisecond), 0)
-  end
-
-  defp set_busy_timeout!(timeout_ms) do
-    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout_ms, 0)}") do
-      {:ok, _result} -> :ok
-      {:error, error} -> raise error
-    end
-  end
-
-  defp restore_busy_timeout! do
-    set_busy_timeout!(Config.repo_busy_timeout_ms(KeyValueRepo))
-  rescue
-    _ -> :ok
-  end
+  defp remaining_time(deadline_ms), do: SQLiteHelpers.remaining_time(deadline_ms)
 
   defp merge_grouped_hashes(left, right) do
-    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      (left_hashes ++ right_hashes)
-      |> Enum.uniq()
-      |> Enum.sort()
-    end)
+    left
+    |> to_grouped_hash_sets()
+    |> merge_grouped_hash_sets(to_grouped_hash_sets(right))
+    |> to_sorted_hash_lists()
   end
 
   defp maybe_log_status(:time_limit_reached, _max_age_days) do
@@ -340,11 +314,25 @@ defmodule Cache.KeyValueEvictionWorker do
     )
   end
 
-  defp busy_error?(%Exqlite.Error{message: message}) when is_binary(message) do
-    String.contains?(message, ["database is locked", "SQLITE_BUSY"])
+  defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
+
+  defp to_grouped_hash_sets(grouped_hashes) do
+    Map.new(grouped_hashes, fn {scope, hashes} ->
+      {scope, MapSet.new(hashes)}
+    end)
   end
 
-  defp busy_error?(_), do: false
+  defp merge_grouped_hash_sets(left, right) do
+    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
+      MapSet.union(left_hashes, right_hashes)
+    end)
+  end
+
+  defp to_sorted_hash_lists(grouped_hash_sets) do
+    Map.new(grouped_hash_sets, fn {scope, hashes} ->
+      {scope, hashes |> MapSet.to_list() |> Enum.sort()}
+    end)
+  end
 
   defp enqueue_cleanup_jobs(grouped_hashes) do
     Enum.each(grouped_hashes, fn {{account, project}, hashes} ->

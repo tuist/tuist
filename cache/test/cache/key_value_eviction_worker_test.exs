@@ -452,6 +452,12 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
         query == "PRAGMA page_size" ->
           {:ok, %{rows: [[4096]]}}
+
+        query == "PRAGMA wal_checkpoint(PASSIVE)" ->
+          {:ok, %{rows: [[0, 0, 0]]}}
+
+        query == "PRAGMA incremental_vacuum(1000)" ->
+          {:ok, %{rows: []}}
       end
     end)
 
@@ -479,6 +485,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
         query == "PRAGMA page_count" -> {:ok, %{rows: [[8_000_000]]}}
         query == "PRAGMA freelist_count" -> {:ok, %{rows: [[0]]}}
         query == "PRAGMA page_size" -> {:ok, %{rows: [[4096]]}}
+        query == "PRAGMA wal_checkpoint(PASSIVE)" -> {:ok, %{rows: [[0, 0, 0]]}}
+        query == "PRAGMA incremental_vacuum(1000)" -> {:ok, %{rows: []}}
       end
     end)
 
@@ -488,6 +496,24 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       end)
 
     assert metadata == %{trigger: :time, status: :time_limit_reached}
+    assert measurements.entries_deleted == 0
+    assert measurements.duration_ms >= 0
+  end
+
+  test "initial size probe reports unknown trigger when SQLite is busy" do
+    stub(KeyValueRepo, :query, fn query ->
+      cond do
+        String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
+        query == "PRAGMA page_count" -> raise %Exqlite.Error{message: "database is locked"}
+      end
+    end)
+
+    {measurements, metadata} =
+      capture_eviction_telemetry(fn ->
+        assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+      end)
+
+    assert metadata == %{trigger: :unknown, status: :busy}
     assert measurements.entries_deleted == 0
     assert measurements.duration_ms >= 0
   end

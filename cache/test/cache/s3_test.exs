@@ -100,6 +100,20 @@ defmodule Cache.S3Test do
       assert url == "https://example.com/#{key}?token=xyz"
     end
 
+    test "CAS type propagates primary bucket HEAD errors instead of falling back" do
+      key = "acc/proj/cas/primary-timeout"
+
+      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
+
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn _, _ -> {:error, :timeout} end)
+
+      assert {:error, :timeout} = S3.presign_download_url(key, type: :cas)
+    end
+
     test "propagates error from presigned_url" do
       key = "acc/proj/module/abc"
 
@@ -157,6 +171,28 @@ defmodule Cache.S3Test do
       end)
 
       expect(ExAws, :request, fn _head_object, _opts -> {:ok, %{status_code: 200}} end)
+
+      assert S3.exists?(key, type: :cas) == true
+    end
+
+    test "returns true for CAS when object exists only in fallback bucket" do
+      key = "acc/proj/cas/fallback-exists-test"
+
+      expect(ExAws.S3, :head_object, 2, fn
+        "test-cas-bucket", ^key ->
+          %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+
+        "test-bucket", ^key ->
+          %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, 2, fn
+        %ExAws.Operation.S3{bucket: "test-cas-bucket"}, _opts ->
+          {:error, {:http_error, 404, "Not Found"}}
+
+        %ExAws.Operation.S3{bucket: "test-bucket"}, _opts ->
+          {:ok, %{status_code: 200}}
+      end)
 
       assert S3.exists?(key, type: :cas) == true
     end
@@ -475,6 +511,20 @@ defmodule Cache.S3Test do
 
       capture_log(fn ->
         assert {:ok, :miss} = S3.download(key, type: :cas)
+      end)
+    end
+
+    test "CAS download propagates primary bucket HEAD errors instead of falling back" do
+      key = "test_account/test_project/cas/TE/ST/primary-timeout"
+
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:error, :timeout} end)
+
+      capture_log(fn ->
+        assert {:error, :timeout} = S3.download(key, type: :cas)
       end)
     end
   end
