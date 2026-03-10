@@ -5,8 +5,8 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Components.EmptyTabStateBackground
-  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Components.MachineMetricsCharts
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter

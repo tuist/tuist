@@ -7,13 +7,13 @@ defmodule Tuist.Gradle do
 
   import Ecto.Query
 
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
   alias Tuist.Gradle.Task
   alias Tuist.IngestRepo
-  alias Tuist.Builds.BuildMachineMetric
 
   @doc """
   Creates a Gradle build with associated tasks.
@@ -69,13 +69,13 @@ defmodule Tuist.Gradle do
 
     Build.Buffer.insert(build_entry)
 
-    unless Enum.empty?(tasks) do
+    if !Enum.empty?(tasks) do
       create_tasks(build_id, attrs.project_id, tasks, now)
     end
 
     machine_metrics = Map.get(attrs, :machine_metrics, [])
 
-    unless Enum.empty?(machine_metrics) do
+    if !Enum.empty?(machine_metrics) do
       create_machine_metrics(build_id, machine_metrics, now)
     end
 

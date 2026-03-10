@@ -116,9 +116,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       build_id = response["id"]
 
       build =
-        Tuist.ClickHouseRepo.one(
-          from(b in Tuist.Gradle.Build, where: b.id == ^build_id)
-        )
+        Tuist.ClickHouseRepo.one(from(b in Tuist.Gradle.Build, where: b.id == ^build_id))
 
       build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
       assert length(build.machine_metrics) == 2

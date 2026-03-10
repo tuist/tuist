@@ -71,7 +71,11 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     assigns = assign(assigns, :legend_config, legend_config)
 
     ~H"""
-    <.card title={dgettext("dashboard", "Machine Metrics")} icon="chart_arcs" class="tuist-machine-metrics">
+    <.card
+      title={dgettext("dashboard", "Machine Metrics")}
+      icon="chart_arcs"
+      class="tuist-machine-metrics"
+    >
       <.card_section data-part="machine-metrics-charts">
         <div data-part="charts-grid">
           <div>
@@ -85,12 +89,26 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                 %{name: "Usage", values: @cpu_data}
               ]}
               show_legend={false}
-              extra_options={%{
-                grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
-                yAxis: %{min: 0, max: 100, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}},
-                tooltip: %{valueFormat: "{value}%"}
-              }}
+              extra_options={
+                %{
+                  grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      interval: @label_interval
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    max: 100,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+                  },
+                  tooltip: %{valueFormat: "{value}%"}
+                }
+              }
             />
           </div>
           <div>
@@ -104,12 +122,26 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                 %{name: "Used", values: @memory_data}
               ]}
               show_legend={false}
-              extra_options={%{
-                grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
-                yAxis: %{min: 0, max: @memory_total, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GiB"}},
-                tooltip: %{valueFormat: "{value} GiB"}
-              }}
+              extra_options={
+                %{
+                  grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      interval: @label_interval
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    max: @memory_total,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GiB"}
+                  },
+                  tooltip: %{valueFormat: "{value} GiB"}
+                }
+              }
             />
           </div>
           <div>
@@ -124,13 +156,29 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                 %{name: "Out", values: @network_out_data}
               ]}
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
-              extra_options={%{
-                grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
-                yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
-                tooltip: %{valueFormat: "{value} MiB/s"},
-                legend: @legend_config
-              }}
+              extra_options={
+                %{
+                  grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      interval: @label_interval
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value} MiB/s"
+                    }
+                  },
+                  tooltip: %{valueFormat: "{value} MiB/s"},
+                  legend: @legend_config
+                }
+              }
             />
           </div>
           <div>
@@ -145,13 +193,29 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                 %{name: "Write", values: @disk_write_data}
               ]}
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
-              extra_options={%{
-                grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
-                xAxis: %{boundaryGap: false, axisLabel: %{color: "var:noora-surface-label-secondary", interval: @label_interval}},
-                yAxis: %{min: 0, splitNumber: 4, splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}}, axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} MiB/s"}},
-                tooltip: %{valueFormat: "{value} MiB/s"},
-                legend: @legend_config
-              }}
+              extra_options={
+                %{
+                  grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      interval: @label_interval
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value} MiB/s"
+                    }
+                  },
+                  tooltip: %{valueFormat: "{value} MiB/s"},
+                  legend: @legend_config
+                }
+              }
             />
           </div>
         </div>

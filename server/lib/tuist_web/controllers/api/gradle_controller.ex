@@ -108,8 +108,16 @@ defmodule TuistWeb.API.GradleController do
                  disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
                  disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
                },
-               required: [:timestamp, :cpu_usage_percent, :memory_used_bytes, :memory_total_bytes,
-                          :network_bytes_in, :network_bytes_out, :disk_bytes_read, :disk_bytes_written]
+               required: [
+                 :timestamp,
+                 :cpu_usage_percent,
+                 :memory_used_bytes,
+                 :memory_total_bytes,
+                 :network_bytes_in,
+                 :network_bytes_out,
+                 :disk_bytes_read,
+                 :disk_bytes_written
+               ]
              }
            }
          },
