@@ -73,13 +73,12 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     ~H"""
     <.card title={dgettext("dashboard", "Machine Metrics")} icon="chart_arcs" data-part="machine-metrics">
       <.card_section data-part="machine-metrics-charts">
-        <div data-part="charts-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--noora-spacing-9) var(--noora-spacing-7); padding: var(--noora-spacing-8);">
+        <div data-part="charts-grid">
           <div>
             <span data-part="chart-title">CPU</span>
             <.chart
               id="cpu-usage-chart"
               type="line"
-              style="height: 220px"
               labels={@labels}
               smooth={true}
               series={[
@@ -99,7 +98,6 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
             <.chart
               id="memory-usage-chart"
               type="line"
-              style="height: 220px"
               labels={@labels}
               smooth={true}
               series={[
@@ -119,7 +117,6 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
             <.chart
               id="network-io-chart"
               type="line"
-              style="height: 250px"
               labels={@labels}
               smooth={true}
               series={[
@@ -141,7 +138,6 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
             <.chart
               id="disk-io-chart"
               type="line"
-              style="height: 250px"
               labels={@labels}
               smooth={true}
               series={[
