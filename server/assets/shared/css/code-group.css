@@ -19,6 +19,7 @@
     justify-content: space-between;
     position: relative;
     padding: 4px 8px;
+    border-bottom: 1px solid var(--noora-surface-border-primary);
 
     & > [data-part="tabs"] {
       display: flex;
@@ -28,7 +29,11 @@
       flex: 1;
       min-width: 0;
       overflow-x: auto;
-      border-bottom: 1px solid var(--noora-surface-border-primary);
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
       padding: 2px 0 12px;
 
       & > [data-part="tab"] {
@@ -70,13 +75,13 @@
       align-items: center;
       cursor: pointer;
       border: none;
-      background: transparent;
+      background: var(--noora-surface-background-primary);
       border-radius: 6px;
       padding: 6px;
+      padding-left: 12px;
       color: var(--noora-button-neutral-label);
-      position: absolute;
-      top: 8px;
-      right: 8px;
+      flex-shrink: 0;
+      align-self: center;
 
       & svg {
         width: 20px;
