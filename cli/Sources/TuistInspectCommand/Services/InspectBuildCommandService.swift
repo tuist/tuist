@@ -317,7 +317,8 @@
                     ciHost: ciInfo?.host,
                     ciProvider: ciInfo?.provider,
                     cacheableTasks: [],
-                    casOutputs: []
+                    casOutputs: [],
+                    machineMetrics: []
                 )
             }
             AlertController.current.success(
@@ -349,6 +350,14 @@
                     let destDir = casMetadataDir.appending(component: subdirectory)
                     try await fileSystem.copy(sourceDir, to: destDir)
                 }
+            }
+
+            let metricsSource = MachineMetricsReader.metricsFilePath
+            if try await fileSystem.exists(metricsSource) {
+                try await fileSystem.copy(
+                    metricsSource,
+                    to: buildDirectory.appending(component: "machine_metrics.jsonl")
+                )
             }
 
             let zipPath = tempDirectory.appending(component: "build.zip")

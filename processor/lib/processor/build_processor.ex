@@ -32,7 +32,14 @@ defmodule Processor.BuildProcessor do
     {:ok, parsed_data} =
       Processor.XCActivityLogNIF.parse(xcactivitylog_path, cas_path, xcode_cache_upload_enabled)
 
-    {:ok, parsed_data}
+    machine_metrics =
+      read_machine_metrics(
+        Path.join(temp_dir, "build/machine_metrics.jsonl"),
+        parsed_data["time_started_recording"],
+        parsed_data["time_stopped_recording"]
+      )
+
+    {:ok, Map.put(parsed_data, "machine_metrics", machine_metrics)}
   end
 
   defp make_temp_dir do
@@ -47,6 +54,29 @@ defmodule Processor.BuildProcessor do
     {:ok, files} = File.ls(xcactivitylog_dir)
     file = Enum.find(files, &String.ends_with?(&1, ".xcactivitylog"))
     Path.join(xcactivitylog_dir, file)
+  end
+
+  # Apple's reference date (Jan 1, 2001) as Unix timestamp
+  @apple_reference_date_offset 978_307_200
+
+  defp read_machine_metrics(path, start_time, end_time) do
+    if File.exists?(path) do
+      start_unix = start_time + @apple_reference_date_offset
+      end_unix = end_time + @apple_reference_date_offset
+
+      path
+      |> File.stream!()
+      |> Stream.map(&String.trim/1)
+      |> Stream.reject(&(&1 == ""))
+      |> Stream.map(&Jason.decode!/1)
+      |> Stream.filter(fn sample ->
+        ts = sample["timestamp"]
+        ts >= start_unix and ts <= end_unix
+      end)
+      |> Enum.to_list()
+    else
+      []
+    end
   end
 
   defp cleanup_temp(nil), do: :ok

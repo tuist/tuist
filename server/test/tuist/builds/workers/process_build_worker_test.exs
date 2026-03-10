@@ -37,8 +37,34 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       "issues" => [],
       "files" => [],
       "cacheable_tasks" => [],
-      "cas_outputs" => []
+      "cas_outputs" => [],
+      "machine_metrics" => []
     }
+  end
+
+  defp parsed_data_with_machine_metrics do
+    Map.put(parsed_data(), "machine_metrics", [
+      %{
+        "timestamp" => 1_710_000_000,
+        "cpuUsagePercent" => 75.5,
+        "memoryUsedBytes" => 8_000_000_000,
+        "memoryTotalBytes" => 16_000_000_000,
+        "networkBytesIn" => 1_000_000,
+        "networkBytesOut" => 500_000,
+        "diskBytesRead" => 2_000_000,
+        "diskBytesWritten" => 1_500_000
+      },
+      %{
+        "timestamp" => 1_710_000_005,
+        "cpuUsagePercent" => 82.3,
+        "memoryUsedBytes" => 8_500_000_000,
+        "memoryTotalBytes" => 16_000_000_000,
+        "networkBytesIn" => 1_200_000,
+        "networkBytesOut" => 600_000,
+        "diskBytesRead" => 2_500_000,
+        "diskBytesWritten" => 1_800_000
+      }
+    ])
   end
 
   describe "perform/1 with processor_url configured (HTTP path)" do
@@ -66,8 +92,57 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.project_id == @project_id
         assert attrs.duration == 1200
         assert attrs.status == "success"
+        assert attrs.machine_metrics == []
         {:ok, %{id: @build_id}}
       end)
+
+      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+    end
+
+    test "converts machine metrics from camelCase to snake_case", %{account: account} do
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: parsed_data_with_machine_metrics()}}
+      end)
+
+      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
+
+      expect(Tuist.Builds, :create_build, fn attrs ->
+        assert length(attrs.machine_metrics) == 2
+
+        [first, second] = attrs.machine_metrics
+        assert first.timestamp == 1_710_000_000
+        assert first.cpu_usage_percent == 75.5
+        assert first.memory_used_bytes == 8_000_000_000
+        assert first.memory_total_bytes == 16_000_000_000
+        assert first.network_bytes_in == 1_000_000
+        assert first.network_bytes_out == 500_000
+        assert first.disk_bytes_read == 2_000_000
+        assert first.disk_bytes_written == 1_500_000
+
+        assert second.timestamp == 1_710_000_005
+        assert second.cpu_usage_percent == 82.3
+        {:ok, %{id: @build_id}}
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+    end
+
+    test "signs webhook request with HMAC-SHA256", %{account: account} do
+      expect(Req, :post, fn _url, opts ->
+        body = opts[:body]
+        {_, signature} = Enum.find(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
+
+        expected_signature =
+          :hmac
+          |> :crypto.mac(:sha256, "test-secret", body)
+          |> Base.encode16(case: :lower)
+
+        assert signature == expected_signature
+        {:ok, %{status: 200, body: parsed_data()}}
+      end)
+
+      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
+      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: @build_id}} end)
 
       assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
     end
@@ -125,6 +200,30 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.project_id == @project_id
         assert attrs.duration == 1200
         assert attrs.status == "success"
+        {:ok, %{id: @build_id}}
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+    end
+
+    test "processes locally with machine metrics", %{account: account} do
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
+        {:ok, :done}
+      end)
+
+      expect(Processor.BuildProcessor, :process_build, fn _path, true ->
+        {:ok, parsed_data_with_machine_metrics()}
+      end)
+
+      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
+
+      expect(Tuist.Builds, :create_build, fn attrs ->
+        assert length(attrs.machine_metrics) == 2
+
+        [first | _] = attrs.machine_metrics
+        assert first.timestamp == 1_710_000_000
+        assert first.cpu_usage_percent == 75.5
+        assert first.memory_used_bytes == 8_000_000_000
         {:ok, %{id: @build_id}}
       end)
 
@@ -241,6 +340,23 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert {:error, "failed_to_create_build"} =
                ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+    end
+
+    test "handles missing machine_metrics in parsed data gracefully", %{account: account} do
+      data_without_metrics = Map.delete(parsed_data(), "machine_metrics")
+
+      expect(Req, :post, fn _url, _opts ->
+        {:ok, %{status: 200, body: data_without_metrics}}
+      end)
+
+      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
+
+      expect(Tuist.Builds, :create_build, fn attrs ->
+        assert attrs.machine_metrics == []
+        {:ok, %{id: @build_id}}
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
     end
   end
 end

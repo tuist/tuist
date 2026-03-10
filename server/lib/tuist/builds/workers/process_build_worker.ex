@@ -100,16 +100,22 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   end
 
   defp replace_build_run(build_id, parsed_data) do
-    original_build = Builds.get_build(build_id)
     parsed = atomize_keys(parsed_data)
 
     base_attrs =
-      original_build
-      |> Map.from_struct()
-      |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+      case Builds.get_build(build_id) do
+        nil ->
+          %{id: build_id}
+
+        build ->
+          build
+          |> Map.from_struct()
+          |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+      end
 
     attrs =
       Map.merge(base_attrs, %{
+        project_id: parsed[:project_id],
         duration: parsed[:duration] || 0,
         status: parsed[:status] || "success",
         category: parsed[:category],
@@ -117,11 +123,14 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         issues: convert_issues(parsed[:issues] || []),
         files: convert_files(parsed[:files] || []),
         cacheable_tasks: convert_cacheable_tasks(parsed[:cacheable_tasks] || []),
-        cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
+        cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1),
+        machine_metrics: convert_machine_metrics(parsed[:machine_metrics] || [])
       })
 
-    {:ok, _build} = Builds.create_build(attrs)
-    :ok
+    case Builds.create_build(attrs) do
+      {:ok, _build} -> :ok
+      {:error, _} -> {:error, "failed_to_create_build"}
+    end
   end
 
   defp mark_build_failed(build_id, project_id, account_id) do
@@ -163,6 +172,21 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Enum.map(targets, fn target ->
       target = atomize_keys(target)
       Map.update!(target, :status, &String.to_existing_atom/1)
+    end)
+  end
+
+  defp convert_machine_metrics(metrics) do
+    Enum.map(metrics, fn metric ->
+      %{
+        timestamp: metric["timestamp"],
+        cpu_usage_percent: metric["cpuUsagePercent"],
+        memory_used_bytes: metric["memoryUsedBytes"],
+        memory_total_bytes: metric["memoryTotalBytes"],
+        network_bytes_in: metric["networkBytesIn"],
+        network_bytes_out: metric["networkBytesOut"],
+        disk_bytes_read: metric["diskBytesRead"],
+        disk_bytes_written: metric["diskBytesWritten"]
+      }
     end)
   end
 
