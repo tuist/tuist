@@ -2877,6 +2877,89 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/issues`.
             public var issues: Components.Schemas.BuildParams.issuesPayload?
+            /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload`.
+            public struct machine_metricsPayloadPayload: Codable, Hashable, Sendable {
+                /// CPU usage percentage (0-100).
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/cpu_usage_percent`.
+                public var cpu_usage_percent: Swift.Double
+                /// Disk bytes read per second.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_bytes_read`.
+                public var disk_bytes_read: Swift.Int
+                /// Disk bytes written per second.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/disk_bytes_written`.
+                public var disk_bytes_written: Swift.Int
+                /// Total memory in bytes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/memory_total_bytes`.
+                public var memory_total_bytes: Swift.Int
+                /// Memory used in bytes.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/memory_used_bytes`.
+                public var memory_used_bytes: Swift.Int
+                /// Network bytes received per second.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/network_bytes_in`.
+                public var network_bytes_in: Swift.Int
+                /// Network bytes sent per second.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/network_bytes_out`.
+                public var network_bytes_out: Swift.Int
+                /// Unix timestamp in seconds.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metricsPayload/timestamp`.
+                public var timestamp: Swift.Double
+                /// Creates a new `machine_metricsPayloadPayload`.
+                ///
+                /// - Parameters:
+                ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                ///   - disk_bytes_read: Disk bytes read per second.
+                ///   - disk_bytes_written: Disk bytes written per second.
+                ///   - memory_total_bytes: Total memory in bytes.
+                ///   - memory_used_bytes: Memory used in bytes.
+                ///   - network_bytes_in: Network bytes received per second.
+                ///   - network_bytes_out: Network bytes sent per second.
+                ///   - timestamp: Unix timestamp in seconds.
+                public init(
+                    cpu_usage_percent: Swift.Double,
+                    disk_bytes_read: Swift.Int,
+                    disk_bytes_written: Swift.Int,
+                    memory_total_bytes: Swift.Int,
+                    memory_used_bytes: Swift.Int,
+                    network_bytes_in: Swift.Int,
+                    network_bytes_out: Swift.Int,
+                    timestamp: Swift.Double
+                ) {
+                    self.cpu_usage_percent = cpu_usage_percent
+                    self.disk_bytes_read = disk_bytes_read
+                    self.disk_bytes_written = disk_bytes_written
+                    self.memory_total_bytes = memory_total_bytes
+                    self.memory_used_bytes = memory_used_bytes
+                    self.network_bytes_in = network_bytes_in
+                    self.network_bytes_out = network_bytes_out
+                    self.timestamp = timestamp
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case cpu_usage_percent
+                    case disk_bytes_read
+                    case disk_bytes_written
+                    case memory_total_bytes
+                    case memory_used_bytes
+                    case network_bytes_in
+                    case network_bytes_out
+                    case timestamp
+                }
+            }
+            /// Machine performance metrics collected during the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metrics`.
+            public typealias machine_metricsPayload = [Components.Schemas.BuildParams.machine_metricsPayloadPayload]
+            /// Machine performance metrics collected during the build.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildParams/machine_metrics`.
+            public var machine_metrics: Components.Schemas.BuildParams.machine_metricsPayload?
             /// The version of macOS used during the build.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/macos_version`.
@@ -2991,6 +3074,7 @@ public enum Components {
             ///   - id: UUID of a build generated by the system.
             ///   - is_ci: Indicates if the build was executed on a Continuous Integration (CI) system.
             ///   - issues: The build issues associated with the build run.
+            ///   - machine_metrics: Machine performance metrics collected during the build.
             ///   - macos_version: The version of macOS used during the build.
             ///   - model_identifier: Identifier for the model where the build was executed, such as MacBookAir10,1.
             ///   - scheme: The scheme used for the build.
@@ -3016,6 +3100,7 @@ public enum Components {
                 id: Swift.String,
                 is_ci: Swift.Bool,
                 issues: Components.Schemas.BuildParams.issuesPayload? = nil,
+                machine_metrics: Components.Schemas.BuildParams.machine_metricsPayload? = nil,
                 macos_version: Swift.String? = nil,
                 model_identifier: Swift.String? = nil,
                 scheme: Swift.String? = nil,
@@ -3041,6 +3126,7 @@ public enum Components {
                 self.id = id
                 self.is_ci = is_ci
                 self.issues = issues
+                self.machine_metrics = machine_metrics
                 self.macos_version = macos_version
                 self.model_identifier = model_identifier
                 self.scheme = scheme
@@ -3067,6 +3153,7 @@ public enum Components {
                 case id
                 case is_ci
                 case issues
+                case machine_metrics
                 case macos_version
                 case model_identifier
                 case scheme
@@ -21982,6 +22069,89 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/issues`.
                     public var issues: Operations.createBuild.Input.Body.jsonPayload.issuesPayload?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload`.
+                    public struct machine_metricsPayloadPayload: Codable, Hashable, Sendable {
+                        /// CPU usage percentage (0-100).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
+                        public var cpu_usage_percent: Swift.Double
+                        /// Disk bytes read per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
+                        public var disk_bytes_read: Swift.Int
+                        /// Disk bytes written per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
+                        public var disk_bytes_written: Swift.Int
+                        /// Total memory in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
+                        public var memory_total_bytes: Swift.Int
+                        /// Memory used in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/memory_used_bytes`.
+                        public var memory_used_bytes: Swift.Int
+                        /// Network bytes received per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/network_bytes_in`.
+                        public var network_bytes_in: Swift.Int
+                        /// Network bytes sent per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/network_bytes_out`.
+                        public var network_bytes_out: Swift.Int
+                        /// Unix timestamp in seconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metricsPayload/timestamp`.
+                        public var timestamp: Swift.Double
+                        /// Creates a new `machine_metricsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_bytes_read: Disk bytes read per second.
+                        ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - memory_total_bytes: Total memory in bytes.
+                        ///   - memory_used_bytes: Memory used in bytes.
+                        ///   - network_bytes_in: Network bytes received per second.
+                        ///   - network_bytes_out: Network bytes sent per second.
+                        ///   - timestamp: Unix timestamp in seconds.
+                        public init(
+                            cpu_usage_percent: Swift.Double,
+                            disk_bytes_read: Swift.Int,
+                            disk_bytes_written: Swift.Int,
+                            memory_total_bytes: Swift.Int,
+                            memory_used_bytes: Swift.Int,
+                            network_bytes_in: Swift.Int,
+                            network_bytes_out: Swift.Int,
+                            timestamp: Swift.Double
+                        ) {
+                            self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_bytes_read = disk_bytes_read
+                            self.disk_bytes_written = disk_bytes_written
+                            self.memory_total_bytes = memory_total_bytes
+                            self.memory_used_bytes = memory_used_bytes
+                            self.network_bytes_in = network_bytes_in
+                            self.network_bytes_out = network_bytes_out
+                            self.timestamp = timestamp
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cpu_usage_percent
+                            case disk_bytes_read
+                            case disk_bytes_written
+                            case memory_total_bytes
+                            case memory_used_bytes
+                            case network_bytes_in
+                            case network_bytes_out
+                            case timestamp
+                        }
+                    }
+                    /// Machine performance metrics collected during the build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metrics`.
+                    public typealias machine_metricsPayload = [Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload]
+                    /// Machine performance metrics collected during the build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/machine_metrics`.
+                    public var machine_metrics: Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayload?
                     /// The version of macOS used during the build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/macos_version`.
@@ -22096,6 +22266,7 @@ public enum Operations {
                     ///   - id: UUID of a build generated by the system.
                     ///   - is_ci: Indicates if the build was executed on a Continuous Integration (CI) system.
                     ///   - issues: The build issues associated with the build run.
+                    ///   - machine_metrics: Machine performance metrics collected during the build.
                     ///   - macos_version: The version of macOS used during the build.
                     ///   - model_identifier: Identifier for the model where the build was executed, such as MacBookAir10,1.
                     ///   - scheme: The scheme used for the build.
@@ -22121,6 +22292,7 @@ public enum Operations {
                         id: Swift.String,
                         is_ci: Swift.Bool,
                         issues: Operations.createBuild.Input.Body.jsonPayload.issuesPayload? = nil,
+                        machine_metrics: Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayload? = nil,
                         macos_version: Swift.String? = nil,
                         model_identifier: Swift.String? = nil,
                         scheme: Swift.String? = nil,
@@ -22146,6 +22318,7 @@ public enum Operations {
                         self.id = id
                         self.is_ci = is_ci
                         self.issues = issues
+                        self.machine_metrics = machine_metrics
                         self.macos_version = macos_version
                         self.model_identifier = model_identifier
                         self.scheme = scheme
@@ -22172,6 +22345,7 @@ public enum Operations {
                         case id
                         case is_ci
                         case issues
+                        case machine_metrics
                         case macos_version
                         case model_identifier
                         case scheme
@@ -23241,6 +23415,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_ref`.
                     public var git_ref: Swift.String?
+                    /// Git remote URL origin.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/git_remote_url_origin`.
+                    public var git_remote_url_origin: Swift.String?
                     /// Gradle version.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/gradle_version`.
@@ -23257,6 +23435,89 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/java_version`.
                     public var java_version: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload`.
+                    public struct machine_metricsPayloadPayload: Codable, Hashable, Sendable {
+                        /// CPU usage percentage (0-100).
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/cpu_usage_percent`.
+                        public var cpu_usage_percent: Swift.Double
+                        /// Disk bytes read per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_read`.
+                        public var disk_bytes_read: Swift.Int
+                        /// Disk bytes written per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/disk_bytes_written`.
+                        public var disk_bytes_written: Swift.Int
+                        /// Total memory in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/memory_total_bytes`.
+                        public var memory_total_bytes: Swift.Int
+                        /// Memory used in bytes.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/memory_used_bytes`.
+                        public var memory_used_bytes: Swift.Int
+                        /// Network bytes received per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/network_bytes_in`.
+                        public var network_bytes_in: Swift.Int
+                        /// Network bytes sent per second.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/network_bytes_out`.
+                        public var network_bytes_out: Swift.Int
+                        /// Unix timestamp in seconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metricsPayload/timestamp`.
+                        public var timestamp: Swift.Double
+                        /// Creates a new `machine_metricsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cpu_usage_percent: CPU usage percentage (0-100).
+                        ///   - disk_bytes_read: Disk bytes read per second.
+                        ///   - disk_bytes_written: Disk bytes written per second.
+                        ///   - memory_total_bytes: Total memory in bytes.
+                        ///   - memory_used_bytes: Memory used in bytes.
+                        ///   - network_bytes_in: Network bytes received per second.
+                        ///   - network_bytes_out: Network bytes sent per second.
+                        ///   - timestamp: Unix timestamp in seconds.
+                        public init(
+                            cpu_usage_percent: Swift.Double,
+                            disk_bytes_read: Swift.Int,
+                            disk_bytes_written: Swift.Int,
+                            memory_total_bytes: Swift.Int,
+                            memory_used_bytes: Swift.Int,
+                            network_bytes_in: Swift.Int,
+                            network_bytes_out: Swift.Int,
+                            timestamp: Swift.Double
+                        ) {
+                            self.cpu_usage_percent = cpu_usage_percent
+                            self.disk_bytes_read = disk_bytes_read
+                            self.disk_bytes_written = disk_bytes_written
+                            self.memory_total_bytes = memory_total_bytes
+                            self.memory_used_bytes = memory_used_bytes
+                            self.network_bytes_in = network_bytes_in
+                            self.network_bytes_out = network_bytes_out
+                            self.timestamp = timestamp
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cpu_usage_percent
+                            case disk_bytes_read
+                            case disk_bytes_written
+                            case memory_total_bytes
+                            case memory_used_bytes
+                            case network_bytes_in
+                            case network_bytes_out
+                            case timestamp
+                        }
+                    }
+                    /// Machine performance metrics collected during the build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metrics`.
+                    public typealias machine_metricsPayload = [Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload]
+                    /// Machine performance metrics collected during the build.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/machine_metrics`.
+                    public var machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload?
                     /// Root project name.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/gradle/builds/POST/requestBody/json/root_project_name`.
@@ -23371,10 +23632,12 @@ public enum Operations {
                     ///   - git_branch: Git branch.
                     ///   - git_commit_sha: Git commit SHA.
                     ///   - git_ref: Git ref.
+                    ///   - git_remote_url_origin: Git remote URL origin.
                     ///   - gradle_version: Gradle version.
                     ///   - id: Client-provided build ID (UUID).
                     ///   - is_ci: Whether the build ran on CI.
                     ///   - java_version: Java version.
+                    ///   - machine_metrics: Machine performance metrics collected during the build.
                     ///   - root_project_name: Root project name.
                     ///   - status: Build status.
                     ///   - tasks:
@@ -23383,10 +23646,12 @@ public enum Operations {
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
+                        git_remote_url_origin: Swift.String? = nil,
                         gradle_version: Swift.String? = nil,
                         id: Swift.String? = nil,
                         is_ci: Swift.Bool? = nil,
                         java_version: Swift.String? = nil,
+                        machine_metrics: Operations.createGradleBuild.Input.Body.jsonPayload.machine_metricsPayload? = nil,
                         root_project_name: Swift.String? = nil,
                         status: Operations.createGradleBuild.Input.Body.jsonPayload.statusPayload,
                         tasks: Operations.createGradleBuild.Input.Body.jsonPayload.tasksPayload
@@ -23395,10 +23660,12 @@ public enum Operations {
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
+                        self.git_remote_url_origin = git_remote_url_origin
                         self.gradle_version = gradle_version
                         self.id = id
                         self.is_ci = is_ci
                         self.java_version = java_version
+                        self.machine_metrics = machine_metrics
                         self.root_project_name = root_project_name
                         self.status = status
                         self.tasks = tasks
@@ -23408,10 +23675,12 @@ public enum Operations {
                         case git_branch
                         case git_commit_sha
                         case git_ref
+                        case git_remote_url_origin
                         case gradle_version
                         case id
                         case is_ci
                         case java_version
+                        case machine_metrics
                         case root_project_name
                         case status
                         case tasks

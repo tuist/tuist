@@ -7,7 +7,7 @@
 ---
 # Install the Gradle plugin {#install-the-gradle-plugin}
 
-Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <LocalizedLink href="/guides/features/cache/gradle-cache">remote build caching</LocalizedLink> and <LocalizedLink href="/guides/features/insights/gradle-cache">build insights</LocalizedLink>. This guide walks you through installing and configuring the plugin.
+Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <LocalizedLink href="/guides/features/cache/gradle-cache">remote build caching</LocalizedLink> and <LocalizedLink href="/guides/features/build-insights/gradle">build insights</LocalizedLink>. This guide walks you through installing and configuring the plugin.
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -78,6 +78,6 @@ The recommended way to configure `project` (and optionally `url`) is through a `
 Once the plugin is installed and configured, you can enable:
 
 - <LocalizedLink href="/guides/features/cache/gradle-cache">Remote build cache</LocalizedLink> to share build artifacts across your team and CI.
-- <LocalizedLink href="/guides/features/insights/gradle-cache">Build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
+- <LocalizedLink href="/guides/features/build-insights/gradle">Build insights</LocalizedLink> to track task timings and cache behavior in the Tuist dashboard.
 - <LocalizedLink href="/guides/features/test-insights/gradle">Test insights</LocalizedLink> to track test performance and detect flaky tests.
 - <LocalizedLink href="/guides/features/test-insights/flaky-tests">Flaky tests</LocalizedLink> to automatically detect, track, and quarantine flaky tests.

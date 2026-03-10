@@ -32,7 +32,7 @@ Tuist Insights 处于早期开发阶段。
 
 要开始跟踪本地构建时间，可以利用`tuist inspect build` 命令，将其添加到方案的后期行动中：
 
-![检查构建的后期行动](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
+![检查构建的后期行动](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)。
 
 信息
 <!-- -->
@@ -80,7 +80,7 @@ $SRCROOT 指向的目录运行 Mise。
 <!-- -->
 :::
 
-!!!!!!!!!![仪表板，包含构建见解](/images/guides/features/insights/builds-dashboard.png)。
+!!!!!!!!!![仪表板，包含构建见解](/images/guides/features/build-insights/builds-dashboard.png)。
 
 ## 测试 {#tests}
 
@@ -88,7 +88,7 @@ $SRCROOT 指向的目录运行 Mise。
 
 要开始跟踪测试，可以将`tuist inspect test` 命令添加到方案的测试后操作中，从而利用该命令：
 
-检查测试后的行动](/images/guides/features/insights/inspect-test-scheme-post-action.png)。
+检查测试后的行动](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)。
 
 如果您使用的是 [Mise](https://mise.jdx.dev/)，您的脚本需要在行动后环境中激活`tuist` ：
 ```sh
@@ -106,11 +106,11 @@ $SRCROOT 指向的目录运行 Mise。
 
 现在，只要您登录 Tuist 帐户，您的测试运行就会被跟踪。您可以在 Tuist 面板中访问您的测试洞察，并查看它们如何随时间演变：
 
-![具有测试洞察力的仪表板](/images/guides/features/insights/tests-dashboard.png)。
+![具有测试洞察力的仪表板](/images/guides/features/build-insights/tests-dashboard.png)。
 
 除了整体趋势，您还可以深入研究每个测试，例如在调试 CI 上的失败或缓慢测试时：
 
-![测试细节](/images/guides/features/insights/test-detail.png)!
+![测试细节](/images/guides/features/build-insights/test-detail.png)!
 
 ## 生成的项目 {#generated-projects}
 

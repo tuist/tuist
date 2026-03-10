@@ -92,6 +92,33 @@ defmodule TuistWeb.API.GradleController do
                },
                required: [:task_path, :outcome]
              }
+           },
+           machine_metrics: %Schema{
+             type: :array,
+             description: "Machine performance metrics collected during the build.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 timestamp: %Schema{type: :number, description: "Unix timestamp in seconds."},
+                 cpu_usage_percent: %Schema{type: :number, description: "CPU usage percentage (0-100)."},
+                 memory_used_bytes: %Schema{type: :integer, description: "Memory used in bytes."},
+                 memory_total_bytes: %Schema{type: :integer, description: "Total memory in bytes."},
+                 network_bytes_in: %Schema{type: :integer, description: "Network bytes received per second."},
+                 network_bytes_out: %Schema{type: :integer, description: "Network bytes sent per second."},
+                 disk_bytes_read: %Schema{type: :integer, description: "Disk bytes read per second."},
+                 disk_bytes_written: %Schema{type: :integer, description: "Disk bytes written per second."}
+               },
+               required: [
+                 :timestamp,
+                 :cpu_usage_percent,
+                 :memory_used_bytes,
+                 :memory_total_bytes,
+                 :network_bytes_in,
+                 :network_bytes_out,
+                 :disk_bytes_read,
+                 :disk_bytes_written
+               ]
+             }
            }
          },
          required: [:duration_ms, :status, :tasks]
@@ -140,7 +167,8 @@ defmodule TuistWeb.API.GradleController do
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
       requested_tasks: body[:requested_tasks] || [],
-      tasks: tasks
+      tasks: tasks,
+      machine_metrics: Map.get(body, :machine_metrics, [])
     }
 
     {:ok, build_id} = Gradle.create_build(attrs)

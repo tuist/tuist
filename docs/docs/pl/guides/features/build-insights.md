@@ -44,7 +44,7 @@ Aby rozpocząć śledzenie lokalnego czasu kompilacji, można wykorzystać polec
 `tuist inspect build`, dodając je do postakcji schematu:
 
 ![Działanie po inspekcji
-kompilacji](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+kompilacji](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 :: info
 <!-- -->
@@ -103,7 +103,7 @@ Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom `tuist project sho
 :::
 
 ![Pulpit nawigacyjny z informacjami o
-kompilacji](/images/guides/features/insights/builds-dashboard.png)
+kompilacji](/images/guides/features/build-insights/builds-dashboard.png)
 
 ## Testy {#tests}
 
@@ -115,7 +115,7 @@ Aby rozpocząć śledzenie testów, można wykorzystać polecenie `tuist inspect
 test`, dodając je do testowej post-akcji schematu:
 
 ![Działanie po inspekcji
-testów](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+testów](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 W przypadku korzystania z [Mise](https://mise.jdx.dev/), skrypt będzie musiał
 aktywować `tuist` w środowisku post-action:
@@ -140,12 +140,12 @@ konto Tuist. Możesz uzyskać dostęp do swoich spostrzeżeń z testów na pulpi
 nawigacyjnym Tuist i zobaczyć, jak ewoluują one w czasie:
 
 ![Pulpit nawigacyjny z wnioskami z
-testów](/images/guides/features/insights/tests-dashboard.png)
+testów](/images/guides/features/build-insights/tests-dashboard.png)
 
 Oprócz ogólnych trendów, można również zagłębić się w poszczególne testy, na
 przykład podczas debugowania awarii lub powolnych testów w CI:
 
-![Szczegóły testu](/images/guides/features/insights/test-detail.png)
+![Szczegóły testu](/images/guides/features/build-insights/test-detail.png)
 
 ## Wygenerowane projekty {#generated-projects}
 

@@ -36,7 +36,7 @@ CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만
 로컬 빌드 시간 추적을 시작하려면 `tuist inspect build` 명령을 계획의 포스트 액션에 추가하여 활용할 수 있습니다:
 
 ![빌드 검사를 위한 사후
-작업](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+작업](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
@@ -86,7 +86,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 <!-- -->
 :::
 
-![빌드 인사이트가 있는 대시보드](/images/guides/features/insights/builds-dashboard.png)
+![빌드 인사이트가 있는 대시보드](/images/guides/features/build-insights/builds-dashboard.png)
 
 ## 테스트 {#tests}
 
@@ -96,7 +96,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 시험 추적을 시작하려면 `tuist inspect test` 명령을 계획의 시험 사후 조치에 추가하여 활용할 수 있습니다:
 
 ![테스트 검사를 위한 사후
-조치](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+조치](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 환경에서 `tuist` 을 활성화해야 합니다:
 ```sh
@@ -116,11 +116,11 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 이제 튜이스트 계정에 로그인되어 있는 한 테스트 실행이 추적됩니다. 튜이스트 대시보드에서 테스트 인사이트에 액세스하여 시간이 지남에 따라 어떻게
 발전하는지 확인할 수 있습니다:
 
-![테스트 인사이트가 포함된 대시보드](/images/guides/features/insights/tests-dashboard.png)
+![테스트 인사이트가 포함된 대시보드](/images/guides/features/build-insights/tests-dashboard.png)
 
 전체 트렌드 외에도 CI에서 실패 또는 느린 테스트를 디버깅할 때와 같이 각 개별 테스트에 대해 자세히 살펴볼 수도 있습니다:
 
-![테스트 세부 정보](/images/guides/features/insights/test-detail.png)
+![테스트 세부 정보](/images/guides/features/build-insights/test-detail.png)
 
 ## Generated 프로젝트 {#generated-projects}
 

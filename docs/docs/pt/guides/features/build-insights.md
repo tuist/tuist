@@ -43,7 +43,7 @@ To start tracking local build times, you can leverage the `tuist inspect build`
 command by adding it to your scheme's post-action:
 
 ![Post-action for inspecting
-builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+builds](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
@@ -101,7 +101,7 @@ To quickly access the dashboard, run `tuist project show --web` from the CLI.
 :::
 
 ![Dashboard with build
-insights](/images/guides/features/insights/builds-dashboard.png)
+insights](/images/guides/features/build-insights/builds-dashboard.png)
 
 ## Tests {#tests}
 
@@ -112,7 +112,7 @@ To start tracking your tests, you can leverage the `tuist inspect test` command
 by adding it to your scheme's test post-action:
 
 ![Post-action for inspecting
-tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+tests](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to
 activate `tuist` in the post-action environment:
@@ -137,12 +137,12 @@ account. You can access your test insights in the Tuist dashboard and see how
 they evolve over time:
 
 ![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+insights](/images/guides/features/build-insights/tests-dashboard.png)
 
 Apart from overall trends, you can also dive deep into each individual test,
 such as when debugging failures or slow tests on the CI:
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![Test detail](/images/guides/features/build-insights/test-detail.png)
 
 ## Generated projects {#generated-projects}
 
