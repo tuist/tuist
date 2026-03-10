@@ -60,17 +60,17 @@ defmodule Cache.S3Test do
       assert url == "https://example.com/#{key}?token=xyz"
     end
 
-    test "returns presigned URL for CAS type from dedicated bucket" do
+    test "returns presigned URL for xcode_cache type from dedicated bucket" do
       key = "acc/proj/cas/abc"
 
       expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
 
-      expect(ExAws.S3, :presigned_url, fn _config, :get, "test-cas-bucket", ^key, opts ->
+      expect(ExAws.S3, :presigned_url, fn _config, :get, "test-xcode-cache-bucket", ^key, opts ->
         assert Keyword.get(opts, :expires_in) == 600
         {:ok, "https://example.com/#{key}?token=xyz"}
       end)
 
-      assert {:ok, url} = S3.presign_download_url(key, type: :cas)
+      assert {:ok, url} = S3.presign_download_url(key, type: :xcode_cache)
       assert url == "https://example.com/#{key}?token=xyz"
     end
 
@@ -120,31 +120,31 @@ defmodule Cache.S3Test do
       assert S3.exists?(key) == true
     end
 
-    test "returns true when file exists in CAS bucket" do
+    test "returns true when file exists in xcode_cache bucket" do
       key = "acc/proj/cas/cas-exists-test"
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
         %ExAws.Operation.S3{
-          bucket: "test-cas-bucket",
+          bucket: "test-xcode-cache-bucket",
           path: key
         }
       end)
 
       expect(ExAws, :request, fn _head_object, _opts -> {:ok, %{status_code: 200}} end)
 
-      assert S3.exists?(key, type: :cas) == true
+      assert S3.exists?(key, type: :xcode_cache) == true
     end
 
-    test "returns false for CAS when object does not exist in dedicated bucket" do
+    test "returns false for xcode_cache when object does not exist in dedicated bucket" do
       key = "acc/proj/cas/nonexistent-cas"
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
       expect(ExAws, :request, fn _head_object, _opts -> {:error, {:http_error, 404, "Not Found"}} end)
 
-      assert S3.exists?(key, type: :cas) == false
+      assert S3.exists?(key, type: :xcode_cache) == false
     end
 
     test "returns false when file does not exist in S3 (404)" do
@@ -381,38 +381,38 @@ defmodule Cache.S3Test do
       end)
     end
 
-    test "CAS download from primary bucket returns {:ok, :hit}" do
+    test "xcode_cache download from primary bucket returns {:ok, :hit}" do
       key = "test_account/test_project/cas/TE/ST/test_hash"
       {:ok, tmp_dir} = Briefly.create(directory: true)
       local_path = Path.join(tmp_dir, "test_hash")
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
       expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
-      expect(ExAws.S3, :download_file, fn "test-cas-bucket", ^key, ^local_path ->
-        {:download_operation, "test-cas-bucket", key, local_path}
+      expect(ExAws.S3, :download_file, fn "test-xcode-cache-bucket", ^key, ^local_path ->
+        {:download_operation, "test-xcode-cache-bucket", key, local_path}
       end)
 
-      expect(ExAws, :request, fn {:download_operation, "test-cas-bucket", ^key, ^local_path} ->
+      expect(ExAws, :request, fn {:download_operation, "test-xcode-cache-bucket", ^key, ^local_path} ->
         File.write!(local_path, "downloaded content")
         {:ok, :done}
       end)
 
       capture_log(fn ->
-        assert {:ok, :hit} = S3.download(key, type: :cas)
+        assert {:ok, :hit} = S3.download(key, type: :xcode_cache)
       end)
     end
 
-    test "CAS download returns {:ok, :miss} when not in dedicated bucket" do
+    test "xcode_cache download returns {:ok, :miss} when not in dedicated bucket" do
       key = "test_account/test_project/cas/TE/ST/test_hash"
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
       expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
@@ -420,29 +420,29 @@ defmodule Cache.S3Test do
       end)
 
       capture_log(fn ->
-        assert {:ok, :miss} = S3.download(key, type: :cas)
+        assert {:ok, :miss} = S3.download(key, type: :xcode_cache)
       end)
     end
 
-    test "CAS download propagates primary bucket HEAD errors instead of falling back" do
+    test "xcode_cache download propagates primary bucket HEAD errors instead of falling back" do
       key = "test_account/test_project/cas/TE/ST/primary-timeout"
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
       expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:error, :timeout} end)
 
       capture_log(fn ->
-        assert {:error, :timeout} = S3.download(key, type: :cas)
+        assert {:error, :timeout} = S3.download(key, type: :xcode_cache)
       end)
     end
 
-    test "CAS download propagates primary bucket rate limiting instead of falling back" do
+    test "xcode_cache download propagates primary bucket rate limiting instead of falling back" do
       key = "test_account/test_project/cas/TE/ST/primary-rate-limited"
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
       expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
@@ -450,15 +450,15 @@ defmodule Cache.S3Test do
       end)
 
       capture_log(fn ->
-        assert {:error, :rate_limited} = S3.download(key, type: :cas)
+        assert {:error, :rate_limited} = S3.download(key, type: :xcode_cache)
       end)
     end
 
-    test "CAS download propagates primary bucket 5xx errors instead of falling back" do
+    test "xcode_cache download propagates primary bucket 5xx errors instead of falling back" do
       key = "test_account/test_project/cas/TE/ST/primary-5xx"
 
-      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
-        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
       expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
@@ -466,7 +466,7 @@ defmodule Cache.S3Test do
       end)
 
       capture_log(fn ->
-        assert {:error, {:http_error, 503, "Service Unavailable"}} = S3.download(key, type: :cas)
+        assert {:error, {:http_error, 503, "Service Unavailable"}} = S3.download(key, type: :xcode_cache)
       end)
     end
   end
@@ -496,24 +496,24 @@ defmodule Cache.S3Test do
       end)
     end
 
-    test "deletes all objects from CAS bucket when type is :cas" do
+    test "deletes all objects from xcode_cache bucket when type is :xcode_cache" do
       prefix = "test_account/test_project/"
 
       expect(ExAws, :stream!, fn _operation ->
         [%{key: "#{prefix}cas/AB/CD/hash1"}]
       end)
 
-      expect(ExAws.S3, :delete_multiple_objects, fn "test-cas-bucket", keys ->
+      expect(ExAws.S3, :delete_multiple_objects, fn "test-xcode-cache-bucket", keys ->
         assert keys == ["#{prefix}cas/AB/CD/hash1"]
-        {:delete_multiple_operation, "test-cas-bucket", keys}
+        {:delete_multiple_operation, "test-xcode-cache-bucket", keys}
       end)
 
-      expect(ExAws, :request, fn {:delete_multiple_operation, "test-cas-bucket", _keys} ->
+      expect(ExAws, :request, fn {:delete_multiple_operation, "test-xcode-cache-bucket", _keys} ->
         {:ok, %{}}
       end)
 
       capture_log(fn ->
-        assert {:ok, 1} = S3.delete_all_with_prefix(prefix, type: :cas)
+        assert {:ok, 1} = S3.delete_all_with_prefix(prefix, type: :xcode_cache)
       end)
     end
 

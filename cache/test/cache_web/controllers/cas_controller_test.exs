@@ -66,7 +66,7 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.type == :upload
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
-      assert upload.artifact_type == :xcode_cas
+      assert upload.artifact_type == :xcode_cache
       assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
@@ -111,7 +111,7 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.type == :upload
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
-      assert upload.artifact_type == :xcode_cas
+      assert upload.artifact_type == :xcode_cache
       assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 
@@ -294,7 +294,7 @@ defmodule CacheWeb.CASControllerTest do
 
       expect(Cache.S3, :presign_download_url, fn key, opts ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
-        assert Keyword.get(opts, :type) == :cas
+        assert Keyword.get(opts, :type) == :xcode_cache
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
       end)
 
@@ -332,7 +332,7 @@ defmodule CacheWeb.CASControllerTest do
 
       expect(Cache.S3, :presign_download_url, fn key, opts ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
-        assert Keyword.get(opts, :type) == :cas
+        assert Keyword.get(opts, :type) == :xcode_cache
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
       end)
 
@@ -359,7 +359,7 @@ defmodule CacheWeb.CASControllerTest do
       assert download.type == :download
       assert download.account_handle == account_handle
       assert download.project_handle == project_handle
-      assert download.artifact_type == :xcode_cas
+      assert download.artifact_type == :xcode_cache
       assert download.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
     end
 

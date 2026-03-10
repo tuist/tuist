@@ -5,7 +5,7 @@ defmodule Cache.S3 do
   Isolated behind a module for easy testing without mutating global config.
 
   Artifacts are stored across three buckets:
-  - `:cas` — dedicated CAS bucket (`S3_CAS_BUCKET`).
+  - `:xcode_cache` — dedicated Xcode cache bucket (`S3_XCODE_CACHE_BUCKET`).
   - `:cache` — shared cache bucket (`S3_BUCKET`) for module and Gradle artifacts.
   - `:registry` — registry bucket (`S3_REGISTRY_BUCKET`) for Swift package registry.
   """
@@ -36,7 +36,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Returns `{:ok, url}` on success or `{:error, reason}` on failure.
   Returns `{:error, :registry_disabled}` if type is `:registry` and registry storage is not configured.
@@ -63,9 +63,9 @@ defmodule Cache.S3 do
     /internal/remote/https/<host>/<path>?<query>
   """
   def remote_accel_path(url) when is_binary(url) do
-    %URI{host: host, path: path, query: query} = URI.parse(url)
+    %URI{host: host, path: raw_path, query: query} = URI.parse(url)
 
-    path = path || "/"
+    path = raw_path || "/"
 
     base = "/internal/remote/https/" <> host <> path
 
@@ -81,7 +81,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Returns `false` if type is `:registry` and registry storage is not configured.
   """
@@ -161,7 +161,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Returns `{:ok, :hit}` on success, `{:error, :rate_limited}` on 429 errors
   (should be retried), or `{:error, reason}` on other failures.
@@ -223,7 +223,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Lists all objects matching the prefix and deletes them in batches.
   Returns {:ok, deleted_count} on success, or {:error, reason} on failure.
@@ -273,7 +273,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
     * `:content_type` - The content type for the uploaded object
 
   Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
@@ -317,7 +317,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default), `:cas`, or `:registry`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
     * `:content_type` - The content type for the uploaded object
 
   Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
@@ -373,20 +373,16 @@ defmodule Cache.S3 do
     |> String.trim_trailing("\"")
   end
 
-  defp bucket_for_type(:cas), do: Config.cas_bucket() || Config.cache_bucket()
+  defp bucket_for_type(:xcode_cache), do: Config.xcode_cache_bucket() || Config.cache_bucket()
   defp bucket_for_type(:cache), do: Config.cache_bucket()
   defp bucket_for_type(:registry), do: Config.registry_bucket()
 
   defp head_object_status(bucket, key, request_opts \\ []) do
     {duration, result} =
       :timer.tc(fn ->
-        request = ExAws.S3.head_object(bucket, key)
-
-        if request_opts == [] do
-          ExAws.request(request)
-        else
-          ExAws.request(request, request_opts)
-        end
+        bucket
+        |> ExAws.S3.head_object(key)
+        |> ExAws.request(request_opts)
       end)
 
     case result do
@@ -407,5 +403,4 @@ defmodule Cache.S3 do
         {:error, reason}
     end
   end
-
 end

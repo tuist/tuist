@@ -23,7 +23,7 @@ defmodule Cache.S3TransferWorkerTest do
   end
 
   describe "perform/1" do
-    test "processes pending CAS uploads via upload_file with type: :cas" do
+    test "processes pending CAS uploads via upload_file with type: :xcode_cache" do
       suffix = :erlang.unique_integer([:positive])
       key_one = "account/project/cas/ar/ti/artifact1-#{suffix}"
       key_two = "account/project/cas/ar/ti/artifact2-#{suffix}"
@@ -39,7 +39,7 @@ defmodule Cache.S3TransferWorkerTest do
       expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
 
       expect(Cache.S3, :upload_file, 2, fn _key, _path, opts ->
-        assert opts == [type: :cas]
+        assert opts == [type: :xcode_cache]
         :ok
       end)
 
@@ -53,7 +53,7 @@ defmodule Cache.S3TransferWorkerTest do
       assert count == 0
     end
 
-    test "processes pending CAS downloads with type: :cas" do
+    test "processes pending CAS downloads with type: :xcode_cache" do
       suffix = :erlang.unique_integer([:positive])
       key_one = "account/project/cas/ar/ti/artifact1-#{suffix}"
       key_two = "account/project/cas/ar/ti/artifact2-#{suffix}"
@@ -67,7 +67,7 @@ defmodule Cache.S3TransferWorkerTest do
       File.write!(tmp_file, "test content")
 
       expect(Cache.S3, :download, 2, fn _key, opts ->
-        assert opts == [type: :cas]
+        assert opts == [type: :xcode_cache]
         {:ok, :hit}
       end)
 
@@ -99,12 +99,12 @@ defmodule Cache.S3TransferWorkerTest do
       expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
 
       expect(Cache.S3, :upload_file, fn _key, _path, opts ->
-        assert opts == [type: :cas]
+        assert opts == [type: :xcode_cache]
         :ok
       end)
 
       expect(Cache.S3, :download, fn _key, opts ->
-        assert opts == [type: :cas]
+        assert opts == [type: :xcode_cache]
         {:ok, :hit}
       end)
 
@@ -131,7 +131,7 @@ defmodule Cache.S3TransferWorkerTest do
 
       expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
 
-      expect(Cache.S3, :upload_file, fn _key, _path, [type: :cas] ->
+      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache] ->
         {:error, :timeout}
       end)
 
@@ -160,11 +160,11 @@ defmodule Cache.S3TransferWorkerTest do
 
       expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
 
-      expect(Cache.S3, :upload_file, fn _key, _path, [type: :cas] ->
+      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache] ->
         {:error, :rate_limited}
       end)
 
-      expect(Cache.S3, :download, fn _key, [type: :cas] ->
+      expect(Cache.S3, :download, fn _key, [type: :xcode_cache] ->
         {:error, :rate_limited}
       end)
 

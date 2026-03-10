@@ -10,8 +10,8 @@ defmodule Cache.SQLiteMaintenanceWorker do
     Cache.Repo.query("PRAGMA incremental_vacuum(128000)")
 
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, 0, fn ->
-      query!(KeyValueRepo, "PRAGMA wal_checkpoint(PASSIVE)")
-      query!(KeyValueRepo, "PRAGMA incremental_vacuum(1000)")
+      SQLiteHelpers.query!(KeyValueRepo, "PRAGMA wal_checkpoint(PASSIVE)")
+      SQLiteHelpers.query!(KeyValueRepo, "PRAGMA incremental_vacuum(1000)")
     end)
 
     :ok
@@ -22,12 +22,5 @@ defmodule Cache.SQLiteMaintenanceWorker do
       else
         reraise error, __STACKTRACE__
       end
-  end
-
-  defp query!(repo, query) do
-    case repo.query(query) do
-      {:ok, result} -> result
-      {:error, error} -> raise error
-    end
   end
 end

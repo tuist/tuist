@@ -37,6 +37,13 @@ defmodule Cache.SQLiteHelpers do
     end
   end
 
+  def query!(repo, query) do
+    case repo.query(query) do
+      {:ok, result} -> result
+      {:error, error} -> raise error
+    end
+  end
+
   def wal_file_size(path), do: file_size("#{path}-wal")
 
   def with_repo_busy_timeout(repo, timeout_ms, fun) when is_function(fun, 0) do

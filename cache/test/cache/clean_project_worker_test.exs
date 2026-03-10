@@ -9,14 +9,14 @@ defmodule Cache.CleanProjectWorkerTest do
   alias Cache.S3
 
   describe "perform/1" do
-    test "cleans disk and S3 artifacts from both CAS and cache buckets" do
+    test "cleans disk and S3 artifacts from both xcode_cache and cache buckets" do
       account_handle = "test_account"
       project_handle = "test_project"
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
 
       expect(S3, :delete_all_with_prefix, 2, fn
-        "test_account/test_project/", [type: :cas] -> {:ok, 3}
+        "test_account/test_project/", [type: :xcode_cache] -> {:ok, 3}
         "test_account/test_project/", [type: :cache] -> {:ok, 2}
       end)
 
@@ -27,14 +27,14 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
-    test "still runs both deletion passes when CAS shares the cache bucket" do
+    test "still runs both deletion passes when xcode_cache shares the cache bucket" do
       account_handle = "test_account"
       project_handle = "test_project"
 
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
 
       expect(S3, :delete_all_with_prefix, 2, fn
-        "test_account/test_project/", [type: :cas] -> {:ok, 0}
+        "test_account/test_project/", [type: :xcode_cache] -> {:ok, 0}
         "test_account/test_project/", [type: :cache] -> {:ok, 0}
       end)
 
@@ -52,7 +52,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> {:error, :eacces} end)
 
       expect(S3, :delete_all_with_prefix, 2, fn
-        "test_account/test_project/", [type: :cas] -> {:ok, 0}
+        "test_account/test_project/", [type: :xcode_cache] -> {:ok, 0}
         "test_account/test_project/", [type: :cache] -> {:ok, 0}
       end)
 
@@ -73,7 +73,7 @@ defmodule Cache.CleanProjectWorkerTest do
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
 
       expect(S3, :delete_all_with_prefix, 2, fn
-        "test_account/test_project/", [type: :cas] -> {:error, :timeout}
+        "test_account/test_project/", [type: :xcode_cache] -> {:error, :timeout}
         "test_account/test_project/", [type: :cache] -> {:error, :timeout}
       end)
 

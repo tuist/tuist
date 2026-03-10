@@ -31,7 +31,7 @@ defmodule Cache.KeyValueEntries do
     batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
 
-    delete_expired_batches(cutoff, batch_size, deadline_ms)
+    delete_expired_loop(cutoff, batch_size, deadline_ms)
   end
 
   @doc """
@@ -70,7 +70,7 @@ defmodule Cache.KeyValueEntries do
     end)
   rescue
     error ->
-      if busy_error?(error) do
+      if SQLiteHelpers.busy_error?(error) do
         {%{}, 0, :busy}
       else
         reraise error, __STACKTRACE__
@@ -135,63 +135,35 @@ defmodule Cache.KeyValueEntries do
     Enum.reject(hashes, &MapSet.member?(referenced, &1))
   end
 
-  defp delete_expired_batches(cutoff, batch_size, deadline_ms) do
-    do_delete_expired_batches(cutoff, batch_size, deadline_ms, nil, %{}, 0)
-  end
-
-  defp do_delete_expired_batches(cutoff, batch_size, deadline_ms, cursor, hash_sets_acc, count_acc) do
+  defp delete_expired_loop(cutoff, batch_size, deadline_ms, cursor \\ nil, hash_sets_acc \\ %{}, count_acc \\ 0) do
     if time_limit_reached?(deadline_ms) do
       {to_sorted_hash_lists(hash_sets_acc), count_acc, :time_limit_reached}
     else
-      case execute_expired_batch(cutoff, batch_size, cursor) do
-        {:empty} ->
+      timeout = Config.key_value_maintenance_busy_timeout_ms()
+
+      result =
+        SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
+          delete_candidate_batch(cutoff, batch_size, cursor)
+        end)
+
+      case result do
+        :empty ->
           {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
 
-        {:ok, batch_hash_sets, batch_deleted_count, new_cursor} ->
-          merged_hash_sets = merge_grouped_hash_sets(hash_sets_acc, batch_hash_sets)
-          total_count = count_acc + batch_deleted_count
-
-          :timer.sleep(@batch_sleep_ms)
-
-          do_delete_expired_batches(
-            cutoff,
-            batch_size,
-            deadline_ms,
-            new_cursor,
-            merged_hash_sets,
-            total_count
-          )
-
-        {:busy} ->
+        :busy ->
           {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
+
+        {:ok, batch_hashes, batch_count, new_cursor} ->
+          merged = merge_grouped_hash_sets(hash_sets_acc, batch_hashes)
+          total = count_acc + batch_count
+          :timer.sleep(@batch_sleep_ms)
+          delete_expired_loop(cutoff, batch_size, deadline_ms, new_cursor, merged, total)
       end
     end
-  end
-
-  defp execute_expired_batch(cutoff, batch_size, cursor) do
-    timeout = Config.key_value_maintenance_busy_timeout_ms()
-
-    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
-      case candidate_batch(cutoff, batch_size, cursor) do
-        [] ->
-          {:empty}
-
-        batch ->
-          ids_to_delete = Enum.map(batch, &elem(&1, 0))
-
-          {batch_hash_sets, batch_deleted_count, batch_status} =
-            delete_expired_entries(ids_to_delete, cutoff)
-
-          case batch_status do
-            :busy -> {:busy}
-            :complete -> {:ok, batch_hash_sets, batch_deleted_count, batch_cursor(batch)}
-          end
-      end
-    end)
   rescue
     error ->
-      if busy_error?(error) do
-        {:busy}
+      if SQLiteHelpers.busy_error?(error) do
+        {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
       else
         reraise error, __STACKTRACE__
       end
@@ -200,32 +172,43 @@ defmodule Cache.KeyValueEntries do
   # Queries candidates for eviction, handling NULL last_accessed_at entries
   # separately from non-NULL entries so the (last_accessed_at, id) index
   # can be used for the non-NULL path.
-  defp candidate_batch(cutoff, batch_size, nil) do
-    nulls = null_candidates(batch_size, nil)
+  defp delete_candidate_batch(cutoff, batch_size, cursor) do
+    case candidate_batch(cutoff, batch_size, cursor) do
+      [] ->
+        :empty
 
-    if length(nulls) >= batch_size do
-      nulls
-    else
-      remaining = batch_size - length(nulls)
-      non_nulls = non_null_candidates(cutoff, remaining, nil)
-      nulls ++ non_nulls
-    end
-  end
+      rows ->
+        ids = Enum.map(rows, &elem(&1, 0))
+        {batch_hashes, batch_count, status} = delete_expired_entries(ids, cutoff)
 
-  defp candidate_batch(cutoff, batch_size, {:null_cursor, cursor_id}) do
-    nulls = null_candidates(batch_size, cursor_id)
-
-    if length(nulls) >= batch_size do
-      nulls
-    else
-      remaining = batch_size - length(nulls)
-      non_nulls = non_null_candidates(cutoff, remaining, nil)
-      nulls ++ non_nulls
+        case status do
+          :busy -> :busy
+          :complete -> {:ok, batch_hashes, batch_count, batch_cursor(rows)}
+        end
     end
   end
 
   defp candidate_batch(cutoff, batch_size, {:time_cursor, cursor_time, cursor_id}) do
     non_null_candidates(cutoff, batch_size, {cursor_time, cursor_id})
+  end
+
+  defp candidate_batch(cutoff, batch_size, cursor) do
+    null_cursor_id =
+      case cursor do
+        {:null_cursor, id} -> id
+        nil -> nil
+      end
+
+    nulls = null_candidates(batch_size, null_cursor_id)
+    null_count = length(nulls)
+
+    if null_count >= batch_size do
+      nulls
+    else
+      remaining = batch_size - null_count
+      non_nulls = non_null_candidates(cutoff, remaining, nil)
+      nulls ++ non_nulls
+    end
   end
 
   defp null_candidates(limit, after_id) do
@@ -281,29 +264,26 @@ defmodule Cache.KeyValueEntries do
   end
 
   defp delete_expired_entries(ids_to_delete, cutoff) do
-    {grouped_hash_sets, deleted_count, status} =
-      ids_to_delete
-      |> Enum.chunk_every(@id_chunk_size)
-      |> Enum.reduce_while({%{}, 0, :complete}, fn ids_chunk, {hash_sets_acc, count_acc, _status} ->
-        try do
-          {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
+    ids_to_delete
+    |> Enum.chunk_every(@id_chunk_size)
+    |> Enum.reduce_while({%{}, 0, :complete}, fn ids_chunk, {hash_sets_acc, count_acc, _status} ->
+      try do
+        {chunk_hash_sets, chunk_count} = delete_chunk(ids_chunk, cutoff)
 
-          {:cont, {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count, :complete}}
-        rescue
-          error ->
-            if busy_error?(error) do
-              {:halt, {hash_sets_acc, count_acc, :busy}}
-            else
-              reraise error, __STACKTRACE__
-            end
-        end
-      end)
-
-    {grouped_hash_sets, deleted_count, status}
+        {:cont, {merge_grouped_hash_sets(hash_sets_acc, chunk_hash_sets), count_acc + chunk_count, :complete}}
+      rescue
+        error ->
+          if SQLiteHelpers.busy_error?(error) do
+            {:halt, {hash_sets_acc, count_acc, :busy}}
+          else
+            reraise error, __STACKTRACE__
+          end
+      end
+    end)
   end
 
   defp delete_chunk(ids_chunk, cutoff) do
-    {:ok, {grouped_hash_sets, deleted_count}} =
+    {:ok, result} =
       KeyValueRepo.transaction(fn ->
         verified_ids =
           KeyValueRepo.all(
@@ -327,10 +307,8 @@ defmodule Cache.KeyValueEntries do
         {grouped_hash_sets, deleted_count}
       end)
 
-    {grouped_hash_sets, deleted_count}
+    result
   end
-
-  defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
 
   defp hash_references_for_entries([]), do: %{}
 

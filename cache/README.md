@@ -40,7 +40,7 @@ This service provides:
     - `DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `85`)
      - `DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
      - `S3_BUCKET` - S3 bucket for module and Gradle cache artifacts
-     - `S3_CAS_BUCKET` - Optional dedicated S3 bucket for CAS artifacts (defaults to `S3_BUCKET`). When set to a different value, CAS reads and writes use this bucket directly.
+      - `S3_XCODE_CACHE_BUCKET` - Optional dedicated S3 bucket for Xcode cache artifacts (defaults to `S3_BUCKET`). When set to a different value, Xcode cache reads and writes use this bucket directly.
      - `S3_REGISTRY_BUCKET` - S3 bucket for Swift package registry
      - `KEY_VALUE_READ_BUSY_TIMEOUT_MS` - Optional SQLite contention budget for KV read-through requests (default: `2000`)
 
@@ -115,7 +115,7 @@ The cache service is optimized for the **read path**, specifically for handling 
 - **Volume mount**: `/storage` directory mounted for persistent storage
 - **Atomic operations**: Proper handling of concurrent writes and race conditions
 - **Automatic eviction**: Background worker uses SQLite-tracked access metadata to free least-recently-used artifacts when disk usage crosses the configured watermark, while retaining authoritative copies in S3
-- **Three S3 buckets**: CAS artifacts (`S3_CAS_BUCKET`), module/Gradle cache (`S3_BUCKET`), and Swift package registry (`S3_REGISTRY_BUCKET`). When `S3_CAS_BUCKET` is unset, CAS artifacts continue using `S3_BUCKET`. When `S3_CAS_BUCKET` points to a different bucket, CAS reads and writes use that bucket directly. Project cleanup still runs both CAS and cache deletion passes, so duplicate cleanup work in logs is expected when both artifact types resolve to the same bucket.
+- **Three S3 buckets**: Xcode cache artifacts (`S3_XCODE_CACHE_BUCKET`), module/Gradle cache (`S3_BUCKET`), and Swift package registry (`S3_REGISTRY_BUCKET`). When `S3_XCODE_CACHE_BUCKET` is unset, Xcode cache artifacts continue using `S3_BUCKET`. When `S3_XCODE_CACHE_BUCKET` points to a different bucket, Xcode cache reads and writes use that bucket directly. Project cleanup still runs both Xcode cache and general cache deletion passes, so duplicate cleanup work in logs is expected when both artifact types resolve to the same bucket.
 
 ## Deployment
 

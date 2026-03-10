@@ -50,7 +50,7 @@ defmodule Cache.KeyValueEvictionWorker do
 
     case fetch_size_state(deadline_ms) do
       {:ok, size_state} ->
-        run_result =
+        {trigger, grouped_hashes, count, status} =
           if exceeds_limit?(size_state, max_db_size_bytes) do
             Logger.warning("KV SQLite size exceeds limit, triggering size-based eviction")
             run_size_based_eviction(min_retention_days, deadline_ms, release_bytes)
@@ -58,34 +58,34 @@ defmodule Cache.KeyValueEvictionWorker do
             run_time_based_eviction(max_age_days, deadline_ms)
           end
 
-        finish_eviction(run_result, started_at, max_age_days)
+        if status == :time_limit_reached do
+          Logger.warning("Key-value eviction reached configured time limit before finishing")
+        end
+
+        Logger.info(
+          "Evicted #{count} key-value entries (trigger=#{trigger}, status=#{status}, max_age_days=#{max_age_days})"
+        )
+
+        enqueue_cleanup_jobs(grouped_hashes)
+        emit_telemetry(trigger, status, count, started_at)
+        :ok
 
       {:error, :busy} ->
-        emit_busy_and_finish(started_at, :unknown)
+        Logger.warning("Key-value eviction skipped due to SQLite lock contention")
+        emit_telemetry(:unknown, :busy, 0, started_at)
+        :ok
 
       {:error, :deadline_exhausted} ->
-        finish_eviction({:time, %{}, 0, :time_limit_reached}, started_at, max_age_days)
+        Logger.warning("Key-value eviction reached configured time limit before finishing")
+
+        Logger.info(
+          "Evicted 0 key-value entries (trigger=time, status=time_limit_reached, max_age_days=#{max_age_days})"
+        )
+
+        enqueue_cleanup_jobs(%{})
+        emit_telemetry(:time, :time_limit_reached, 0, started_at)
+        :ok
     end
-  end
-
-  defp finish_eviction({trigger, grouped_hashes, count, status}, started_at, max_age_days) do
-    maybe_log_status(status, max_age_days)
-
-    Logger.info(
-      "Evicted #{count} key-value entries (trigger=#{trigger}, status=#{status}, max_age_days=#{max_age_days})"
-    )
-
-    enqueue_cleanup_jobs(grouped_hashes)
-
-    emit_telemetry(trigger, status, count, started_at)
-
-    :ok
-  end
-
-  defp emit_busy_and_finish(started_at, trigger) do
-    Logger.warning("Key-value eviction skipped due to SQLite lock contention")
-    emit_telemetry(trigger, :busy, 0, started_at)
-    :ok
   end
 
   defp run_time_based_eviction(max_age_days, deadline_ms) do
@@ -102,8 +102,6 @@ defmodule Cache.KeyValueEvictionWorker do
     end
   end
 
-  # Single oldest-first batched eviction loop. Each iteration deletes one
-  # batch, runs a maintenance pass, and re-checks DB size before continuing.
   defp run_size_based_eviction(min_retention_days, deadline_ms, release_bytes) do
     case run_size_maintenance_pass(deadline_ms) do
       :ok ->
@@ -245,8 +243,9 @@ defmodule Cache.KeyValueEvictionWorker do
     else
       KeyValueRepo.checkout(fn ->
         try do
-          with :ok <- set_maintenance_busy_timeout() do
-            fun.()
+          case set_maintenance_busy_timeout() do
+            :ok -> fun.()
+            error -> error
           end
         after
           SQLiteHelpers.restore_busy_timeout!(KeyValueRepo)
@@ -296,17 +295,10 @@ defmodule Cache.KeyValueEvictionWorker do
   defp remaining_time(deadline_ms), do: SQLiteHelpers.remaining_time(deadline_ms)
 
   defp merge_grouped_hashes(left, right) do
-    left
-    |> to_grouped_hash_sets()
-    |> merge_grouped_hash_sets(to_grouped_hash_sets(right))
-    |> to_sorted_hash_lists()
+    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
+      left_hashes |> Enum.concat(right_hashes) |> Enum.uniq() |> Enum.sort()
+    end)
   end
-
-  defp maybe_log_status(:time_limit_reached, _max_age_days) do
-    Logger.warning("Key-value eviction reached configured time limit before finishing")
-  end
-
-  defp maybe_log_status(_status, _max_age_days), do: :ok
 
   defp emit_telemetry(trigger, status, entries_deleted, started_at) do
     duration_ms = System.monotonic_time(:millisecond) - started_at
@@ -316,24 +308,6 @@ defmodule Cache.KeyValueEvictionWorker do
       %{entries_deleted: entries_deleted, duration_ms: duration_ms},
       %{trigger: trigger, status: status}
     )
-  end
-
-  defp to_grouped_hash_sets(grouped_hashes) do
-    Map.new(grouped_hashes, fn {scope, hashes} ->
-      {scope, MapSet.new(hashes)}
-    end)
-  end
-
-  defp merge_grouped_hash_sets(left, right) do
-    Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      MapSet.union(left_hashes, right_hashes)
-    end)
-  end
-
-  defp to_sorted_hash_lists(grouped_hash_sets) do
-    Map.new(grouped_hash_sets, fn {scope, hashes} ->
-      {scope, hashes |> MapSet.to_list() |> Enum.sort()}
-    end)
   end
 
   defp enqueue_cleanup_jobs(grouped_hashes) do

@@ -80,11 +80,11 @@ defmodule Cache.Config do
   def cache_bucket, do: Application.get_env(:cache, :s3)[:bucket]
 
   @doc """
-  Returns the dedicated bucket for CAS artifacts, or nil if not configured.
+  Returns the dedicated bucket for Xcode cache artifacts, or nil if not configured.
 
-  When nil, CAS artifacts use the shared cache bucket (`cache_bucket/0`).
+  When nil, Xcode cache artifacts use the shared cache bucket (`cache_bucket/0`).
   """
-  def cas_bucket, do: Application.get_env(:cache, :s3)[:cas_bucket]
+  def xcode_cache_bucket, do: Application.get_env(:cache, :s3)[:xcode_cache_bucket]
 
   @doc """
   Returns the bucket for registry artifacts, or nil if not configured.
@@ -114,11 +114,7 @@ defmodule Cache.Config do
   end
 
   def s3_virtual_host do
-    if Application.get_env(:ex_aws, :s3)[:virtual_host] do
-      true
-    else
-      false
-    end
+    !!Application.get_env(:ex_aws, :s3)[:virtual_host]
   end
 
   def server_url, do: Application.get_env(:cache, :server_url)

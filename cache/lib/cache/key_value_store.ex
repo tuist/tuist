@@ -12,8 +12,6 @@ defmodule Cache.KeyValueStore do
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
 
-  require Logger
-
   @cache_name :cache_keyvalue_store
   @contention_event [:cache, :kv, :get, :contention]
   # 1 week
@@ -59,10 +57,7 @@ defmodule Cache.KeyValueStore do
     key = build_key(account_handle, project_handle, cas_id)
     cache = Keyword.get(opts, :cache_name, @cache_name)
 
-    case fetch_entry(key, cache) do
-      {:ok, json} -> {:ok, json}
-      {:error, :not_found} -> {:error, :not_found}
-    end
+    fetch_entry(key, cache)
   end
 
   defp cache_options do
@@ -108,8 +103,7 @@ defmodule Cache.KeyValueStore do
     end)
   rescue
     error ->
-      if busy_error?(error) do
-        Logger.warning("KV read-through exceeded SQLite contention budget")
+      if SQLiteHelpers.busy_error?(error) do
         :telemetry.execute(@contention_event, %{count: 1}, %{})
         {:error, :not_found}
       else
@@ -120,8 +114,6 @@ defmodule Cache.KeyValueStore do
   defp with_repo_busy_timeout(timeout_ms, fun) do
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fun)
   end
-
-  defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
 
   defp encode_entries(values) do
     entries = Enum.map(values, &%{"value" => &1})

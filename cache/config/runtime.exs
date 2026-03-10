@@ -124,7 +124,7 @@ if config_env() == :prod do
 
   config :cache, :s3,
     bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
-    cas_bucket: System.get_env("S3_CAS_BUCKET"),
+    xcode_cache_bucket: System.get_env("S3_XCODE_CACHE_BUCKET"),
     registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
     protocols: s3_protocol
 

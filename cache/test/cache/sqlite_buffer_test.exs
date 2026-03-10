@@ -197,8 +197,8 @@ defmodule Cache.SQLiteBufferTest do
 
     key = "account/project/cas/ab/cd/key"
 
-    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
-    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
+    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
+    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
     :ok = S3TransfersBuffer.flush()
 
     transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))

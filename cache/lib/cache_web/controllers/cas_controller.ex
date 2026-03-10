@@ -72,7 +72,7 @@ defmodule CacheWeb.CASController do
 
         S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
 
-        case S3.presign_download_url(key, type: :cas) do
+        case S3.presign_download_url(key, type: :xcode_cache) do
           {:ok, url} ->
             conn
             |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
@@ -139,10 +139,8 @@ defmodule CacheWeb.CASController do
   defp handle_existing_artifact(conn) do
     :telemetry.execute([:cache, :cas, :upload, :exists], %{count: 1}, %{})
 
-    case BodyReader.drain(conn) do
-      {:ok, conn_after} -> send_resp(conn_after, :no_content, "")
-      {:error, conn_after} -> send_resp(conn_after, :no_content, "")
-    end
+    {_, conn_after} = BodyReader.drain(conn)
+    send_resp(conn_after, :no_content, "")
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, id) do
