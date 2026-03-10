@@ -11,7 +11,7 @@
     machines = [
       "processor-staging"
       "processor-canary"
-      "processor-production"
+      "processor"
     ];
 
     sharedModules = [
