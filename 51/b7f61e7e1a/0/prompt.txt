@@ -1,0 +1,24 @@
+Can you address this comment?
+https://github.com/tuist/tuist/pull/9732#discussion_r2903879752
+
+---
+
+And now these two:
+https://github.com/tuist/tuist/pull/9732#discussion_r2903924917
+https://github.com/tuist/tuist/pull/9732#discussion_r2903941236
+
+---
+
+What would you respond to each comment?
+
+---
+
+Do we then need list_bundle_artifacts? Can you also address https://github.com/tuist/tuist/pull/9732#discussion_r2903961525 ?
+
+---
+
+Did you commit and push?
+
+---
+
+The format job is failing on CI
