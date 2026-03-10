@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "f28e6ef2c2f5",
+  "strategy": "manual-commit",
+  "branch": "feat/comparison-primitives-mcp",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "examples/xcode/generated_tuist_plugin/.gitignore",
+    "examples/xcode/generated_tuist_plugin/Package.resolved",
+    "examples/xcode/generated_tuist_plugin/Package.swift",
+    "examples/xcode/generated_tuist_plugin/Plugin.swift",
+    "examples/xcode/generated_tuist_plugin/ProjectDescriptionHelpers/RemoteHelper.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/CreateFile/main.swift",
+    "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
+    "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
+  ],
+  "sessions": [
+    {
+      "metadata": "/f2/8e6ef2c2f5/0/metadata.json",
+      "transcript": "/f2/8e6ef2c2f5/0/full.jsonl",
+      "context": "/f2/8e6ef2c2f5/0/context.md",
+      "content_hash": "/f2/8e6ef2c2f5/0/content_hash.txt",
+      "prompt": "/f2/8e6ef2c2f5/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 14,
+    "cache_creation_tokens": 20931,
+    "cache_read_tokens": 88478,
+    "output_tokens": 666,
+    "api_call_count": 6
+  }
+}

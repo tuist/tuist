@@ -1,0 +1,17 @@
+I want you to add something here like each tool is adding their agentic capabilities, but those capabilities are siloed. Software delivery spans domains (and services) so the need fora control plane kind of solution taht can oversee the whole system felt the right solution
+
+---
+
+Commit and push
+
+---
+
+Tool loaded.
+
+---
+
+Tool loaded.
+
+---
+
+[Request interrupted by user]
