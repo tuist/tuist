@@ -201,12 +201,12 @@ public struct XCActivityLogController: XCActivityLogControlling {
     /// Parses an xcactivitylog file into an `XCActivityLog` model.
     /// This is temporary and will be fully removed once all build processing happens server-side.
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
-        let casMetadataPath = Environment.current.stateDirectory.pathString
+        let casMetadataPath = Environment.current.stateDirectory
         let rootDirectory = try await rootDirectory()
 
         let parsed: ParsedBuildData
         do {
-            parsed = try XCActivityLogParser().parse(
+            parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: path.url,
                 casMetadataPath: casMetadataPath,
                 cacheUploadEnabled: true

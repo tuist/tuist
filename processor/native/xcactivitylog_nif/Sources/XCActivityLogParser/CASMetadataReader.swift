@@ -1,4 +1,6 @@
+import FileSystem
 import Foundation
+import Path
 
 struct CASNodeEntry: Decodable {
     let checksum: String
@@ -14,32 +16,37 @@ struct KeyValueMetadataEntry: Decodable {
     let duration: Double
 }
 
-enum CASMetadataReader {
-    static func readChecksum(nodeID: String, casMetadataPath: String) -> String? {
-        let nodesDir = (casMetadataPath as NSString).appendingPathComponent("nodes")
+struct CASMetadataReader {
+    private let fileSystem: FileSystem
+    private let casMetadataPath: AbsolutePath
+
+    init(fileSystem: FileSystem = FileSystem(), casMetadataPath: AbsolutePath) {
+        self.fileSystem = fileSystem
+        self.casMetadataPath = casMetadataPath
+    }
+
+    func readChecksum(nodeID: String) async -> String? {
         let safeNodeID = nodeID.replacingOccurrences(of: "/", with: "_")
-        let path = (nodesDir as NSString).appendingPathComponent("\(safeNodeID).json")
-        guard let data = FileManager.default.contents(atPath: path),
-              let entry = try? JSONDecoder().decode(CASNodeEntry.self, from: data)
+        let path = casMetadataPath.appending(components: "nodes", "\(safeNodeID).json")
+        guard let data = try? await fileSystem.readFile(at: path),
+              let entry = try? JSONDecoder().decode(CASNodeEntry.self, from: Data(data))
         else { return nil }
         return entry.checksum
     }
 
-    static func readOutputMetadata(checksum: String, casMetadataPath: String) -> CASOutputMetadataEntry? {
-        let casDir = (casMetadataPath as NSString).appendingPathComponent("cas")
-        let path = (casDir as NSString).appendingPathComponent("\(checksum).json")
-        guard let data = FileManager.default.contents(atPath: path),
-              let entry = try? JSONDecoder().decode(CASOutputMetadataEntry.self, from: data)
+    func readOutputMetadata(checksum: String) async -> CASOutputMetadataEntry? {
+        let path = casMetadataPath.appending(components: "cas", "\(checksum).json")
+        guard let data = try? await fileSystem.readFile(at: path),
+              let entry = try? JSONDecoder().decode(CASOutputMetadataEntry.self, from: Data(data))
         else { return nil }
         return entry
     }
 
-    static func readKeyValueMetadata(key: String, operationType: String, casMetadataPath: String) -> KeyValueMetadataEntry? {
-        let kvDir = (casMetadataPath as NSString).appendingPathComponent("keyvalue")
+    func readKeyValueMetadata(key: String, operationType: String) async -> KeyValueMetadataEntry? {
         let safeKey = key.replacingOccurrences(of: "/", with: "_")
-        let path = (kvDir as NSString).appendingPathComponent("\(safeKey)_\(operationType).json")
-        guard let data = FileManager.default.contents(atPath: path),
-              let entry = try? JSONDecoder().decode(KeyValueMetadataEntry.self, from: data)
+        let path = casMetadataPath.appending(components: "keyvalue", "\(safeKey)_\(operationType).json")
+        guard let data = try? await fileSystem.readFile(at: path),
+              let entry = try? JSONDecoder().decode(KeyValueMetadataEntry.self, from: Data(data))
         else { return nil }
         return entry
     }

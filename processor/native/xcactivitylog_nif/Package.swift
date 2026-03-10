@@ -17,12 +17,16 @@ let package = Package(
     ],
     dependencies: [
         .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.46"),
+        .package(id: "tuist.Path", from: "0.3.8"),
+        .package(id: "tuist.FileSystem", from: "0.15.0"),
     ],
     targets: [
         .target(
             name: "XCActivityLogParser",
             dependencies: [
                 .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+                .product(name: "Path", package: "tuist.Path"),
+                .product(name: "FileSystem", package: "tuist.FileSystem"),
             ]
         ),
         .target(

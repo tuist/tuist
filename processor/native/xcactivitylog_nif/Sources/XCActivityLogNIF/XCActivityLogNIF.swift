@@ -1,4 +1,5 @@
 import Foundation
+import Path
 import XCActivityLogParser
 
 @_cdecl("parse_xcactivitylog")
@@ -13,30 +14,57 @@ public func parseXCActivityLog(
     let casMetadataPath = String(cString: casMetadataPathPtr)
     let url = URL(fileURLWithPath: path)
 
-    do {
-        let parsed = try XCActivityLogParser().parse(
-            xcactivitylogURL: url,
-            casMetadataPath: casMetadataPath,
-            cacheUploadEnabled: cacheUploadEnabled != 0
-        )
-        let jsonData = try JSONEncoder().encode(parsed)
+    // nonisolated(unsafe) is needed because the Swift 6 concurrency checker doesn't understand
+    // that the DispatchSemaphore guarantees sequential access (write before signal, read after wait).
+    nonisolated(unsafe) var result: Result<ParsedBuildData, Error>!
+    let semaphore = DispatchSemaphore(value: 0)
 
-        let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: jsonData.count)
-        jsonData.withUnsafeBytes { rawBytes in
-            buffer.initialize(from: rawBytes.bindMemory(to: CChar.self).baseAddress!, count: jsonData.count)
+    Task { @Sendable in
+        do {
+            let parsed = try await XCActivityLogParser().parse(
+                xcactivitylogURL: url,
+                casMetadataPath: try AbsolutePath(validating: casMetadataPath),
+                cacheUploadEnabled: cacheUploadEnabled != 0
+            )
+            result = .success(parsed)
+        } catch {
+            result = .failure(error)
         }
-        outputPtr.pointee = buffer
-        outputLen.pointee = Int32(jsonData.count)
-        return 0
-    } catch {
-        let errorJSON = "{\"error\": \"\(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
-        let data = Array(errorJSON.utf8)
-        let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: data.count)
-        for (i, byte) in data.enumerated() {
-            buffer[i] = CChar(bitPattern: byte)
-        }
-        outputPtr.pointee = buffer
-        outputLen.pointee = Int32(data.count)
-        return 1
+        semaphore.signal()
     }
+    semaphore.wait()
+
+    switch result! {
+    case let .success(parsed):
+        do {
+            let jsonData = try JSONEncoder().encode(parsed)
+            let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: jsonData.count)
+            jsonData.withUnsafeBytes { rawBytes in
+                buffer.initialize(from: rawBytes.bindMemory(to: CChar.self).baseAddress!, count: jsonData.count)
+            }
+            outputPtr.pointee = buffer
+            outputLen.pointee = Int32(jsonData.count)
+            return 0
+        } catch {
+            return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+        }
+    case let .failure(error):
+        return writeError(error, outputPtr: outputPtr, outputLen: outputLen)
+    }
+}
+
+private func writeError(
+    _ error: Error,
+    outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
+    outputLen: UnsafeMutablePointer<Int32>
+) -> Int32 {
+    let errorJSON = "{\"error\": \"\(error.localizedDescription.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+    let data = Array(errorJSON.utf8)
+    let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: data.count)
+    for (i, byte) in data.enumerated() {
+        buffer[i] = CChar(bitPattern: byte)
+    }
+    outputPtr.pointee = buffer
+    outputLen.pointee = Int32(data.count)
+    return 1
 }

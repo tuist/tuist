@@ -1,14 +1,16 @@
+import FileSystem
 import Foundation
+import Path
 import XCLogParser
 
-public struct XCActivityLogParser {
+public struct XCActivityLogParser: Sendable {
     public init() {}
 
     public func parse(
         xcactivitylogURL: URL,
-        casMetadataPath: String,
+        casMetadataPath: AbsolutePath,
         cacheUploadEnabled: Bool
-    ) throws -> ParsedBuildData {
+    ) async throws -> ParsedBuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
             redacted: false,
@@ -44,13 +46,16 @@ public struct XCActivityLogParser {
 
         let issues = extractIssues(from: steps)
         let files = extractFiles(from: steps)
-        let cacheableTasks = analyzeCacheableTasks(
+
+        let casReader = CASMetadataReader(casMetadataPath: casMetadataPath)
+
+        let cacheableTasks = await analyzeCacheableTasks(
             buildSteps: steps,
-            casMetadataPath: casMetadataPath
+            casReader: casReader
         )
-        let casOutputs = analyzeCASOutputs(
+        let casOutputs = await analyzeCASOutputs(
             from: steps,
-            casMetadataPath: casMetadataPath,
+            casReader: casReader,
             cacheUploadEnabled: cacheUploadEnabled
         )
 
@@ -265,8 +270,8 @@ public struct XCActivityLogParser {
 
     private func analyzeCacheableTasks(
         buildSteps: [BuildStep],
-        casMetadataPath: String
-    ) -> [ParsedCacheableTask] {
+        casReader: CASMetadataReader
+    ) async -> [ParsedCacheableTask] {
         var keyStatuses = [String: (taskType: String, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool, isMiss: Bool)]()
         var keyDescriptions = [String: String]()
         var keyNodeIDs = [String: Set<String>]()
@@ -312,35 +317,50 @@ public struct XCActivityLogParser {
             }
         }
 
-        return keyStatuses.map { key, status in
-            let cacheStatus: String
-            if status.isMiss { cacheStatus = "miss" }
-            else if status.hasQuery { cacheStatus = "hit_remote" }
-            else { cacheStatus = "hit_local" }
+        let descriptions = keyDescriptions
+        let nodeIDs = keyNodeIDs
 
-            let readDuration: Double?
-            if cacheStatus == "hit_remote" || cacheStatus == "miss" {
-                readDuration = CASMetadataReader.readKeyValueMetadata(key: key, operationType: "read", casMetadataPath: casMetadataPath)?.duration
-            } else {
-                readDuration = nil
+        return await withTaskGroup(of: ParsedCacheableTask.self, returning: [ParsedCacheableTask].self) { group in
+            for (key, status) in keyStatuses {
+                let description = descriptions[key]
+                let casOutputNodeIDs = Array(nodeIDs[key] ?? [])
+                group.addTask {
+                    let cacheStatus: String
+                    if status.isMiss { cacheStatus = "miss" }
+                    else if status.hasQuery { cacheStatus = "hit_remote" }
+                    else { cacheStatus = "hit_local" }
+
+                    let readDuration: Double?
+                    if cacheStatus == "hit_remote" || cacheStatus == "miss" {
+                        readDuration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
+                    } else {
+                        readDuration = nil
+                    }
+
+                    let writeDuration: Double?
+                    if status.hasUpload {
+                        writeDuration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
+                    } else {
+                        writeDuration = nil
+                    }
+
+                    return ParsedCacheableTask(
+                        type: status.taskType,
+                        status: cacheStatus,
+                        key: key,
+                        read_duration: readDuration,
+                        write_duration: writeDuration,
+                        description: description,
+                        cas_output_node_ids: casOutputNodeIDs
+                    )
+                }
             }
 
-            let writeDuration: Double?
-            if status.hasUpload {
-                writeDuration = CASMetadataReader.readKeyValueMetadata(key: key, operationType: "write", casMetadataPath: casMetadataPath)?.duration
-            } else {
-                writeDuration = nil
+            var results = [ParsedCacheableTask]()
+            for await task in group {
+                results.append(task)
             }
-
-            return ParsedCacheableTask(
-                type: status.taskType,
-                status: cacheStatus,
-                key: key,
-                read_duration: readDuration,
-                write_duration: writeDuration,
-                description: keyDescriptions[key],
-                cas_output_node_ids: Array(keyNodeIDs[key] ?? [])
-            )
+            return results
         }
     }
 
@@ -348,9 +368,9 @@ public struct XCActivityLogParser {
 
     private func analyzeCASOutputs(
         from buildSteps: [BuildStep],
-        casMetadataPath: String,
+        casReader: CASMetadataReader,
         cacheUploadEnabled: Bool
-    ) -> [ParsedCASOutput] {
+    ) async -> [ParsedCASOutput] {
         var downloads = [(nodeID: String, type: String)]()
         var uploads = [(nodeID: String, type: String)]()
 
@@ -372,38 +392,52 @@ public struct XCActivityLogParser {
             }
         }
 
-        var results = [ParsedCASOutput]()
+        var uniqueDownloads = [(nodeID: String, type: String)]()
         var seenDownloads = Set<String>()
         for meta in downloads {
             guard !seenDownloads.contains(meta.nodeID) else { continue }
             seenDownloads.insert(meta.nodeID)
-            if let output = createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "download", casMetadataPath: casMetadataPath) {
-                results.append(output)
-            }
+            uniqueDownloads.append(meta)
         }
 
+        var uniqueUploads = [(nodeID: String, type: String)]()
         if cacheUploadEnabled {
             var seenUploads = Set<String>()
             for meta in uploads {
                 guard !seenUploads.contains(meta.nodeID) else { continue }
                 seenUploads.insert(meta.nodeID)
-                if let output = createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "upload", casMetadataPath: casMetadataPath) {
-                    results.append(output)
-                }
+                uniqueUploads.append(meta)
             }
         }
 
-        return results
+        return await withTaskGroup(of: ParsedCASOutput?.self, returning: [ParsedCASOutput].self) { group in
+            for meta in uniqueDownloads {
+                group.addTask {
+                    await createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "download", casReader: casReader)
+                }
+            }
+            for meta in uniqueUploads {
+                group.addTask {
+                    await createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "upload", casReader: casReader)
+                }
+            }
+
+            var results = [ParsedCASOutput]()
+            for await output in group {
+                if let output { results.append(output) }
+            }
+            return results
+        }
     }
 
     private func createCASOutput(
         nodeID: String,
         type: String,
         operation: String,
-        casMetadataPath: String
-    ) -> ParsedCASOutput? {
-        guard let checksum = CASMetadataReader.readChecksum(nodeID: nodeID, casMetadataPath: casMetadataPath),
-              let metadata = CASMetadataReader.readOutputMetadata(checksum: checksum, casMetadataPath: casMetadataPath)
+        casReader: CASMetadataReader
+    ) async -> ParsedCASOutput? {
+        guard let checksum = await casReader.readChecksum(nodeID: nodeID),
+              let metadata = await casReader.readOutputMetadata(checksum: checksum)
         else { return nil }
         return ParsedCASOutput(
             node_id: nodeID,
