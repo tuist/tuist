@@ -1,5 +1,5 @@
 defmodule Cache.KeyValueStoreTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Mimic
   use Oban.Testing, repo: Cache.Repo
 

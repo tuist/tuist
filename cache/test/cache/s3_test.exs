@@ -174,7 +174,9 @@ defmodule Cache.S3Test do
 
       expect(ExAws, :request, fn _head_object, _opts -> {:error, :timeout} end)
 
-      assert S3.exists?(key) == false
+      capture_log(fn ->
+        assert S3.exists?(key) == false
+      end)
     end
   end
 
@@ -281,7 +283,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:ok, %{status_code: 200}} end)
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
@@ -306,7 +308,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:error, {:http_error, 404, "Not Found"}} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:error, {:http_error, 404, "Not Found"}} end)
 
       capture_log(fn ->
         assert {:ok, :miss} = S3.download(key)
@@ -322,7 +324,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:ok, %{status_code: 200}} end)
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
@@ -346,7 +348,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
         {:error, {:http_error, 429, %{body: "Too many requests"}}}
       end)
 
@@ -364,7 +366,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:ok, %{status_code: 200}} end)
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
@@ -390,7 +392,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:ok, %{status_code: 200}} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:ok, %{status_code: 200}} end)
 
       expect(Cache.Disk, :artifact_path, fn ^key -> local_path end)
 
@@ -415,7 +417,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
         {:error, {:http_error, 404, "Not Found"}}
       end)
 
@@ -431,7 +433,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} -> {:error, :timeout} end)
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts -> {:error, :timeout} end)
 
       capture_log(fn ->
         assert {:error, :timeout} = S3.download(key, type: :xcode_cache)
@@ -445,7 +447,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
         {:error, {:http_error, 429, %{body: "Too many requests"}}}
       end)
 
@@ -461,7 +463,7 @@ defmodule Cache.S3Test do
         %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
       end)
 
-      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+      expect(ExAws, :request, fn %ExAws.Operation.S3{}, _opts ->
         {:error, {:http_error, 503, "Service Unavailable"}}
       end)
 
