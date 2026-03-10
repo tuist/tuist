@@ -31,7 +31,7 @@ defmodule Processor.BuildProcessorTest do
 
   end
 
-  describe "process_archive/1" do
+  describe "process_build/1" do
     test "extracts archive and parses xcactivitylog" do
       archive_bytes = build_test_archive()
 
@@ -42,7 +42,7 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:ok, %{"duration" => 500, "status" => "success", "targets" => []}} =
-               BuildProcessor.process_archive(archive_bytes)
+               BuildProcessor.process_build(archive_bytes)
     end
 
     test "ignores manifest when present" do
@@ -52,14 +52,14 @@ defmodule Processor.BuildProcessorTest do
         {:ok, %{"status" => "success"}}
       end)
 
-      assert {:ok, _} = BuildProcessor.process_archive(archive_bytes)
+      assert {:ok, _} = BuildProcessor.process_build(archive_bytes)
     end
 
     test "returns error when xcactivitylog directory is missing" do
       archive_bytes = build_test_archive(include_xcactivitylog: false)
 
       assert {:error, :xcactivitylog_dir_not_found} =
-               BuildProcessor.process_archive(archive_bytes)
+               BuildProcessor.process_build(archive_bytes)
     end
 
     test "returns error when NIF parsing fails" do
@@ -70,12 +70,12 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:error, {:parse_failed, "parse_failed"}} =
-               BuildProcessor.process_archive(archive_bytes)
+               BuildProcessor.process_build(archive_bytes)
     end
 
     test "returns error for invalid zip data" do
       assert {:error, {:unzip_failed, _}} =
-               BuildProcessor.process_archive("not a zip file")
+               BuildProcessor.process_build("not a zip file")
     end
   end
 

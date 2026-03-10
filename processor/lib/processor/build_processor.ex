@@ -8,11 +8,11 @@ defmodule Processor.BuildProcessor do
 
     {:ok, %{body: body}} = ExAws.S3.get_object(bucket, storage_key) |> ExAws.request()
 
-    process_archive(body)
+    process_build(body)
   end
 
-  def process_archive(archive_bytes) do
-    case extract_archive(archive_bytes) do
+  def process_build(archive_bytes) do
+    case extract_build(archive_bytes) do
       {:ok, temp_dir} ->
         try do
           with {:ok, xcactivitylog_path} <- find_xcactivitylog(temp_dir),
@@ -34,7 +34,7 @@ defmodule Processor.BuildProcessor do
     end
   end
 
-  defp extract_archive(archive_bytes) do
+  defp extract_build(archive_bytes) do
     temp_dir = Path.join(System.tmp_dir!(), "processor_#{:erlang.unique_integer([:positive])}")
     File.mkdir_p!(temp_dir)
     archive_path = Path.join(temp_dir, "archive.zip")

@@ -41,14 +41,21 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
   describe "perform/1 with processor_url configured (HTTP path)" do
     setup do
       Application.put_env(:tuist, :processor_url, "http://localhost:4002")
-      on_exit(fn -> Application.delete_env(:tuist, :processor_url) end)
+      Application.put_env(:tuist, :processor_webhook_secret, "test-secret")
+
+      on_exit(fn ->
+        Application.delete_env(:tuist, :processor_url)
+        Application.delete_env(:tuist, :processor_webhook_secret)
+      end)
     end
 
     test "sends build to remote processor and writes result to ClickHouse", %{account: account} do
       expect(Req, :post, fn url, opts ->
         assert url == "http://localhost:4002/webhooks/process-build"
-        assert opts[:json][:build_id] == @build_id
-        assert opts[:json][:storage_key] == @storage_key
+        body = Jason.decode!(opts[:body])
+        assert body["build_id"] == @build_id
+        assert body["storage_key"] == @storage_key
+        assert Enum.any?(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
         {:ok, %{status: 200, body: parsed_data()}}
       end)
 
@@ -71,7 +78,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failure"
+        assert attrs.status == "failed_processing"
         assert attrs.id == @build_id
         {:ok, %{id: @build_id}}
       end)
@@ -85,7 +92,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failure"
+        assert attrs.status == "failed_processing"
         {:ok, %{id: @build_id}}
       end)
 
@@ -104,7 +111,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "fake archive bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_archive, fn "fake archive bytes" ->
+      expect(Processor.BuildProcessor, :process_build, fn "fake archive bytes" ->
         {:ok, parsed_data()}
       end)
 
@@ -127,7 +134,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failure"
+        assert attrs.status == "failed_processing"
         {:ok, %{id: @build_id}}
       end)
 
@@ -140,12 +147,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "fake archive bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_archive, fn _bytes ->
+      expect(Processor.BuildProcessor, :process_build, fn _bytes ->
         {:error, {:parse_failed, "NIF not loaded"}}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failure"
+        assert attrs.status == "failed_processing"
         {:ok, %{id: @build_id}}
       end)
 
@@ -159,7 +166,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.status == "failure"
+        assert attrs.status == "failed_processing"
         {:ok, %{id: @build_id}}
       end)
 
@@ -179,7 +186,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "fake archive bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_archive, fn "fake archive bytes" ->
+      expect(Processor.BuildProcessor, :process_build, fn "fake archive bytes" ->
         {:ok, parsed_data()}
       end)
 
@@ -198,7 +205,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
   describe "perform/1 replace_build_run" do
     setup do
       Application.put_env(:tuist, :processor_url, "http://localhost:4002")
-      on_exit(fn -> Application.delete_env(:tuist, :processor_url) end)
+      Application.put_env(:tuist, :processor_webhook_secret, "test-secret")
+
+      on_exit(fn ->
+        Application.delete_env(:tuist, :processor_url)
+        Application.delete_env(:tuist, :processor_webhook_secret)
+      end)
     end
 
     test "sets project_id on parsed data before writing", %{account: account} do

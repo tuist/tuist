@@ -43,7 +43,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
            archive_bytes when is_binary(archive_bytes) <- Storage.get_object_as_string(storage_key, account) do
-        Processor.BuildProcessor.process_archive(archive_bytes)
+        Processor.BuildProcessor.process_build(archive_bytes)
       else
         nil -> {:error, :archive_not_found}
         {:error, _} = error -> error
