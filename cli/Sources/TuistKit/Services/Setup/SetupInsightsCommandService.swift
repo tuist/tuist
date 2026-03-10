@@ -11,9 +11,7 @@ struct SetupInsightsCommandService {
         self.launchAgentService = launchAgentService
     }
 
-    func run(
-        path _: String? = nil
-    ) async throws {
+    func run() async throws {
         try await launchAgentService.setupLaunchAgent(
             label: "tuist.insights",
             plistFileName: "tuist.insights.plist",

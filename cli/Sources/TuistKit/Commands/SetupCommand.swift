@@ -24,6 +24,6 @@ public struct SetupCommand: AsyncParsableCommand {
 
     public func run() async throws {
         try await SetupCacheCommandService().run(path: path)
-        try await SetupInsightsCommandService().run(path: path)
+        try await SetupInsightsCommandService().run()
     }
 }

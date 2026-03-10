@@ -1,6 +1,7 @@
 import Foundation
 
 public struct MachineMetricSample: Codable, Sendable, Equatable {
+    /// Unix timestamp in seconds with millisecond precision.
     public let timestamp: Double
     public let cpuUsagePercent: Double
     public let memoryUsedBytes: Int

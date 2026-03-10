@@ -10,16 +10,7 @@ struct SetupInsightsCommand: AsyncParsableCommand {
         )
     }
 
-    @Option(
-        name: .shortAndLong,
-        help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory
-    )
-    var path: String?
-
     func run() async throws {
-        try await SetupInsightsCommandService().run(
-            path: path
-        )
+        try await SetupInsightsCommandService().run()
     }
 }
