@@ -102,6 +102,17 @@ public struct XCActivityLogParser: Sendable {
         targetSteps: [BuildStep],
         activityLog: IDEActivityLog
     ) -> BuildCategory {
+        let hasCompilationCache = steps.contains {
+            $0.title.contains("Swift caching") || $0.title.contains("Clang caching")
+        }
+        if hasCompilationCache {
+            let mainBuildStartTimestamp = Date(
+                timeIntervalSinceReferenceDate: activityLog.mainSection.timeStartedRecording
+            ).timeIntervalSince1970
+            let hasStaleTargets = targetSteps.contains { $0.startTimestamp < mainBuildStartTimestamp }
+            return hasStaleTargets ? .incremental : .clean
+        }
+
         let detailSteps = steps.filter { $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation }
         let buildSteps = detailSteps.filter {
             $0.detailStepType != .other && $0.detailStepType != .scriptExecution && $0.detailStepType != .copySwiftLibs
@@ -126,46 +137,7 @@ public struct XCActivityLogParser: Sendable {
             }
         }
 
-        let hasCompilationCache = steps.contains {
-            $0.title.contains("Swift caching") || $0.title.contains("Clang caching")
-        }
-        let totalProjectTargetCount = totalTargetCountFromDependencyGraph(activityLog)
-        let totalTargets: Int
-        if hasCompilationCache, totalProjectTargetCount > targetSteps.count {
-            totalTargets = totalProjectTargetCount
-        } else {
-            totalTargets = targetSteps.count
-        }
-
-        return cleanCount > totalTargets / 2 ? .clean : .incremental
-    }
-
-    private func totalTargetCountFromDependencyGraph(_ activityLog: IDEActivityLog) -> Int {
-        var names = Set<String>()
-        collectDependencyGraphTargets(from: activityLog.mainSection, into: &names)
-        return names.count
-    }
-
-    private func collectDependencyGraphTargets(from section: IDEActivityLogSection, into names: inout Set<String>) {
-        extractTargetNames(from: section.text, into: &names)
-        for message in section.messages {
-            extractTargetNames(from: message.title, into: &names)
-        }
-        for sub in section.subSections {
-            collectDependencyGraphTargets(from: sub, into: &names)
-        }
-    }
-
-    private func extractTargetNames(from text: String, into names: inout Set<String>) {
-        guard text.contains("Target dependency graph") else { return }
-        let pattern = "Target '([^']+)' in project"
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
-        let range = NSRange(text.startIndex..., in: text)
-        for match in regex.matches(in: text, range: range) {
-            if let nameRange = Range(match.range(at: 1), in: text) {
-                names.insert(String(text[nameRange]))
-            }
-        }
+        return cleanCount > targetSteps.count / 2 ? .clean : .incremental
     }
 
     private func buildTargetIdentifiers(from steps: [BuildStep]) -> [String: String] {

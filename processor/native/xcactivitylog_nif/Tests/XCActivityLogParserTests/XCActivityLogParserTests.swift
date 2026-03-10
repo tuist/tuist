@@ -132,6 +132,34 @@ struct XCActivityLogParserTests {
         }
     }
 
+    // MARK: - CAS Build Category Detection
+
+    @Test func xcode26CASCleanBuild_detectsCleanCategory() async throws {
+        let url = try fixtureURL("xcode_26_cas_clean_build")
+        let casPath = try await emptyCASMetadataPath()
+
+        let result = try await parser.parse(
+            xcactivitylogURL: url,
+            casMetadataPath: casPath,
+            cacheUploadEnabled: false
+        )
+
+        #expect(result.category == "clean")
+    }
+
+    @Test func xcode26CASIncrementalBuild_detectsIncrementalCategory() async throws {
+        let url = try fixtureURL("xcode_26_cas_incremental_build")
+        let casPath = try await emptyCASMetadataPath()
+
+        let result = try await parser.parse(
+            xcactivitylogURL: url,
+            casMetadataPath: casPath,
+            cacheUploadEnabled: false
+        )
+
+        #expect(result.category == "incremental")
+    }
+
     // MARK: - Build With Compilation Cache
 
     @Test func buildWithCache_parsesCacheableTasks() async throws {
