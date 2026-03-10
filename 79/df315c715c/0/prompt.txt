@@ -153,3 +153,15 @@ Summary:
 
 If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
 Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+---
+
+Can you include in the PR description a list of the new CLI commands and the new skills?
+
+---
+
+Note that in the mcp we namespaced some of the builds sub-models with xcode. Did you align with that?
+
+---
+
+This should be var fullHandle: String? project in the new commands. I believe that's the convention that we started following, no?

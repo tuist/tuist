@@ -20,3 +20,15 @@ Summary:
    - Checkout main, pull latest changes
    - Create a new PR that complements PR #9732 by adding ...
 
+### Prompt 4
+
+Can you include in the PR description a list of the new CLI commands and the new skills?
+
+### Prompt 5
+
+Note that in the mcp we namespaced some of the builds sub-models with xcode. Did you align with that?
+
+### Prompt 6
+
+This should be var fullHandle: String? project in the new commands. I believe that's the convention that we started following, no?
+
