@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-03-03 13:20+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
+"PO-Revision-Date: 2026-03-10 20:47+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ko/>\n"
 "Language: ko\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.1\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -772,8 +772,9 @@ msgstr "태그"
 msgid "Value"
 msgstr "값"
 
+#, fuzzy
 msgid "Machine Metrics"
-msgstr ""
+msgstr "기계 메트릭스"
 
 #~ msgid "Archive"
 #~ msgstr "아카이브"
