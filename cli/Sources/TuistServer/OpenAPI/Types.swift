@@ -1770,7 +1770,7 @@ public enum Servers {
     public enum Server1 {
         public static func url() throws -> Foundation.URL {
             try Foundation.URL(
-                validatingOpenAPIServerURL: "http://localhost:4002",
+                validatingOpenAPIServerURL: "http://localhost:8080",
                 variables: []
             )
         }
@@ -1778,7 +1778,7 @@ public enum Servers {
     @available(*, deprecated, renamed: "Servers.Server1.url")
     public static func server1() throws -> Foundation.URL {
         try Foundation.URL(
-            validatingOpenAPIServerURL: "http://localhost:4002",
+            validatingOpenAPIServerURL: "http://localhost:8080",
             variables: []
         )
     }
@@ -2950,6 +2950,7 @@ public enum Components {
             @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                 case success = "success"
                 case failure = "failure"
+                case processing = "processing"
             }
             /// The status of the build run.
             ///
@@ -3021,10 +3022,6 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/targets`.
             public var targets: Components.Schemas.BuildParams.targetsPayload?
-            /// The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
-            ///
-            /// - Remark: Generated from `#/components/schemas/BuildParams/upload_id`.
-            public var upload_id: Swift.String?
             /// The version of Xcode used during the build.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildParams/xcode_version`.
@@ -3055,7 +3052,6 @@ public enum Components {
             ///   - scheme: The scheme used for the build.
             ///   - status: The status of the build run.
             ///   - targets: Targets with build metadata associated with the build run.
-            ///   - upload_id: The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
             ///   - xcode_version: The version of Xcode used during the build.
             public init(
                 cacheable_tasks: Components.Schemas.BuildParams.cacheable_tasksPayload? = nil,
@@ -3081,7 +3077,6 @@ public enum Components {
                 scheme: Swift.String? = nil,
                 status: Components.Schemas.BuildParams.statusPayload? = nil,
                 targets: Components.Schemas.BuildParams.targetsPayload? = nil,
-                upload_id: Swift.String? = nil,
                 xcode_version: Swift.String? = nil
             ) {
                 self.cacheable_tasks = cacheable_tasks
@@ -3107,7 +3102,6 @@ public enum Components {
                 self.scheme = scheme
                 self.status = status
                 self.targets = targets
-                self.upload_id = upload_id
                 self.xcode_version = xcode_version
             }
             public enum CodingKeys: String, CodingKey {
@@ -3134,7 +3128,6 @@ public enum Components {
                 case scheme
                 case status
                 case targets
-                case upload_id
                 case xcode_version
             }
         }
@@ -3215,6 +3208,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/UploadParams/content_length`.
             public var content_length: Swift.Int?
+            /// Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadParams/id`.
+            public var id: Swift.String?
             /// The purpose of the upload.
             ///
             /// - Remark: Generated from `#/components/schemas/UploadParams/purpose`.
@@ -3229,16 +3226,20 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - content_length: The size of the file to upload in bytes.
+            ///   - id: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
             ///   - purpose: The purpose of the upload.
             public init(
                 content_length: Swift.Int? = nil,
+                id: Swift.String? = nil,
                 purpose: Components.Schemas.UploadParams.purposePayload
             ) {
                 self.content_length = content_length
+                self.id = id
                 self.purpose = purpose
             }
             public enum CodingKeys: String, CodingKey {
                 case content_length
+                case id
                 case purpose
             }
         }
@@ -5699,6 +5700,7 @@ public enum Components {
                 case success = "success"
                 case failure = "failure"
                 case processing = "processing"
+                case failed_processing = "failed_processing"
             }
             /// The status of the build run
             ///
@@ -12512,28 +12514,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Number of items per page.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - git_branch: Filter bundles by git branch.
                 ///   - page_size: Number of items per page.
+                ///   - git_branch: Filter bundles by git branch.
                 public init(
                     page: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil,
-                    page_size: Swift.Int? = nil
+                    page_size: Swift.Int? = nil,
+                    git_branch: Swift.String? = nil
                 ) {
                     self.page = page
-                    self.git_branch = git_branch
                     self.page_size = page_size
+                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -21228,6 +21230,7 @@ public enum Operations {
                                 case success = "success"
                                 case failure = "failure"
                                 case processing = "processing"
+                                case failed_processing = "failed_processing"
                             }
                             /// Build status.
                             ///
@@ -22115,6 +22118,7 @@ public enum Operations {
                     @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
                         case success = "success"
                         case failure = "failure"
+                        case processing = "processing"
                     }
                     /// The status of the build run.
                     ///
@@ -22186,10 +22190,6 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/targets`.
                     public var targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload?
-                    /// The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/upload_id`.
-                    public var upload_id: Swift.String?
                     /// The version of Xcode used during the build.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/POST/requestBody/json/xcode_version`.
@@ -22220,7 +22220,6 @@ public enum Operations {
                     ///   - scheme: The scheme used for the build.
                     ///   - status: The status of the build run.
                     ///   - targets: Targets with build metadata associated with the build run.
-                    ///   - upload_id: The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously.
                     ///   - xcode_version: The version of Xcode used during the build.
                     public init(
                         cacheable_tasks: Operations.createBuild.Input.Body.jsonPayload.cacheable_tasksPayload? = nil,
@@ -22246,7 +22245,6 @@ public enum Operations {
                         scheme: Swift.String? = nil,
                         status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? = nil,
                         targets: Operations.createBuild.Input.Body.jsonPayload.targetsPayload? = nil,
-                        upload_id: Swift.String? = nil,
                         xcode_version: Swift.String? = nil
                     ) {
                         self.cacheable_tasks = cacheable_tasks
@@ -22272,7 +22270,6 @@ public enum Operations {
                         self.scheme = scheme
                         self.status = status
                         self.targets = targets
-                        self.upload_id = upload_id
                         self.xcode_version = xcode_version
                     }
                     public enum CodingKeys: String, CodingKey {
@@ -22299,7 +22296,6 @@ public enum Operations {
                         case scheme
                         case status
                         case targets
-                        case upload_id
                         case xcode_version
                     }
                 }
@@ -37473,6 +37469,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/content_length`.
                     public var content_length: Swift.Int?
+                    /// Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// The purpose of the upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/purpose`.
@@ -37487,16 +37487,20 @@ public enum Operations {
                     ///
                     /// - Parameters:
                     ///   - content_length: The size of the file to upload in bytes.
+                    ///   - id: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
                     ///   - purpose: The purpose of the upload.
                     public init(
                         content_length: Swift.Int? = nil,
+                        id: Swift.String? = nil,
                         purpose: Operations.createUpload.Input.Body.jsonPayload.purposePayload
                     ) {
                         self.content_length = content_length
+                        self.id = id
                         self.purpose = purpose
                     }
                     public enum CodingKeys: String, CodingKey {
                         case content_length
+                        case id
                         case purpose
                     }
                 }

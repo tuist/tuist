@@ -8,6 +8,7 @@
     @Mockable
     public protocol UploadBuildArchiveServicing {
         func uploadBuildArchive(
+            id: String,
             fullHandle: String,
             serverURL: URL,
             archiveData: Data,
@@ -55,6 +56,7 @@
         }
 
         public func uploadBuildArchive(
+            id: String,
             fullHandle: String,
             serverURL: URL,
             archiveData: Data,
@@ -71,6 +73,7 @@
                 body: .json(
                     .init(
                         content_length: contentLength,
+                        id: id,
                         purpose: .build_archive
                     )
                 )

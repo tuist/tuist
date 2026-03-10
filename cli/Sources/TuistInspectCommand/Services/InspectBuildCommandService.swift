@@ -240,8 +240,7 @@
                 ciProvider: ciInfo?.provider,
                 cacheableTasks: xcactivityLog.cacheableTasks,
                 casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
-                    xcactivityLog.casOutputs.filter { $0.operation != .upload },
-                uploadId: nil
+                    xcactivityLog.casOutputs.filter { $0.operation != .upload }
             )
             AlertController.current.success(
                 .alert("View the analyzed build at \(build.url.absoluteString)")
@@ -261,11 +260,14 @@
                 throw InspectBuildCommandServiceError.missingFullHandle
             }
 
+            let buildId = UUID().uuidString
+
             let archiveData = try await bundleBuildArchive(
                 mostRecentActivityLogPath: mostRecentActivityLogPath
             )
 
-            let upload = try await uploadBuildArchiveService.uploadBuildArchive(
+            _ = try await uploadBuildArchiveService.uploadBuildArchive(
+                id: buildId,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 archiveData: archiveData,
@@ -278,7 +280,7 @@
             let build = try await createBuildService.createBuild(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
-                id: UUID().uuidString,
+                id: buildId,
                 category: .incremental,
                 configuration: Environment.current.variables["CONFIGURATION"],
                 customMetadata: customMetadata,
@@ -295,14 +297,13 @@
                 scheme: Environment.current.schemeName,
                 targets: [],
                 xcodeVersion: try await xcodeBuildController.version()?.description,
-                status: .success,
+                status: .processing,
                 ciRunId: ciInfo?.runId,
                 ciProjectHandle: ciInfo?.projectHandle,
                 ciHost: ciInfo?.host,
                 ciProvider: ciInfo?.provider,
                 cacheableTasks: [],
-                casOutputs: [],
-                uploadId: upload.id
+                casOutputs: []
             )
             AlertController.current.success(
                 .alert("Build archive uploaded for processing. View status at \(build.url.absoluteString)")

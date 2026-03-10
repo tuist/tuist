@@ -43,6 +43,11 @@ defmodule TuistWeb.API.UploadsController do
          description: "Parameters to create an upload.",
          type: :object,
          properties: %{
+           id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "Optional identifier for the upload. When provided, the upload will use this ID instead of generating one."
+           },
            purpose: %Schema{
              type: :string,
              description: "The purpose of the upload.",
@@ -79,7 +84,7 @@ defmodule TuistWeb.API.UploadsController do
     purpose = body_params.purpose
     account = Authentication.authenticated_subject_account(conn)
 
-    upload_id = Ecto.UUID.generate()
+    upload_id = Map.get(body_params, :id) || Ecto.UUID.generate()
     object_key = storage_key(selected_project.account.name, selected_project.name, purpose, upload_id)
     upload_url = Storage.generate_upload_url(object_key, account, expires_in: 3600)
 
@@ -93,6 +98,6 @@ defmodule TuistWeb.API.UploadsController do
   end
 
   defp storage_key(account_handle, project_handle, "build_archive", upload_id) do
-    "#{account_handle}/#{project_handle}/build_archives/#{upload_id}.zip"
+    "#{account_handle}/#{project_handle}/builds/#{upload_id}/build.zip"
   end
 end

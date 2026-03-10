@@ -38,8 +38,7 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput],
-            uploadId: String?
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild
     }
 
@@ -66,7 +65,7 @@ import TuistHTTP
     }
 
     public enum ServerBuildRunStatus {
-        case success, failure
+        case success, failure, processing
     }
 
     public struct CreateBuildService: CreateBuildServicing {
@@ -105,8 +104,7 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput],
-            uploadId: String? = nil
+            casOutputs: [CASOutput]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -116,6 +114,8 @@ import TuistHTTP
                     .success
                 case .failure:
                     .failure
+                case .processing:
+                    .processing
                 }
 
             let category: Operations.createBuild.Input.Body.jsonPayload.categoryPayload =
@@ -182,7 +182,6 @@ import TuistHTTP
                             status: status,
                             targets: targets
                                 .map(Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload.init),
-                            upload_id: uploadId,
                             xcode_version: xcodeVersion
                         )
                     )

@@ -121,7 +121,7 @@ defmodule TuistWeb.API.BuildsController do
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
                    status: %Schema{
                      type: :string,
-                     enum: ["success", "failure", "processing"],
+                     enum: ["success", "failure", "processing", "failed_processing"],
                      description: "Build status."
                    },
                    category: %Schema{
@@ -486,7 +486,7 @@ defmodule TuistWeb.API.BuildsController do
            status: %Schema{
              type: :string,
              description: "The status of the build run.",
-             enum: ["success", "failure"]
+             enum: ["success", "failure", "processing"]
            },
            category: %Schema{
              type: :string,
@@ -788,13 +788,6 @@ defmodule TuistWeb.API.BuildsController do
                }
              }
            },
-           upload_id: %Schema{
-             type: :string,
-             format: :uuid,
-             description:
-               "The ID of a previously created upload (from POST /uploads with purpose build_archive). " <>
-                 "When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously."
-           }
          },
          required: [
            :id,
@@ -823,7 +816,7 @@ defmodule TuistWeb.API.BuildsController do
       |> Map.put(:account, account)
 
     result =
-      if Map.get(body_params, :upload_id) do
+      if Map.get(body_params, :status) == "processing" do
         create_processing_build(run_params, selected_project, account)
       else
         get_or_create_build(run_params)
@@ -861,8 +854,7 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   defp create_processing_build(params, selected_project, account) do
-    upload_id = params.upload_id
-    storage_key = "#{selected_project.account.name}/#{selected_project.name}/build_archives/#{upload_id}.zip"
+    storage_key = "#{selected_project.account.name}/#{selected_project.name}/builds/#{params.id}/build.zip"
 
     custom_metadata = Map.get(params, :custom_metadata, %{})
 

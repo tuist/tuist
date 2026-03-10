@@ -893,6 +893,7 @@ components:
           enum:
             - success
             - failure
+            - processing
           type: string
           x-struct:
           x-validate:
@@ -938,12 +939,6 @@ components:
             x-struct:
             x-validate:
           type: array
-          x-struct:
-          x-validate:
-        upload_id:
-          description: "The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously."
-          format: uuid
-          type: string
           x-struct:
           x-validate:
         xcode_version:
@@ -1006,6 +1001,12 @@ components:
         content_length:
           description: The size of the file to upload in bytes.
           type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
+          format: uuid
+          type: string
           x-struct:
           x-validate:
         purpose:
@@ -2624,6 +2625,7 @@ components:
             - success
             - failure
             - processing
+            - failed_processing
           type: string
           x-struct:
           x-validate:
@@ -6104,12 +6106,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
           schema:
-            type: string
+            type: integer
             x-struct:
             x-validate:
         - description: Filter bundles by git branch.
@@ -6120,12 +6122,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
       responses:
@@ -8265,6 +8267,7 @@ paths:
                             - success
                             - failure
                             - processing
+                            - failed_processing
                           type: string
                           x-struct:
                           x-validate:
@@ -8779,6 +8782,7 @@ paths:
                   enum:
                     - success
                     - failure
+                    - processing
                   type: string
                   x-struct:
                   x-validate:
@@ -8824,12 +8828,6 @@ paths:
                     x-struct:
                     x-validate:
                   type: array
-                  x-struct:
-                  x-validate:
-                upload_id:
-                  description: "The ID of a previously created upload (from POST /uploads with purpose build_archive). When present, the build is created with status 'processing' and the server will parse the uploaded archive asynchronously."
-                  format: uuid
-                  type: string
                   x-struct:
                   x-validate:
                 xcode_version:
@@ -13413,6 +13411,12 @@ paths:
                   type: integer
                   x-struct:
                   x-validate:
+                id:
+                  description: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 purpose:
                   description: The purpose of the upload.
                   enum:
@@ -14072,6 +14076,6 @@ security:
   - authorization: []
   - cookie: []
 servers:
-  - url: http://localhost:4002
+  - url: http://localhost:8080
     variables: {}
 tags: []
