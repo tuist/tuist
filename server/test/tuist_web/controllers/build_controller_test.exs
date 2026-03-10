@@ -10,7 +10,7 @@ defmodule TuistWeb.BuildControllerTest do
   setup :verify_on_exit!
 
   describe "download/2" do
-    test "redirects to the presigned URL when user has permission and build has storage_key",
+    test "redirects to the presigned URL when user has permission",
          %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -21,8 +21,7 @@ defmodule TuistWeb.BuildControllerTest do
       stub(Builds, :get_build, fn ^build_id ->
         %Builds.Build{
           id: build_id,
-          project_id: project.id,
-          storage_key: "#{user.account.name}/#{project.name}/build_archives/test-archive.zip"
+          project_id: project.id
         }
       end)
 
@@ -58,7 +57,7 @@ defmodule TuistWeb.BuildControllerTest do
         )
 
       # Then
-      assert response(conn, 404) =~ "Build archive not found"
+      assert response(conn, 404) =~ "Build not found"
     end
 
     test "returns 404 when user does not have permission", %{conn: conn} do
@@ -80,18 +79,18 @@ defmodule TuistWeb.BuildControllerTest do
       end
     end
 
-    test "returns 404 when build has no storage_key", %{conn: conn} do
+    test "returns 404 when build belongs to different project", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
       conn = log_in_user(conn, user)
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
       build_id = UUIDv7.generate()
 
       stub(Builds, :get_build, fn ^build_id ->
         %Builds.Build{
           id: build_id,
-          project_id: project.id,
-          storage_key: nil
+          project_id: other_project.id
         }
       end)
 
@@ -103,7 +102,7 @@ defmodule TuistWeb.BuildControllerTest do
         )
 
       # Then
-      assert response(conn, 404) =~ "Build archive not found"
+      assert response(conn, 404) =~ "Build not found"
     end
   end
 end
