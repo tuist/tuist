@@ -204,9 +204,7 @@ defmodule Tuist.Builds do
         }
       end)
 
-    if !Enum.empty?(entries) do
-      IngestRepo.insert_all(BuildMachineMetric, entries)
-    end
+    IngestRepo.insert_all(BuildMachineMetric, entries)
 
     :ok
   end

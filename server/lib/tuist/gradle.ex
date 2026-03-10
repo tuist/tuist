@@ -51,9 +51,7 @@ defmodule Tuist.Gradle do
 
     machine_metrics = Map.get(attrs, :machine_metrics, [])
 
-    if !Enum.empty?(machine_metrics) do
-      create_machine_metrics(build_id, machine_metrics, now)
-    end
+    create_machine_metrics(build_id, machine_metrics, now)
 
     {:ok, build_id}
   end
