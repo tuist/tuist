@@ -213,6 +213,8 @@
                     try await fileSystem.writeText("", at: metricsFilePath)
                 }
 
+                // FileHandle is used directly for O(1) append. FileSystem.writeText does an atomic
+                // rewrite of the entire file, which would require reading all content on every 1-second sample.
                 guard let handle = FileHandle(forWritingAtPath: path) else { return }
                 defer { handle.closeFile() }
                 handle.seekToEndOfFile()
