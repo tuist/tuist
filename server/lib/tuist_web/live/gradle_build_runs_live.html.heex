@@ -96,7 +96,7 @@
             <.text_cell label={SHA.format_commit_sha(build.git_commit_sha)} />
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Requested tasks")}>
-            <.text_cell label={if(build.requested_tasks == [], do: dgettext("dashboard_gradle", "Unknown"), else: Enum.join(build.requested_tasks, ", "))} />
+            <.text_cell label={if(build.requested_tasks == [], do: dgettext("dashboard_gradle", "Unknown"), else: Enum.join(build.requested_tasks, " "))} />
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Built by")}>
             <.gradle_build_ran_by_badge_cell build={build} />
