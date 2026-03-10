@@ -118,36 +118,26 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
     parsed = atomize_keys(parsed_data)
 
-    attrs = %{
-      id: build_id,
-      project_id: project_id,
-      account_id: account_id,
-      duration: parsed[:duration] || 0,
-      status: parsed[:status] || "success",
-      category: parsed[:category],
-      is_ci: (original_build && original_build.is_ci) || false,
-      macos_version: (original_build && original_build.macos_version) || "",
-      xcode_version: (original_build && original_build.xcode_version) || "",
-      model_identifier: (original_build && original_build.model_identifier) || "",
-      scheme: (original_build && original_build.scheme) || "",
-      configuration: (original_build && original_build.configuration) || "",
-      git_branch: (original_build && original_build.git_branch) || "",
-      git_commit_sha: (original_build && original_build.git_commit_sha) || "",
-      git_ref: (original_build && original_build.git_ref) || "",
-      ci_run_id: (original_build && original_build.ci_run_id) || "",
-      ci_project_handle: (original_build && original_build.ci_project_handle) || "",
-      ci_host: (original_build && original_build.ci_host) || "",
-      ci_provider: (original_build && original_build.ci_provider) || "",
-      custom_tags: (original_build && original_build.custom_tags) || [],
-      custom_values: (original_build && original_build.custom_values) || %{},
-      xcode_cache_upload_enabled: (original_build && original_build.xcode_cache_upload_enabled) || false,
-      storage_key: original_build && original_build.storage_key,
-      targets: convert_targets(parsed[:targets] || []),
-      issues: convert_issues(parsed[:issues] || []),
-      files: convert_files(parsed[:files] || []),
-      cacheable_tasks: convert_cacheable_tasks(parsed[:cacheable_tasks] || []),
-      cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
-    }
+    base_attrs =
+      if original_build do
+        original_build
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
+      else
+        %{id: build_id, project_id: project_id, account_id: account_id, is_ci: false}
+      end
+
+    attrs =
+      Map.merge(base_attrs, %{
+        duration: parsed[:duration] || 0,
+        status: parsed[:status] || "success",
+        category: parsed[:category],
+        targets: convert_targets(parsed[:targets] || []),
+        issues: convert_issues(parsed[:issues] || []),
+        files: convert_files(parsed[:files] || []),
+        cacheable_tasks: convert_cacheable_tasks(parsed[:cacheable_tasks] || []),
+        cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
+      })
 
     Logger.info(
       "Writing parsed build #{build_id} to ClickHouse (status: #{attrs[:status]}, duration: #{attrs[:duration]}ms)"
