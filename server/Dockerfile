@@ -1,7 +1,6 @@
 ARG ELIXIR_VERSION=1.19.1
 ARG OTP_VERSION=28.1
 ARG DEBIAN_VERSION=bookworm-20251020-slim
-ARG SWIFT_VERSION=6.1.2
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
@@ -9,10 +8,15 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 # Stage: Swift NIF builder
 # Only built when referenced by selfhosted target (BuildKit skips otherwise)
 # ========================================
-FROM swift:${SWIFT_VERSION}-bookworm AS swift-builder
+FROM swift:6.2-bookworm AS swift-builder
 
 RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN swift sdk install https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
+    --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
+
+RUN rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a
 
 WORKDIR /nif
 
@@ -21,7 +25,12 @@ COPY processor/native/xcactivitylog_nif/Package.resolved .
 COPY processor/native/xcactivitylog_nif/Sources/ Sources/
 COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then SDK_TARGET="x86_64-swift-linux-musl"; \
+    elif [ "$ARCH" = "aarch64" ]; then SDK_TARGET="aarch64-swift-linux-musl"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    swift build -c release --replace-scm-with-registry --swift-sdk "$SDK_TARGET" && \
+    cp ".build/$SDK_TARGET/release/libXCActivityLogNIF.so" /nif/libXCActivityLogNIF.so
 
 # ========================================
 # Stage 1: NPM dependencies
@@ -146,7 +155,7 @@ RUN mix release
 FROM builder AS nif-bridge-builder
 
 COPY processor/native/xcactivitylog_nif/nif_bridge.c /tmp/nif/nif_bridge.c
-COPY --from=swift-builder /nif/.build/release/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
+COPY --from=swift-builder /nif/libXCActivityLogNIF.so /tmp/nif/libXCActivityLogNIF.so
 
 RUN mkdir -p /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native && \
     ERL_INCLUDE=$(erl -eval 'io:format("~s/erts-~s/include", [code:root_dir(), erlang:system_info(version)])' -s init stop -noshell) && \
@@ -231,30 +240,13 @@ USER nobody
 CMD ["sh", "-c", "/app/bin/start"]
 
 # ========================================
-# Stage 7: Self-hosted runtime — includes Swift NIF + runtime libs
+# Stage 7: Self-hosted runtime — includes Swift NIF
 # Build with: docker build --target runner-selfhosted .
 # ========================================
 FROM runner-base AS runner-selfhosted
 
-# Copy Swift runtime libraries needed by the NIF
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftCore.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftGlibc.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswift_Concurrency.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswift_StringProcessing.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswift_RegexParser.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftSynchronization.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftDispatch.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libFoundation.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libFoundationEssentials.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libFoundationInternationalization.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/lib_FoundationICU.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libdispatch.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libBlocksRuntime.so /usr/lib/
-
 # Copy compiled NIF .so files into processor priv dir
 COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
-
-RUN ldconfig
 
 USER nobody
 
