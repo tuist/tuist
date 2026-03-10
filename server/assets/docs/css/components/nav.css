@@ -3,8 +3,8 @@
   position: sticky;
   top: 0;
   flex-direction: row;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   z-index: 10;
   border-bottom: 1px solid var(--noora-content-divider-line);
   background: var(--noora-surface-background-tertiary);
@@ -29,9 +29,9 @@
 
       & > [data-part="logo-text"] {
         display: none;
-        font-size: 20px;
-        font-weight: 500;
         color: var(--noora-surface-label-primary);
+        font-weight: 500;
+        font-size: 20px;
         letter-spacing: -0.2px;
       }
     }
@@ -61,15 +61,15 @@
 
 #docs-mobile-menu-bar {
   display: none;
-  align-items: center;
   justify-content: space-between;
-  padding: var(--noora-spacing-4) var(--noora-spacing-6);
+  align-items: center;
   border-bottom: 1px solid var(--noora-content-divider-line);
   background: var(--noora-surface-background-tertiary);
+  padding: var(--noora-spacing-4) var(--noora-spacing-6);
 
   & [data-part="mobile-toc-btn"] {
-    justify-content: flex-end;
     flex: 1;
+    justify-content: flex-end;
   }
 
   & [data-part="mobile-menu-btn"],
@@ -77,12 +77,12 @@
     display: flex;
     align-items: center;
     gap: var(--noora-spacing-1);
+    cursor: pointer;
     border: none;
     background: none;
     padding: 0;
-    cursor: pointer;
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     & svg {
       width: var(--noora-icon-size-medium);
@@ -136,18 +136,18 @@
     display: none;
     position: absolute;
     top: var(--noora-spacing-4);
-    left: var(--noora-spacing-5);
     right: var(--noora-spacing-5);
-    z-index: 5;
+    left: var(--noora-spacing-5);
     flex-direction: column;
     gap: var(--noora-spacing-5);
-    padding: var(--noora-spacing-5);
-    background: var(--noora-surface-background-primary);
-    border-radius: var(--noora-radius-medium);
+    z-index: 5;
     box-shadow:
       0px 1px 1px 0px rgba(14, 14, 14, 0.05),
       0px 0px 0px 1px rgba(46, 51, 56, 0.08),
       0px 1px 1px 0px rgba(46, 51, 56, 0.1);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-5);
   }
 
   [data-part="mobile-toc"][data-state="open"] {
@@ -155,10 +155,10 @@
   }
 
   [data-part="mobile-toc-item"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     color: var(--noora-surface-label-primary);
-    text-decoration: none;
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     line-height: 16px;
+    text-decoration: none;
   }
 
   [data-part="mobile-toc-item"]:hover {

@@ -14,9 +14,7 @@ function setupCodeCopy(el) {
     button.setAttribute("aria-label", "Copy code");
 
     button.addEventListener("click", () => {
-      const codeBlock = button
-        .closest(".code-window")
-        ?.querySelector('[data-part="code"]');
+      const codeBlock = button.closest(".code-window")?.querySelector('[data-part="code"]');
       if (!codeBlock) return;
       navigator.clipboard
         .writeText(codeBlock.textContent.trim())

@@ -17,22 +17,16 @@ function closeSidebar() {
 }
 
 function toggleSidebar() {
-  document.body.hasAttribute("data-sidebar-open")
-    ? closeSidebar()
-    : openSidebar();
+  document.body.hasAttribute("data-sidebar-open") ? closeSidebar() : openSidebar();
 }
 
 const DocsMobileSidebarHook = {
   mounted() {
     this.el.addEventListener("click", toggleSidebar);
 
-    document
-      .querySelector("[data-action='toggle-sidebar']")
-      ?.addEventListener("click", toggleSidebar);
+    document.querySelector("[data-action='toggle-sidebar']")?.addEventListener("click", toggleSidebar);
 
-    document
-      .getElementById("docs-mobile-sidebar-overlay")
-      ?.addEventListener("click", closeSidebar);
+    document.getElementById("docs-mobile-sidebar-overlay")?.addEventListener("click", closeSidebar);
 
     document.getElementById("docs-sidebar")?.addEventListener("click", (e) => {
       if (e.target.closest("a[data-part='nav-link'], a[data-part='trigger']")) {
@@ -41,10 +35,7 @@ const DocsMobileSidebarHook = {
     });
 
     document.addEventListener("keydown", (e) => {
-      if (
-        e.key === "Escape" &&
-        document.body.hasAttribute("data-sidebar-open")
-      ) {
+      if (e.key === "Escape" && document.body.hasAttribute("data-sidebar-open")) {
         closeSidebar();
         this.el.focus();
       }
