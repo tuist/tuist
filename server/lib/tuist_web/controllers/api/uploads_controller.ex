@@ -22,7 +22,7 @@ defmodule TuistWeb.API.UploadsController do
 
   tags ["Uploads"]
 
-  @valid_purposes ["build_archive"]
+  @valid_purposes ["build"]
 
   operation(:create,
     summary: "Create an upload.",
@@ -48,22 +48,22 @@ defmodule TuistWeb.API.UploadsController do
          description: "Parameters to create an upload.",
          type: :object,
          properties: %{
-           id: %Schema{
-             type: :string,
-             format: :uuid,
-             description: "Optional identifier for the upload. When provided, the upload will use this ID instead of generating one."
-           },
            purpose: %Schema{
              type: :string,
              description: "The purpose of the upload.",
              enum: @valid_purposes
+           },
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
            },
            content_length: %Schema{
              type: :integer,
              description: "The size of the file to upload in bytes."
            }
          },
-         required: [:purpose]
+         required: [:purpose, :build_id]
        }},
     responses: %{
       ok:
@@ -86,17 +86,16 @@ defmodule TuistWeb.API.UploadsController do
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
-    purpose = body_params.purpose
     account = Authentication.authenticated_subject_account(conn)
+    {purpose, resource_id} = extract_purpose_and_id(body_params)
 
-    upload_id = Map.get(body_params, :id) || Ecto.UUID.generate()
-    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, upload_id)
+    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, resource_id)
     upload_url = Storage.generate_upload_url(object_key, account, expires_in: 3600)
 
     conn
     |> put_status(:ok)
     |> json(%{
-      id: upload_id,
+      id: resource_id,
       purpose: purpose,
       upload_url: upload_url
     })
@@ -122,20 +121,22 @@ defmodule TuistWeb.API.UploadsController do
     request_body:
       {"Multipart upload start params", "application/json",
        %Schema{
+         title: "MultipartUploadStartParams",
+         description: "Parameters to start a multipart upload.",
          type: :object,
          properties: %{
-           id: %Schema{
-             type: :string,
-             format: :uuid,
-             description: "The identifier for the upload."
-           },
            purpose: %Schema{
              type: :string,
-             description: "The purpose of the upload.",
-             enum: @valid_purposes
+             enum: @valid_purposes,
+             description: "The purpose of the upload."
+           },
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
            }
          },
-         required: [:purpose, :id]
+         required: [:purpose, :build_id]
        }},
     responses: %{
       ok: {"The multipart upload has been started", "application/json", ArtifactUploadId},
@@ -150,8 +151,8 @@ defmodule TuistWeb.API.UploadsController do
         _params
       ) do
     account = Authentication.authenticated_subject_account(conn)
-    upload_id = body_params.id
-    object_key = storage_key(selected_project.account.name, selected_project.name, body_params.purpose, upload_id)
+    {purpose, resource_id} = extract_purpose_and_id(body_params)
+    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, resource_id)
 
     multipart_upload_id = Storage.multipart_start(object_key, account)
 
@@ -180,21 +181,23 @@ defmodule TuistWeb.API.UploadsController do
     request_body:
       {"Artifact to generate a signed URL for", "application/json",
        %Schema{
+         title: "MultipartUploadURLGenerationParams",
+         description: "Parameters to generate a signed URL for a multipart upload part.",
          type: :object,
          properties: %{
-           id: %Schema{
-             type: :string,
-             format: :uuid,
-             description: "The identifier for the upload."
-           },
            purpose: %Schema{
              type: :string,
-             description: "The purpose of the upload.",
-             enum: @valid_purposes
+             enum: @valid_purposes,
+             description: "The purpose of the upload."
+           },
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
            },
            multipart_upload_part: ArtifactMultipartUploadPart
          },
-         required: [:purpose, :id, :multipart_upload_part]
+         required: [:purpose, :build_id, :multipart_upload_part]
        }},
     responses: %{
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
@@ -207,16 +210,16 @@ defmodule TuistWeb.API.UploadsController do
   def multipart_generate_url(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{
-            id: upload_id,
-            purpose: purpose,
-            multipart_upload_part: %{part_number: part_number, upload_id: multipart_upload_id} = multipart_upload_part
-          }
+          body_params:
+            %{
+              multipart_upload_part: %{part_number: part_number, upload_id: multipart_upload_id} = multipart_upload_part
+            } = body_params
         } = conn,
         _params
       ) do
+    {purpose, resource_id} = extract_purpose_and_id(body_params)
     content_length = Map.get(multipart_upload_part, :content_length)
-    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, upload_id)
+    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, resource_id)
 
     url =
       Storage.multipart_generate_url(
@@ -253,21 +256,23 @@ defmodule TuistWeb.API.UploadsController do
     request_body:
       {"Upload multipart upload completion", "application/json",
        %Schema{
+         title: "MultipartUploadCompletionParams",
+         description: "Parameters to complete a multipart upload.",
          type: :object,
          properties: %{
-           id: %Schema{
-             type: :string,
-             format: :uuid,
-             description: "The identifier for the upload."
-           },
            purpose: %Schema{
              type: :string,
-             description: "The purpose of the upload.",
-             enum: @valid_purposes
+             enum: @valid_purposes,
+             description: "The purpose of the upload."
+           },
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
            },
            multipart_upload_parts: ArtifactMultipartUploadParts
          },
-         required: [:purpose, :id, :multipart_upload_parts]
+         required: [:purpose, :build_id, :multipart_upload_parts]
        }},
     responses: %{
       ok: {"The upload has been completed", "application/json", ArtifactMultipartUploadCompletion},
@@ -280,15 +285,15 @@ defmodule TuistWeb.API.UploadsController do
   def multipart_complete(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{
-            id: upload_id,
-            purpose: purpose,
-            multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: multipart_upload_id}
-          }
+          body_params:
+            %{
+              multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: multipart_upload_id}
+            } = body_params
         } = conn,
         _params
       ) do
-    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, upload_id)
+    {purpose, resource_id} = extract_purpose_and_id(body_params)
+    object_key = storage_key(selected_project.account.name, selected_project.name, purpose, resource_id)
 
     :ok =
       Storage.multipart_complete_upload(
@@ -303,7 +308,9 @@ defmodule TuistWeb.API.UploadsController do
     json(conn, %{status: "success", data: %{}})
   end
 
-  defp storage_key(account_handle, project_handle, "build_archive", upload_id) do
-    "#{account_handle}/#{project_handle}/builds/#{upload_id}/build.zip"
+  defp extract_purpose_and_id(%{purpose: "build", build_id: build_id}), do: {"build", build_id}
+
+  defp storage_key(account_handle, project_handle, "build", build_id) do
+    "#{account_handle}/#{project_handle}/builds/#{build_id}/build.zip"
   end
 end

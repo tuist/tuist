@@ -7,7 +7,7 @@ import TuistHTTP
 import TuistSupport
 
 public enum UploadPurpose: String {
-    case buildArchive = "build_archive"
+    case build = "build"
 }
 
 @Mockable
@@ -109,7 +109,7 @@ public struct UploadService: UploadServicing {
                 account_handle: accountHandle,
                 project_handle: projectHandle
             ),
-            body: .json(.init(id: id, purpose: .init(rawValue: purpose.rawValue)!))
+            body: .json(buildStartBody(id: id, purpose: purpose))
         )
 
         switch response {
@@ -152,15 +152,7 @@ public struct UploadService: UploadServicing {
                 account_handle: accountHandle,
                 project_handle: projectHandle
             ),
-            body: .json(.init(
-                id: id,
-                multipart_upload_part: .init(
-                    content_length: part.contentLength,
-                    part_number: part.number,
-                    upload_id: uploadId
-                ),
-                purpose: .init(rawValue: purpose.rawValue)!
-            ))
+            body: .json(buildGenerateURLBody(id: id, uploadId: uploadId, part: part, purpose: purpose))
         )
 
         switch response {
@@ -203,16 +195,7 @@ public struct UploadService: UploadServicing {
                 account_handle: accountHandle,
                 project_handle: projectHandle
             ),
-            body: .json(.init(
-                id: id,
-                multipart_upload_parts: .init(
-                    parts: parts.map {
-                        .init(etag: $0.etag, part_number: $0.partNumber)
-                    },
-                    upload_id: uploadId
-                ),
-                purpose: .init(rawValue: purpose.rawValue)!
-            ))
+            body: .json(buildCompleteBody(id: id, uploadId: uploadId, parts: parts, purpose: purpose))
         )
 
         switch response {
@@ -235,6 +218,57 @@ public struct UploadService: UploadServicing {
             }
         case let .undocumented(statusCode: statusCode, _):
             throw UploadServiceError.unknownError(statusCode)
+        }
+    }
+
+    private func buildStartBody(
+        id: String,
+        purpose: UploadPurpose
+    ) -> Operations.startUploadsMultipartUpload.Input.Body.jsonPayload {
+        switch purpose {
+        case .build:
+            return .init(build_id: id, purpose: .build)
+        }
+    }
+
+    private func buildGenerateURLBody(
+        id: String,
+        uploadId: String,
+        part: MultipartUploadArtifactPart,
+        purpose: UploadPurpose
+    ) -> Operations.generateUploadsMultipartUploadURL.Input.Body.jsonPayload {
+        switch purpose {
+        case .build:
+            return .init(
+                build_id: id,
+                multipart_upload_part: .init(
+                    content_length: part.contentLength,
+                    part_number: part.number,
+                    upload_id: uploadId
+                ),
+                purpose: .build
+            )
+        }
+    }
+
+    private func buildCompleteBody(
+        id: String,
+        uploadId: String,
+        parts: [(etag: String, partNumber: Int)],
+        purpose: UploadPurpose
+    ) -> Operations.completeUploadsMultipartUpload.Input.Body.jsonPayload {
+        switch purpose {
+        case .build:
+            return .init(
+                build_id: id,
+                multipart_upload_parts: .init(
+                    parts: parts.map {
+                        .init(etag: $0.etag, part_number: $0.partNumber)
+                    },
+                    upload_id: uploadId
+                ),
+                purpose: .build
+            )
         }
     }
 }

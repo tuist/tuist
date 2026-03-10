@@ -19,11 +19,13 @@ defmodule TuistWeb.API.UploadsControllerTest do
       %{conn: conn, user: user, project: project}
     end
 
-    test "returns upload with presigned URL for valid build_archive purpose", %{
+    test "returns upload with presigned URL for build purpose", %{
       conn: conn,
       user: user,
       project: project
     } do
+      build_id = Ecto.UUID.generate()
+
       stub(Storage, :generate_upload_url, fn _key, _account, _opts ->
         "https://s3.example.com/presigned"
       end)
@@ -32,12 +34,13 @@ defmodule TuistWeb.API.UploadsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{user.account.name}/#{project.name}/uploads", %{
-          purpose: "build_archive"
+          purpose: "build",
+          build_id: build_id
         })
 
       response = json_response(conn, 200)
-      assert response["id"]
-      assert response["purpose"] == "build_archive"
+      assert response["id"] == build_id
+      assert response["purpose"] == "build"
       assert response["upload_url"] == "https://s3.example.com/presigned"
     end
 
@@ -49,7 +52,8 @@ defmodule TuistWeb.API.UploadsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{project.account.name}/#{project.name}/uploads", %{
-          purpose: "build_archive"
+          purpose: "build",
+          build_id: Ecto.UUID.generate()
         })
 
       assert json_response(conn, :forbidden)
@@ -64,8 +68,8 @@ defmodule TuistWeb.API.UploadsControllerTest do
       %{conn: conn, user: user, project: project}
     end
 
-    test "starts a multipart upload", %{conn: conn, user: user, project: project} do
-      upload_id = Ecto.UUID.generate()
+    test "starts a multipart upload for build purpose", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
 
       stub(Storage, :multipart_start, fn _key, _account ->
         "multipart-upload-id-123"
@@ -75,8 +79,8 @@ defmodule TuistWeb.API.UploadsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{user.account.name}/#{project.name}/uploads/start", %{
-          purpose: "build_archive",
-          id: upload_id
+          purpose: "build",
+          build_id: build_id
         })
 
       response = json_response(conn, 200)
@@ -94,7 +98,7 @@ defmodule TuistWeb.API.UploadsControllerTest do
     end
 
     test "generates a signed URL for a part", %{conn: conn, user: user, project: project} do
-      upload_id = Ecto.UUID.generate()
+      build_id = Ecto.UUID.generate()
 
       stub(Storage, :multipart_generate_url, fn _key, _upload_id, _part_number, _account, _opts ->
         "https://s3.example.com/part-upload-url"
@@ -104,8 +108,8 @@ defmodule TuistWeb.API.UploadsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{user.account.name}/#{project.name}/uploads/generate-url", %{
-          purpose: "build_archive",
-          id: upload_id,
+          purpose: "build",
+          build_id: build_id,
           multipart_upload_part: %{
             part_number: 1,
             upload_id: "multipart-upload-id-123"
@@ -127,7 +131,7 @@ defmodule TuistWeb.API.UploadsControllerTest do
     end
 
     test "completes a multipart upload", %{conn: conn, user: user, project: project} do
-      upload_id = Ecto.UUID.generate()
+      build_id = Ecto.UUID.generate()
 
       stub(Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
         :ok
@@ -137,8 +141,8 @@ defmodule TuistWeb.API.UploadsControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/projects/#{user.account.name}/#{project.name}/uploads/complete", %{
-          purpose: "build_archive",
-          id: upload_id,
+          purpose: "build",
+          build_id: build_id,
           multipart_upload_parts: %{
             upload_id: "multipart-upload-id-123",
             parts: [

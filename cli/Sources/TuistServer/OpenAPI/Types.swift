@@ -3272,19 +3272,19 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/UploadParams`.
         public struct UploadParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/UploadParams/build_id`.
+            public var build_id: Swift.String
             /// The size of the file to upload in bytes.
             ///
             /// - Remark: Generated from `#/components/schemas/UploadParams/content_length`.
             public var content_length: Swift.Int?
-            /// Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
-            ///
-            /// - Remark: Generated from `#/components/schemas/UploadParams/id`.
-            public var id: Swift.String?
             /// The purpose of the upload.
             ///
             /// - Remark: Generated from `#/components/schemas/UploadParams/purpose`.
             @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                case build_archive = "build_archive"
+                case build = "build"
             }
             /// The purpose of the upload.
             ///
@@ -3293,21 +3293,62 @@ public enum Components {
             /// Creates a new `UploadParams`.
             ///
             /// - Parameters:
+            ///   - build_id: The build ID.
             ///   - content_length: The size of the file to upload in bytes.
-            ///   - id: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
             ///   - purpose: The purpose of the upload.
             public init(
+                build_id: Swift.String,
                 content_length: Swift.Int? = nil,
-                id: Swift.String? = nil,
                 purpose: Components.Schemas.UploadParams.purposePayload
             ) {
+                self.build_id = build_id
                 self.content_length = content_length
-                self.id = id
                 self.purpose = purpose
             }
             public enum CodingKeys: String, CodingKey {
+                case build_id
                 case content_length
-                case id
+                case purpose
+            }
+        }
+        /// Parameters to complete a multipart upload.
+        ///
+        /// - Remark: Generated from `#/components/schemas/MultipartUploadCompletionParams`.
+        public struct MultipartUploadCompletionParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadCompletionParams/build_id`.
+            public var build_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadCompletionParams/multipart_upload_parts`.
+            public var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadCompletionParams/purpose`.
+            @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build = "build"
+            }
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadCompletionParams/purpose`.
+            public var purpose: Components.Schemas.MultipartUploadCompletionParams.purposePayload
+            /// Creates a new `MultipartUploadCompletionParams`.
+            ///
+            /// - Parameters:
+            ///   - build_id: The build ID.
+            ///   - multipart_upload_parts:
+            ///   - purpose: The purpose of the upload.
+            public init(
+                build_id: Swift.String,
+                multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts,
+                purpose: Components.Schemas.MultipartUploadCompletionParams.purposePayload
+            ) {
+                self.build_id = build_id
+                self.multipart_upload_parts = multipart_upload_parts
+                self.purpose = purpose
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_id
+                case multipart_upload_parts
                 case purpose
             }
         }
@@ -4144,6 +4185,41 @@ public enum Components {
                 case file_name
                 case repetition_number
                 case test_case_run_id
+            }
+        }
+        /// Parameters to start a multipart upload.
+        ///
+        /// - Remark: Generated from `#/components/schemas/MultipartUploadStartParams`.
+        public struct MultipartUploadStartParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadStartParams/build_id`.
+            public var build_id: Swift.String
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadStartParams/purpose`.
+            @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build = "build"
+            }
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadStartParams/purpose`.
+            public var purpose: Components.Schemas.MultipartUploadStartParams.purposePayload
+            /// Creates a new `MultipartUploadStartParams`.
+            ///
+            /// - Parameters:
+            ///   - build_id: The build ID.
+            ///   - purpose: The purpose of the upload.
+            public init(
+                build_id: Swift.String,
+                purpose: Components.Schemas.MultipartUploadStartParams.purposePayload
+            ) {
+                self.build_id = build_id
+                self.purpose = purpose
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_id
+                case purpose
             }
         }
         /// - Remark: Generated from `#/components/schemas/ValidationError`.
@@ -6547,6 +6623,47 @@ public enum Components {
             }
             public enum CodingKeys: String, CodingKey {
                 case message
+            }
+        }
+        /// Parameters to generate a signed URL for a multipart upload part.
+        ///
+        /// - Remark: Generated from `#/components/schemas/MultipartUploadURLGenerationParams`.
+        public struct MultipartUploadURLGenerationParams: Codable, Hashable, Sendable {
+            /// The build ID.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadURLGenerationParams/build_id`.
+            public var build_id: Swift.String
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadURLGenerationParams/multipart_upload_part`.
+            public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadURLGenerationParams/purpose`.
+            @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
+                case build = "build"
+            }
+            /// The purpose of the upload.
+            ///
+            /// - Remark: Generated from `#/components/schemas/MultipartUploadURLGenerationParams/purpose`.
+            public var purpose: Components.Schemas.MultipartUploadURLGenerationParams.purposePayload
+            /// Creates a new `MultipartUploadURLGenerationParams`.
+            ///
+            /// - Parameters:
+            ///   - build_id: The build ID.
+            ///   - multipart_upload_part:
+            ///   - purpose: The purpose of the upload.
+            public init(
+                build_id: Swift.String,
+                multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart,
+                purpose: Components.Schemas.MultipartUploadURLGenerationParams.purposePayload
+            ) {
+                self.build_id = build_id
+                self.multipart_upload_part = multipart_upload_part
+                self.purpose = purpose
+            }
+            public enum CodingKeys: String, CodingKey {
+                case build_id
+                case multipart_upload_part
+                case purpose
             }
         }
         /// The page number to return.
@@ -9259,19 +9376,21 @@ public enum Operations {
             public var headers: Operations.generateUploadsMultipartUploadURL.Input.Headers
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/generate-url/POST/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to generate a signed URL for a multipart upload part.
+                ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/generate-url/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The identifier for the upload.
+                    /// The build ID.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/generate-url/POST/requestBody/json/id`.
-                    public var id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/generate-url/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/generate-url/POST/requestBody/json/multipart_upload_part`.
                     public var multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart
                     /// The purpose of the upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/generate-url/POST/requestBody/json/purpose`.
                     @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case build_archive = "build_archive"
+                        case build = "build"
                     }
                     /// The purpose of the upload.
                     ///
@@ -9280,20 +9399,20 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - id: The identifier for the upload.
+                    ///   - build_id: The build ID.
                     ///   - multipart_upload_part:
                     ///   - purpose: The purpose of the upload.
                     public init(
-                        id: Swift.String,
+                        build_id: Swift.String,
                         multipart_upload_part: Components.Schemas.ArtifactMultipartUploadPart,
                         purpose: Operations.generateUploadsMultipartUploadURL.Input.Body.jsonPayload.purposePayload
                     ) {
-                        self.id = id
+                        self.build_id = build_id
                         self.multipart_upload_part = multipart_upload_part
                         self.purpose = purpose
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case id
+                        case build_id
                         case multipart_upload_part
                         case purpose
                     }
@@ -9599,17 +9718,19 @@ public enum Operations {
             public var headers: Operations.startUploadsMultipartUpload.Input.Headers
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/start/POST/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to start a multipart upload.
+                ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/start/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The identifier for the upload.
+                    /// The build ID.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/start/POST/requestBody/json/id`.
-                    public var id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/start/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
                     /// The purpose of the upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/start/POST/requestBody/json/purpose`.
                     @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case build_archive = "build_archive"
+                        case build = "build"
                     }
                     /// The purpose of the upload.
                     ///
@@ -9618,17 +9739,17 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - id: The identifier for the upload.
+                    ///   - build_id: The build ID.
                     ///   - purpose: The purpose of the upload.
                     public init(
-                        id: Swift.String,
+                        build_id: Swift.String,
                         purpose: Operations.startUploadsMultipartUpload.Input.Body.jsonPayload.purposePayload
                     ) {
-                        self.id = id
+                        self.build_id = build_id
                         self.purpose = purpose
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case id
+                        case build_id
                         case purpose
                     }
                 }
@@ -31700,19 +31821,21 @@ public enum Operations {
             public var headers: Operations.completeUploadsMultipartUpload.Input.Headers
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/complete/POST/requestBody`.
             @frozen public enum Body: Sendable, Hashable {
+                /// Parameters to complete a multipart upload.
+                ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/complete/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The identifier for the upload.
+                    /// The build ID.
                     ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/complete/POST/requestBody/json/id`.
-                    public var id: Swift.String
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/complete/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/complete/POST/requestBody/json/multipart_upload_parts`.
                     public var multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts
                     /// The purpose of the upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/complete/POST/requestBody/json/purpose`.
                     @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case build_archive = "build_archive"
+                        case build = "build"
                     }
                     /// The purpose of the upload.
                     ///
@@ -31721,20 +31844,20 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
-                    ///   - id: The identifier for the upload.
+                    ///   - build_id: The build ID.
                     ///   - multipart_upload_parts:
                     ///   - purpose: The purpose of the upload.
                     public init(
-                        id: Swift.String,
+                        build_id: Swift.String,
                         multipart_upload_parts: Components.Schemas.ArtifactMultipartUploadParts,
                         purpose: Operations.completeUploadsMultipartUpload.Input.Body.jsonPayload.purposePayload
                     ) {
-                        self.id = id
+                        self.build_id = build_id
                         self.multipart_upload_parts = multipart_upload_parts
                         self.purpose = purpose
                     }
                     public enum CodingKeys: String, CodingKey {
-                        case id
+                        case build_id
                         case multipart_upload_parts
                         case purpose
                     }
@@ -38580,19 +38703,19 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// The build ID.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/build_id`.
+                    public var build_id: Swift.String
                     /// The size of the file to upload in bytes.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/content_length`.
                     public var content_length: Swift.Int?
-                    /// Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
-                    ///
-                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/id`.
-                    public var id: Swift.String?
                     /// The purpose of the upload.
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/uploads/POST/requestBody/json/purpose`.
                     @frozen public enum purposePayload: String, Codable, Hashable, Sendable, CaseIterable {
-                        case build_archive = "build_archive"
+                        case build = "build"
                     }
                     /// The purpose of the upload.
                     ///
@@ -38601,21 +38724,21 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - build_id: The build ID.
                     ///   - content_length: The size of the file to upload in bytes.
-                    ///   - id: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
                     ///   - purpose: The purpose of the upload.
                     public init(
+                        build_id: Swift.String,
                         content_length: Swift.Int? = nil,
-                        id: Swift.String? = nil,
                         purpose: Operations.createUpload.Input.Body.jsonPayload.purposePayload
                     ) {
+                        self.build_id = build_id
                         self.content_length = content_length
-                        self.id = id
                         self.purpose = purpose
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case build_id
                         case content_length
-                        case id
                         case purpose
                     }
                 }

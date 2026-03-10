@@ -998,27 +998,54 @@ components:
     UploadParams:
       description: Parameters to create an upload.
       properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
         content_length:
           description: The size of the file to upload in bytes.
           type: integer
           x-struct:
           x-validate:
-        id:
-          description: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
-          format: uuid
-          type: string
-          x-struct:
-          x-validate:
         purpose:
           description: The purpose of the upload.
           enum:
-            - build_archive
+            - build
           type: string
           x-struct:
           x-validate:
       required:
         - purpose
+        - build_id
       title: UploadParams
+      type: object
+      x-struct:
+      x-validate:
+    MultipartUploadCompletionParams:
+      description: Parameters to complete a multipart upload.
+      properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        multipart_upload_parts:
+          $ref: '#/components/schemas/ArtifactMultipartUploadParts'
+        purpose:
+          description: The purpose of the upload.
+          enum:
+            - build
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - purpose
+        - build_id
+        - multipart_upload_parts
+      title: MultipartUploadCompletionParams
       type: object
       x-struct:
       x-validate:
@@ -1626,6 +1653,29 @@ components:
         - test_case_run_id
         - file_name
       title: TestCaseRunAttachmentParams
+      type: object
+      x-struct:
+      x-validate:
+    MultipartUploadStartParams:
+      description: Parameters to start a multipart upload.
+      properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        purpose:
+          description: The purpose of the upload.
+          enum:
+            - build
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - purpose
+        - build_id
+      title: MultipartUploadStartParams
       type: object
       x-struct:
       x-validate:
@@ -3122,6 +3172,32 @@ components:
       title: Error
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Error
+      x-validate:
+    MultipartUploadURLGenerationParams:
+      description: Parameters to generate a signed URL for a multipart upload part.
+      properties:
+        build_id:
+          description: The build ID.
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        multipart_upload_part:
+          $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+        purpose:
+          description: The purpose of the upload.
+          enum:
+            - build
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - purpose
+        - build_id
+        - multipart_upload_part
+      title: MultipartUploadURLGenerationParams
+      type: object
+      x-struct:
       x-validate:
     RunsIndexPage:
       default: 1
@@ -4837,9 +4913,10 @@ paths:
         content:
           application/json:
             schema:
+              description: Parameters to generate a signed URL for a multipart upload part.
               properties:
-                id:
-                  description: The identifier for the upload.
+                build_id:
+                  description: The build ID.
                   format: uuid
                   type: string
                   x-struct:
@@ -4849,14 +4926,15 @@ paths:
                 purpose:
                   description: The purpose of the upload.
                   enum:
-                    - build_archive
+                    - build
                   type: string
                   x-struct:
                   x-validate:
               required:
                 - purpose
-                - id
+                - build_id
                 - multipart_upload_part
+              title: MultipartUploadURLGenerationParams
               type: object
               x-struct:
               x-validate:
@@ -4915,9 +4993,10 @@ paths:
         content:
           application/json:
             schema:
+              description: Parameters to start a multipart upload.
               properties:
-                id:
-                  description: The identifier for the upload.
+                build_id:
+                  description: The build ID.
                   format: uuid
                   type: string
                   x-struct:
@@ -4925,13 +5004,14 @@ paths:
                 purpose:
                   description: The purpose of the upload.
                   enum:
-                    - build_archive
+                    - build
                   type: string
                   x-struct:
                   x-validate:
               required:
                 - purpose
-                - id
+                - build_id
+              title: MultipartUploadStartParams
               type: object
               x-struct:
               x-validate:
@@ -11370,9 +11450,10 @@ paths:
         content:
           application/json:
             schema:
+              description: Parameters to complete a multipart upload.
               properties:
-                id:
-                  description: The identifier for the upload.
+                build_id:
+                  description: The build ID.
                   format: uuid
                   type: string
                   x-struct:
@@ -11382,14 +11463,15 @@ paths:
                 purpose:
                   description: The purpose of the upload.
                   enum:
-                    - build_archive
+                    - build
                   type: string
                   x-struct:
                   x-validate:
               required:
                 - purpose
-                - id
+                - build_id
                 - multipart_upload_parts
+              title: MultipartUploadCompletionParams
               type: object
               x-struct:
               x-validate:
@@ -13658,26 +13740,27 @@ paths:
             schema:
               description: Parameters to create an upload.
               properties:
+                build_id:
+                  description: The build ID.
+                  format: uuid
+                  type: string
+                  x-struct:
+                  x-validate:
                 content_length:
                   description: The size of the file to upload in bytes.
                   type: integer
                   x-struct:
                   x-validate:
-                id:
-                  description: Optional identifier for the upload. When provided, the upload will use this ID instead of generating one.
-                  format: uuid
-                  type: string
-                  x-struct:
-                  x-validate:
                 purpose:
                   description: The purpose of the upload.
                   enum:
-                    - build_archive
+                    - build
                   type: string
                   x-struct:
                   x-validate:
               required:
                 - purpose
+                - build_id
               title: UploadParams
               type: object
               x-struct:

@@ -272,7 +272,7 @@
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     filePath: archivePath,
-                    purpose: .buildArchive
+                    purpose: .build
                 )
 
                 let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
