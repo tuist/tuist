@@ -20,7 +20,7 @@ COPY processor/native/xcactivitylog_nif/Package.resolved .
 COPY processor/native/xcactivitylog_nif/Sources/ Sources/
 COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry
+RUN swift build -c release --replace-scm-with-registry --static-swift-stdlib
 
 # ========================================
 # Stage 2: Build Elixir release + NIF bridge
@@ -81,23 +81,6 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 WORKDIR /app
-
-# Copy Swift runtime libraries needed by the NIF
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftCore.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftGlibc.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswift_Concurrency.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswift_StringProcessing.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswift_RegexParser.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftSynchronization.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libswiftDispatch.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libFoundation.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libFoundationEssentials.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libFoundationInternationalization.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/lib_FoundationICU.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libdispatch.so /usr/lib/
-COPY --from=swift-builder /usr/lib/swift/linux/libBlocksRuntime.so /usr/lib/
-
-RUN ldconfig
 
 COPY --from=elixir-builder /app/_build/prod/rel/processor ./
 
