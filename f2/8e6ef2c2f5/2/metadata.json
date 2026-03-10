@@ -1,9 +1,11 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "f28e6ef2c2f5",
+  "session_id": "85643159-141a-4b6f-a2cd-47dfcaac8a7c",
   "strategy": "manual-commit",
+  "created_at": "2026-03-10T13:33:45.565784Z",
   "branch": "feat/comparison-primitives-mcp",
-  "checkpoints_count": 12,
+  "checkpoints_count": 5,
   "files_touched": [
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
@@ -31,34 +33,22 @@
     "server/test/tuist/mcp/components/tools/test_tools_test.exs",
     "server/test/tuist/mcp/server_test.exs"
   ],
-  "sessions": [
-    {
-      "metadata": "/f2/8e6ef2c2f5/0/metadata.json",
-      "transcript": "/f2/8e6ef2c2f5/0/full.jsonl",
-      "context": "/f2/8e6ef2c2f5/0/context.md",
-      "content_hash": "/f2/8e6ef2c2f5/0/content_hash.txt",
-      "prompt": "/f2/8e6ef2c2f5/0/prompt.txt"
-    },
-    {
-      "metadata": "/f2/8e6ef2c2f5/1/metadata.json",
-      "transcript": "/f2/8e6ef2c2f5/1/full.jsonl",
-      "context": "/f2/8e6ef2c2f5/1/context.md",
-      "content_hash": "/f2/8e6ef2c2f5/1/content_hash.txt",
-      "prompt": "/f2/8e6ef2c2f5/1/prompt.txt"
-    },
-    {
-      "metadata": "/f2/8e6ef2c2f5/2/metadata.json",
-      "transcript": "/f2/8e6ef2c2f5/2/full.jsonl",
-      "context": "/f2/8e6ef2c2f5/2/context.md",
-      "content_hash": "/f2/8e6ef2c2f5/2/content_hash.txt",
-      "prompt": "/f2/8e6ef2c2f5/2/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "6781700f-a38b-4e05-99ca-abc52d0f5ef5",
   "token_usage": {
-    "input_tokens": 140,
-    "cache_creation_tokens": 131302,
-    "cache_read_tokens": 5676351,
-    "output_tokens": 23283,
-    "api_call_count": 108
+    "input_tokens": 94,
+    "cache_creation_tokens": 86429,
+    "cache_read_tokens": 5239131,
+    "output_tokens": 20283,
+    "api_call_count": 84
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-10T13:33:45.498184Z",
+    "agent_lines": 0,
+    "human_added": 337560,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 337560,
+    "agent_percentage": 0
   }
 }
