@@ -5,6 +5,12 @@ defmodule TuistWeb.API.BuildsController do
   alias OpenApiSpex.Schema
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
+  alias Tuist.Storage
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadCompletion
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
+  alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
+  alias TuistWeb.API.Schemas.ArtifactUploadId
   alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -955,5 +961,200 @@ defmodule TuistWeb.API.BuildsController do
     else
       {:error, changeset}
     end
+  end
+
+  operation(:multipart_start,
+    summary: "Start a multipart upload for a build archive.",
+    operation_id: "startBuildsMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Build multipart upload start params", "application/json",
+       %Schema{
+         title: "BuildMultipartUploadStartParams",
+         description: "Parameters to start a multipart upload for a build.",
+         type: :object,
+         properties: %{
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
+           }
+         },
+         required: [:build_id]
+       }},
+    responses: %{
+      ok: {"The multipart upload has been started", "application/json", ArtifactUploadId},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_start(
+        %{assigns: %{selected_project: selected_project}, body_params: %{build_id: build_id}} = conn,
+        _params
+      ) do
+    account = Authentication.authenticated_subject_account(conn)
+    object_key = build_storage_key(selected_project.account.name, selected_project.name, build_id)
+
+    multipart_upload_id = Storage.multipart_start(object_key, account)
+
+    json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
+  end
+
+  operation(:multipart_generate_url,
+    summary: "Generate a signed URL for uploading a build archive part.",
+    description:
+      "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.",
+    operation_id: "generateBuildsMultipartUploadURL",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Build multipart upload URL generation params", "application/json",
+       %Schema{
+         title: "BuildMultipartUploadURLGenerationParams",
+         description: "Parameters to generate a signed URL for a build multipart upload part.",
+         type: :object,
+         properties: %{
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
+           },
+           multipart_upload_part: ArtifactMultipartUploadPart
+         },
+         required: [:build_id, :multipart_upload_part]
+       }},
+    responses: %{
+      ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_generate_url(
+        %{
+          assigns: %{selected_project: selected_project},
+          body_params:
+            %{
+              build_id: build_id,
+              multipart_upload_part: %{part_number: part_number, upload_id: multipart_upload_id} = multipart_upload_part
+            }
+        } = conn,
+        _params
+      ) do
+    content_length = Map.get(multipart_upload_part, :content_length)
+    object_key = build_storage_key(selected_project.account.name, selected_project.name, build_id)
+
+    url =
+      Storage.multipart_generate_url(
+        object_key,
+        multipart_upload_id,
+        part_number,
+        selected_project.account,
+        expires_in: 120,
+        content_length: content_length
+      )
+
+    json(conn, %{status: "success", data: %{url: url}})
+  end
+
+  operation(:multipart_complete,
+    summary: "Complete a multipart upload for a build archive.",
+    description:
+      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    operation_id: "completeBuildsMultipartUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Build multipart upload completion params", "application/json",
+       %Schema{
+         title: "BuildMultipartUploadCompletionParams",
+         description: "Parameters to complete a multipart upload for a build.",
+         type: :object,
+         properties: %{
+           build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The build ID."
+           },
+           multipart_upload_parts: ArtifactMultipartUploadParts
+         },
+         required: [:build_id, :multipart_upload_parts]
+       }},
+    responses: %{
+      ok: {"The upload has been completed", "application/json", ArtifactMultipartUploadCompletion},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      not_found: {"The project doesn't exist", "application/json", Error}
+    }
+  )
+
+  def multipart_complete(
+        %{
+          assigns: %{selected_project: selected_project},
+          body_params:
+            %{
+              build_id: build_id,
+              multipart_upload_parts: %ArtifactMultipartUploadParts{parts: parts, upload_id: multipart_upload_id}
+            }
+        } = conn,
+        _params
+      ) do
+    object_key = build_storage_key(selected_project.account.name, selected_project.name, build_id)
+
+    :ok =
+      Storage.multipart_complete_upload(
+        object_key,
+        multipart_upload_id,
+        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+          {part_number, etag}
+        end),
+        selected_project.account
+      )
+
+    json(conn, %{status: "success", data: %{}})
+  end
+
+  defp build_storage_key(account_handle, project_handle, build_id) do
+    "#{account_handle}/#{project_handle}/builds/#{build_id}/build.zip"
   end
 end

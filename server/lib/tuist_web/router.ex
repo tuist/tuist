@@ -409,15 +409,13 @@ defmodule TuistWeb.Router do
           post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
-        post "/uploads", UploadsController, :create
-        post "/uploads/start", UploadsController, :multipart_start
-        post "/uploads/generate-url", UploadsController, :multipart_generate_url
-        post "/uploads/complete", UploadsController, :multipart_complete
-
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
+          post "/upload/start", BuildsController, :multipart_start
+          post "/upload/generate-url", BuildsController, :multipart_generate_url
+          post "/upload/complete", BuildsController, :multipart_complete
         end
 
         scope "/gradle" do
