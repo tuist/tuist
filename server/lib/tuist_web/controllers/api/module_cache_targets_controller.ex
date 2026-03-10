@@ -18,23 +18,7 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
 
   tags ["Runs"]
 
-  @hash_fields [
-    {:sources, :sources_hash},
-    {:resources, :resources_hash},
-    {:copy_files, :copy_files_hash},
-    {:core_data_models, :core_data_models_hash},
-    {:target_scripts, :target_scripts_hash},
-    {:environment, :environment_hash},
-    {:headers, :headers_hash},
-    {:deployment_target, :deployment_target_hash},
-    {:info_plist, :info_plist_hash},
-    {:entitlements, :entitlements_hash},
-    {:dependencies, :dependencies_hash},
-    {:project_settings, :project_settings_hash},
-    {:target_settings, :target_settings_hash},
-    {:buildable_folders, :buildable_folders_hash},
-    {:external, :external_hash}
-  ]
+  @subhash_keys ~w(sources resources copy_files core_data_models target_scripts environment headers deployment_target info_plist entitlements dependencies project_settings target_settings buildable_folders external)a
 
   operation(:index,
     summary: "List module cache targets for a run.",
@@ -189,7 +173,8 @@ defmodule TuistWeb.API.ModuleCacheTargetsController do
   end
 
   defp build_subhashes(target) do
-    Enum.reduce(@hash_fields, %{}, fn {key, field}, acc ->
+    Enum.reduce(@subhash_keys, %{}, fn key, acc ->
+      field = :"#{key}_hash"
       value = Map.get(target, field)
 
       if is_nil(value) or value == "" do

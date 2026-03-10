@@ -36,7 +36,7 @@ public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand
 
     @Option(
         name: .long,
-        help: "Filter by output type."
+        help: "Filter by output type (e.g. swift, object, swiftmodule, dSYM, llvm-bc)."
     )
     var outputType: String?
 
