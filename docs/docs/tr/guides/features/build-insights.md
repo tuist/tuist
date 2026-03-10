@@ -44,7 +44,7 @@ Yerel derleme sürelerini izlemeye başlamak için `tuist inspect build` komutun
 şemanızın eylem sonrasına ekleyerek kullanabilirsiniz:
 
 ![Yapıları incelemek için eylem sonrası]
-(/images/guides/features/insights/inspect-build-scheme-post-action.png)
+(/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
@@ -104,7 +104,7 @@ komutunu çalıştırın.
 :::
 
 ![Yapı içgörüleri içeren gösterge
-tablosu](/images/guides/features/insights/builds-dashboard.png)
+tablosu](/images/guides/features/build-insights/builds-dashboard.png)
 
 ## Testler {#tests}
 
@@ -116,7 +116,7 @@ Testlerinizi izlemeye başlamak için `tuist inspect test` komutunu şemanızın
 sonrası eylemine ekleyerek kullanabilirsiniz:
 
 ![Testlerin incelenmesi için eylem sonrası]
-(/images/guides/features/insights/inspect-test-scheme-post-action.png)
+(/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 Mise](https://mise.jdx.dev/) kullanıyorsanız, senaryonuzun eylem sonrası ortamda
 `tuist` adresini etkinleştirmesi gerekecektir:
@@ -141,12 +141,12 @@ ediliyor. Test içgörülerinize Tuist kontrol panelinden erişebilir ve zaman
 içinde nasıl geliştiklerini görebilirsiniz:
 
 ![Test içgörüleri içeren gösterge
-tablosu](/images/guides/features/insights/tests-dashboard.png)
+tablosu](/images/guides/features/build-insights/tests-dashboard.png)
 
 Genel eğilimlerin yanı sıra, CI'daki hataları veya yavaş testleri ayıklarken
 olduğu gibi, her bir testin derinliklerine de dalabilirsiniz:
 
-![Test detayı](/images/guides/features/insights/test-detail.png)
+![Test detayı](/images/guides/features/build-insights/test-detail.png)
 
 ## Oluşturulmuş projele {#generated-projects}
 

@@ -32,7 +32,7 @@ Tuist Insightsは開発初期段階にある。
 
 ローカルビルド時間の追跡を開始するには、`tuist inspect build` コマンドをスキームのポストアクションに追加することで活用できる：
 
-![ビルド検査の事後処理](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
+![ビルド検査の事後処理](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)。
 
 ::: info
 <!-- -->
@@ -81,7 +81,7 @@ Tuistアカウントにログインしている限り、ローカルのビルド
 <!-- -->
 :::
 
-ビルド・インサイトのダッシュボード](/images/guides/features/insights/builds-dashboard.png)。
+ビルド・インサイトのダッシュボード](/images/guides/features/build-insights/builds-dashboard.png)。
 
 ## テスト {#tests}
 
@@ -89,7 +89,7 @@ Tuistアカウントにログインしている限り、ローカルのビルド
 
 テストの追跡を開始するには、`tuist inspect test` コマンドをスキームのテストのポストアクションに追加することで活用できます：
 
-検査の事後処理](/images/guides/features/insights/inspect-test-scheme-post-action.png)。
+検査の事後処理](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)。
 
 Mise](https://mise.jdx.dev/)を使用している場合、スクリプトはポストアクション環境で`tuist` ：
 ```sh
@@ -107,11 +107,11 @@ postアクションによって継承されないので、Miseの絶対パスを
 
 Tuistアカウントにログインしている限り、テスト実行が追跡されるようになりました。Tuistダッシュボードでテストインサイトにアクセスし、時間の経過とともにどのように変化していくかを見ることができます：
 
-テスト・インサイトのダッシュボード](/images/guides/features/insights/tests-dashboard.png)。
+テスト・インサイトのダッシュボード](/images/guides/features/build-insights/tests-dashboard.png)。
 
 全体的な傾向とは別に、CI上の失敗や遅いテストをデバッグするときなど、個々のテストを深く掘り下げることもできます：
 
-テスト詳細](/images/guides/features/insights/test-detail.png)。
+テスト詳細](/images/guides/features/build-insights/test-detail.png)。
 
 ## 生成されたプロジェクト{#generated-projects}。
 

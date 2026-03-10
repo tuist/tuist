@@ -46,7 +46,7 @@ puede aprovechar el comando `tuist inspect build` añadiéndolo a la post-acció
 de su esquema:
 
 [Post-acción para inspeccionar
-construcciones](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+construcciones](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
@@ -106,7 +106,7 @@ desde la CLI.
 <!-- -->
 :::
 
-(/images/guides/features/insights/builds-dashboard.png)[Panel de control con
+(/images/guides/features/build-insights/builds-dashboard.png)[Panel de control con
 información de construcción]
 
 ## Pruebas {#tests}
@@ -119,7 +119,7 @@ Para iniciar el seguimiento de sus pruebas, puede aprovechar el comando `tuist
 inspect test` añadiéndolo a la post-acción de prueba de su esquema:
 
 [Acción posterior a la inspección de las
-pruebas](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+pruebas](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 En caso de que esté utilizando [Mise](https://mise.jdx.dev/), su script
 necesitará activar `tuist` en el entorno post-acción:
@@ -143,13 +143,13 @@ Ahora puedes hacer un seguimiento de tus pruebas siempre que estés conectado a
 tu cuenta de Tuist. Puedes acceder a los resultados de tus pruebas en el panel
 de Tuist y ver cómo evolucionan con el tiempo:
 
-(/images/guides/features/insights/tests-dashboard.png)[Panel de control con
-información de prueba](/images/guides/features/insights/tests-dashboard.png)
+(/images/guides/features/build-insights/tests-dashboard.png)[Panel de control con
+información de prueba](/images/guides/features/build-insights/tests-dashboard.png)
 
 Aparte de las tendencias generales, también puede profundizar en cada prueba
 individual, como cuando se depuran fallos o pruebas lentas en el CI:
 
-[Detalle de la prueba](/images/guides/features/insights/test-detail.png)
+[Detalle de la prueba](/images/guides/features/build-insights/test-detail.png)
 
 ## Proyectos generados {#generated-projects}
 
