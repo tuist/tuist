@@ -16,7 +16,8 @@ base_watchers = [
   esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
   esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
   esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]},
-  esbuild_noora: {Esbuild, :install_and_run, [:noora_local, ~w(--watch)]}
+  esbuild_noora: {Esbuild, :install_and_run, [:noora_js, ~w(--watch)]},
+  esbuild_noora_css: {Esbuild, :install_and_run, [:noora_css, ~w(--watch)]}
 ]
 
 # Do not include metadata nor timestamps in development logs
@@ -99,8 +100,12 @@ config :esbuild,
     cd: Path.expand("../assets/apidocs", __DIR__),
     env: %{"NODE_PATH" => deps_path}
   ],
-  noora_local: [
+  noora_js: [
     args: ~w(js/index.js --bundle --sourcemap --format=esm --outfile=./priv/static/noora.js),
+    cd: noora_web_path
+  ],
+  noora_css: [
+    args: ~w(css/noora.css --bundle --sourcemap --outfile=./priv/static/noora.css),
     cd: noora_web_path
   ]
 
