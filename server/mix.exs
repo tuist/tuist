@@ -155,8 +155,7 @@ defmodule Tuist.MixProject do
       {:opentelemetry_logger_metadata, "~> 0.1"},
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
-      {:loki_logger_handler, "~> 0.2"},
-      {:tidewave, "~> 0.5", only: :dev}
+      {:loki_logger_handler, "~> 0.2"}
     ]
   end
 

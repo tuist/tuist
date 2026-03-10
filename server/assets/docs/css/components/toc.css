@@ -1,9 +1,5 @@
-[data-part="toc"] {
+#docs-toc {
   display: flex;
-
-  @media (max-width: 1280px) {
-    display: none;
-  }
   position: sticky;
   top: var(--docs-nav-height);
   flex-direction: column;

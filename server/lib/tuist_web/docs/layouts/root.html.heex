@@ -93,7 +93,12 @@
         <.icon name="menu_3" />
         <span>{dgettext("docs", "Menu")}</span>
       </button>
-      <button type="button" data-part="mobile-toc-btn" id="docs-mobile-toc-trigger" phx-hook="DocsMobileToc">
+      <button
+        type="button"
+        data-part="mobile-toc-btn"
+        id="docs-mobile-toc-trigger"
+        phx-click={JS.toggle_attribute({"data-state", "open", "closed"}, to: "#docs-mobile-toc")}
+      >
         <span>{dgettext("docs", "On this page")}</span>
         <.icon name="news" />
       </button>

@@ -18,7 +18,6 @@ defmodule Tuist do
       Marketing.Pages,
       Docs,
       Docs.Page,
-      Docs.Redirects,
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.OpenGraph,

@@ -5,17 +5,28 @@
   data-current-slug={@current_slug}
   data-current-tab={@tab}
 >
-  <div :if={@headings != []} id="docs-mobile-toc" data-part="mobile-toc">
-    <.link_button label={dgettext("docs", "Return to top")} variant="primary" size="small" href="#" />
+  <div :if={@headings != []} id="docs-mobile-toc" data-state="closed" data-part="mobile-toc">
+    <.link_button
+      label={dgettext("docs", "Return to top")}
+      variant="primary"
+      size="small"
+      href="#"
+      phx-click={JS.set_attribute({"data-state", "closed"}, to: "#docs-mobile-toc")}
+    />
     <.line_divider />
-    <a :for={heading <- @headings} href={"##{heading.id}"} data-part="mobile-toc-item" data-level={heading.level}>
+    <a
+      :for={heading <- @headings}
+      href={"##{heading.id}"}
+      data-part="mobile-toc-item"
+      data-level={heading.level}
+      phx-click={JS.set_attribute({"data-state", "closed"}, to: "#docs-mobile-toc")}
+    >
       {heading.text}
     </a>
   </div>
-  <section data-part="layout">
+  <section id="docs-layout">
     <nav
       id="docs-sidebar"
-      data-part="sidebar"
       aria-label="Documentation navigation"
       phx-update="ignore"
     >
@@ -39,7 +50,7 @@
         </div>
       </div>
     </nav>
-    <div data-part="content">
+    <div id="docs-content">
       {render_slot(@inner_block)}
     </div>
     <.toc :if={@headings != []} headings={@headings} />

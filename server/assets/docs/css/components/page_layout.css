@@ -2,20 +2,20 @@
   margin: 0 auto;
   padding: 0 var(--noora-spacing-5);
 
-  & [data-part="layout"] {
+  & #docs-layout {
     display: grid;
     grid-template-columns: 1fr 800px 1fr;
     gap: var(--noora-spacing-5);
   }
 
   @media (max-width: 1280px) {
-    & [data-part="layout"] {
+    & #docs-layout {
       grid-template-columns: 1fr 800px;
     }
   }
 
   @media (max-width: 1024px) {
-    & [data-part="layout"] {
+    & #docs-layout {
       grid-template-columns: 1fr;
       padding: 0 var(--noora-spacing-4);
     }
