@@ -42,12 +42,20 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     if Code.ensure_loaded?(Processor.BuildProcessor) do
       Logger.info("Processing build #{build_id} locally")
 
-      with {:ok, account} <- Accounts.get_account_by_id(account_id),
-           build_bytes when is_binary(build_bytes) <- Storage.get_object_as_string(storage_key, account) do
-        Processor.BuildProcessor.process_build(build_bytes, xcode_cache_upload_enabled)
-      else
-        nil -> {:error, :build_not_found}
-        {:error, _} = error -> error
+      with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+        temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
+
+        try do
+          case Storage.download_to_file(storage_key, temp_path, account) do
+            {:ok, _} ->
+              Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+
+            {:error, _} = error ->
+              error
+          end
+        after
+          File.rm(temp_path)
+        end
       end
     else
       Logger.error(

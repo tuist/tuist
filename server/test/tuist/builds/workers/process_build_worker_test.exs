@@ -108,11 +108,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     end
 
     test "processes locally when processor module is available", %{account: account} do
-      expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        "fake build bytes"
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, path, ^account ->
+        assert String.ends_with?(path, ".zip")
+        {:ok, :done}
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes", true ->
+      expect(Processor.BuildProcessor, :process_build, fn path, true ->
+        assert String.ends_with?(path, ".zip")
         {:ok, parsed_data()}
       end)
 
@@ -129,9 +131,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
     end
 
-    test "marks build as failed when build is not found in S3", %{account: account} do
-      expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        nil
+    test "marks build as failed when download fails", %{account: account} do
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
+        {:error, :not_found}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
@@ -139,16 +141,16 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, %{id: @build_id}}
       end)
 
-      assert {:error, :build_not_found} =
+      assert {:error, :not_found} =
                ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
     end
 
     test "marks build as failed when local processing returns error", %{account: account} do
-      expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        "fake build bytes"
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
+        {:ok, :done}
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn _bytes, _xcode_cache_upload_enabled ->
+      expect(Processor.BuildProcessor, :process_build, fn _path, _xcode_cache_upload_enabled ->
         {:error, {:parse_failed, "NIF not loaded"}}
       end)
 
@@ -183,11 +185,12 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     end
 
     test "treats empty string as unconfigured and processes locally", %{account: account} do
-      expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        "fake build bytes"
+      expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
+        {:ok, :done}
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes", true ->
+      expect(Processor.BuildProcessor, :process_build, fn path, true ->
+        assert String.ends_with?(path, ".zip")
         {:ok, parsed_data()}
       end)
 
