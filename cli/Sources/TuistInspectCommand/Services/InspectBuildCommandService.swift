@@ -306,64 +306,48 @@
                 casOutputs: []
             )
             AlertController.current.success(
-                .alert("Build archive uploaded for processing. View status at \(build.url.absoluteString)")
+                .alert("Build uploaded for processing. View status at \(build.url.absoluteString)")
             )
         }
 
         private func bundleBuildArchive(
             mostRecentActivityLogPath: AbsolutePath
         ) async throws -> Data {
-            let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "build_archive")
-            defer { try? FileManager.default.removeItem(atPath: tempDirectory.pathString) }
+            try await fileSystem.runInTemporaryDirectory(prefix: "build_archive") { tempDirectory in
+                let archiveDirectory = tempDirectory.appending(component: "build_archive")
+                try await fileSystem.makeDirectory(at: archiveDirectory)
 
-            let archiveDirectory = tempDirectory.appending(component: "build_archive")
-            try await fileSystem.makeDirectory(at: archiveDirectory)
+                let xcactivitylogDir = archiveDirectory.appending(component: "xcactivitylog")
+                try await fileSystem.makeDirectory(at: xcactivitylogDir)
+                try await fileSystem.copy(
+                    mostRecentActivityLogPath,
+                    to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
+                )
 
-            let xcactivitylogDir = archiveDirectory.appending(component: "xcactivitylog")
-            try await fileSystem.makeDirectory(at: xcactivitylogDir)
-            try await fileSystem.copy(
-                mostRecentActivityLogPath,
-                to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
-            )
+                let stateDir = Environment.current.stateDirectory
+                let casMetadataDir = archiveDirectory.appending(component: "cas_metadata")
+                try await fileSystem.makeDirectory(at: casMetadataDir)
 
-            let stateDir = Environment.current.stateDirectory
-            let casMetadataDir = archiveDirectory.appending(component: "cas_metadata")
-            try await fileSystem.makeDirectory(at: casMetadataDir)
-
-            for subdirectory in ["nodes", "cas", "keyvalue"] {
-                let sourceDir = stateDir.appending(component: subdirectory)
-                if try await fileSystem.exists(sourceDir) {
-                    let destDir = casMetadataDir.appending(component: subdirectory)
-                    try await fileSystem.copy(sourceDir, to: destDir)
+                for subdirectory in ["nodes", "cas", "keyvalue"] {
+                    let sourceDir = stateDir.appending(component: subdirectory)
+                    if try await fileSystem.exists(sourceDir) {
+                        let destDir = casMetadataDir.appending(component: subdirectory)
+                        try await fileSystem.copy(sourceDir, to: destDir)
+                    }
                 }
-            }
 
-            let manifest = BuildArchiveManifest(
-                cacheUploadEnabled: true,
-                macOSVersion: machineEnvironment.macOSVersion,
-                modelIdentifier: machineEnvironment.modelIdentifier(),
-                xcodeVersion: try await xcodeBuildController.version()?.description
-            )
-            try await fileSystem.writeAsJSON(manifest, at: archiveDirectory.appending(component: "manifest.json"))
+                let manifest = BuildArchiveManifest(
+                    cacheUploadEnabled: true,
+                    macOSVersion: machineEnvironment.macOSVersion,
+                    modelIdentifier: machineEnvironment.modelIdentifier(),
+                    xcodeVersion: try await xcodeBuildController.version()?.description
+                )
+                try await fileSystem.writeAsJSON(manifest, at: archiveDirectory.appending(component: "manifest.json"))
 
-            let archiveURL = URL(fileURLWithPath: archiveDirectory.pathString)
-            let coordinator = NSFileCoordinator()
-            var coordinatorError: NSError?
-            var archiveData: Data?
-            coordinator.coordinate(
-                readingItemAt: archiveURL,
-                options: [.forUploading],
-                error: &coordinatorError
-            ) { zipFileURL in
-                archiveData = try? Data(contentsOf: zipFileURL)
+                let zipPath = tempDirectory.appending(component: "build.zip")
+                try await fileSystem.zipFileOrDirectoryContent(at: archiveDirectory, to: zipPath)
+                return try Data(contentsOf: URL(fileURLWithPath: zipPath.pathString))
             }
-            if let coordinatorError {
-                throw coordinatorError
-            }
-            guard let data = archiveData else {
-                throw InspectBuildCommandServiceError.archiveCreationFailed
-            }
-            return data
         }
 
         private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
