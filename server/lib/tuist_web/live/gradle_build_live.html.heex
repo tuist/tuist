@@ -136,6 +136,12 @@
               <span data-part="label">{String.slice(@build.git_commit_sha, 0, 8)}</span>
             </div>
           </div>
+          <div :if={@build.requested_tasks != []} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Requested tasks")}</div>
+              <span data-part="label">{Enum.join(@build.requested_tasks, " ")}</span>
+            </div>
+          </div>
         </div>
       </.card_section>
     </.card>

@@ -111,6 +111,7 @@ class TuistBuildInsightsTest {
             gitRef = "v1",
             gitRemoteUrlOrigin = "https://github.com/tuist/tuist.git",
             rootProjectName = null,
+            requestedTasks = listOf("assembleRelease", "connectedAndroidTest"),
             tasks = emptyList()
         )
 
@@ -123,6 +124,9 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"git_commit_sha\""))
         assertTrue(json.contains("\"git_ref\""))
         assertTrue(json.contains("\"git_remote_url_origin\""))
+        assertTrue(json.contains("\"requested_tasks\""))
+        assertTrue(json.contains("\"assembleRelease\""))
+        assertTrue(json.contains("\"connectedAndroidTest\""))
     }
 
     @Test
@@ -153,10 +157,12 @@ class TuistBuildInsightsTest {
             taskOutcomes = tasks,
             buildFailed = false,
             totalDurationMs = 5000,
+            requestedTasks = listOf("assembleDebug"),
             ciDetector = TestCIDetector(false),
             gitInfoProvider = TestGitInfoProvider()
         )
 
+        assertEquals(listOf("assembleDebug"), report.requestedTasks)
         assertEquals(2, report.tasks.size)
 
         val first = report.tasks[0]

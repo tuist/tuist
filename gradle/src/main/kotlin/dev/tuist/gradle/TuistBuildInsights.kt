@@ -93,6 +93,7 @@ data class BuildReportRequest(
     @SerializedName("git_ref") val gitRef: String?,
     @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("root_project_name") val rootProjectName: String?,
+    @SerializedName("requested_tasks") val requestedTasks: List<String>,
     val tasks: List<TaskReportEntry>
 )
 
@@ -123,6 +124,7 @@ abstract class TuistBuildInsightsService :
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
     private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val requestedTaskNames: MutableList<String> = mutableListOf()
     private var buildStartTime: Long = System.currentTimeMillis()
     @Volatile private var buildFailed = false
 
@@ -133,6 +135,10 @@ abstract class TuistBuildInsightsService :
 
     fun setCacheableTasks(paths: Set<String>) {
         cacheableTaskPaths.addAll(paths)
+    }
+
+    fun setRequestedTasks(tasks: List<String>) {
+        requestedTaskNames.addAll(tasks)
     }
 
     override fun started(buildOperation: BuildOperationDescriptor, startEvent: OperationStartEvent) {
@@ -325,6 +331,7 @@ abstract class TuistBuildInsightsService :
             totalDurationMs = totalDurationMs,
             gradleVersion = parameters.gradleVersion.orNull,
             rootProjectName = parameters.rootProjectName.orNull,
+            requestedTasks = requestedTaskNames.toList(),
             ciDetector = ciDetector,
             gitInfoProvider = gitInfoProvider
         )
@@ -377,6 +384,7 @@ internal fun buildReport(
     totalDurationMs: Long,
     gradleVersion: String? = null,
     rootProjectName: String? = null,
+    requestedTasks: List<String> = emptyList(),
     ciDetector: CIDetector = EnvironmentCIDetector(),
     gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
 ): BuildReportRequest {
@@ -398,6 +406,7 @@ internal fun buildReport(
         gitRef = gitInfoProvider.ref(),
         gitRemoteUrlOrigin = gitInfoProvider.remoteUrlOrigin(),
         rootProjectName = rootProjectName,
+        requestedTasks = requestedTasks,
         tasks = taskOutcomes.map { task ->
             TaskReportEntry(
                 taskPath = task.taskPath,
@@ -442,8 +451,12 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
                 .map { it.path }
                 .toSet()
 
+            val requestedTasks = project.gradle.startParameter.taskRequests
+                .flatMap { it.args }
+
             val service = serviceProvider.get()
             service.setCacheableTasks(cacheablePaths)
+            service.setRequestedTasks(requestedTasks)
             service.uploadInBackground = config.uploadInBackground
 
             try {

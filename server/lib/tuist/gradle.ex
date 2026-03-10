@@ -62,6 +62,7 @@ defmodule Tuist.Gradle do
       tasks_skipped_count: task_counts.skipped,
       tasks_no_source_count: task_counts.no_source,
       cacheable_tasks_count: task_counts.cacheable,
+      requested_tasks: Map.get(attrs, :requested_tasks, []),
       inserted_at: now
     }
 
@@ -134,8 +135,18 @@ defmodule Tuist.Gradle do
 
   Returns `{builds, meta}` where `meta` contains pagination info.
   """
-  def list_builds(project_id, flop_params \\ %{}) do
+  def list_builds(project_id, flop_params \\ %{}, opts \\ []) do
     base_query = from(b in Build, where: b.project_id == ^project_id)
+
+    base_query =
+      Enum.reduce(Keyword.get(opts, :requested_tasks_filters, []), base_query, fn
+        {:has, value}, q ->
+          from(b in q, where: fragment("has(?, ?)", b.requested_tasks, ^value))
+
+        {:not_has, value}, q ->
+          from(b in q, where: fragment("NOT has(?, ?)", b.requested_tasks, ^value))
+      end)
+
     ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Build)
   end
 

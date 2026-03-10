@@ -57,6 +57,12 @@ defmodule TuistWeb.API.GradleController do
              nullable: true,
              description: "Root project name."
            },
+           requested_tasks: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             nullable: true,
+             description: "The tasks requested by the user (e.g., assembleRelease)."
+           },
            tasks: %Schema{
              type: :array,
              items: %Schema{
@@ -133,6 +139,7 @@ defmodule TuistWeb.API.GradleController do
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
+      requested_tasks: body[:requested_tasks] || [],
       tasks: tasks
     }
 
@@ -202,6 +209,7 @@ defmodule TuistWeb.API.GradleController do
                    is_ci: %Schema{type: :boolean},
                    git_branch: %Schema{type: :string, nullable: true},
                    root_project_name: %Schema{type: :string, nullable: true},
+                   requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
                    tasks_local_hit_count: %Schema{type: :integer},
                    tasks_remote_hit_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
@@ -237,6 +245,7 @@ defmodule TuistWeb.API.GradleController do
             is_ci: build.is_ci,
             git_branch: build.git_branch,
             root_project_name: build.root_project_name,
+            requested_tasks: build.requested_tasks,
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
@@ -288,6 +297,7 @@ defmodule TuistWeb.API.GradleController do
              git_commit_sha: %Schema{type: :string, nullable: true},
              git_ref: %Schema{type: :string, nullable: true},
              root_project_name: %Schema{type: :string, nullable: true},
+             requested_tasks: %Schema{type: :array, items: %Schema{type: :string}},
              tasks_local_hit_count: %Schema{type: :integer},
              tasks_remote_hit_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
@@ -343,6 +353,7 @@ defmodule TuistWeb.API.GradleController do
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
             root_project_name: build.root_project_name,
+            requested_tasks: build.requested_tasks,
             tasks_local_hit_count: build.tasks_local_hit_count,
             tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
