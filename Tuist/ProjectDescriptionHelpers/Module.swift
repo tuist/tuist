@@ -1333,6 +1333,8 @@ public enum Module: String, CaseIterable {
             case .machineMetrics:
                 [
                     .target(name: Module.environment.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "TSCBasic"),
                 ]
             case .shareCommand:
                 [

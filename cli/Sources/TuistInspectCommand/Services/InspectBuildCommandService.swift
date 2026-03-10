@@ -195,7 +195,7 @@
 
             let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
             let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
-            let machineMetrics = machineMetricsReader.readSamples(
+            let machineMetrics = try await machineMetricsReader.readSamples(
                 startDate: buildStartDate,
                 endDate: buildEndDate
             )
