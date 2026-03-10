@@ -825,12 +825,7 @@ defmodule TuistWeb.API.BuildsController do
       |> Map.put(:project, selected_project)
       |> Map.put(:account, account)
 
-    result =
-      if Map.get(body_params, :status) == "processing" do
-        create_processing_build(run_params, selected_project, account)
-      else
-        get_or_create_build(run_params)
-      end
+    result = get_or_create_build(run_params)
 
     case result do
       {:ok, build} ->
@@ -863,56 +858,6 @@ defmodule TuistWeb.API.BuildsController do
     end
   end
 
-  defp create_processing_build(params, selected_project, account) do
-    storage_key = "#{selected_project.account.name}/#{selected_project.name}/builds/#{params.id}/build.zip"
-
-    custom_metadata = Map.get(params, :custom_metadata, %{})
-
-    build_attrs = %{
-      id: params.id,
-      duration: Map.get(params, :duration, 0),
-      macos_version: Map.get(params, :macos_version),
-      xcode_version: Map.get(params, :xcode_version),
-      is_ci: Map.get(params, :is_ci),
-      model_identifier: Map.get(params, :model_identifier),
-      scheme: Map.get(params, :scheme),
-      configuration: Map.get(params, :configuration),
-      project_id: selected_project.id,
-      account_id: account.id,
-      status: "processing",
-      category: Map.get(params, :category),
-      git_branch: Map.get(params, :git_branch),
-      git_commit_sha: Map.get(params, :git_commit_sha),
-      git_ref: Map.get(params, :git_ref),
-      ci_run_id: Map.get(params, :ci_run_id),
-      ci_project_handle: Map.get(params, :ci_project_handle),
-      ci_host: Map.get(params, :ci_host),
-      ci_provider: Map.get(params, :ci_provider),
-      xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
-      storage_key: storage_key,
-      custom_tags: Map.get(custom_metadata, :tags, []),
-      custom_values: Map.get(custom_metadata, :values, %{})
-    }
-
-    case Builds.create_build(build_attrs) do
-      {:ok, build} ->
-        %{
-          build_id: build.id,
-          storage_key: storage_key,
-          account_id: account.id,
-          project_id: selected_project.id,
-          xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
-        }
-        |> Tuist.Builds.Workers.ProcessBuildWorker.new()
-        |> Oban.insert()
-
-        {:ok, build}
-
-      {:error, changeset} ->
-        {:error, changeset}
-    end
-  end
-
   defp get_or_create_build(params) do
     case Builds.get_build(params.id) do
       %Tuist.Builds.Build{} = build ->
@@ -920,10 +865,17 @@ defmodule TuistWeb.API.BuildsController do
 
       nil ->
         custom_metadata = Map.get(params, :custom_metadata, %{})
+        status = Map.get(params, :status, "success")
+        processing? = status == "processing"
+
+        storage_key =
+          if processing?,
+            do: "#{params.project.account.name}/#{params.project.name}/builds/#{params.id}/build.zip",
+            else: nil
 
         build_attrs = %{
           id: params.id,
-          duration: params.duration,
+          duration: Map.get(params, :duration, 0),
           macos_version: Map.get(params, :macos_version),
           xcode_version: Map.get(params, :xcode_version),
           is_ci: Map.get(params, :is_ci),
@@ -932,7 +884,7 @@ defmodule TuistWeb.API.BuildsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: Map.get(params, :status, "success"),
+          status: status,
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
@@ -947,13 +899,30 @@ defmodule TuistWeb.API.BuildsController do
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, []),
           xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
+          storage_key: storage_key,
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{})
         }
 
-        build_attrs
-        |> Builds.create_build()
-        |> handle_build_creation_result(params.id)
+        case Builds.create_build(build_attrs) |> handle_build_creation_result(params.id) do
+          {:ok, build} = result ->
+            if processing? do
+              %{
+                build_id: build.id,
+                storage_key: storage_key,
+                account_id: params.account.id,
+                project_id: params.project.id,
+                xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
+              }
+              |> Tuist.Builds.Workers.ProcessBuildWorker.new()
+              |> Oban.insert()
+            end
+
+            result
+
+          error ->
+            error
+        end
     end
   end
 
