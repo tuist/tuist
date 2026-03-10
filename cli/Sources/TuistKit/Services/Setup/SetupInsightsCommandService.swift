@@ -1,4 +1,5 @@
 import Foundation
+import TuistLaunchctl
 import TuistLogging
 
 struct SetupInsightsCommandService {

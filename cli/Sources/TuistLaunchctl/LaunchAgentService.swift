@@ -2,14 +2,13 @@ import FileSystem
 import Foundation
 import Path
 import TuistEnvironment
-import TuistLaunchctl
 import TuistLogging
 
-enum LaunchAgentServiceError: Equatable, LocalizedError {
+public enum LaunchAgentServiceError: Equatable, LocalizedError {
     case failedToLoadLaunchAgent(String)
     case missingExecutablePath
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .failedToLoadLaunchAgent(error):
             return "Failed to load LaunchAgent: \(error)"
@@ -19,11 +18,11 @@ enum LaunchAgentServiceError: Equatable, LocalizedError {
     }
 }
 
-struct LaunchAgentService {
+public struct LaunchAgentService {
     private let fileSystem: FileSysteming
     private let launchctlController: LaunchctlControlling
 
-    init(
+    public init(
         fileSystem: FileSysteming = FileSystem(),
         launchctlController: LaunchctlControlling = LaunchctlController()
     ) {
@@ -31,7 +30,7 @@ struct LaunchAgentService {
         self.launchctlController = launchctlController
     }
 
-    func setupLaunchAgent(
+    public func setupLaunchAgent(
         label: String,
         plistFileName: String,
         programArguments: [String],
@@ -83,7 +82,7 @@ struct LaunchAgentService {
         Logger.current.debug("LaunchAgent configured and loaded successfully")
     }
 
-    func determineTuistBinaryPath() async throws -> AbsolutePath {
+    private func determineTuistBinaryPath() async throws -> AbsolutePath {
         guard let currentPath = Environment.current.currentExecutablePath() else {
             throw LaunchAgentServiceError.missingExecutablePath
         }

@@ -1037,6 +1037,9 @@ public enum Module: String, CaseIterable {
             case .launchctl:
                 [
                     .external(name: "Command"),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .external(name: "FileSystem"),
                 ]
             case .oidc:
                 [
@@ -1830,6 +1833,7 @@ public enum Module: String, CaseIterable {
             case .launchctl:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .external(name: "Command"),
                 ]
             case .oidc:
