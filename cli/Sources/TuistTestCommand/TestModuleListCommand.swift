@@ -16,7 +16,7 @@ public struct TestModuleListCommand: AsyncParsableCommand, NooraReadyCommand {
     var testRunId: String
 
     @Option(name: [.customLong("project"), .customShort("P")], help: "The full handle of the project. Must be in the format of account-handle/project-handle.")
-    var fullHandle: String?
+    var project: String?
 
     @Option(name: .shortAndLong, help: "The path to the directory or a subdirectory of the project.", completion: .directory)
     var path: String?
@@ -38,7 +38,7 @@ public struct TestModuleListCommand: AsyncParsableCommand, NooraReadyCommand {
     public func run() async throws {
         try await TestModuleListCommandService().run(
             testRunId: testRunId,
-            fullHandle: fullHandle,
+            fullHandle: project,
             path: path,
             status: status,
             page: page,

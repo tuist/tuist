@@ -19,7 +19,7 @@ public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand
         name: [.customLong("project"), .customShort("P")],
         help: "The full handle of the project. Must be in the format of account-handle/project-handle."
     )
-    var fullHandle: String?
+    var project: String?
 
     @Option(
         name: .shortAndLong,
@@ -59,7 +59,7 @@ public struct BuildCASOutputListCommand: AsyncParsableCommand, NooraReadyCommand
 
     public func run() async throws {
         try await BuildCASOutputListCommandService().run(
-            fullHandle: fullHandle,
+            fullHandle: project,
             buildId: buildId,
             path: path,
             operation: operation,
