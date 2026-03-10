@@ -43,13 +43,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
   describe "perform/1 with processor_url configured (HTTP path)" do
     setup do
-      Application.put_env(:tuist, :processor_url, "http://localhost:4002")
-      Application.put_env(:tuist, :processor_webhook_secret, "test-secret")
-
-      on_exit(fn ->
-        Application.delete_env(:tuist, :processor_url)
-        Application.delete_env(:tuist, :processor_webhook_secret)
-      end)
+      stub(Tuist.Environment, :processor_url, fn -> "http://localhost:4002" end)
+      stub(Tuist.Environment, :processor_webhook_secret, fn -> "test-secret" end)
+      :ok
     end
 
     test "sends build to remote processor and writes result to ClickHouse", %{account: account} do
@@ -107,7 +103,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
   describe "perform/1 without processor_url (local processing path)" do
     setup do
-      Application.delete_env(:tuist, :processor_url)
+      stub(Tuist.Environment, :processor_url, fn -> nil end)
+      :ok
     end
 
     test "processes locally when processor module is available", %{account: account} do
@@ -181,8 +178,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
   describe "perform/1 with empty processor_url" do
     setup do
-      Application.put_env(:tuist, :processor_url, "")
-      on_exit(fn -> Application.delete_env(:tuist, :processor_url) end)
+      stub(Tuist.Environment, :processor_url, fn -> "" end)
+      :ok
     end
 
     test "treats empty string as unconfigured and processes locally", %{account: account} do
@@ -208,13 +205,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
   describe "perform/1 replace_build_run" do
     setup do
-      Application.put_env(:tuist, :processor_url, "http://localhost:4002")
-      Application.put_env(:tuist, :processor_webhook_secret, "test-secret")
-
-      on_exit(fn ->
-        Application.delete_env(:tuist, :processor_url)
-        Application.delete_env(:tuist, :processor_webhook_secret)
-      end)
+      stub(Tuist.Environment, :processor_url, fn -> "http://localhost:4002" end)
+      stub(Tuist.Environment, :processor_webhook_secret, fn -> "test-secret" end)
+      :ok
     end
 
     test "sets project_id on parsed data before writing", %{account: account} do

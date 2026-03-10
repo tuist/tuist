@@ -17,7 +17,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
           "project_id" => project_id
         } = args
       }) do
-    processor_url = Application.get_env(:tuist, :processor_url)
+    processor_url = Tuist.Environment.processor_url()
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
 
     result =
@@ -70,7 +70,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     Logger.info("Sending build #{build_id} to processor at #{processor_url}")
 
     json_body = Jason.encode!(payload)
-    webhook_secret = Application.get_env(:tuist, :processor_webhook_secret, "")
+    webhook_secret = Tuist.Environment.processor_webhook_secret() || ""
 
     signature =
       :crypto.mac(:hmac, :sha256, webhook_secret, json_body)
