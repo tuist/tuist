@@ -120,8 +120,6 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `LOKI_URL` | No | | Base URL of a Loki-compatible endpoint for log forwarding. |
 | `DEPLOY_ENV` | No | `production` | Environment label used in traces and log labels (e.g. `production`, `staging`). |
 
-If you add `S3_XCODE_CACHE_BUCKET` to an existing deployment, migrate any Xcode cache artifacts you want to keep serving before enabling it because reads stop consulting `S3_BUCKET` once the dedicated bucket is configured.
-
 ### S3 authentication {#s3-authentication}
 
 The cache service supports multiple methods for authenticating with S3. The method is determined automatically based on which environment variables are set.
