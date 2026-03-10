@@ -5,7 +5,7 @@ import Path
 import TuistEnvironment
 
 public struct MachineMetricsReader {
-    static var metricsFilePath: Path.AbsolutePath {
+    public static var metricsFilePath: Path.AbsolutePath {
         Environment.current.stateDirectory
             .appending(component: "machine_metrics.jsonl")
     }

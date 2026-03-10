@@ -931,7 +931,7 @@ defmodule TuistWeb.API.BuildsController do
             xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false)
           }
           |> Tuist.Builds.Workers.ProcessBuildWorker.new()
-          |> Oban.insert()
+          |> Oban.insert!()
         end
 
         {:ok, build}
