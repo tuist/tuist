@@ -1,5 +1,5 @@
 /* Widen the content area for the overview page */
-#docs-page-layout:has(#docs-overview) [data-part="layout"] {
+#docs-page-layout:has(#docs-overview) #docs-layout {
   grid-template-columns: 1fr 850px 1fr;
 }
 
@@ -132,6 +132,7 @@
     background: #fdfdfd;
     padding: 4px;
     width: 380px;
+    max-width: 100%;
     overflow: hidden;
   }
 
@@ -600,7 +601,7 @@
 
 /* Responsive */
 @media (max-width: 900px) {
-  #docs-page-layout:has(#docs-overview) [data-part="layout"] {
+  #docs-page-layout:has(#docs-overview) #docs-layout {
     grid-template-columns: 1fr;
   }
 

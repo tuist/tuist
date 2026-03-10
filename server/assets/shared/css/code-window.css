@@ -40,6 +40,23 @@
         height: 20px;
       }
 
+      & [data-part="copy-icon"],
+      & [data-part="copy-check-icon"] {
+        display: flex;
+      }
+
+      & [data-part="copy-check-icon"] {
+        display: none;
+      }
+
+      &[data-copied] [data-part="copy-icon"] {
+        display: none;
+      }
+
+      &[data-copied] [data-part="copy-check-icon"] {
+        display: flex;
+      }
+
       &:hover {
         opacity: 0.7;
       }

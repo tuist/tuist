@@ -15,7 +15,7 @@ defmodule TuistWeb.Docs.Components do
     "Integrations" => "asset",
     "Server" => "server",
     "Contributors" => "users",
-    "Examples" => "code",
+    "Examples" => "folder",
     "References" => "file_text"
   }
 

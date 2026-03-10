@@ -5,7 +5,7 @@
   data-current-slug={@current_slug}
   data-current-tab={@tab}
 >
-  <div :if={@headings != []} id="docs-mobile-toc" data-state="closed" data-part="mobile-toc">
+  <div :if={@headings != []} id="docs-mobile-toc" data-state="closed" data-part="mobile-toc" role="navigation" aria-label={dgettext("docs", "Table of contents")}>
     <.link_button
       label={dgettext("docs", "Return to top")}
       variant="primary"
@@ -24,10 +24,10 @@
       {heading.text}
     </a>
   </div>
-  <section id="docs-layout">
+  <div id="docs-layout">
     <nav
       id="docs-sidebar"
-      aria-label="Documentation navigation"
+      aria-label={dgettext("docs", "Documentation navigation")}
       phx-update="ignore"
     >
       <div data-part="sidebar-scroll">
@@ -54,5 +54,5 @@
       {render_slot(@inner_block)}
     </div>
     <.toc :if={@headings != []} headings={@headings} />
-  </section>
+  </div>
 </main>

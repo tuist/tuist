@@ -134,7 +134,9 @@ defmodule Tuist.Docs.Loader do
     end
   end
 
-  @copy_icon ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" /><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" /></svg>)
+  @noora_icons_path Path.join([Mix.Project.deps_path(), "noora", "lib", "noora", "icons"])
+  @copy_icon File.read!(Path.join(@noora_icons_path, "copy.svg")) |> String.trim()
+  @copy_check_icon File.read!(Path.join(@noora_icons_path, "copy-check.svg")) |> String.trim()
   @code_block_regex ~r/<pre[^>]*><code(?:[^>]*class="language-(\w+)")?[^>]*>(.*?)<\/code><\/pre>/s
 
   defp render_markdown(markdown) do
@@ -192,7 +194,9 @@ defmodule Tuist.Docs.Loader do
   end
 
   defp rewrite_image_paths(html) do
-    String.replace(html, ~s(src="/images/), ~s(src="/docs/images/))
+    html
+    |> String.replace(~s(src="/images/), ~s(src="/docs/images/))
+    |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.png"))
   end
 
   @heading_anchor_regex ~r/(<h[2-4]>)(<a href="#[^"]*" aria-hidden="true" class="anchor" id="[^"]*"><\/a>)(.*?)(<\/h[2-4]>)/s
@@ -221,7 +225,7 @@ defmodule Tuist.Docs.Loader do
       ~s(<div class="code-window">) <>
         ~s(<div data-part="bar">) <>
         ~s(<div data-part="language">#{language}</div>) <>
-        ~s(<div data-part="copy">#{@copy_icon}</div>) <>
+        ~s(<div data-part="copy"><span data-part="copy-icon">#{@copy_icon}</span><span data-part="copy-check-icon">#{@copy_check_icon}</span></div>) <>
         ~s(</div>) <>
         ~s(<div data-part="code"><code>#{code}</code>) <>
         ~s(</div>) <>
@@ -364,7 +368,8 @@ defmodule Tuist.Docs.Loader do
 
       copy_button =
         ~s(<button data-part="copy" aria-label="Copy code">) <>
-          ~s(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7m0 2.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" /><path d="M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" /></svg>) <>
+          ~s(<span data-part="copy-icon">#{@copy_icon}</span>) <>
+          ~s(<span data-part="copy-check-icon">#{@copy_check_icon}</span>) <>
           ~s(</button>)
 
       ~s(<div class="code-group">) <>
