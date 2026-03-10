@@ -158,13 +158,13 @@
       display: flex;
       position: fixed;
       top: 0;
-      left: 0;
       bottom: 0;
+      left: 0;
       z-index: 30;
+      border-right: 1px solid var(--noora-content-divider-line);
+      background: var(--noora-surface-background-tertiary);
       width: 280px;
       max-height: 100vh;
-      background: var(--noora-surface-background-tertiary);
-      border-right: 1px solid var(--noora-content-divider-line);
       overflow-y: auto;
     }
   }
@@ -173,10 +173,10 @@
 #docs-mobile-sidebar-overlay {
   display: none;
   position: fixed;
-  inset: 0;
   z-index: 20;
-  background: rgba(46, 51, 56, 0.24);
   backdrop-filter: blur(2.5px);
+  inset: 0;
+  background: rgba(46, 51, 56, 0.24);
 }
 
 body[data-sidebar-open] #docs-mobile-sidebar-overlay {

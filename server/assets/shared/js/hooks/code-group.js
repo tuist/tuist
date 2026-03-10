@@ -6,9 +6,7 @@ function setupCodeGroups(el) {
   groups.forEach((group) => {
     const tabs = Array.from(group.querySelectorAll('[data-part="tab"]'));
     const panels = group.querySelectorAll('[data-part="panel"]');
-    const copyBtn = group.querySelector(
-      '[data-part="header"] > [data-part="copy"]',
-    );
+    const copyBtn = group.querySelector('[data-part="header"] > [data-part="copy"]');
 
     function selectTab(tab) {
       const index = tab.getAttribute("data-index");
@@ -34,10 +32,7 @@ function setupCodeGroups(el) {
     tabs.forEach((tab, i) => {
       tab.setAttribute("role", "tab");
       tab.setAttribute("tabindex", i === 0 ? "0" : "-1");
-      tab.setAttribute(
-        "aria-selected",
-        tab.getAttribute("data-selected") === "true" ? "true" : "false",
-      );
+      tab.setAttribute("aria-selected", tab.getAttribute("data-selected") === "true" ? "true" : "false");
 
       tab.addEventListener("click", () => selectTab(tab));
 
@@ -62,9 +57,7 @@ function setupCodeGroups(el) {
       copyBtn.setAttribute("tabindex", "0");
 
       copyBtn.addEventListener("click", () => {
-        const activePanel = group.querySelector(
-          '[data-part="panel"]:not([data-hidden="true"])',
-        );
+        const activePanel = group.querySelector('[data-part="panel"]:not([data-hidden="true"])');
         if (activePanel) {
           const codeBlock = activePanel.querySelector('[data-part="code"]');
           if (codeBlock) {

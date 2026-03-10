@@ -16,29 +16,21 @@ function selectTab(tabs, selectedTab, codeElement) {
   selectedTab.setAttribute("tabindex", "0");
 
   if (codeElement) {
-    codeElement.textContent =
-      INSTALL_COMMANDS[selectedTab.textContent.trim()] || "";
+    codeElement.textContent = INSTALL_COMMANDS[selectedTab.textContent.trim()] || "";
   }
 }
 
 const DocsInstallTabsHook = {
   mounted() {
-    const tabs = Array.from(
-      this.el.querySelectorAll("[data-part='terminal-tab']"),
-    );
-    const codeElement = this.el.querySelector(
-      "[data-part='terminal-body'] code",
-    );
+    const tabs = Array.from(this.el.querySelectorAll("[data-part='terminal-tab']"));
+    const codeElement = this.el.querySelector("[data-part='terminal-body'] code");
     const copyButton = this.el.querySelector("[data-part='terminal-copy']");
 
     // Set up ARIA roles
     tabs.forEach((tab, index) => {
       tab.setAttribute("role", "tab");
       tab.setAttribute("tabindex", index === 0 ? "0" : "-1");
-      tab.setAttribute(
-        "aria-selected",
-        tab.hasAttribute("data-selected") ? "true" : "false",
-      );
+      tab.setAttribute("aria-selected", tab.hasAttribute("data-selected") ? "true" : "false");
 
       tab.addEventListener("click", () => {
         selectTab(tabs, tab, codeElement);
@@ -61,9 +53,7 @@ const DocsInstallTabsHook = {
 
     if (copyButton && codeElement) {
       copyButton.addEventListener("click", () => {
-        navigator.clipboard
-          .writeText(codeElement.textContent.trim())
-          .then(() => flashCopyCheck(copyButton));
+        navigator.clipboard.writeText(codeElement.textContent.trim()).then(() => flashCopyCheck(copyButton));
       });
     }
   },
