@@ -1,5 +1,6 @@
 #if canImport(TuistLoader)
     import FileSystem
+    import FileSystemTesting
     import Foundation
     import Mockable
     import Testing
@@ -173,44 +174,44 @@
             }
         }
 
-        @Test(.withMockedEnvironment()) func login_when_ci_and_account_token() async throws {
+        @Test(.inTemporaryDirectory, .withMockedEnvironment())
+        func login_when_ci_and_account_token() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             try await withMockedDependencies {
-                try await fileSystem.runInTemporaryDirectory(prefix: "RegistryLoginService") { path in
-                    // Given
-                    given(configLoader)
-                        .loadConfig(path: .any)
-                        .willReturn(.test(fullHandle: "tuist/tuist"))
-                    given(fullHandleService)
-                        .parse(.any)
-                        .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
-                    given(serverEnvironmentService)
-                        .url(configServerURL: .any)
-                        .willReturn(.test())
-                    let mockEnvironment = try #require(Environment.mocked)
-                    mockEnvironment.variables = ["CI": "1"]
-                    let accountJWT = try JWT.make(
-                        expiryDate: Date().addingTimeInterval(+60),
-                        typ: "access",
-                        type: "account"
-                    )
-                    given(serverAuthenticationController)
-                        .authenticationToken(serverURL: .any)
-                        .willReturn(.account(try JWT.parse(accountJWT.token)))
-                    given(swiftPackageManagerController)
-                        .packageRegistryLogin(token: .any, registryURL: .any)
-                        .willReturn()
-                    given(manifestFilesLocator)
-                        .locatePackageManifest(at: .any)
-                        .willReturn(path)
+                // Given
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test(fullHandle: "tuist/tuist"))
+                given(fullHandleService)
+                    .parse(.any)
+                    .willReturn((accountHandle: "tuist", projectHandle: "tuist"))
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(.test())
+                let mockEnvironment = try #require(Environment.mocked)
+                mockEnvironment.variables = ["CI": "1"]
+                let accountJWT = try JWT.make(
+                    expiryDate: Date().addingTimeInterval(+60),
+                    typ: "access",
+                    type: "account"
+                )
+                given(serverAuthenticationController)
+                    .authenticationToken(serverURL: .any)
+                    .willReturn(.account(try JWT.parse(accountJWT.token)))
+                given(swiftPackageManagerController)
+                    .packageRegistryLogin(token: .any, registryURL: .any)
+                    .willReturn()
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willReturn(temporaryDirectory)
 
-                    // When
-                    try await subject.run(path: nil)
+                // When
+                try await subject.run(path: nil)
 
-                    // Then
-                    verify(swiftPackageManagerController)
-                        .packageRegistryLogin(token: .any, registryURL: .any)
-                        .called(1)
-                }
+                // Then
+                verify(swiftPackageManagerController)
+                    .packageRegistryLogin(token: .any, registryURL: .any)
+                    .called(1)
             }
         }
 
