@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-03-09 14:56+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-03-10 20:47+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_builds/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -1007,8 +1006,9 @@ msgstr "标签"
 msgid "Value"
 msgstr "值"
 
+#, fuzzy
 msgid "Machine Metrics"
-msgstr ""
+msgstr "机器指标"
 
 #, fuzzy
 #~ msgid "Archive"
