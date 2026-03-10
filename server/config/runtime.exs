@@ -324,7 +324,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 
 # Oban
 config :tuist, Oban,
-  queues: [default: 10, build_processing: 5],
+  queues: [default: 10],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
