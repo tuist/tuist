@@ -71,7 +71,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     assigns = assign(assigns, :legend_config, legend_config)
 
     ~H"""
-    <.card title={dgettext("dashboard", "Machine Metrics")} icon="chart_arcs" data-part="machine-metrics">
+    <.card title={dgettext("dashboard", "Machine Metrics")} icon="chart_arcs" class="tuist-machine-metrics">
       <.card_section data-part="machine-metrics-charts">
         <div data-part="charts-grid">
           <div>

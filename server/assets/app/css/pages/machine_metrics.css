@@ -1,4 +1,4 @@
-[data-part="machine-metrics"] {
+.tuist-machine-metrics {
   & [data-part="charts-grid"] {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
