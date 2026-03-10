@@ -8,13 +8,13 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
-  alias Tuist.MachineMetrics
   alias Tuist.Projects.Project
   alias Tuist.Repo
 
@@ -185,8 +185,30 @@ defmodule Tuist.Builds do
     IngestRepo.insert_all(CacheableTask, tasks)
   end
 
-  defp create_machine_metrics(build, metrics) do
-    MachineMetrics.create_machine_metrics(metrics, build_run_id: build.id)
+  defp create_machine_metrics(build, metrics) when is_list(metrics) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(metrics, fn metric ->
+        %{
+          build_run_id: build.id,
+          timestamp: metric.timestamp,
+          cpu_usage_percent: metric.cpu_usage_percent,
+          memory_used_bytes: metric.memory_used_bytes,
+          memory_total_bytes: metric.memory_total_bytes,
+          network_bytes_in: metric.network_bytes_in,
+          network_bytes_out: metric.network_bytes_out,
+          disk_bytes_read: metric.disk_bytes_read,
+          disk_bytes_written: metric.disk_bytes_written,
+          inserted_at: now
+        }
+      end)
+
+    unless Enum.empty?(entries) do
+      IngestRepo.insert_all(BuildMachineMetric, entries)
+    end
+
+    :ok
   end
 
   defp create_cas_outputs(build, outputs) do

@@ -13,7 +13,7 @@ defmodule Tuist.Gradle do
   alias Tuist.Gradle.CacheEvent
   alias Tuist.Gradle.Task
   alias Tuist.IngestRepo
-  alias Tuist.MachineMetrics
+  alias Tuist.Builds.BuildMachineMetric
 
   @doc """
   Creates a Gradle build with associated tasks.
@@ -75,7 +75,7 @@ defmodule Tuist.Gradle do
     machine_metrics = Map.get(attrs, :machine_metrics, [])
 
     unless Enum.empty?(machine_metrics) do
-      MachineMetrics.create_machine_metrics(machine_metrics, gradle_build_id: build_id)
+      create_machine_metrics(build_id, machine_metrics, now)
     end
 
     {:ok, build_id}
@@ -96,6 +96,26 @@ defmodule Tuist.Gradle do
         end)
       end
     )
+  end
+
+  defp create_machine_metrics(build_id, metrics, now) do
+    entries =
+      Enum.map(metrics, fn metric ->
+        %{
+          gradle_build_id: build_id,
+          timestamp: metric.timestamp,
+          cpu_usage_percent: metric.cpu_usage_percent,
+          memory_used_bytes: metric.memory_used_bytes,
+          memory_total_bytes: metric.memory_total_bytes,
+          network_bytes_in: metric.network_bytes_in,
+          network_bytes_out: metric.network_bytes_out,
+          disk_bytes_read: metric.disk_bytes_read,
+          disk_bytes_written: metric.disk_bytes_written,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(BuildMachineMetric, entries)
   end
 
   defp create_tasks(build_id, project_id, tasks, now) do
