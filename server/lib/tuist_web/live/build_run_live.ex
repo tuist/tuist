@@ -5,6 +5,7 @@ defmodule TuistWeb.BuildRunLive do
 
   import Phoenix.Component
   import TuistWeb.Components.EmptyTabStateBackground
+  import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
@@ -47,7 +48,7 @@ defmodule TuistWeb.BuildRunLive do
     run =
       run
       |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
-      |> Tuist.ClickHouseRepo.preload([:issues])
+      |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
 
     command_event =
       case CommandEvents.get_command_event_by_build_run_id(run.id) do
@@ -61,6 +62,7 @@ defmodule TuistWeb.BuildRunLive do
 
     cas_metrics = Builds.cas_output_metrics(run.id)
     cacheable_task_latency_metrics = Builds.cacheable_task_latency_metrics(run.id)
+    machine_metrics = run.machine_metrics
 
     test_run =
       case Tests.get_latest_test_by_build_run_id(run.id) do
@@ -75,6 +77,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:test_run, test_run)
       |> assign(:cas_metrics, cas_metrics)
       |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
+      |> assign(:machine_metrics, machine_metrics)
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Run")} · #{slug} · Tuist")
       |> assign(
         :warnings_grouped_by_path,
@@ -537,13 +540,13 @@ defmodule TuistWeb.BuildRunLive do
               label={Enum.count(@issues)}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="small"
+              size="large"
             />
           </div>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
             <.chevron_down />
           </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
             <.chevron_up />
           </.neutral_button>
         </div>

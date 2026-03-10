@@ -48,7 +48,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         title="Insights"
         details="Monitor build performance and project health with actionable metrics that prevent problems before they happen."
         linkText="Stay ahead of issues"
-        link="/guides/features/insights"/>
+        link="/guides/features/build-insights"/>
     <HomeCard
         icon="⚖️"
         title="Bundle size"

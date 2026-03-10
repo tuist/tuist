@@ -421,7 +421,7 @@ tuistInspectCommandDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
     "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
     "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig",
-    "TuistRootDirectoryLocator",
+    "TuistRootDirectoryLocator", "TuistMachineMetrics",
     xcodeGraphDependency,
     commandDependency,
 ])
@@ -855,6 +855,7 @@ var targets: [Target] = [
             "TuistAlert",
             "TuistThreadSafe",
             "TuistUserInputReader",
+            .target(name: "TuistMachineMetrics", condition: .when(platforms: [.macOS])),
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "Crypto", package: "apple.swift-crypto"),
         ],
@@ -1072,6 +1073,16 @@ targets.append(contentsOf: [
         path: "cli/Sources/ProjectDescription",
         exclude: ["AGENTS.md"]
     ),
+    .target(
+        name: "TuistMachineMetrics",
+        dependencies: [
+            fileSystemDependency,
+            swiftToolsSupportDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistMachineMetrics",
+        exclude: ["AGENTS.md"]
+    ),
 ])
 
 // MARK: - macOS-only targets
@@ -1178,6 +1189,7 @@ targets.append(contentsOf: [
             "TuistXCResultService",
             "TuistCI",
             "TuistLaunchctl",
+            "TuistMachineMetrics",
             "ProjectDescription",
             "ProjectAutomation",
             xcodeProjDependency,
@@ -1523,6 +1535,9 @@ targets.append(contentsOf: [
             commandDependency,
             mockableDependency,
             pathDependency,
+            fileSystemDependency,
+            "TuistEnvironment",
+            "TuistLogging",
         ],
         path: "cli/Sources/TuistLaunchctl",
         exclude: ["AGENTS.md"],

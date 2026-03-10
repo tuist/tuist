@@ -91,6 +91,7 @@ defmodule Cache.GradleCacheEventsPipelineTest do
         headers = options[:headers]
         assert {"content-type", "application/json"} in headers
         assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-signature" end)
+        assert Enum.any?(headers, fn {key, _value} -> key == "x-cache-endpoint" end)
 
         {:ok, %{status: 202, body: ""}}
       end)

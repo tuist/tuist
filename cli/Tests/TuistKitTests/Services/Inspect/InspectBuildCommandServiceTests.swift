@@ -10,6 +10,7 @@ import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistGit
 import TuistLoader
+import TuistMachineMetrics
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -90,7 +91,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .any,
                 ciProvider: .any,
                 cacheableTasks: .any,
-                casOutputs: .any
+                casOutputs: .any,
+                machineMetrics: .any
             )
             .willReturn(.test())
 
@@ -127,6 +129,7 @@ struct InspectBuildCommandServiceTests {
         Matcher.register([XCActivityIssue].self)
         Matcher.register([XCActivityBuildFile].self)
         Matcher.register([XCActivityTarget].self)
+        Matcher.register([MachineMetricSample].self)
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
@@ -235,7 +238,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .value("github.com"),
                 ciProvider: .value(.github),
                 cacheableTasks: .value([]),
-                casOutputs: .value([])
+                casOutputs: .value([]),
+                machineMetrics: .any
             )
             .called(1)
     }
@@ -320,7 +324,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .any,
                 ciProvider: .any,
                 cacheableTasks: .any,
-                casOutputs: .any
+                casOutputs: .any,
+                machineMetrics: .any
             )
             .called(1)
     }
@@ -624,7 +629,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .any,
                 ciProvider: .any,
                 cacheableTasks: .any,
-                casOutputs: .any
+                casOutputs: .any,
+                machineMetrics: .any
             )
             .called(1)
     }
@@ -703,7 +709,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .any,
                 ciProvider: .any,
                 cacheableTasks: .any,
-                casOutputs: .any
+                casOutputs: .any,
+                machineMetrics: .any
             )
             .called(1)
     }
@@ -781,7 +788,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .any,
                 ciProvider: .any,
                 cacheableTasks: .any,
-                casOutputs: .any
+                casOutputs: .any,
+                machineMetrics: .any
             )
             .called(1)
     }
@@ -856,7 +864,8 @@ struct InspectBuildCommandServiceTests {
                 ciHost: .any,
                 ciProvider: .any,
                 cacheableTasks: .any,
-                casOutputs: .any
+                casOutputs: .any,
+                machineMetrics: .any
             )
             .called(1)
     }

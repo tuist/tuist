@@ -244,12 +244,14 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 )
             }
 
-        let totalProjectTargetCount = totalTargetCountFromDependencyGraph(activityLog)
+        let mainBuildStartTimestamp = Date(
+            timeIntervalSinceReferenceDate: activityLog.mainSection.timeStartedRecording
+        ).timeIntervalSince1970
 
         let category = buildCategory(
             steps: steps,
             targets: targets,
-            totalProjectTargetCount: totalProjectTargetCount
+            mainBuildStartTimestamp: mainBuildStartTimestamp
         )
         let rootDirectory = try await rootDirectory()
 
@@ -419,25 +421,19 @@ public struct XCActivityLogController: XCActivityLogControlling {
     private func buildCategory(
         steps: [BuildStep],
         targets: [TargetWithStep],
-        totalProjectTargetCount: Int
+        mainBuildStartTimestamp: Double
     ) -> XCActivityBuildCategory {
-        // When Xcode's compilation cache (CAS) is active (Xcode 26+), traditional compilation
-        // steps don't appear in the log, making the per-step fetchedFromCache heuristic unreliable.
-        // Instead, we look at CAS step types: "query key" steps indicate active compilation while
-        // "materialize key" steps indicate cache retrieval. A build with zero query key steps is
-        // fully served from cache and therefore incremental.
         let hasCompilationCache = steps.contains { step in
             step.title.contains("Swift caching") || step.title.contains("Clang caching")
         }
         if hasCompilationCache {
-            let queryKeyCount = steps.filter { $0.title.contains("caching query key") }.count
-            if queryKeyCount == 0 {
-                return .incremental
+            // In an incremental build, unchanged targets retain their timestamps from the
+            // previous build session, so their startTimestamp is before the current build's
+            // start time. In a clean build, all targets start within the current session.
+            let hasStaleTargets = targets.contains { target in
+                target.step.startTimestamp < mainBuildStartTimestamp
             }
-            if totalProjectTargetCount > targets.count {
-                return .incremental
-            }
-            return .clean
+            return hasStaleTargets ? .incremental : .clean
         }
 
         let detailSteps = steps.filter {
@@ -538,46 +534,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
 
         return targetIdentifiers
-    }
-
-    /// Extracts the total number of unique targets in the project from the xcactivitylog's
-    /// "Compute target dependency graph" section.
-    ///
-    /// This is needed because when Xcode's compilation cache is active (Xcode 26+), the log
-    /// only contains build steps for targets that had actual work to do. Fully cached targets
-    /// are completely absent. The dependency graph section, however, always lists every target
-    /// in the project regardless of whether it was rebuilt, giving us the true total count.
-    private func totalTargetCountFromDependencyGraph(_ activityLog: IDEActivityLog) -> Int {
-        var targetNames = Set<String>()
-        collectDependencyGraphTargets(from: activityLog.mainSection, into: &targetNames)
-        return targetNames.count
-    }
-
-    private func collectDependencyGraphTargets(
-        from section: IDEActivityLogSection,
-        into targetNames: inout Set<String>
-    ) {
-        targetNamesFromDependencyGraph(from: section.text, into: &targetNames)
-
-        for message in section.messages {
-            targetNamesFromDependencyGraph(from: message.title, into: &targetNames)
-        }
-
-        for subSection in section.subSections {
-            collectDependencyGraphTargets(from: subSection, into: &targetNames)
-        }
-    }
-
-    // swiftlint:disable:next force_try
-    private static let dependencyGraphTargetRegex = try! Regex(#"Target '(?<name>[^']+)' in project"#)
-
-    private func targetNamesFromDependencyGraph(from text: String, into targetNames: inout Set<String>) {
-        guard text.contains("Target dependency graph") else { return }
-        for match in text.matches(of: Self.dependencyGraphTargetRegex) {
-            if let name = match["name"]?.substring {
-                targetNames.insert(String(name))
-            }
-        }
     }
 
     private func path(of step: BuildStep, rootDirectory: AbsolutePath?) async throws -> RelativePath? {

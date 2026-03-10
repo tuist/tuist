@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetTestCase do
   @moduledoc """
-  Get detailed information about a test case including reliability and flakiness metrics.
+  Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -14,12 +14,12 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   @authorization_category :test
 
   schema do
-    field :test_case_id, :string, description: "The UUID of the test case. Required when not using identifier lookup."
+    field :test_case_id, :string, description: "The ID of the test case. Required when not using identifier lookup."
 
     field :account_handle, :string,
-      description: "The account handle (organization or user). Required when looking up by identifier."
+      description: "The account handle (organization or user). Required for identifier lookup."
 
-    field :project_handle, :string, description: "The project handle. Required when looking up by identifier."
+    field :project_handle, :string, description: "The project handle. Required for identifier lookup."
 
     field :identifier, :string,
       description:
@@ -46,17 +46,14 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
     end
   end
 
-  def execute(%{account_handle: account_handle, project_handle: project_handle, identifier: identifier}, frame)
-      when is_binary(account_handle) and is_binary(project_handle) and is_binary(identifier) do
+  def execute(%{identifier: identifier} = arguments, frame) when is_binary(identifier) do
     with {:ok, {module_name, suite_name, name}} <- parse_identifier(identifier, frame),
          {:ok, project} <-
-           ToolSupport.load_and_authorize_project_by_handle(
-             account_handle,
-             project_handle,
+           ToolSupport.resolve_and_authorize_project(
+             arguments,
              frame,
              @authorization_action,
-             @authorization_category,
-             "You do not have access to project: #{account_handle}/#{project_handle}"
+             @authorization_category
            ),
          {:ok, test_case} <- find_test_case_by_name(project.id, module_name, suite_name, name, frame) do
       reply_with_test_case(test_case, frame)
@@ -65,7 +62,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
 
   def execute(_arguments, frame) do
     ToolSupport.invalid_params(
-      "Provide either test_case_id or identifier with account_handle and project_handle.",
+      "Provide either test_case_id, or identifier with account_handle and project_handle.",
       frame
     )
   end

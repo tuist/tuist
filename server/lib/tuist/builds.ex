@@ -8,6 +8,7 @@ defmodule Tuist.Builds do
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
+  alias Tuist.Builds.BuildMachineMetric
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
@@ -28,6 +29,7 @@ defmodule Tuist.Builds do
   def create_build(attrs) do
     cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
     cas_outputs = Map.get(attrs, :cas_outputs, [])
+    machine_metrics = Map.get(attrs, :machine_metrics, [])
 
     cacheable_task_counts = %{
       cacheable_tasks_count: Map.get(attrs, :cacheable_tasks_count) || length(cacheable_tasks),
@@ -62,7 +64,8 @@ defmodule Tuist.Builds do
           Task.async(fn -> create_build_files(build_map, Map.get(attrs, :files, [])) end),
           Task.async(fn -> create_build_targets(build_map, Map.get(attrs, :targets, [])) end),
           Task.async(fn -> create_cacheable_tasks(build_map, cacheable_tasks) end),
-          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end)
+          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end),
+          Task.async(fn -> create_machine_metrics(build_map, machine_metrics) end)
         ],
         30_000
       )
@@ -182,6 +185,30 @@ defmodule Tuist.Builds do
     IngestRepo.insert_all(CacheableTask, tasks)
   end
 
+  defp create_machine_metrics(build, metrics) when is_list(metrics) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(metrics, fn metric ->
+        %{
+          build_run_id: build.id,
+          timestamp: metric.timestamp,
+          cpu_usage_percent: metric.cpu_usage_percent,
+          memory_used_bytes: metric.memory_used_bytes,
+          memory_total_bytes: metric.memory_total_bytes,
+          network_bytes_in: metric.network_bytes_in,
+          network_bytes_out: metric.network_bytes_out,
+          disk_bytes_read: metric.disk_bytes_read,
+          disk_bytes_written: metric.disk_bytes_written,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(BuildMachineMetric, entries)
+
+    :ok
+  end
+
   defp create_cas_outputs(build, outputs) do
     outputs =
       outputs
@@ -202,6 +229,10 @@ defmodule Tuist.Builds do
       end)
 
     IngestRepo.insert_all(CASOutput, outputs)
+  end
+
+  def list_build_issues(build_run_id) do
+    ClickHouseRepo.all(from(i in BuildIssue, where: i.build_run_id == ^build_run_id))
   end
 
   def list_build_files(attrs) do
