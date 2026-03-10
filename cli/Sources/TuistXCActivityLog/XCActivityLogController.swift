@@ -204,7 +204,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let casMetadataPath = Environment.current.stateDirectory
         let rootDirectory = try await rootDirectory()
 
-        let parsed: ParsedBuildData
+        let parsed: BuildData
         do {
             parsed = try await XCActivityLogParser().parse(
                 xcactivitylogURL: path.url,

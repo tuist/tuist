@@ -16,7 +16,7 @@ public func parseXCActivityLog(
 
     // nonisolated(unsafe) is needed because the Swift 6 concurrency checker doesn't understand
     // that the DispatchSemaphore guarantees sequential access (write before signal, read after wait).
-    nonisolated(unsafe) var result: Result<ParsedBuildData, Error>!
+    nonisolated(unsafe) var result: Result<BuildData, Error>!
     let semaphore = DispatchSemaphore(value: 0)
 
     Task { @Sendable in

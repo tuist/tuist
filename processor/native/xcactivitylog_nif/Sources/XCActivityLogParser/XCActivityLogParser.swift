@@ -10,7 +10,7 @@ public struct XCActivityLogParser: Sendable {
         xcactivitylogURL: URL,
         casMetadataPath: AbsolutePath,
         cacheUploadEnabled: Bool
-    ) async throws -> ParsedBuildData {
+    ) async throws -> BuildData {
         let activityLog = try ActivityParser().parseActivityLogInURL(
             xcactivitylogURL,
             redacted: false,
@@ -31,10 +31,10 @@ public struct XCActivityLogParser: Sendable {
             (step.errors ?? []).filter { $0.severity == 2 }.count + acc
         }
 
-        let targets = targetSteps.map { step -> ParsedTarget in
+        let targets = targetSteps.map { step -> Target in
             let subSteps = flattenBuildSteps([step])
             let hasErrors = subSteps.contains { ($0.errors ?? []).contains { $0.severity == 2 } }
-            return ParsedTarget(
+            return Target(
                 name: step.title.replacingOccurrences(of: "Build target ", with: ""),
                 project: extractProject(from: subSteps.first { extractProject(from: [$0]).first?.project != "" }
                     .map { [$0] } ?? []).first?.project ?? "",
@@ -62,7 +62,7 @@ public struct XCActivityLogParser: Sendable {
         let duration = Int(activityLog.mainSection.timeStoppedRecording * 1000)
             - Int(activityLog.mainSection.timeStartedRecording * 1000)
 
-        return ParsedBuildData(
+        return BuildData(
             unique_identifier: activityLog.mainSection.uniqueIdentifier,
             version: activityLog.version,
             time_started_recording: activityLog.mainSection.timeStartedRecording,
@@ -195,9 +195,9 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Issues
 
-    private func extractIssues(from steps: [BuildStep]) -> [ParsedIssue] {
+    private func extractIssues(from steps: [BuildStep]) -> [Issue] {
         var seen = Set<String>()
-        var result = [ParsedIssue]()
+        var result = [Issue]()
         for step in steps {
             let errors = step.errors ?? []
             let warnings = step.warnings ?? []
@@ -219,7 +219,7 @@ public struct XCActivityLogParser: Sendable {
                     return doc.isEmpty ? nil : doc
                 }()
 
-                result.append(ParsedIssue(
+                result.append(Issue(
                     type: issueType,
                     target: extractTargetFromSignature(step.signature),
                     project: extractProjectFromSignature(step.signature),
@@ -240,8 +240,8 @@ public struct XCActivityLogParser: Sendable {
 
     // MARK: - Files
 
-    private func extractFiles(from steps: [BuildStep]) -> [ParsedFile] {
-        steps.compactMap { step -> ParsedFile? in
+    private func extractFiles(from steps: [BuildStep]) -> [File] {
+        steps.compactMap { step -> File? in
             guard step.type == .detail else { return nil }
             let fileType: String
             switch step.detailStepType {
@@ -256,7 +256,7 @@ public struct XCActivityLogParser: Sendable {
             let doc = step.documentURL.replacingOccurrences(of: "file://", with: "")
             guard !doc.isEmpty else { return nil }
 
-            return ParsedFile(
+            return File(
                 type: fileType,
                 target: extractTargetFromSignature(step.signature),
                 project: extractProjectFromSignature(step.signature),
@@ -271,7 +271,7 @@ public struct XCActivityLogParser: Sendable {
     private func analyzeCacheableTasks(
         buildSteps: [BuildStep],
         casReader: CASMetadataReader
-    ) async -> [ParsedCacheableTask] {
+    ) async -> [CacheableTask] {
         var keyStatuses = [String: (taskType: String, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool, isMiss: Bool)]()
         var keyDescriptions = [String: String]()
         var keyNodeIDs = [String: Set<String>]()
@@ -320,7 +320,7 @@ public struct XCActivityLogParser: Sendable {
         let descriptions = keyDescriptions
         let nodeIDs = keyNodeIDs
 
-        return await withTaskGroup(of: ParsedCacheableTask.self, returning: [ParsedCacheableTask].self) { group in
+        return await withTaskGroup(of: CacheableTask.self, returning: [CacheableTask].self) { group in
             for (key, status) in keyStatuses {
                 let description = descriptions[key]
                 let casOutputNodeIDs = Array(nodeIDs[key] ?? [])
@@ -344,7 +344,7 @@ public struct XCActivityLogParser: Sendable {
                         writeDuration = nil
                     }
 
-                    return ParsedCacheableTask(
+                    return CacheableTask(
                         type: status.taskType,
                         status: cacheStatus,
                         key: key,
@@ -356,7 +356,7 @@ public struct XCActivityLogParser: Sendable {
                 }
             }
 
-            var results = [ParsedCacheableTask]()
+            var results = [CacheableTask]()
             for await task in group {
                 results.append(task)
             }
@@ -370,7 +370,7 @@ public struct XCActivityLogParser: Sendable {
         from buildSteps: [BuildStep],
         casReader: CASMetadataReader,
         cacheUploadEnabled: Bool
-    ) async -> [ParsedCASOutput] {
+    ) async -> [CASOutput] {
         var downloads = [(nodeID: String, type: String)]()
         var uploads = [(nodeID: String, type: String)]()
 
@@ -410,7 +410,7 @@ public struct XCActivityLogParser: Sendable {
             }
         }
 
-        return await withTaskGroup(of: ParsedCASOutput?.self, returning: [ParsedCASOutput].self) { group in
+        return await withTaskGroup(of: CASOutput?.self, returning: [CASOutput].self) { group in
             for meta in uniqueDownloads {
                 group.addTask {
                     await createCASOutput(nodeID: meta.nodeID, type: meta.type, operation: "download", casReader: casReader)
@@ -422,7 +422,7 @@ public struct XCActivityLogParser: Sendable {
                 }
             }
 
-            var results = [ParsedCASOutput]()
+            var results = [CASOutput]()
             for await output in group {
                 if let output { results.append(output) }
             }
@@ -435,11 +435,11 @@ public struct XCActivityLogParser: Sendable {
         type: String,
         operation: String,
         casReader: CASMetadataReader
-    ) async -> ParsedCASOutput? {
+    ) async -> CASOutput? {
         guard let checksum = await casReader.readChecksum(nodeID: nodeID),
               let metadata = await casReader.readOutputMetadata(checksum: checksum)
         else { return nil }
-        return ParsedCASOutput(
+        return CASOutput(
             node_id: nodeID,
             checksum: checksum,
             size: metadata.size,
