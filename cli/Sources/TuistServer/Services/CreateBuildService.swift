@@ -177,7 +177,7 @@ import TuistHTTP
                             is_ci: isCI,
                             issues: issues
                                 .map(Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload.init),
-                            machine_metrics: machineMetrics.isEmpty ? nil : machineMetrics
+                            machine_metrics: machineMetrics
                                 .map(Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload.init),
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
