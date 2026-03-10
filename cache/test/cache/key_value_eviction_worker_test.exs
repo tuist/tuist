@@ -418,7 +418,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
           {:ok, %{rows: [[4096]]}}
 
         query == "PRAGMA wal_checkpoint(PASSIVE)" ->
-          raise %Exqlite.Error{message: "database is locked"}
+          {:error, %Exqlite.Error{message: "database is locked"}}
       end
     end)
 
@@ -500,7 +500,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     stub(KeyValueRepo, :query, fn query ->
       cond do
         String.starts_with?(query, "PRAGMA busy_timeout =") -> {:ok, %{rows: []}}
-        query == "PRAGMA page_count" -> raise %Exqlite.Error{message: "database is locked"}
+        query == "PRAGMA page_count" -> {:error, %Exqlite.Error{message: "database is locked"}}
       end
     end)
 

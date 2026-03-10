@@ -216,19 +216,26 @@ defmodule Cache.KeyValueEvictionWorker do
 
   defp run_size_maintenance_pass(deadline_ms) do
     with_db_budget(deadline_ms, fn ->
-      query!("PRAGMA wal_checkpoint(PASSIVE)")
-      query!("PRAGMA incremental_vacuum(1000)")
-      :ok
+      with {:ok, _} <- kv_query("PRAGMA wal_checkpoint(PASSIVE)"),
+           {:ok, _} <- kv_query("PRAGMA incremental_vacuum(1000)") do
+        :ok
+      end
     end)
   end
 
   defp fetch_size_state(deadline_ms) do
     with_db_budget(deadline_ms, fn ->
-      {:ok,
-       %{
-         in_use_plus_wal_bytes: in_use_plus_wal_bytes(),
-         allocated_plus_wal_bytes: allocated_plus_wal_bytes()
-       }}
+      with {:ok, page_count} <- kv_pragma_value("PRAGMA page_count"),
+           {:ok, freelist_count} <- kv_pragma_value("PRAGMA freelist_count"),
+           {:ok, page_size} <- kv_pragma_value("PRAGMA page_size") do
+        wal_size = SQLiteHelpers.wal_file_size(db_path())
+
+        {:ok,
+         %{
+           in_use_plus_wal_bytes: max(page_count - freelist_count, 0) * page_size + wal_size,
+           allocated_plus_wal_bytes: SQLiteHelpers.file_size(db_path()) + wal_size
+         }}
+      end
     end)
   end
 
@@ -238,15 +245,9 @@ defmodule Cache.KeyValueEvictionWorker do
     else
       KeyValueRepo.checkout(fn ->
         try do
-          SQLiteHelpers.set_busy_timeout!(KeyValueRepo, remaining_time(deadline_ms))
-          fun.()
-        rescue
-          error ->
-            if busy_error?(error) do
-              {:error, :busy}
-            else
-              reraise error, __STACKTRACE__
-            end
+          with :ok <- set_maintenance_busy_timeout() do
+            fun.()
+          end
         after
           SQLiteHelpers.restore_busy_timeout!(KeyValueRepo)
         end
@@ -254,31 +255,25 @@ defmodule Cache.KeyValueEvictionWorker do
     end
   end
 
-  defp in_use_plus_wal_bytes do
-    page_count = pragma_value!("PRAGMA page_count")
-    freelist_count = pragma_value!("PRAGMA freelist_count")
-    page_size = pragma_value!("PRAGMA page_size")
-    wal_size = SQLiteHelpers.wal_file_size(db_path())
+  defp set_maintenance_busy_timeout do
+    timeout = Config.key_value_maintenance_busy_timeout_ms()
 
-    max(page_count - freelist_count, 0) * page_size + wal_size
+    case KeyValueRepo.query("PRAGMA busy_timeout = #{max(timeout, 0)}") do
+      {:ok, _} -> :ok
+      {:error, _error} -> {:error, :busy}
+    end
   end
 
-  defp allocated_plus_wal_bytes do
-    path = db_path()
-    db_size = SQLiteHelpers.file_size(path)
-    wal_size = SQLiteHelpers.wal_file_size(path)
-    db_size + wal_size
+  defp kv_pragma_value(query) do
+    with {:ok, %{rows: [[value]]}} <- kv_query(query) do
+      {:ok, value}
+    end
   end
 
-  defp pragma_value!(query) do
-    %{rows: [[value]]} = query!(query)
-    value
-  end
-
-  defp query!(query) do
+  defp kv_query(query) do
     case KeyValueRepo.query(query) do
-      {:ok, result} -> result
-      {:error, error} -> raise error
+      {:ok, result} -> {:ok, result}
+      {:error, _error} -> {:error, :busy}
     end
   end
 
@@ -322,8 +317,6 @@ defmodule Cache.KeyValueEvictionWorker do
       %{trigger: trigger, status: status}
     )
   end
-
-  defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
 
   defp to_grouped_hash_sets(grouped_hashes) do
     Map.new(grouped_hashes, fn {scope, hashes} ->

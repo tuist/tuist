@@ -5,6 +5,7 @@ defmodule Cache.KeyValueEntries do
 
   import Ecto.Query
 
+  alias Cache.Config
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
   alias Cache.KeyValueRepo
@@ -30,9 +31,7 @@ defmodule Cache.KeyValueEntries do
     batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
 
-    with_repo_busy_timeout(fn ->
-      delete_expired_batches(cutoff, batch_size, deadline_ms)
-    end)
+    delete_expired_batches(cutoff, batch_size, deadline_ms)
   end
 
   @doc """
@@ -51,35 +50,31 @@ defmodule Cache.KeyValueEntries do
     batch_size = Keyword.get(opts, :batch_size, @default_batch_size)
     max_duration_ms = Keyword.get(opts, :max_duration_ms, @default_max_duration_ms)
     deadline_ms = System.monotonic_time(:millisecond) + max(max_duration_ms, 0)
+    timeout = Config.key_value_maintenance_busy_timeout_ms()
 
-    with_repo_busy_timeout(fn ->
-      try do
-        if time_limit_reached?(deadline_ms) do
-          {%{}, 0, :time_limit_reached}
-        else
-          set_remaining_busy_timeout!(deadline_ms)
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
+      if time_limit_reached?(deadline_ms) do
+        {%{}, 0, :time_limit_reached}
+      else
+        case candidate_batch(cutoff, batch_size, nil) do
+          [] ->
+            {%{}, 0, :complete}
 
-          case candidate_batch(cutoff, batch_size, nil) do
-            [] ->
-              {%{}, 0, :complete}
-
-            batch ->
-              ids_to_delete = Enum.map(batch, &elem(&1, 0))
-              set_remaining_busy_timeout!(deadline_ms)
-              {hash_sets, count, status} = delete_expired_entries(ids_to_delete, cutoff)
-              :timer.sleep(@batch_sleep_ms)
-              {to_sorted_hash_lists(hash_sets), count, status}
-          end
+          batch ->
+            ids_to_delete = Enum.map(batch, &elem(&1, 0))
+            {hash_sets, count, status} = delete_expired_entries(ids_to_delete, cutoff)
+            :timer.sleep(@batch_sleep_ms)
+            {to_sorted_hash_lists(hash_sets), count, status}
         end
-      rescue
-        error ->
-          if busy_error?(error) do
-            {%{}, 0, :busy}
-          else
-            reraise error, __STACKTRACE__
-          end
       end
     end)
+  rescue
+    error ->
+      if busy_error?(error) do
+        {%{}, 0, :busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   @doc """
@@ -148,50 +143,58 @@ defmodule Cache.KeyValueEntries do
     if time_limit_reached?(deadline_ms) do
       {to_sorted_hash_lists(hash_sets_acc), count_acc, :time_limit_reached}
     else
-      try do
-        set_remaining_busy_timeout!(deadline_ms)
+      case execute_expired_batch(cutoff, batch_size, cursor) do
+        {:empty} ->
+          {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
 
-        case candidate_batch(cutoff, batch_size, cursor) do
-          [] ->
-            {to_sorted_hash_lists(hash_sets_acc), count_acc, :complete}
+        {:ok, batch_hash_sets, batch_deleted_count, new_cursor} ->
+          merged_hash_sets = merge_grouped_hash_sets(hash_sets_acc, batch_hash_sets)
+          total_count = count_acc + batch_deleted_count
 
-          batch ->
-            ids_to_delete = Enum.map(batch, &elem(&1, 0))
+          :timer.sleep(@batch_sleep_ms)
 
-            set_remaining_busy_timeout!(deadline_ms)
+          do_delete_expired_batches(
+            cutoff,
+            batch_size,
+            deadline_ms,
+            new_cursor,
+            merged_hash_sets,
+            total_count
+          )
 
-            {batch_hash_sets, batch_deleted_count, batch_status} =
-              delete_expired_entries(ids_to_delete, cutoff)
-
-            merged_hash_sets = merge_grouped_hash_sets(hash_sets_acc, batch_hash_sets)
-            total_count = count_acc + batch_deleted_count
-
-            case batch_status do
-              :busy ->
-                {to_sorted_hash_lists(merged_hash_sets), total_count, :busy}
-
-              :complete ->
-                :timer.sleep(@batch_sleep_ms)
-
-                do_delete_expired_batches(
-                  cutoff,
-                  batch_size,
-                  deadline_ms,
-                  batch_cursor(batch),
-                  merged_hash_sets,
-                  total_count
-                )
-            end
-        end
-      rescue
-        error ->
-          if busy_error?(error) do
-            {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
-          else
-            reraise error, __STACKTRACE__
-          end
+        {:busy} ->
+          {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
       end
     end
+  end
+
+  defp execute_expired_batch(cutoff, batch_size, cursor) do
+    timeout = Config.key_value_maintenance_busy_timeout_ms()
+
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
+      case candidate_batch(cutoff, batch_size, cursor) do
+        [] ->
+          {:empty}
+
+        batch ->
+          ids_to_delete = Enum.map(batch, &elem(&1, 0))
+
+          {batch_hash_sets, batch_deleted_count, batch_status} =
+            delete_expired_entries(ids_to_delete, cutoff)
+
+          case batch_status do
+            :busy -> {:busy}
+            :complete -> {:ok, batch_hash_sets, batch_deleted_count, batch_cursor(batch)}
+          end
+      end
+    end)
+  rescue
+    error ->
+      if busy_error?(error) do
+        {:busy}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   # Queries candidates for eviction, handling NULL last_accessed_at entries
@@ -326,22 +329,6 @@ defmodule Cache.KeyValueEntries do
 
     {grouped_hash_sets, deleted_count}
   end
-
-  defp with_repo_busy_timeout(fun) do
-    KeyValueRepo.checkout(fn ->
-      try do
-        fun.()
-      after
-        SQLiteHelpers.restore_busy_timeout!(KeyValueRepo)
-      end
-    end)
-  end
-
-  defp set_remaining_busy_timeout!(deadline_ms) do
-    SQLiteHelpers.set_busy_timeout!(KeyValueRepo, remaining_time(deadline_ms))
-  end
-
-  defp remaining_time(deadline_ms), do: SQLiteHelpers.remaining_time(deadline_ms)
 
   defp busy_error?(error), do: SQLiteHelpers.busy_error?(error)
 

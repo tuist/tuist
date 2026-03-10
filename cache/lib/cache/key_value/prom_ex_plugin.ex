@@ -196,11 +196,13 @@ defmodule Cache.KeyValue.PromExPlugin do
   end
 
   defp fetch_pragma_metrics do
-    with {:ok, page_count} <- fetch_pragma_value("PRAGMA page_count"),
-         {:ok, freelist_pages} <- fetch_pragma_value("PRAGMA freelist_count"),
-         {:ok, page_size} <- fetch_pragma_value("PRAGMA page_size") do
-      {:ok, %{page_count: page_count, freelist_pages: freelist_pages, page_size: page_size}}
-    end
+    SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, 0, fn ->
+      with {:ok, page_count} <- fetch_pragma_value("PRAGMA page_count"),
+           {:ok, freelist_pages} <- fetch_pragma_value("PRAGMA freelist_count"),
+           {:ok, page_size} <- fetch_pragma_value("PRAGMA page_size") do
+        {:ok, %{page_count: page_count, freelist_pages: freelist_pages, page_size: page_size}}
+      end
+    end)
   end
 
   defp fetch_pragma_value(query) do
@@ -225,6 +227,8 @@ defmodule Cache.KeyValue.PromExPlugin do
       :persistent_term.put(@sqlite_poll_error_log_key, now_ms)
     end
   end
+
+  defp format_reason(:busy), do: "SQLite database is busy"
 
   defp format_reason({query, :unexpected_result, unexpected}) do
     "#{query} returned unexpected result #{inspect(unexpected)}"

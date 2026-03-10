@@ -138,6 +138,10 @@ defmodule Cache.Config do
     Application.get_env(:cache, :key_value_read_busy_timeout_ms, 2_000)
   end
 
+  def key_value_maintenance_busy_timeout_ms do
+    Application.get_env(:cache, :key_value_maintenance_busy_timeout_ms, 50)
+  end
+
   def s3_config do
     Application.fetch_env(:ex_aws, :s3)
   end
