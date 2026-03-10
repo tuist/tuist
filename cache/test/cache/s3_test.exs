@@ -114,6 +114,35 @@ defmodule Cache.S3Test do
       assert {:error, :timeout} = S3.presign_download_url(key, type: :cas)
     end
 
+    test "CAS type propagates primary bucket rate limiting instead of falling back" do
+      key = "acc/proj/cas/primary-rate-limited"
+
+      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
+
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn _, _ -> {:error, {:http_error, 429, %{body: "Too many requests"}}} end)
+
+      assert {:error, :rate_limited} = S3.presign_download_url(key, type: :cas)
+    end
+
+    test "CAS type propagates primary bucket 5xx errors instead of falling back" do
+      key = "acc/proj/cas/primary-5xx"
+
+      expect(ExAws.Config, :new, fn :s3 -> %{dummy: true} end)
+
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn _, _ -> {:error, {:http_error, 503, "Service Unavailable"}} end)
+
+      assert {:error, {:http_error, 503, "Service Unavailable"}} =
+               S3.presign_download_url(key, type: :cas)
+    end
+
     test "propagates error from presigned_url" do
       key = "acc/proj/module/abc"
 
@@ -525,6 +554,38 @@ defmodule Cache.S3Test do
 
       capture_log(fn ->
         assert {:error, :timeout} = S3.download(key, type: :cas)
+      end)
+    end
+
+    test "CAS download propagates primary bucket rate limiting instead of falling back" do
+      key = "test_account/test_project/cas/TE/ST/primary-rate-limited"
+
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+        {:error, {:http_error, 429, %{body: "Too many requests"}}}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :rate_limited} = S3.download(key, type: :cas)
+      end)
+    end
+
+    test "CAS download propagates primary bucket 5xx errors instead of falling back" do
+      key = "test_account/test_project/cas/TE/ST/primary-5xx"
+
+      expect(ExAws.S3, :head_object, fn "test-cas-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-cas-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn %ExAws.Operation.S3{} ->
+        {:error, {:http_error, 503, "Service Unavailable"}}
+      end)
+
+      capture_log(fn ->
+        assert {:error, {:http_error, 503, "Service Unavailable"}} = S3.download(key, type: :cas)
       end)
     end
   end

@@ -8,6 +8,13 @@ Context: this branch (`cschmatzler/fix-kv-explosion`) makes three substantial ch
 
 The direction is good. The cold-start migration approach for `KeyValueRepo` is especially pragmatic because it avoids risky data migration work and lets KV state repopulate naturally from traffic. The main remaining work is to tighten correctness around the CAS bucket migration, clean up merge artifacts, and reduce a few maintenance risks introduced by the refactor.
 
+## Current status (2026-03-10)
+
+- Addressed: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+- Partially addressed: none
+- Open: none
+- Main remaining work: none in this review file.
+
 ## Priority 1: Fix correctness and merge blockers
 
 ### 1. Make CAS fallback trigger only on definite "not found"
@@ -35,6 +42,10 @@ Definition of done:
 - Non-404 failures no longer produce false misses.
 - Tests cover 404 vs timeout / throttling / 5xx behavior.
 
+Current status: Addressed.
+- `cache/lib/cache/s3.ex` now falls back only on `{:ok, false}` from the primary CAS bucket and propagates other errors.
+- `cache/test/cache/s3_test.exs` now also covers throttling / 429 and generic 5xx-style HEAD failures for both presign and download CAS migration paths.
+
 ### 2. Remove tracked SQLite test artifacts
 
 Files:
@@ -55,6 +66,10 @@ These files create noisy diffs, make review harder, and do not belong in the rep
 Definition of done:
 - The three SQLite files are no longer tracked.
 
+Current status: Addressed.
+- `cache/.gitignore` already ignores `test_key_value.sqlite*`.
+- `cache/test_key_value.sqlite3`, `cache/test_key_value.sqlite3-shm`, and `cache/test_key_value.sqlite3-wal` have been removed from the repository.
+
 ### 3. Remove `changes.md` from the repo root
 
 File:
@@ -71,6 +86,9 @@ It keeps the repository focused on long-lived source and documentation rather th
 
 Definition of done:
 - `changes.md` is no longer part of the change set, and any important rationale is preserved in the PR description if needed.
+
+Current status: Addressed.
+- `changes.md` is no longer present in the repository root.
 
 ## Priority 2: Validate migration correctness assumptions
 
@@ -94,6 +112,10 @@ The code may already be correct if no caller depends on migration completeness h
 Definition of done:
 - Either `exists?/2` supports migration fallback, or its current behavior is confirmed safe and documented.
 
+Current status: Addressed.
+- `cache/lib/cache/s3.ex` now checks the fallback bucket for `exists?(..., type: :cas)` after a confirmed primary-bucket not-found.
+- `cache/test/cache/s3_test.exs` includes coverage for the case where the object exists only in the fallback bucket.
+
 ### 5. Decide whether `KeyValueRepo` needs periodic vacuum outside size-based eviction
 
 File:
@@ -112,6 +134,10 @@ Without a clear decision, database growth behavior depends on traffic shape and 
 
 Definition of done:
 - There is an explicit strategy for vacuuming `KeyValueRepo`, implemented or documented.
+
+Current status: Addressed.
+- `cache/lib/cache/sqlite_maintenance_worker.ex` now runs incremental vacuum for both `Cache.Repo` and `Cache.KeyValueRepo`.
+- Tests cover the dual-repo maintenance behavior.
 
 ### 6. Confirm the 30-second read contention ceiling is acceptable
 
@@ -135,6 +161,10 @@ This is a product behavior decision disguised as a database setting.
 Definition of done:
 - The timeout reflects an intentional latency policy, not an inherited default.
 
+Current status: Addressed.
+- KV read-through now uses `KEY_VALUE_READ_BUSY_TIMEOUT_MS` with a default of `2000` ms in `cache/lib/cache/config.ex` and `cache/config/runtime.exs`.
+- `cache/README.md` documents the new default so the shorter contention budget is explicit.
+
 ### 7. Verify metric naming and units for eviction duration
 
 File:
@@ -152,6 +182,10 @@ Telemetry should be trustworthy during rollout of a large storage change.
 
 Definition of done:
 - The metric name, emitted unit, and dashboard interpretation all agree.
+
+Current status: Addressed.
+- The PromEx metric now uses millisecond naming and units.
+- The Grafana dashboard queries the matching millisecond series, so the instrumentation is aligned end to end.
 
 ## Priority 3: Reduce maintenance and performance drag
 
@@ -176,6 +210,10 @@ It lowers the risk that future SQLite behavior changes get fixed in one place bu
 Definition of done:
 - Common SQLite helpers live in one place and duplicated copies are removed.
 
+Current status: Addressed.
+- Shared SQLite helper behavior now lives in `cache/lib/cache/sqlite_helpers.ex`.
+- `key_value_entries`, `key_value_eviction_worker`, `key_value_store`, and the PromEx plugin delegate to the shared helper instead of keeping duplicate logic.
+
 ### 9. Simplify grouped-hash merging in the eviction worker
 
 File:
@@ -194,6 +232,9 @@ This is a smaller issue, but it reduces unnecessary work and makes the eviction 
 Definition of done:
 - Grouped hash merging follows one consistent set-based strategy.
 
+Current status: Addressed.
+- `cache/lib/cache/key_value_eviction_worker.ex` now merges grouped hashes with `MapSet.union/2` and sorts only at the end.
+
 ### 10. Revisit `with_repo_busy_timeout` in `key_value_store.ex`
 
 File:
@@ -211,6 +252,10 @@ It keeps the hot read path simpler and avoids unnecessary SQLite PRAGMA churn.
 
 Definition of done:
 - The helper either changes behavior intentionally or is simplified to only the behavior that matters.
+
+Current status: Addressed.
+- `cache/lib/cache/sqlite_helpers.ex` now skips redundant PRAGMA churn when the requested timeout already matches the repo default.
+- `cache/lib/cache/key_value_store.ex` keeps the connection-pinning behavior without the unnecessary set-and-restore path on the hot read route.
 
 ### 11. Remove redundant and obsolete indexes / migrations where appropriate
 
@@ -231,6 +276,10 @@ These are minor issues individually, but they add avoidable index and migration 
 Definition of done:
 - Only necessary indexes and migrations remain.
 
+Current status: Addressed.
+- The new KV repo migration no longer creates the redundant single-column `last_accessed_at` index.
+- `cache/priv/repo/migrations/20260306120000_add_last_accessed_at_id_index_to_key_value_entries.exs` has been dropped before merge because the split now reads and evicts through `Cache.KeyValueRepo`, so the extra legacy-repo index would add rollout weight without serving the merged code path.
+
 ### 12. Fix minor telemetry / dashboard mismatches
 
 Files:
@@ -249,6 +298,10 @@ These are cosmetic issues, but storage rollouts benefit from dashboards and tele
 
 Definition of done:
 - Trigger metadata and Grafana thresholds match actual runtime behavior.
+
+Current status: Addressed.
+- The eviction worker now reports `:unknown` while the initial size probe is unresolved instead of prematurely labeling the trigger as `:size`.
+- The Grafana warning threshold now matches the configured 23 GiB release target.
 
 ## Priority 4: Document temporary migration costs and edge behavior
 
@@ -272,6 +325,9 @@ This prevents reviewers and operators from treating transitional behavior as per
 Definition of done:
 - The migration-specific latency and cleanup trade-offs are explicitly documented.
 
+Current status: Addressed.
+- `cache/README.md` now documents the extra HEAD round-trip on CAS fallback reads and clarifies that cleanup remains primary-bucket-first until the legacy bucket is drained.
+
 ### 14. Make fragile tests less order-dependent where practical
 
 Problem:
@@ -285,6 +341,10 @@ The current test suite is broad and valuable; reducing order sensitivity will ma
 
 Definition of done:
 - Tests no longer depend on incidental deadline short-circuiting for correctness.
+
+Current status: Addressed.
+- `cache/test/cache/key_value_entries_test.exs` now narrows the deadline test to the already-expired-deadline contract instead of asserting incidental no-op behavior over a large seeded dataset.
+- The test no longer depends on incidental execution order within the eviction loop to stay stable.
 
 ## Recommended execution order
 

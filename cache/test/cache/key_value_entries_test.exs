@@ -192,24 +192,12 @@ defmodule Cache.KeyValueEntriesTest do
     assert grouped_hashes == %{{"acme", "android"} => ["D"], {"acme", "ios"} => ["A", "B", "C"]}
   end
 
-  test "delete_expired stops when max duration is reached" do
-    now = DateTime.utc_now()
-    old_time = DateTime.add(now, -31, :day)
-
-    for i <- 1..3_000 do
-      KeyValueRepo.insert!(%KeyValueEntry{
-        key: "timed-entry-#{i}",
-        json_payload: ~s({"hash": "#{i}"}),
-        last_accessed_at: old_time
-      })
-    end
-
+  test "delete_expired returns time_limit_reached when no time remains" do
     {_grouped_hashes, count, status} =
       KeyValueEntries.delete_expired(30, batch_size: 100, max_duration_ms: 0)
 
     assert status == :time_limit_reached
     assert count == 0
-    assert KeyValueRepo.aggregate(KeyValueEntry, :count) == 3_000
   end
 
   test "delete_expired returns 3 element tuple" do

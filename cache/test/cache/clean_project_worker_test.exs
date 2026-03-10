@@ -27,6 +27,24 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
+    test "still runs both deletion passes when CAS shares the cache bucket" do
+      account_handle = "test_account"
+      project_handle = "test_project"
+
+      expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
+
+      expect(S3, :delete_all_with_prefix, 2, fn
+        "test_account/test_project/", [type: :cas] -> {:ok, 0}
+        "test_account/test_project/", [type: :cache] -> {:ok, 0}
+      end)
+
+      job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}
+
+      capture_log(fn ->
+        assert :ok = CleanProjectWorker.perform(job)
+      end)
+    end
+
     test "logs errors but returns :ok when disk deletion fails" do
       account_handle = "test_account"
       project_handle = "test_project"
