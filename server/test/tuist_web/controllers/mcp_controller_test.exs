@@ -155,6 +155,43 @@ defmodule TuistWeb.MCPControllerTest do
       response = json_response(conn, 400)
       assert response["error"]["code"] == -32_700
     end
+
+    test "returns error instead of hanging when transport GenServer is down", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      # Unregister the transport to simulate it being unavailable (e.g. during shutdown)
+      transport_name = {:via, Registry, {Anubis.Server.Registry, {:transport, Tuist.MCP.Server, :streamable_http}}}
+      transport_pid = GenServer.whereis(transport_name)
+      ref = Process.monitor(transport_pid)
+
+      # Suspend the transport so it can't process messages (simulates a stuck/shutting-down process)
+      :sys.suspend(transport_pid)
+
+      task =
+        Task.async(fn ->
+          conn
+          |> authenticated_mcp_conn(user.token)
+          |> post_mcp(%{
+            "jsonrpc" => "2.0",
+            "id" => 1,
+            "method" => "initialize",
+            "params" => @initialize_params
+          })
+        end)
+
+      # The request should not hang forever - it should timeout within the GenServer.call timeout
+      # For testing, we kill the transport after a short delay to trigger the exit
+      Process.sleep(100)
+      Process.exit(transport_pid, :kill)
+      assert_receive {:DOWN, ^ref, :process, ^transport_pid, :killed}
+
+      conn = Task.await(task, 5_000)
+
+      # Should get an error response, not hang
+      response = json_response(conn, 400)
+      assert response["error"]["code"] != nil
+    end
   end
 
   defp post_mcp(conn, body) do

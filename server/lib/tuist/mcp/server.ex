@@ -97,7 +97,7 @@ defmodule Tuist.MCP.Server do
   @impl Anubis.Server
   def handle_request(%{"method" => "tools/call", "params" => %{"name" => _name} = params} = request, %Frame{} = frame) do
     request = put_in(request, ["params"], Map.put_new(params, "arguments", %{}))
-    Handlers.handle(request, __MODULE__, frame)
+    safe_handle(request, frame)
   end
 
   @impl Anubis.Server
@@ -108,7 +108,7 @@ defmodule Tuist.MCP.Server do
   @impl Anubis.Server
   def handle_request(%{"method" => "prompts/get", "params" => %{"name" => _name} = params} = request, %Frame{} = frame) do
     request = put_in(request, ["params"], Map.put_new(params, "arguments", %{}))
-    Handlers.handle(request, __MODULE__, frame)
+    safe_handle(request, frame)
   end
 
   @impl Anubis.Server
@@ -117,7 +117,17 @@ defmodule Tuist.MCP.Server do
   end
 
   @impl Anubis.Server
-  def handle_request(request, %Frame{} = frame), do: Handlers.handle(request, __MODULE__, frame)
+  def handle_request(request, %Frame{} = frame), do: safe_handle(request, frame)
+
+  # Wraps Handlers.handle to prevent unhandled exceptions from crashing
+  # the MCP Server GenServer, which would take down all in-flight requests.
+  defp safe_handle(request, frame) do
+    Handlers.handle(request, __MODULE__, frame)
+  rescue
+    exception ->
+      Sentry.capture_exception(exception, stacktrace: __STACKTRACE__)
+      {:error, Error.protocol(:internal_error, %{message: Exception.message(exception)}), frame}
+  end
 
   defp invalid_params_error(message) do
     Error.protocol(:invalid_params, %{message: message})
