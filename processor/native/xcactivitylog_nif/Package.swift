@@ -10,17 +10,26 @@ let package = Package(
             type: .dynamic,
             targets: ["XCActivityLogNIF"]
         ),
+        .library(
+            name: "XCActivityLogParser",
+            targets: ["XCActivityLogParser"]
+        ),
     ],
     dependencies: [
         .package(id: "MobileNativeFoundation.XCLogParser", from: "0.2.46"),
     ],
     targets: [
         .target(
-            name: "XCActivityLogNIF",
+            name: "XCActivityLogParser",
             dependencies: [
                 .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
-            ],
-            path: "Sources/XCActivityLogNIF"
+            ]
+        ),
+        .target(
+            name: "XCActivityLogNIF",
+            dependencies: [
+                "XCActivityLogParser",
+            ]
         ),
     ]
 )
