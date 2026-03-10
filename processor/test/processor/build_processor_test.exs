@@ -6,7 +6,7 @@ defmodule Processor.BuildProcessorTest do
 
   setup :verify_on_exit!
 
-  describe "process/2" do
+  describe "process/1" do
     test "downloads from S3 and processes the archive" do
       storage_key = "builds/test-archive.zip"
       archive_bytes = build_test_archive()
@@ -26,7 +26,7 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:ok, %{"duration" => 1000, "status" => "success"}} =
-               BuildProcessor.process(storage_key, "account-1")
+               BuildProcessor.process(storage_key)
     end
 
     test "returns error when S3 download fails" do
@@ -39,7 +39,7 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:error, {:download_failed, {:http_error, 404, "not found"}}} =
-               BuildProcessor.process("missing-key", "account-1")
+               BuildProcessor.process("missing-key")
     end
   end
 

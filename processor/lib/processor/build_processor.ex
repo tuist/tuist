@@ -3,7 +3,7 @@ defmodule Processor.BuildProcessor do
 
   require Logger
 
-  def process(storage_key, _account_id) do
+  def process(storage_key) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
 
     case ExAws.S3.get_object(bucket, storage_key) |> ExAws.request() do
