@@ -1,0 +1,30 @@
+Can you completely delete the branch and PR from here:
+https://github.com/tuist/tuist/pull/9749
+
+---
+
+Tool loaded.
+
+---
+
+Can we hide the diff and the title? We don't want people to see Monzo in the PR title and description
+
+---
+
+Basically redact all that info
+
+---
+
+I already did that. What about the files in it? What if we push an empty commit to that branch?
+
+---
+
+I still see
+
+---
+
+I still see the file changes
+
+---
+
+Is it because I closed the PR and deleted the branch?
