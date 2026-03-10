@@ -37,6 +37,28 @@ Open **Settings → Connectors → Add custom connector**, then set:
 Complete OAuth in the browser when prompted.
 :::
 
+::: details OpenCode
+Add the Tuist MCP server to `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "tuist": {
+      "type": "remote",
+      "url": "https://tuist.dev/mcp"
+    }
+  }
+}
+```
+
+Then authenticate the server:
+
+```bash
+opencode mcp auth tuist
+```
+:::
+
 ::: details Cursor
 Open **Cursor Settings → Tools & Integrations → MCP Tools** and add:
 
