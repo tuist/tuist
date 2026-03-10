@@ -55,27 +55,30 @@ defmodule Processor.BuildProcessorTest do
       assert {:ok, _} = BuildProcessor.process_build(archive_bytes)
     end
 
-    test "returns error when xcactivitylog directory is missing" do
+    test "raises when xcactivitylog directory is missing" do
       archive_bytes = build_test_archive(include_xcactivitylog: false)
 
-      assert {:error, :xcactivitylog_dir_not_found} =
-               BuildProcessor.process_build(archive_bytes)
+      assert_raise MatchError, fn ->
+        BuildProcessor.process_build(archive_bytes)
+      end
     end
 
-    test "returns error when NIF parsing fails" do
+    test "raises when NIF parsing fails" do
       archive_bytes = build_test_archive()
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:error, "parse_failed"}
       end)
 
-      assert {:error, {:parse_failed, "parse_failed"}} =
-               BuildProcessor.process_build(archive_bytes)
+      assert_raise MatchError, fn ->
+        BuildProcessor.process_build(archive_bytes)
+      end
     end
 
-    test "returns error for invalid zip data" do
-      assert {:error, {:unzip_failed, _}} =
-               BuildProcessor.process_build("not a zip file")
+    test "raises for invalid zip data" do
+      assert_raise MatchError, fn ->
+        BuildProcessor.process_build("not a zip file")
+      end
     end
   end
 
