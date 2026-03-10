@@ -11,14 +11,19 @@
         private let metricsFilePath: Path.AbsolutePath
         private let fileLock: TSCBasic.FileLock
         private let fileSystem: FileSysteming
+        private let interval: Duration
 
         public init(
+            metricsFilePath: Path.AbsolutePath? = nil,
+            interval: Duration = .seconds(1),
             fileSystem: FileSysteming = FileSystem()
         ) {
+            let resolvedPath = metricsFilePath ?? MachineMetricsReader.metricsFilePath
+            self.metricsFilePath = resolvedPath
+            self.interval = interval
             self.fileSystem = fileSystem
-            metricsFilePath = MachineMetricsReader.metricsFilePath
             // swiftlint:disable:next force_try
-            fileLock = TSCBasic.FileLock(at: try! TSCBasic.AbsolutePath(validating: metricsFilePath.pathString + ".lock"))
+            fileLock = TSCBasic.FileLock(at: try! TSCBasic.AbsolutePath(validating: resolvedPath.pathString + ".lock"))
         }
 
         public func run() async throws {
@@ -28,7 +33,7 @@
             var sampleCount = 0
 
             while !Task.isCancelled {
-                try await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: interval)
 
                 let currentCPUTicks = cpuTicks()
                 let currentNetworkBytes = networkBytes()

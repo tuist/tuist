@@ -10,20 +10,22 @@
 
     @testable import TuistMachineMetrics
 
-    @Suite(.serialized)
+    /// Integration tests that run the real sampler daemon loop. Sleeps are required
+    /// because the sampler collects metrics via actual macOS system calls.
+    @Suite
     struct MachineMetricsSamplerTests {
         private let fileSystem = FileSystem()
 
-        @Test(.inTemporaryDirectory, .withMockedEnvironment(), .timeLimit(.minutes(1)))
+        @Test(.inTemporaryDirectory, .timeLimit(.minutes(1)))
         func sampler_writesSamplesToFile() async throws {
-            let sampler = MachineMetricsSampler()
-            let metricsPath = MachineMetricsReader.metricsFilePath
+            let metricsPath = try metricsFilePath()
+            let sampler = MachineMetricsSampler(metricsFilePath: metricsPath, interval: .milliseconds(100))
 
             let task = Task {
                 try await sampler.run()
             }
 
-            try await Task.sleep(for: .seconds(3))
+            try await Task.sleep(for: .milliseconds(350))
             task.cancel()
 
             let content = try String(contentsOfFile: metricsPath.pathString, encoding: .utf8)
@@ -44,16 +46,16 @@
             #expect(sample.timestamp > 0)
         }
 
-        @Test(.inTemporaryDirectory, .withMockedEnvironment(), .timeLimit(.minutes(1)))
+        @Test(.inTemporaryDirectory, .timeLimit(.minutes(1)))
         func sampler_producesIncreasingTimestamps() async throws {
-            let sampler = MachineMetricsSampler()
-            let metricsPath = MachineMetricsReader.metricsFilePath
+            let metricsPath = try metricsFilePath()
+            let sampler = MachineMetricsSampler(metricsFilePath: metricsPath, interval: .milliseconds(100))
 
             let task = Task {
                 try await sampler.run()
             }
 
-            try await Task.sleep(for: .seconds(3))
+            try await Task.sleep(for: .milliseconds(350))
             task.cancel()
 
             let content = try String(contentsOfFile: metricsPath.pathString, encoding: .utf8)
@@ -70,16 +72,16 @@
             }
         }
 
-        @Test(.inTemporaryDirectory, .withMockedEnvironment(), .timeLimit(.minutes(1)))
+        @Test(.inTemporaryDirectory, .timeLimit(.minutes(1)))
         func sampler_networkAndDiskDeltasAreNonNegative() async throws {
-            let sampler = MachineMetricsSampler()
-            let metricsPath = MachineMetricsReader.metricsFilePath
+            let metricsPath = try metricsFilePath()
+            let sampler = MachineMetricsSampler(metricsFilePath: metricsPath, interval: .milliseconds(100))
 
             let task = Task {
                 try await sampler.run()
             }
 
-            try await Task.sleep(for: .seconds(3))
+            try await Task.sleep(for: .milliseconds(350))
             task.cancel()
 
             let content = try String(contentsOfFile: metricsPath.pathString, encoding: .utf8)
@@ -98,10 +100,10 @@
             }
         }
 
-        @Test(.inTemporaryDirectory, .withMockedEnvironment(), .timeLimit(.minutes(1)))
+        @Test(.inTemporaryDirectory, .timeLimit(.minutes(1)))
         func sampler_createsFileIfNeeded() async throws {
-            let sampler = MachineMetricsSampler()
-            let metricsPath = MachineMetricsReader.metricsFilePath
+            let metricsPath = try metricsFilePath()
+            let sampler = MachineMetricsSampler(metricsFilePath: metricsPath, interval: .milliseconds(100))
 
             #expect(try await !fileSystem.exists(metricsPath))
 
@@ -109,16 +111,16 @@
                 try await sampler.run()
             }
 
-            try await Task.sleep(for: .seconds(2))
+            try await Task.sleep(for: .milliseconds(250))
             task.cancel()
 
             #expect(try await fileSystem.exists(metricsPath))
         }
 
-        @Test(.inTemporaryDirectory, .withMockedEnvironment(), .timeLimit(.minutes(1)))
+        @Test(.inTemporaryDirectory, .timeLimit(.minutes(1)))
         func sampler_appendsToExistingFile() async throws {
-            let sampler = MachineMetricsSampler()
-            let metricsPath = MachineMetricsReader.metricsFilePath
+            let metricsPath = try metricsFilePath()
+            let sampler = MachineMetricsSampler(metricsFilePath: metricsPath, interval: .milliseconds(100))
 
             let existingSample = MachineMetricSample(
                 timestamp: 1000,
@@ -133,25 +135,28 @@
             let encoder = JSONEncoder()
             let existingLine = String(data: try encoder.encode(existingSample), encoding: .utf8)!
 
-            let dir = metricsPath.parentDirectory.pathString
-            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            try existingLine.appending("\n").write(toFile: metricsPath.pathString, atomically: false, encoding: .utf8)
+            try await fileSystem.makeDirectory(at: metricsPath.parentDirectory)
+            try await fileSystem.writeText(existingLine.appending("\n"), at: metricsPath)
 
             let task = Task {
                 try await sampler.run()
             }
 
-            try await Task.sleep(for: .seconds(2))
+            try await Task.sleep(for: .milliseconds(250))
             task.cancel()
 
-            let data = try Data(contentsOf: URL(fileURLWithPath: metricsPath.pathString))
-            let content = String(data: data, encoding: .utf8)!
+            let content = try String(contentsOfFile: metricsPath.pathString, encoding: .utf8)
             let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
             #expect(lines.count >= 2)
 
             let decoder = JSONDecoder()
             let firstSample = try decoder.decode(MachineMetricSample.self, from: Data(lines.first!.utf8))
             #expect(firstSample.timestamp == 1000)
+        }
+
+        private func metricsFilePath() throws -> Path.AbsolutePath {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            return temporaryDirectory.appending(component: "machine_metrics_\(UUID().uuidString).jsonl")
         }
     }
 #endif
