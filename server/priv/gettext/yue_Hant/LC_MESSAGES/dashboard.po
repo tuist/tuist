@@ -306,3 +306,6 @@ msgstr ""
 
 msgid "SSO"
 msgstr ""
+
+msgid "Machine Metrics"
+msgstr ""

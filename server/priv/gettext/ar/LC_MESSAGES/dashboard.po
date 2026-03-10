@@ -406,6 +406,9 @@ msgstr "ملف APK للمعاينة غير موجود أو انتهت صلاحي
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."
 #~ msgstr "هذه لوحة معلومات عامة لمشروع tuist/tuist."

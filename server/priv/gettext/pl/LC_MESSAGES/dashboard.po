@@ -414,6 +414,9 @@ msgstr "Plik APK podglądu nie istnieje lub wygasł."
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."
 #~ msgstr "Jest to publiczny pulpit nawigacyjny projektu tuist/tuist."

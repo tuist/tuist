@@ -406,6 +406,9 @@ msgstr "プレビューAPKが存在しないか、期限切れです。"
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."
 #~ msgstr "これは tuist/tuist プロジェクトの公開ダッシュボードです。"

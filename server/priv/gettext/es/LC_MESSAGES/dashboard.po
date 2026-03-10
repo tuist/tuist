@@ -412,6 +412,9 @@ msgstr "La APK de vista previa no existe o ha caducado."
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."
 #~ msgstr "Este es un panel público para el proyecto tuist/tuist."
