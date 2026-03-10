@@ -71,7 +71,7 @@ defmodule ProcessorWeb.WebhookControllerTest do
       assert response["project_id"] == "project-789"
     end
 
-    test "returns 500 when processing fails" do
+    test "raises when processing fails" do
       expect(Processor.BuildProcessor, :process, fn _storage_key, true ->
         {:error, :processing_failed}
       end)
@@ -79,15 +79,11 @@ defmodule ProcessorWeb.WebhookControllerTest do
       body = Jason.encode!(@valid_payload)
       signature = sign_body(body)
 
-      conn =
+      assert_raise MatchError, fn ->
         build_conn()
         |> put_req_header("x-webhook-signature", signature)
         |> post_webhook(body)
-
-      assert conn.status == 500
-
-      response = json_response(conn, 500)
-      assert response["error"] == ":processing_failed"
+      end
     end
   end
 end
