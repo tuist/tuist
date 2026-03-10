@@ -32,6 +32,7 @@ defmodule TuistWeb.API.GradleControllerTest do
         git_branch: "main",
         git_commit_sha: "abc123",
         root_project_name: "my-app",
+        requested_tasks: ["assembleDebug", "test"],
         tasks: [
           %{
             task_path: ":app:compileKotlin",
@@ -67,6 +68,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert build.status == "success"
       assert build.gradle_version == "8.5"
       assert build.is_ci == true
+      assert build.requested_tasks == ["assembleDebug", "test"]
       assert build.tasks_executed_count == 1
       assert build.tasks_local_hit_count == 1
       assert build.cacheable_tasks_count == 2
@@ -309,6 +311,7 @@ defmodule TuistWeb.API.GradleControllerTest do
           git_branch: "main",
           git_commit_sha: "abc123",
           root_project_name: "my-app",
+          requested_tasks: ["assembleRelease"],
           tasks: [
             %{
               task_path: ":app:compileKotlin",
@@ -332,6 +335,7 @@ defmodule TuistWeb.API.GradleControllerTest do
       assert response["git_branch"] == "main"
       assert response["git_commit_sha"] == "abc123"
       assert response["root_project_name"] == "my-app"
+      assert response["requested_tasks"] == ["assembleRelease"]
 
       assert length(response["tasks"]) == 1
       task = hd(response["tasks"])

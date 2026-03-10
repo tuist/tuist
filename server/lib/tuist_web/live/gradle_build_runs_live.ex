@@ -106,6 +106,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
       end
 
     {is_ci_filters, remaining_filters} = Enum.split_with(filters, &(&1.id == "is_ci"))
+    {requested_tasks_filters, remaining_filters} = Enum.split_with(remaining_filters, &(&1.id == "requested_tasks"))
     filter_flop_filters = Filter.Operations.convert_filters_to_flop(remaining_filters)
 
     is_ci_flop_filters =
@@ -115,6 +116,18 @@ defmodule TuistWeb.GradleBuildRunsLive do
 
         %{value: :local, operator: op} ->
           [%{field: :is_ci, op: op, value: false}]
+
+        _ ->
+          []
+      end)
+
+    requested_tasks_query_filters =
+      Enum.flat_map(requested_tasks_filters, fn
+        %{value: value, operator: :=~} when is_binary(value) and value != "" ->
+          [{:has, value}]
+
+        %{value: value, operator: :"!=~"} when is_binary(value) and value != "" ->
+          [{:not_has, value}]
 
         _ ->
           []
@@ -144,7 +157,7 @@ defmodule TuistWeb.GradleBuildRunsLive do
       order_directions: order_directions
     }
 
-    {builds, meta} = Gradle.list_builds(project.id, flop_params)
+    {builds, meta} = Gradle.list_builds(project.id, flop_params, requested_tasks_filters: requested_tasks_query_filters)
     builds = Repo.preload(builds, :built_by_account)
 
     socket
@@ -199,6 +212,14 @@ defmodule TuistWeb.GradleBuildRunsLive do
         field: :git_branch,
         display_name: dgettext("dashboard_gradle", "Branch"),
         type: :text,
+        operator: :=~,
+        value: ""
+      },
+      %Filter.Filter{
+        id: "requested_tasks",
+        field: :requested_tasks,
+        display_name: dgettext("dashboard_gradle", "Requested tasks"),
+        type: :list,
         operator: :=~,
         value: ""
       },

@@ -1,13 +1,26 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.155.3<!-- RELEASE NOTES START -->
+## What's Changed in 4.155.5<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* fix build category detection for Xcode 26.3+ with compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9762](https://github.com/tuist/tuist/pull/9762)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.4...4.155.5
+
+## What's Changed in 4.155.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* archive builds for static targets with xcassets by [@Iron-Ham](https://github.com/Iron-Ham) in [#9722](https://github.com/tuist/tuist/pull/9722)
+* prevent multiple commands produce when static product depends on same-named xcframework by [@pepicrft](https://github.com/pepicrft) in [#9758](https://github.com/tuist/tuist/pull/9758)
 * exclude non-test-dependency targets from workspace scheme build action by [@fortmarek](https://github.com/fortmarek) in [#9741](https://github.com/tuist/tuist/pull/9741)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.3
+## New Contributors
+* [@Iron-Ham](https://github.com/Iron-Ham) made their first contribution in [#9722](https://github.com/tuist/tuist/pull/9722)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.4
 
 ## What's Changed in 4.155.2<!-- RELEASE NOTES START -->
 
