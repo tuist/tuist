@@ -36,14 +36,14 @@ RUN mkdir -p priv/static
 RUN pnpm run build
 RUN ./node_modules/.bin/esbuild css/noora.css --bundle --minify --outfile=./priv/static/noora.css
 
-FROM ${BUILDER_IMAGE} as builder
+FROM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential git \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
-# prepare build dir
-WORKDIR /app
+# prepare build dir - mirror local layout: noora at /app, storybook at /app/storybook
+WORKDIR /app/storybook
 
 # install hex + rebar
 RUN mix local.hex --force && \
@@ -60,8 +60,8 @@ RUN mkdir config
 # to be re-compiled.
 COPY storybook/config/config.exs storybook/config/${MIX_ENV}.exs config/
 
-# Copy pre-built noora assets from npm-deps stage
-COPY --from=npm-deps /app/noora /noora
+# Copy pre-built noora assets from npm-deps stage (path: ".." resolves to /app)
+COPY --from=npm-deps /app/noora /app
 
 RUN mix deps.get --only $MIX_ENV
 
@@ -75,9 +75,6 @@ COPY storybook/storybook storybook
 
 COPY storybook/assets assets
 
-# Return to app directory and compile storybook assets
-# (noora assets are pre-built and included in priv/static)
-WORKDIR /app
 RUN mix assets.deploy
 
 # Compile the release
@@ -111,7 +108,7 @@ RUN chown nobody /app
 ENV MIX_ENV="prod"
 
 # Only copy the final release from the build stage
-COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/noora_storybook ./
+COPY --from=builder --chown=nobody:root /app/storybook/_build/${MIX_ENV}/rel/noora_storybook ./
 
 USER nobody
 
