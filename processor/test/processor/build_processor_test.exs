@@ -7,16 +7,16 @@ defmodule Processor.BuildProcessorTest do
   setup :verify_on_exit!
 
   describe "process/1" do
-    test "downloads from S3 and processes the archive" do
-      storage_key = "builds/test-archive.zip"
-      archive_bytes = build_test_archive()
+    test "downloads from S3 and processes the build" do
+      storage_key = "builds/test-build.zip"
+      build_bytes = build_test_zip()
 
       expect(ExAws.S3, :get_object, fn "tuist", ^storage_key ->
         %ExAws.Operation.S3{}
       end)
 
       expect(ExAws, :request, fn _ ->
-        {:ok, %{body: archive_bytes}}
+        {:ok, %{body: build_bytes}}
       end)
 
       expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
@@ -32,8 +32,8 @@ defmodule Processor.BuildProcessorTest do
   end
 
   describe "process_build/1" do
-    test "extracts archive and parses xcactivitylog" do
-      archive_bytes = build_test_archive()
+    test "extracts build and parses xcactivitylog" do
+      build_bytes = build_test_zip()
 
       expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
         assert String.ends_with?(path, "test.xcactivitylog")
@@ -42,36 +42,36 @@ defmodule Processor.BuildProcessorTest do
       end)
 
       assert {:ok, %{"duration" => 500, "status" => "success", "targets" => []}} =
-               BuildProcessor.process_build(archive_bytes)
+               BuildProcessor.process_build(build_bytes)
     end
 
     test "ignores manifest when present" do
-      archive_bytes = build_test_archive(manifest: %{"cache_upload_enabled" => true})
+      build_bytes = build_test_zip(manifest: %{"cache_upload_enabled" => true})
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:ok, %{"status" => "success"}}
       end)
 
-      assert {:ok, _} = BuildProcessor.process_build(archive_bytes)
+      assert {:ok, _} = BuildProcessor.process_build(build_bytes)
     end
 
     test "raises when xcactivitylog directory is missing" do
-      archive_bytes = build_test_archive(include_xcactivitylog: false)
+      build_bytes = build_test_zip(include_xcactivitylog: false)
 
       assert_raise MatchError, fn ->
-        BuildProcessor.process_build(archive_bytes)
+        BuildProcessor.process_build(build_bytes)
       end
     end
 
     test "raises when NIF parsing fails" do
-      archive_bytes = build_test_archive()
+      build_bytes = build_test_zip()
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:error, "parse_failed"}
       end)
 
       assert_raise MatchError, fn ->
-        BuildProcessor.process_build(archive_bytes)
+        BuildProcessor.process_build(build_bytes)
       end
     end
 
@@ -82,7 +82,7 @@ defmodule Processor.BuildProcessorTest do
     end
   end
 
-  defp build_test_archive(opts \\ []) do
+  defp build_test_zip(opts \\ []) do
     include_xcactivitylog = Keyword.get(opts, :include_xcactivitylog, true)
     manifest = Keyword.get(opts, :manifest, nil)
 
@@ -100,7 +100,7 @@ defmodule Processor.BuildProcessorTest do
         files
       end
 
-    {:ok, {_filename, zip_bytes}} = :zip.create(~c"archive.zip", files, [:memory])
+    {:ok, {_filename, zip_bytes}} = :zip.create(~c"build.zip", files, [:memory])
     zip_bytes
   end
 end

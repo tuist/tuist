@@ -42,10 +42,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       Logger.info("Processing build #{build_id} locally")
 
       with {:ok, account} <- Accounts.get_account_by_id(account_id),
-           archive_bytes when is_binary(archive_bytes) <- Storage.get_object_as_string(storage_key, account) do
-        Processor.BuildProcessor.process_build(archive_bytes)
+           build_bytes when is_binary(build_bytes) <- Storage.get_object_as_string(storage_key, account) do
+        Processor.BuildProcessor.process_build(build_bytes)
       else
-        nil -> {:error, :archive_not_found}
+        nil -> {:error, :build_not_found}
         {:error, _} = error -> error
       end
     else

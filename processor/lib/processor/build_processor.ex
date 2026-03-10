@@ -9,8 +9,8 @@ defmodule Processor.BuildProcessor do
     process_build(body)
   end
 
-  def process_build(archive_bytes) do
-    temp_dir = extract_build(archive_bytes)
+  def process_build(build_bytes) do
+    temp_dir = extract_build(build_bytes)
 
     try do
       xcactivitylog_path = find_xcactivitylog(temp_dir)
@@ -23,13 +23,13 @@ defmodule Processor.BuildProcessor do
     end
   end
 
-  defp extract_build(archive_bytes) do
+  defp extract_build(build_bytes) do
     temp_dir = Path.join(System.tmp_dir!(), "processor_#{:erlang.unique_integer([:positive])}")
     File.mkdir_p!(temp_dir)
-    archive_path = Path.join(temp_dir, "archive.zip")
-    File.write!(archive_path, archive_bytes)
+    build_path = Path.join(temp_dir, "build.zip")
+    File.write!(build_path, build_bytes)
 
-    {:ok, _} = :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}])
+    {:ok, _} = :zip.unzip(~c"#{build_path}", [{:cwd, ~c"#{temp_dir}"}])
     temp_dir
   end
 

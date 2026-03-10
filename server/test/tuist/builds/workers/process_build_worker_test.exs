@@ -108,10 +108,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
     test "processes locally when processor module is available", %{account: account} do
       expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        "fake archive bytes"
+        "fake build bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn "fake archive bytes" ->
+      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes" ->
         {:ok, parsed_data()}
       end)
 
@@ -128,7 +128,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
     end
 
-    test "marks build as failed when archive is not found in S3", %{account: account} do
+    test "marks build as failed when build is not found in S3", %{account: account} do
       expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
         nil
       end)
@@ -138,13 +138,13 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, %{id: @build_id}}
       end)
 
-      assert {:error, :archive_not_found} =
+      assert {:error, :build_not_found} =
                ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
     end
 
     test "marks build as failed when local processing returns error", %{account: account} do
       expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        "fake archive bytes"
+        "fake build bytes"
       end)
 
       expect(Processor.BuildProcessor, :process_build, fn _bytes ->
@@ -183,10 +183,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
     test "treats empty string as unconfigured and processes locally", %{account: account} do
       expect(Tuist.Storage, :get_object_as_string, fn @storage_key, ^account ->
-        "fake archive bytes"
+        "fake build bytes"
       end)
 
-      expect(Processor.BuildProcessor, :process_build, fn "fake archive bytes" ->
+      expect(Processor.BuildProcessor, :process_build, fn "fake build bytes" ->
         {:ok, parsed_data()}
       end)
 
