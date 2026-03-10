@@ -43,7 +43,7 @@ struct SetupInsightsCommandService {
         try await launchDaemon(plistPath: launchDaemonPlistPath)
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
-        Logger.current.info("Machine metrics daemon has been set up successfully")
+        Logger.current.info("Insights daemon has been set up successfully", metadata: .success)
     }
 
     private func createLaunchDaemonPlist(
