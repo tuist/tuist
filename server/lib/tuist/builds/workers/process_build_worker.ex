@@ -145,34 +145,34 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   end
 
   defp convert_files(files) do
-    Enum.map(files, fn f ->
-      f = atomize_keys(f)
-      Map.update!(f, :type, &String.to_existing_atom/1)
+    Enum.map(files, fn file ->
+      file = atomize_keys(file)
+      Map.update!(file, :type, &String.to_existing_atom/1)
     end)
   end
 
   defp convert_issues(issues) do
-    Enum.map(issues, fn i ->
-      i = atomize_keys(i)
+    Enum.map(issues, fn issue ->
+      issue = atomize_keys(issue)
 
-      i
+      issue
       |> Map.update!(:type, &String.to_existing_atom/1)
       |> Map.update!(:step_type, &String.to_existing_atom/1)
     end)
   end
 
   defp convert_targets(targets) do
-    Enum.map(targets, fn t ->
-      t = atomize_keys(t)
-      Map.update!(t, :status, &String.to_existing_atom/1)
+    Enum.map(targets, fn target ->
+      target = atomize_keys(target)
+      Map.update!(target, :status, &String.to_existing_atom/1)
     end)
   end
 
   defp convert_cacheable_tasks(tasks) do
-    Enum.map(tasks, fn t ->
-      t = atomize_keys(t)
+    Enum.map(tasks, fn task ->
+      task = atomize_keys(task)
 
-      t
+      task
       |> Map.update!(:type, &String.to_existing_atom/1)
       |> Map.update!(:status, &String.to_existing_atom/1)
     end)
