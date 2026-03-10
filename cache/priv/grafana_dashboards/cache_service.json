@@ -58,7 +58,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
+        "w": 4,
         "x": 0,
         "y": 1
       },
@@ -125,8 +125,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 5,
+        "w": 4,
+        "x": 4,
         "y": 1
       },
       "id": 92,
@@ -186,22 +186,24 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "max": 100,
+          "min": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 10,
-        "y": 1
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
       },
       "id": 105,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -209,23 +211,24 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
-        "wideLayout": true
+        "showUnfilled": true,
+        "valueMode": "text"
       },
       "pluginVersion": "11.0.0",
       "targets": [
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
           "instant": true,
+          "legendFormat": "{{instance}}",
           "range": false,
           "refId": "A"
         }
       ],
       "title": "CPU %",
-      "type": "stat",
-      "description": "Average host CPU utilization across selected cache instances."
+      "type": "bargauge",
+      "description": "Per-node host CPU utilization across selected cache instances."
     },
     {
       "datasource": "$datasource",
@@ -259,8 +262,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 14,
+        "w": 4,
+        "x": 8,
         "y": 1
       },
       "id": 93,
@@ -326,8 +329,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 19,
+        "w": 4,
+        "x": 12,
         "y": 1
       },
       "id": 94,
@@ -393,9 +396,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 0,
-        "y": 5
+        "w": 4,
+        "x": 16,
+        "y": 1
       },
       "id": 95,
       "options": {
@@ -460,9 +463,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 5,
-        "y": 5
+        "w": 4,
+        "x": 20,
+        "y": 1
       },
       "id": 96,
       "options": {
@@ -521,22 +524,24 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percent",
+          "max": 100,
+          "min": 0
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 10,
+        "h": 8,
+        "w": 12,
+        "x": 12,
         "y": 5
       },
       "id": 104,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -544,8 +549,8 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
-        "wideLayout": true
+        "showUnfilled": true,
+        "valueMode": "text"
       },
       "pluginVersion": "11.0.0",
       "targets": [
@@ -554,13 +559,14 @@
           "editorMode": "code",
           "expr": "100 * (1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"}))",
           "instant": true,
+          "legendFormat": "{{instance}}",
           "range": false,
           "refId": "A"
         }
       ],
       "title": "RAM %",
-      "type": "stat",
-      "description": "Host memory pressure based on used versus available memory."
+      "type": "bargauge",
+      "description": "Per-node host memory pressure based on used versus available memory."
     },
     {
       "datasource": "$datasource",
@@ -594,9 +600,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 14,
-        "y": 5
+        "w": 12,
+        "x": 0,
+        "y": 13
       },
       "id": 97,
       "options": {
@@ -661,9 +667,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 5,
-        "x": 19,
-        "y": 5
+        "w": 12,
+        "x": 12,
+        "y": 13
       },
       "id": 98,
       "options": {
@@ -1536,6 +1542,120 @@
       "datasource": "$datasource",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 35
+      },
+      "id": 110,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p50",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p90",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(cache_prom_ex_phoenix_http_request_duration_milliseconds_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "legendFormat": "p99",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "Overall Response Time",
+      "type": "timeseries",
+      "description": "Aggregate HTTP response time percentiles across all routes and selected cache instances."
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
           "custom": {
             "align": "auto",
             "cellOptions": {
@@ -1584,9 +1704,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 35
+        "w": 24,
+        "x": 0,
+        "y": 43
       },
       "id": 20,
       "options": {
@@ -1690,7 +1810,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 43
+        "y": 51
       },
       "id": 106,
       "panels": [],
@@ -1831,7 +1951,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 52
       },
       "id": 107,
       "options": {
@@ -1997,7 +2117,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 52
       },
       "id": 108,
       "options": {
@@ -2056,7 +2176,7 @@
           {
             "matcher": {
               "id": "byName",
-                "options": "Path Group"
+              "options": "Path Group"
             },
             "properties": [
               {
@@ -2083,7 +2203,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 60
       },
       "id": 109,
       "options": {
@@ -2147,7 +2267,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 68
       },
       "id": 4,
       "panels": [],
@@ -2288,7 +2408,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 61
+        "y": 69
       },
       "id": 5,
       "options": {
@@ -2392,7 +2512,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 61
+        "y": 69
       },
       "id": 6,
       "options": {
@@ -2456,7 +2576,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 61
+        "y": 69
       },
       "id": 7,
       "options": {
@@ -2545,7 +2665,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 69
+        "y": 77
       },
       "id": 50,
       "options": {
@@ -2626,7 +2746,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 69
+        "y": 77
       },
       "id": 51,
       "options": {
@@ -2726,7 +2846,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 85
       },
       "id": 31,
       "panels": [],
@@ -2852,7 +2972,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 78
+        "y": 86
       },
       "id": 32,
       "options": {
@@ -2948,7 +3068,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 78
+        "y": 86
       },
       "id": 34,
       "options": {
@@ -3012,7 +3132,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 78
+        "y": 86
       },
       "id": 35,
       "options": {
@@ -3101,7 +3221,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 86
+        "y": 94
       },
       "id": 33,
       "options": {
@@ -3182,7 +3302,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 86
+        "y": 94
       },
       "id": 36,
       "options": {
@@ -3282,7 +3402,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 102
       },
       "id": 8,
       "panels": [
@@ -3403,7 +3523,7 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
+            "w": 24,
             "x": 0,
             "y": 0
           },
@@ -3525,8 +3645,8 @@
           "gridPos": {
             "h": 8,
             "w": 12,
-            "x": 12,
-            "y": 0
+            "x": 0,
+            "y": 8
           },
           "id": 10,
           "options": {
@@ -3597,8 +3717,8 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 24,
-            "x": 0,
+            "w": 12,
+            "x": 12,
             "y": 8
           },
           "id": 11,
@@ -3703,7 +3823,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 95
+        "y": 103
       },
       "id": 37,
       "panels": [
@@ -3794,7 +3914,7 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
+            "w": 24,
             "x": 0,
             "y": 0
           },
@@ -3900,8 +4020,8 @@
           "gridPos": {
             "h": 8,
             "w": 12,
-            "x": 12,
-            "y": 0
+            "x": 0,
+            "y": 8
           },
           "id": 39,
           "options": {
@@ -3980,8 +4100,8 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 24,
-            "x": 0,
+            "w": 12,
+            "x": 12,
             "y": 8
           },
           "id": 40,
@@ -4086,7 +4206,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 96
+        "y": 104
       },
       "id": 41,
       "panels": [],
@@ -4182,7 +4302,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 97
+        "y": 105
       },
       "id": 42,
       "options": {
@@ -4254,7 +4374,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 97
+        "y": 105
       },
       "id": 43,
       "options": {
@@ -4374,7 +4494,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 97
+        "y": 105
       },
       "id": 44,
       "options": {
@@ -4419,7 +4539,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 105
+        "y": 113
       },
       "id": 84,
       "panels": [
@@ -5086,7 +5206,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 106
+        "y": 114
       },
       "id": 60,
       "panels": [
@@ -5189,7 +5309,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 107
+        "y": 115
       },
       "id": 12,
       "panels": [
@@ -6113,7 +6233,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 108
+        "y": 116
       },
       "id": 22,
       "panels": [
@@ -6426,7 +6546,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 109
+        "y": 117
       },
       "id": 26,
       "panels": [
@@ -6471,7 +6591,7 @@
                 }
               },
               "mappings": [],
-              "max": 1,
+              "max": 100,
               "min": 0,
               "thresholds": {
                 "mode": "absolute",
@@ -6482,21 +6602,21 @@
                   },
                   {
                     "color": "yellow",
-                    "value": 0.7
+                    "value": 70
                   },
                   {
                     "color": "red",
-                    "value": 0.9
+                    "value": 90
                   }
                 ]
               },
-              "unit": "percentunit"
+              "unit": "percent"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 8,
-            "w": 8,
+            "w": 12,
             "x": 0,
             "y": 0
           },
@@ -6520,7 +6640,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode!=\"idle\"}[$__rate_interval]))",
+              "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$instance\", mode=\"idle\"}[$__rate_interval])))",
               "legendFormat": "{{instance}}",
               "range": true,
               "refId": "A"
@@ -6570,7 +6690,7 @@
                 }
               },
               "mappings": [],
-              "max": 1,
+              "max": 100,
               "min": 0,
               "thresholds": {
                 "mode": "absolute",
@@ -6581,22 +6701,22 @@
                   },
                   {
                     "color": "yellow",
-                    "value": 0.7
+                    "value": 70
                   },
                   {
                     "color": "red",
-                    "value": 0.9
+                    "value": 90
                   }
                 ]
               },
-              "unit": "percentunit"
+              "unit": "percent"
             },
             "overrides": []
           },
           "gridPos": {
             "h": 8,
-            "w": 8,
-            "x": 8,
+            "w": 12,
+            "x": 12,
             "y": 0
           },
           "id": 99,
@@ -6620,7 +6740,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"})",
+              "expr": "100 * (1 - (node_memory_MemAvailable_bytes{instance=~\"$instance\"} / node_memory_MemTotal_bytes{instance=~\"$instance\"}))",
               "legendFormat": "{{instance}}",
               "range": true,
               "refId": "A"
@@ -6698,9 +6818,9 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 8,
-            "x": 16,
-            "y": 0
+            "w": 12,
+            "x": 0,
+            "y": 8
           },
           "id": 28,
           "options": {
@@ -6806,7 +6926,7 @@
           "gridPos": {
             "h": 8,
             "w": 12,
-            "x": 0,
+            "x": 12,
             "y": 8
           },
           "id": 29,
@@ -6915,9 +7035,9 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 8
+            "w": 24,
+            "x": 0,
+            "y": 16
           },
           "id": 30,
           "options": {
@@ -6966,7 +7086,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 110
+        "y": 118
       },
       "id": 76,
       "panels": [
@@ -7402,6 +7522,44 @@
       {
         "current": {
           "selected": true,
+          "text": "All",
+          "value": "cache-.*"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Deployment",
+        "multi": false,
+        "name": "deployment",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "cache-.*"
+          },
+          {
+            "selected": false,
+            "text": "Production",
+            "value": "cache-(eu-central|eu-north|us-east|us-west|ap-southeast|sa-west)"
+          },
+          {
+            "selected": false,
+            "text": "Staging",
+            "value": "cache-.*-staging.*"
+          },
+          {
+            "selected": false,
+            "text": "Canary",
+            "value": "cache-.*-canary.*"
+          }
+        ],
+        "query": "All : cache-.*, Production : cache-(eu-central|eu-north|us-east|us-west|ap-southeast|sa-west), Staging : cache-.*-staging.*, Canary : cache-.*-canary.*",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
           "text": [
             "All"
           ],
@@ -7410,7 +7568,7 @@
           ]
         },
         "datasource": "$datasource",
-        "definition": "label_values(instance)",
+        "definition": "label_values({instance=~\"$deployment\"}, instance)",
         "hide": 0,
         "includeAll": true,
         "label": "Instance",
@@ -7419,7 +7577,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(instance)",
+          "query": "label_values({instance=~\"$deployment\"}, instance)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
