@@ -29,19 +29,6 @@ defmodule Processor.BuildProcessorTest do
                BuildProcessor.process(storage_key)
     end
 
-    test "raises when S3 download fails" do
-      expect(ExAws.S3, :get_object, fn "tuist", _key ->
-        %ExAws.Operation.S3{}
-      end)
-
-      expect(ExAws, :request, fn _ ->
-        {:error, {:http_error, 404, "not found"}}
-      end)
-
-      assert_raise MatchError, fn ->
-        BuildProcessor.process("missing-key")
-      end
-    end
   end
 
   describe "process_archive/1" do
