@@ -318,7 +318,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:mcp]
 
-    forward "/mcp", Hermes.Server.Transport.StreamableHTTP.Plug, server: Tuist.MCP.Server
+    forward "/mcp", TuistWeb.Plugs.MCPPlug, server: Tuist.MCP.Server
   end
 
   scope path: "/api",
@@ -827,6 +827,7 @@ defmodule TuistWeb.Router do
 
       live "/settings", ProjectSettingsLive
       live "/settings/automations", ProjectAutomationsLive
+      live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
       live "/settings/qa", QASettingsLive
     end

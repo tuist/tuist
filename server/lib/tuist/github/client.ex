@@ -252,6 +252,65 @@ defmodule Tuist.GitHub.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
+  def get_pull_request(%{
+        repository_full_handle: repository_full_handle,
+        installation_id: installation_id,
+        pr_number: pr_number
+      }) do
+    url =
+      URI.to_string(%URI{
+        scheme: "https",
+        host: "api.github.com",
+        path: "/repos/#{repository_full_handle}/pulls/#{pr_number}"
+      })
+
+    github_request(&Req.get/1,
+      url: url,
+      installation_id: installation_id
+    )
+  end
+
+  def create_check_run(%{repository_full_handle: repository_full_handle, installation_id: installation_id} = params) do
+    url =
+      URI.to_string(%URI{scheme: "https", host: "api.github.com", path: "/repos/#{repository_full_handle}/check-runs"})
+
+    json =
+      params
+      |> Map.take([:name, :head_sha, :status, :conclusion, :output, :actions, :details_url])
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    github_request(&Req.post/1,
+      url: url,
+      installation_id: installation_id,
+      json: json
+    )
+  end
+
+  def update_check_run(
+        %{repository_full_handle: repository_full_handle, check_run_id: check_run_id, installation_id: installation_id} =
+          params
+      ) do
+    url =
+      URI.to_string(%URI{
+        scheme: "https",
+        host: "api.github.com",
+        path: "/repos/#{repository_full_handle}/check-runs/#{check_run_id}"
+      })
+
+    json =
+      params
+      |> Map.take([:status, :conclusion, :output, :actions])
+      |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.new()
+
+    github_request(&Req.patch/1,
+      url: url,
+      installation_id: installation_id,
+      json: json
+    )
+  end
+
   def get_tags(%{repository_full_handle: repository_full_handle, token: token}, _opts \\ []) do
     case TuistCommon.GitHub.list_tags(repository_full_handle, token, finch_opts()) do
       {:ok, tags} ->

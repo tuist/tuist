@@ -87,6 +87,12 @@ window.addEventListener("phx:navigate", (info) => {
   }
 });
 
+// Replace the browser URL without triggering handle_params (which push_patch would do),
+// avoiding unnecessary assign_async re-fetches when switching widgets.
+window.addEventListener("phx:replace-url", (e) => {
+  history.replaceState(history.state, "", e.detail.url);
+});
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session

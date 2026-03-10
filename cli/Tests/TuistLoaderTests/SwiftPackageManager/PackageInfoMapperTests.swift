@@ -6127,6 +6127,47 @@ struct PackageInfoMapperTests {
         #expect(fooCoreTarget.productName == "FooCore")
         #expect(fooUITarget.productName == "FooUI")
     }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenBinaryTargetXcframeworkBaseNameMatchesProductName_keepsTargetNameAsProductName() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MySDK_Facade"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "MySDK", type: .library(.static), targets: ["MySDK_Facade"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "MySDK_Facade",
+                            dependencies: [
+                                .target(name: "MySDK_Static", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "MySDK_Static",
+                            type: .binary,
+                            path: "Frameworks/Static/MySDK.xcframework"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        let mappedTarget = try #require(project?.targets.first(where: { $0.name == "MySDK_Facade" }))
+        #expect(mappedTarget.productName == "MySDK_Facade")
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {

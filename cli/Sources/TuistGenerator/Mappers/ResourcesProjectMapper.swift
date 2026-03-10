@@ -103,6 +103,15 @@ public struct ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this
                 status: .required,
                 condition: .when(target.dependencyPlatformFilters)
             ))
+            // Setting PACKAGE_RESOURCE_BUNDLE_NAME tells Xcode that a companion bundle target
+            // owns the compiled asset catalogs, which suppresses LinkAssetCatalog on this target
+            // while preserving GenerateAssetSymbols for typed resource accessors. Without this,
+            // xcodebuild archive fails for static targets because LinkAssetCatalog references
+            // an UninstalledProducts path that doesn't exist during archiving.
+            var base = modifiedTarget.settings?.base ?? SettingsDictionary()
+            base["PACKAGE_RESOURCE_BUNDLE_NAME"] = .string(bundleName)
+            modifiedTarget.settings = modifiedTarget.settings?.with(base: base)
+                ?? Settings(base: base, configurations: [:])
             additionalTargets.append(resourcesTarget)
         }
 

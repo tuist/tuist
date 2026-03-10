@@ -15,7 +15,8 @@ public protocol CreateTestCaseRunAttachmentServicing {
         serverURL: URL,
         testCaseRunId: String,
         fileName: String,
-        filePath: AbsolutePath
+        filePath: AbsolutePath,
+        repetitionNumber: Int?
     ) async throws -> String
 }
 
@@ -61,7 +62,8 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
         serverURL: URL,
         testCaseRunId: String,
         fileName: String,
-        filePath: AbsolutePath
+        filePath: AbsolutePath,
+        repetitionNumber: Int?
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -75,6 +77,7 @@ public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentSer
                 body: .json(
                     .init(
                         file_name: fileName,
+                        repetition_number: repetitionNumber,
                         test_case_run_id: testCaseRunId
                     )
                 )

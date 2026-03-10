@@ -500,6 +500,7 @@ public struct XCResultService: XCResultServicing {
             let exportedFileName: String
             let suggestedHumanReadableName: String?
             let isAssociatedWithFailure: Bool?
+            let repetitionNumber: Int?
         }
     }
 
@@ -539,7 +540,8 @@ public struct XCResultService: XCResultServicing {
 
                     let testAttachment = TestAttachment(
                         filePath: filePath,
-                        fileName: attachment.suggestedHumanReadableName ?? attachment.exportedFileName
+                        fileName: attachment.suggestedHumanReadableName ?? attachment.exportedFileName,
+                        repetitionNumber: attachment.repetitionNumber
                     )
                     attachmentsByTestIdentifier[normalizedIdentifier, default: []].append(testAttachment)
 

@@ -43,5 +43,20 @@ defmodule Tuist.Tests.TestCaseRunAttachmentTest do
       refute changeset.valid?
       assert "can't be blank" in errors_on(changeset).file_name
     end
+
+    test "creates valid changeset with repetition_number" do
+      attrs = Map.put(@valid_attrs, :repetition_number, 2)
+      changeset = TestCaseRunAttachment.create_changeset(%TestCaseRunAttachment{}, attrs)
+
+      assert changeset.valid?
+      assert changeset.changes.repetition_number == 2
+    end
+
+    test "creates valid changeset without repetition_number" do
+      changeset = TestCaseRunAttachment.create_changeset(%TestCaseRunAttachment{}, @valid_attrs)
+
+      assert changeset.valid?
+      refute Map.has_key?(changeset.changes, :repetition_number)
+    end
   end
 end

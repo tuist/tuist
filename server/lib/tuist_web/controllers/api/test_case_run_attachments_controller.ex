@@ -47,6 +47,11 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
            file_name: %Schema{
              type: :string,
              description: "The file name of the attachment."
+           },
+           repetition_number: %Schema{
+             type: :integer,
+             nullable: true,
+             description: "The repetition number (attempt) this attachment belongs to."
            }
          },
          required: [:test_case_run_id, :file_name]
@@ -75,12 +80,21 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
          true <- run.project_id == project.id do
       attachment_id = UUIDv7.generate()
 
-      attrs = %{
-        id: attachment_id,
-        test_case_run_id: body_params.test_case_run_id,
-        file_name: body_params.file_name,
-        inserted_at: NaiveDateTime.utc_now()
-      }
+      attrs =
+        then(
+          %{
+            id: attachment_id,
+            test_case_run_id: body_params.test_case_run_id,
+            file_name: body_params.file_name,
+            inserted_at: NaiveDateTime.utc_now()
+          },
+          fn attrs ->
+            case Map.get(body_params, :repetition_number) do
+              nil -> attrs
+              repetition_number -> Map.put(attrs, :repetition_number, repetition_number)
+            end
+          end
+        )
 
       {:ok, _attachment} = Tests.create_test_case_run_attachment(attrs)
 

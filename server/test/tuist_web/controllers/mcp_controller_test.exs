@@ -5,6 +5,12 @@ defmodule TuistWeb.MCPControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.RateLimit
 
+  @initialize_params %{
+    "protocolVersion" => "2025-03-26",
+    "capabilities" => %{},
+    "clientInfo" => %{"name" => "test", "version" => "0.1.0"}
+  }
+
   describe "POST /mcp" do
     test "returns a bearer challenge when not authenticated", %{conn: conn} do
       conn = post_mcp(conn, %{})
@@ -21,7 +27,7 @@ defmodule TuistWeb.MCPControllerTest do
              }
     end
 
-    test "returns 202 for initialize over streamable transport", %{conn: conn} do
+    test "returns 200 with server capabilities for initialize", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
 
@@ -32,10 +38,15 @@ defmodule TuistWeb.MCPControllerTest do
           "jsonrpc" => "2.0",
           "id" => 1,
           "method" => "initialize",
-          "params" => %{}
+          "params" => @initialize_params
         })
 
-      assert conn.status == 202
+      response = json_response(conn, 200)
+      assert response["jsonrpc"] == "2.0"
+      assert response["id"] == 1
+      assert is_map(response["result"])
+      assert is_binary(response["result"]["protocolVersion"])
+      assert is_map(response["result"]["capabilities"])
     end
 
     test "returns protocol error when session is not initialized", %{conn: conn} do
@@ -86,12 +97,63 @@ defmodule TuistWeb.MCPControllerTest do
           "jsonrpc" => "2.0",
           "id" => 5,
           "method" => "initialize",
-          "params" => %{}
+          "params" => @initialize_params
         })
 
       response = json_response(conn, 429)
       assert response["error"]["code"] == -32_603
       assert response["error"]["message"] =~ "Rate limit"
+    end
+
+    test "returns JSON content-type for requests, never SSE", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 3,
+          "method" => "initialize",
+          "params" => @initialize_params
+        })
+
+      [content_type] = get_resp_header(conn, "content-type")
+      assert content_type =~ "application/json"
+      refute content_type =~ "text/event-stream"
+    end
+
+    test "assigns a session ID on first request", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => @initialize_params
+        })
+
+      assert [session_id] = get_resp_header(conn, "mcp-session-id")
+      assert is_binary(session_id)
+      assert session_id != ""
+    end
+
+    test "returns parse error for an invalid JSON-RPC message", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{"invalid" => "not a jsonrpc message"})
+
+      response = json_response(conn, 400)
+      assert response["error"]["code"] == -32_700
     end
   end
 

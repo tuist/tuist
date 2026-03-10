@@ -1042,6 +1042,17 @@ var targets: [Target] = [
     ),
 ]
 
+// MARK: - Cross-platform targets (outside macOS gate)
+
+targets.append(contentsOf: [
+    .target(
+        name: "ProjectDescription",
+        dependencies: [],
+        path: "cli/Sources/ProjectDescription",
+        exclude: ["AGENTS.md"]
+    ),
+])
+
 // MARK: - macOS-only targets
 
 #if os(macOS)
@@ -1164,12 +1175,6 @@ targets.append(contentsOf: [
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
-    ),
-    .target(
-        name: "ProjectDescription",
-        dependencies: [],
-        path: "cli/Sources/ProjectDescription",
-        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "ProjectAutomation",
@@ -1539,14 +1544,26 @@ var products: [Product] = [
 ]
 
 #if os(macOS)
-products.append(contentsOf: [
-    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
-    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
+products.append(
     .library(
         name: "ProjectDescription",
         type: .dynamic,
         targets: ["ProjectDescription"]
-    ),
+    )
+)
+#else
+products.append(
+    .library(
+        name: "ProjectDescription",
+        targets: ["ProjectDescription"]
+    )
+)
+#endif
+
+#if os(macOS)
+products.append(contentsOf: [
+    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
+    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
     .library(
         name: "ProjectAutomation",
         type: .dynamic,
@@ -1653,7 +1670,7 @@ let package = Package(
         .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.46")),
         .package(id: "modelcontextprotocol.swift-sdk", .upToNextMajor(from: "0.9.0")),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.0")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),

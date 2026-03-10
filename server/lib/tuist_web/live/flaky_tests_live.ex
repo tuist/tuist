@@ -5,6 +5,7 @@ defmodule TuistWeb.FlakyTestsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
   import TuistWeb.Helpers.TestLabels
 
   alias Noora.Filter
@@ -51,7 +52,8 @@ defmodule TuistWeb.FlakyTestsLive do
     ]
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     {
@@ -220,14 +222,14 @@ defmodule TuistWeb.FlakyTestsLive do
         _ -> opts
       end
 
-    flaky_runs_analytics = Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))
-
     socket
-    |> assign(:flaky_runs_analytics, flaky_runs_analytics)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
+    |> assign_async(:flaky_runs_analytics, fn ->
+      {:ok, %{flaky_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
+    end)
   end
 
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")

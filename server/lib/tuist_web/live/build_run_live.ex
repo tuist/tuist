@@ -103,7 +103,9 @@ defmodule TuistWeb.BuildRunLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
+    params = Query.query_params(uri)
+
     if Project.gradle_project?(project) do
       {:noreply, TuistWeb.GradleBuildLive.assign_handle_params(socket, params)}
     else
@@ -535,13 +537,13 @@ defmodule TuistWeb.BuildRunLive do
               label={Enum.count(@issues)}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="small"
+              size="large"
             />
           </div>
-          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">
             <.chevron_down />
           </.neutral_button>
-          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="medium">
             <.chevron_up />
           </.neutral_button>
         </div>

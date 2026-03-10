@@ -1,13 +1,42 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.154.5<!-- RELEASE NOTES START -->
+## What's Changed in 4.155.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* prevent multiple commands produce when static product depends on same-named xcframework by [@pepicrft](https://github.com/pepicrft) in [#9758](https://github.com/tuist/tuist/pull/9758)
+* exclude non-test-dependency targets from workspace scheme build action by [@fortmarek](https://github.com/fortmarek) in [#9741](https://github.com/tuist/tuist/pull/9741)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.3
+
+## What's Changed in 4.155.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* expose ProjectDescription product on Linux for DocC generation by [@pepicrft](https://github.com/pepicrft) in [#9745](https://github.com/tuist/tuist/pull/9745)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.1...4.155.2
+
+## What's Changed in 4.155.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* correctly detect incremental builds with Xcode compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9725](https://github.com/tuist/tuist/pull/9725)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.0...4.155.1
+
+## What's Changed in 4.155.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* group test attachments by repetition by [@fortmarek](https://github.com/fortmarek) in [#9714](https://github.com/tuist/tuist/pull/9714)
+### 🐛 Bug Fixes
+
+* bump Rosalind to 0.7.22 and restore dependency versions by [@fortmarek](https://github.com/fortmarek) in [#9720](https://github.com/tuist/tuist/pull/9720)
 * propagate module map flags to configuration-level setting overrides by [@pepicrft](https://github.com/pepicrft) in [#9692](https://github.com/tuist/tuist/pull/9692)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.4...4.154.5
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.154.4...4.155.0
 
 ## What's Changed in 4.154.4<!-- RELEASE NOTES START -->
 

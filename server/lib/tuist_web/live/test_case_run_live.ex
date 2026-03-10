@@ -70,7 +70,8 @@ defmodule TuistWeb.TestCaseRunLive do
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
     selected_tab = params["tab"] || "overview"
 
@@ -90,6 +91,189 @@ defmodule TuistWeb.TestCaseRunLive do
 
   defp failure_message_span(assigns) do
     ~H[<span data-part="repetition-failure">{format_failure_message(@failure, @context)}</span>]
+  end
+
+  attr :attachment, :map, required: true
+  attr :att_index, :any, required: true
+  attr :project, :map, required: true
+  attr :test_case_run, :map, required: true
+  attr :text_attachment_urls, :map, required: true
+
+  defp attachment_item(%{attachment: attachment} = assigns) do
+    assigns = assign(assigns, :att_type, attachment_type(attachment.file_name))
+
+    ~H"""
+    <div
+      :if={@att_type == :image}
+      id={"attachment-#{@att_index}"}
+      phx-hook="NooraCollapsible"
+      data-part="collapsible"
+      data-state="closed"
+      class="test-failure-card"
+    >
+      <div data-part="root">
+        <div data-part="trigger">
+          <div data-part="header">
+            <div data-part="icon">
+              <.photo />
+            </div>
+            <div data-part="title-and-subtitle">
+              <h3 data-part="title">{@attachment.file_name}</h3>
+            </div>
+            <.badge
+              label={attachment_type_label(@att_type)}
+              color="primary"
+              style="light-fill"
+              size="small"
+            />
+          </div>
+          <.neutral_button
+            href={
+              ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
+            }
+            target="_blank"
+            size="small"
+          >
+            <.download />
+          </.neutral_button>
+          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+            <.chevron_down />
+          </.neutral_button>
+          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+            <.chevron_up />
+          </.neutral_button>
+        </div>
+        <div data-part="content">
+          <a
+            href={
+              ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
+            }
+            target="_blank"
+          >
+            <img
+              src={
+                ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
+              }
+              data-part="attachment-image"
+              loading="lazy"
+            />
+          </a>
+        </div>
+      </div>
+    </div>
+    <div
+      :if={text_attachment_type?(@att_type)}
+      id={"text-attachment-#{@att_index}"}
+      phx-hook="NooraCollapsible"
+      data-part="collapsible"
+      data-state="closed"
+      class="test-failure-card"
+    >
+      <div data-part="root">
+        <div data-part="trigger">
+          <div data-part="header">
+            <div data-part="icon">
+              <.file_text />
+            </div>
+            <div data-part="title-and-subtitle">
+              <h3 data-part="title">{@attachment.file_name}</h3>
+            </div>
+            <.badge
+              label={attachment_type_label(@att_type)}
+              color="primary"
+              style="light-fill"
+              size="small"
+            />
+          </div>
+          <.neutral_button
+            href={
+              ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
+            }
+            target="_blank"
+            size="small"
+          >
+            <.download />
+          </.neutral_button>
+          <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="small">
+            <.chevron_down />
+          </.neutral_button>
+          <.neutral_button data-part="open-collapsible-button" variant="secondary" size="small">
+            <.chevron_up />
+          </.neutral_button>
+        </div>
+        <div data-part="content">
+          <div
+            id={"text-attachment-content-#{@att_index}"}
+            phx-hook="TextAttachmentContent"
+            data-url={@text_attachment_urls[@attachment.id]}
+          >
+            <pre data-part="text-attachment-content">{dgettext("dashboard_tests", "Loading...")}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      :if={@att_type == :file}
+      class="test-failure-card"
+      data-part="collapsible"
+    >
+      <div data-part="root">
+        <div data-part="trigger">
+          <div data-part="header">
+            <div data-part="icon">
+              <.file />
+            </div>
+            <div data-part="title-and-subtitle">
+              <h3 data-part="title">{@attachment.file_name}</h3>
+            </div>
+            <.badge
+              label={attachment_type_label(:file)}
+              color="primary"
+              style="light-fill"
+              size="small"
+            />
+          </div>
+          <.neutral_button
+            href={
+              ~p"/#{@project.account.name}/#{@project.name}/tests/test-cases/runs/#{@test_case_run.id}/attachments/#{@attachment.file_name}"
+            }
+            target="_blank"
+            size="small"
+          >
+            <.download />
+          </.neutral_button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp has_repetition_attachments?(attachments) do
+    Enum.any?(attachments, fn att ->
+      attachment_type(att.file_name) != :ips and att.repetition_number != nil
+    end)
+  end
+
+  defp group_attachments_by_repetition(attachments, repetitions) do
+    visible_attachments =
+      Enum.filter(attachments, fn att -> attachment_type(att.file_name) != :ips end)
+
+    repetition_names =
+      Map.new(repetitions, fn rep -> {rep.repetition_number, rep.name} end)
+
+    {with_rep, without_rep} =
+      Enum.split_with(visible_attachments, fn att -> att.repetition_number != nil end)
+
+    grouped =
+      with_rep
+      |> Enum.group_by(& &1.repetition_number)
+      |> Enum.sort_by(fn {rep_num, _} -> rep_num end)
+      |> Enum.map(fn {rep_num, atts} ->
+        name = Map.get(repetition_names, rep_num, "Attempt #{rep_num}")
+        {rep_num, name, atts}
+      end)
+
+    {grouped, without_rep}
   end
 
   defp assign_text_attachment_urls(socket, test_case_run) do
