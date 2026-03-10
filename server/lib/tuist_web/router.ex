@@ -388,6 +388,7 @@ defmodule TuistWeb.Router do
 
         scope "/bundles" do
           get "/", BundlesController, :index
+          get "/:bundle_id/artifacts", BundleArtifactsController, :show
           get "/:bundle_id", BundlesController, :show
           post "/", BundlesController, :create
         end
@@ -395,6 +396,7 @@ defmodule TuistWeb.Router do
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
+          get "/:run_id/module-cache-targets", ModuleCacheTargetsController, :index
           post "/:run_id/start", AnalyticsController, :multipart_start_project
           post "/:run_id/generate-url", AnalyticsController, :multipart_generate_url_project
           post "/:run_id/complete", AnalyticsController, :multipart_complete_project
@@ -415,11 +417,14 @@ defmodule TuistWeb.Router do
         end
 
         scope "/tests" do
+          get "/", TestsController, :index
+
           scope "/test-cases" do
             get "/", TestCasesController, :index
 
             scope "/runs" do
               get "/", TestCaseRunsController, :index
+              get "/:test_case_run_id/attachments", TestCaseRunAttachmentsController, :index
               get "/:test_case_run_id", TestCaseRunsController, :show
             end
 
@@ -427,6 +432,8 @@ defmodule TuistWeb.Router do
             get "/:test_case_id/runs", TestCaseRunsController, :index_by_test_case
           end
 
+          get "/:test_run_id/modules", TestModuleRunsController, :index
+          get "/:test_run_id/suites", TestSuiteRunsController, :index
           get "/:test_run_id", TestsController, :show
           get "/:test_run_id/test-case-runs", TestCaseRunsController, :index_by_test_run
           post "/", TestsController, :create
@@ -436,6 +443,11 @@ defmodule TuistWeb.Router do
 
         scope "/builds" do
           get "/", BuildsController, :index
+          get "/:build_id/targets", BuildTargetsController, :index
+          get "/:build_id/files", BuildFilesController, :index
+          get "/:build_id/issues", BuildIssuesController, :index
+          get "/:build_id/cache-tasks", BuildCacheTasksController, :index
+          get "/:build_id/cas-outputs", BuildCASOutputsController, :index
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
