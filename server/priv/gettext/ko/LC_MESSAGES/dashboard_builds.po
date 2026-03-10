@@ -772,6 +772,9 @@ msgstr "태그"
 msgid "Value"
 msgstr "값"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #~ msgid "Archive"
 #~ msgstr "아카이브"
 

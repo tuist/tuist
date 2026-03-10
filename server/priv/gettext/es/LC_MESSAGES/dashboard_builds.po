@@ -1027,6 +1027,9 @@ msgstr "Etiquetas"
 msgid "Value"
 msgstr "Valor"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Archive"
 #~ msgstr "Archivo"

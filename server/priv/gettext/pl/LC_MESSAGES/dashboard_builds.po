@@ -1034,6 +1034,9 @@ msgstr "Tagi"
 msgid "Value"
 msgstr "Wartość"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Archive"
 #~ msgstr "Archiwum"

@@ -1018,6 +1018,9 @@ msgstr "タグ"
 msgid "Value"
 msgstr "値"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Archive"
 #~ msgstr "アーカイブ"

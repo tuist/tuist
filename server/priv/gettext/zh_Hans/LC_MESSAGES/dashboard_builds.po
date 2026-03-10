@@ -1007,6 +1007,9 @@ msgstr "标签"
 msgid "Value"
 msgstr "值"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Archive"
 #~ msgstr "归档"

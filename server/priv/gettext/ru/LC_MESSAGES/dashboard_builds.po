@@ -1028,6 +1028,9 @@ msgstr "Теги"
 msgid "Value"
 msgstr "Значение"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Archive"
 #~ msgstr "Архив"

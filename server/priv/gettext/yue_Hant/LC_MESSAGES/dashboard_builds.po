@@ -762,3 +762,6 @@ msgstr ""
 
 msgid "Value"
 msgstr ""
+
+msgid "Machine Metrics"
+msgstr ""

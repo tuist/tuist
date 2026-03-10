@@ -1028,6 +1028,9 @@ msgstr "العلامات"
 msgid "Value"
 msgstr "القيمة"
 
+msgid "Machine Metrics"
+msgstr ""
+
 #, fuzzy
 #~ msgid "Archive"
 #~ msgstr "الأرشيف"
