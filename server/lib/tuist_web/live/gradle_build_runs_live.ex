@@ -126,6 +126,9 @@ defmodule TuistWeb.GradleBuildRunsLive do
         %{value: value, operator: :=~} when is_binary(value) and value != "" ->
           [{:has, value}]
 
+        %{value: value, operator: :not_contains} when is_binary(value) and value != "" ->
+          [{:not_has, value}]
+
         _ ->
           []
       end)
