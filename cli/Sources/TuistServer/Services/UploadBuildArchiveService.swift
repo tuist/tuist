@@ -14,7 +14,7 @@
             serverURL: URL,
             archivePath: AbsolutePath,
             contentLength: Int
-        ) async throws -> ServerUpload
+        ) async throws
     }
 
     enum UploadBuildArchiveServiceError: LocalizedError {
@@ -42,11 +42,6 @@
         }
     }
 
-    public struct ServerUpload {
-        public let id: String
-        public let uploadURL: URL
-    }
-
     public struct UploadBuildArchiveService: UploadBuildArchiveServicing {
         private let fullHandleService: FullHandleServicing
 
@@ -62,7 +57,7 @@
             serverURL: URL,
             archivePath: AbsolutePath,
             contentLength: Int
-        ) async throws -> ServerUpload {
+        ) async throws {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
@@ -80,15 +75,15 @@
                 )
             )
 
-            let upload: ServerUpload
+            let uploadURL: URL
             switch response {
             case let .ok(okResponse):
                 switch okResponse.body {
                 case let .json(uploadResponse):
-                    guard let uploadURL = URL(string: uploadResponse.upload_url) else {
+                    guard let url = URL(string: uploadResponse.upload_url) else {
                         throw UploadBuildArchiveServiceError.badRequest("Invalid upload URL returned by server.")
                     }
-                    upload = ServerUpload(id: uploadResponse.id, uploadURL: uploadURL)
+                    uploadURL = url
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
@@ -114,7 +109,7 @@
                 throw UploadBuildArchiveServiceError.unknownError(statusCode)
             }
 
-            var request = URLRequest(url: upload.uploadURL)
+            var request = URLRequest(url: uploadURL)
             request.httpMethod = "PUT"
             request.setValue("application/zip", forHTTPHeaderField: "Content-Type")
             request.setValue("\(contentLength)", forHTTPHeaderField: "Content-Length")
@@ -127,8 +122,6 @@
             guard (200 ... 299).contains(httpResponse.statusCode) else {
                 throw UploadBuildArchiveServiceError.uploadFailed(httpResponse.statusCode)
             }
-
-            return upload
         }
     }
 #endif

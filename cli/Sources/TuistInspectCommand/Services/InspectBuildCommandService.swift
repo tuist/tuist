@@ -269,7 +269,7 @@
                 )
                 let contentLength = try await fileSystem.fileSizeInBytes(at: archivePath) ?? 0
 
-                _ = try await uploadBuildArchiveService.uploadBuildArchive(
+                try await uploadBuildArchiveService.uploadBuildArchive(
                     id: buildId,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
