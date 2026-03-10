@@ -35,5 +35,10 @@ let package = Package(
                 "XCActivityLogParser",
             ]
         ),
+        .testTarget(
+            name: "XCActivityLogParserTests",
+            dependencies: ["XCActivityLogParser"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )
