@@ -24,7 +24,7 @@ With Test Insights, you can answer questions such as:
 
 To start tracking your tests, you can leverage the `tuist inspect test` command by adding it to your scheme's test post-action:
 
-![Post-action for inspecting tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+![Post-action for inspecting tests](/images/guides/features/build-insights/inspect-test-scheme-post-action.png)
 
 In case you're using [Mise](https://mise.jdx.dev/), your script will need to activate `tuist` in the post-action environment:
 ```sh
@@ -43,11 +43,11 @@ can run Mise from the directory pointed to by $SRCROOT.
 
 Your test runs are now tracked as long as you are logged in to your Tuist account. You can access your test insights in the Tuist dashboard and see how they evolve over time:
 
-![Dashboard with test insights](/images/guides/features/insights/tests-dashboard.png)
+![Dashboard with test insights](/images/guides/features/build-insights/tests-dashboard.png)
 
 Apart from overall trends, you can also dive deep into each individual test, such as when debugging failures or slow tests on the CI:
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![Test detail](/images/guides/features/build-insights/test-detail.png)
 
 ## Generated projects {#generated-projects}
 

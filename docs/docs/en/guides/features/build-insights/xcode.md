@@ -21,7 +21,7 @@ Build insights are driven by the `tuist inspect build` command, typically added 
 
 To start tracking local build times, you can leverage the `tuist inspect build` command by adding it to your scheme's post-action:
 
-![Post-action for inspecting builds](/images/guides/features/insights/inspect-build-scheme-post-action.png)
+![Post-action for inspecting builds](/images/guides/features/build-insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
@@ -66,7 +66,7 @@ To quickly access the dashboard, run `tuist project show --web` from the CLI.
 <!-- -->
 :::
 
-![Dashboard with build insights](/images/guides/features/insights/builds-dashboard.png)
+![Dashboard with build insights](/images/guides/features/build-insights/builds-dashboard.png)
 
 ## Generated projects {#generated-projects}
 
@@ -135,6 +135,22 @@ For Xcodebuild-driven CI you need to:
 
 Without `-resultBundlePath`, required activity logs and result bundles are not generated and `tuist inspect build` cannot analyze the build.
 
+## Machine metrics {#machine-metrics}
+
+Build insights can include machine-level performance metrics (CPU, memory, network, and disk usage) captured during the build. To enable this, set up a lightweight background daemon that continuously samples system metrics:
+
+```bash
+tuist setup insights
+```
+
+This runs a local daemon that samples metrics in the background. The data is picked up automatically by `tuist inspect build` and uploaded with the build report.
+
+::: tip CI
+<!-- -->
+Run `tuist setup insights` on your CI machines before building to capture machine metrics there as well.
+<!-- -->
+:::
+
 ## Custom metadata {#custom-metadata}
 
 You can attach metadata to builds with environment variables to improve filtering.
@@ -158,7 +174,3 @@ export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
 export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
 export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
 ```
-
-## Gradle build insights {#gradle-build-insights-link}
-
-If you are using Gradle, configure build insights in the <LocalizedLink href="/guides/features/insights/gradle-cache">Gradle build insights</LocalizedLink> guide.

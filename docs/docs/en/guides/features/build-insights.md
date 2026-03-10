@@ -15,13 +15,13 @@ Use Build Insights to track local and CI build performance. It currently support
         title="Xcode"
         details="Track Xcode scheme post-action timings, build settings, and build metadata in the Tuist dashboard."
         linkText="Set up Xcode build insights"
-        link="/guides/features/insights/xcode-cache"/>
+        link="/guides/features/build-insights/xcode"/>
     <HomeCard
         icon="<img src='/images/guides/features/gradle-icon.svg' alt='Gradle' width='32' height='32' />"
         title="Gradle"
         details="Track Gradle task timing and cache effectiveness with the Tuist Gradle plugin."
         linkText="Set up Gradle build insights"
-        link="/guides/features/insights/gradle-cache"/>
+        link="/guides/features/build-insights/gradle"/>
 </HomeCards>
 
 ::: warning REQUIREMENTS
