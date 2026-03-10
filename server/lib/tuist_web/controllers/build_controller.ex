@@ -23,9 +23,6 @@ defmodule TuistWeb.BuildController do
       |> redirect(external: url)
       |> halt()
     else
-      {:error, :forbidden} ->
-        raise NotFoundError, dgettext("errors", "Build not found")
-
       _ ->
         raise NotFoundError, dgettext("errors", "Build not found")
     end
