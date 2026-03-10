@@ -1,4 +1,4 @@
-defmodule TuistWeb.BuildArchiveControllerTest do
+defmodule TuistWeb.BuildControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 

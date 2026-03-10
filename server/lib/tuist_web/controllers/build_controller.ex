@@ -1,4 +1,4 @@
-defmodule TuistWeb.BuildArchiveController do
+defmodule TuistWeb.BuildController do
   use TuistWeb, :controller
 
   alias Tuist.Authorization

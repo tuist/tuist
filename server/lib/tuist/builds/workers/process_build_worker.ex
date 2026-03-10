@@ -30,7 +30,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     case result do
       {:ok, parsed_data} ->
         parsed_data = Map.put(parsed_data, "project_id", project_id)
-        replace_build_run(build_id, project_id, account_id, parsed_data)
+        replace_build_run(build_id, parsed_data)
 
       {:error, reason} ->
         mark_build_failed(build_id, project_id, account_id)
@@ -101,7 +101,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
-  defp replace_build_run(build_id, _project_id, _account_id, parsed_data) do
+  defp replace_build_run(build_id, parsed_data) do
     original_build = Builds.get_build(build_id)
     parsed = atomize_keys(parsed_data)
 
