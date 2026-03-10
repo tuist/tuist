@@ -40,8 +40,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
     if Code.ensure_loaded?(Processor.BuildProcessor) do
-      Logger.info("Processing build #{build_id} locally")
-
       with {:ok, account} <- Accounts.get_account_by_id(account_id) do
         temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
@@ -75,8 +73,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       xcode_cache_upload_enabled: xcode_cache_upload_enabled
     }
 
-    Logger.info("Sending build #{build_id} to processor at #{processor_url}")
-
     json_body = Jason.encode!(payload)
     webhook_secret = Tuist.Environment.processor_webhook_secret() || ""
 
@@ -106,15 +102,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   end
 
   defp replace_build_run(build_id, project_id, account_id, parsed_data) do
-    Logger.info("Fetching original processing build #{build_id} from ClickHouse")
     original_build = Builds.get_build(build_id)
-
-    if original_build do
-      Logger.info("Found original build #{build_id} (status: #{original_build.status})")
-    else
-      Logger.warning("Original build #{build_id} not found in ClickHouse, proceeding without metadata")
-    end
-
     parsed = atomize_keys(parsed_data)
 
     base_attrs =
@@ -138,13 +126,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
       })
 
-    Logger.info(
-      "Writing parsed build #{build_id} to ClickHouse (status: #{attrs[:status]}, duration: #{attrs[:duration]}ms)"
-    )
-
     case Builds.create_build(attrs) do
       {:ok, _build} ->
-        Logger.info("Successfully wrote build #{build_id} to ClickHouse")
         :ok
 
       {:error, changeset} ->
