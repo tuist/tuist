@@ -7,7 +7,7 @@
     @preconcurrency import TSCBasic
     import TuistEnvironment
 
-    public final class MachineMetricsSampler: @unchecked Sendable {
+    public struct MachineMetricsSampler: Sendable {
         private let metricsFilePath: Path.AbsolutePath
         private let fileLock: TSCBasic.FileLock
         private let fileSystem: FileSysteming
