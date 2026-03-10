@@ -968,7 +968,7 @@ defmodule TuistWeb.API.BuildsController do
         _params
       ) do
     account = Authentication.authenticated_subject_account(conn)
-    object_key = build_storage_key(selected_project.account.name, selected_project.name, build_id)
+    object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
     multipart_upload_id = Storage.multipart_start(object_key, account)
 
@@ -1030,7 +1030,7 @@ defmodule TuistWeb.API.BuildsController do
         _params
       ) do
     content_length = Map.get(multipart_upload_part, :content_length)
-    object_key = build_storage_key(selected_project.account.name, selected_project.name, build_id)
+    object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
     url =
       Storage.multipart_generate_url(
@@ -1099,7 +1099,7 @@ defmodule TuistWeb.API.BuildsController do
         } = conn,
         _params
       ) do
-    object_key = build_storage_key(selected_project.account.name, selected_project.name, build_id)
+    object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
     :ok =
       Storage.multipart_complete_upload(
@@ -1114,7 +1114,4 @@ defmodule TuistWeb.API.BuildsController do
     json(conn, %{status: "success", data: %{}})
   end
 
-  defp build_storage_key(account_handle, project_handle, build_id) do
-    "#{account_handle}/#{project_handle}/builds/#{build_id}/build.zip"
-  end
 end

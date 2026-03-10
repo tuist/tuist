@@ -92,7 +92,7 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
-          :if={@run.storage_key && @run.storage_key != ""}
+          :if={@has_build_download.ok? && @has_build_download.result}
           href={
             ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.id}/download"
           }
