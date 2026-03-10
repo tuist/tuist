@@ -41,8 +41,25 @@ defmodule Tuist.Gradle do
     tasks = Map.get(attrs, :tasks, [])
 
     task_counts = compute_task_counts(tasks)
+    build_entry = build_entry(attrs, build_id, task_counts, now)
 
-    build_entry = %{
+    Build.Buffer.insert(build_entry)
+
+    if !Enum.empty?(tasks) do
+      create_tasks(build_id, attrs.project_id, tasks, now)
+    end
+
+    machine_metrics = Map.get(attrs, :machine_metrics, [])
+
+    if !Enum.empty?(machine_metrics) do
+      create_machine_metrics(build_id, machine_metrics, now)
+    end
+
+    {:ok, build_id}
+  end
+
+  defp build_entry(attrs, build_id, task_counts, now) do
+    %{
       id: build_id,
       project_id: attrs.project_id,
       account_id: attrs.account_id,
@@ -66,20 +83,6 @@ defmodule Tuist.Gradle do
       requested_tasks: Map.get(attrs, :requested_tasks, []),
       inserted_at: now
     }
-
-    Build.Buffer.insert(build_entry)
-
-    if !Enum.empty?(tasks) do
-      create_tasks(build_id, attrs.project_id, tasks, now)
-    end
-
-    machine_metrics = Map.get(attrs, :machine_metrics, [])
-
-    if !Enum.empty?(machine_metrics) do
-      create_machine_metrics(build_id, machine_metrics, now)
-    end
-
-    {:ok, build_id}
   end
 
   defp compute_task_counts(tasks) do
