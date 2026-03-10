@@ -11,9 +11,11 @@ The registry works out of the box on CI without any additional authentication se
 
 If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by running `tuist registry login`. This requires the `TUIST_TOKEN` environment variable to be set. You can create a project token by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
 
-::: info ONLY XCODE INTEGRATION
+::: info
 <!-- -->
-Creating a new pre-unlocked keychain is required only if you are using the Xcode integration of packages.
+The keychain setup below is only required if you use `tuist registry login` to get higher rate limits. In most cases, the default unauthenticated rate limit is sufficient and you can skip this entirely.
+
+Additionally, creating a new pre-unlocked keychain is only needed when using the Xcode integration of packages.
 <!-- -->
 :::
 
