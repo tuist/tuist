@@ -5,8 +5,10 @@ import Path
 import TuistEnvironment
 
 public struct MachineMetricsReader {
-    static let metricsFilePath: Path.AbsolutePath = Environment.current.stateDirectory
-        .appending(component: "machine_metrics.jsonl")
+    static var metricsFilePath: Path.AbsolutePath {
+        Environment.current.stateDirectory
+            .appending(component: "machine_metrics.jsonl")
+    }
 
     private let fileSystem: FileSysteming
 

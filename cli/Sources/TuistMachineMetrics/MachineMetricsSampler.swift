@@ -197,13 +197,16 @@
                   let line = String(data: data, encoding: .utf8)
             else { return }
 
+            let fileManager = FileManager.default
+            let dir = metricsFilePath.parentDirectory.pathString
+            if !fileManager.fileExists(atPath: dir) {
+                try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            }
+
             try await fileLock.withLock(type: .exclusive) {
-                let fileManager = FileManager.default
                 let path = metricsFilePath.pathString
 
                 if !fileManager.fileExists(atPath: path) {
-                    let dir = metricsFilePath.parentDirectory.pathString
-                    try? fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
                     fileManager.createFile(atPath: path, contents: nil)
                 }
 

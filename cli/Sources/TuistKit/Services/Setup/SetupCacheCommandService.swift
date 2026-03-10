@@ -25,13 +25,13 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
 }
 
 struct SetupCacheCommandService {
-    private let launchAgentService: LaunchAgentService
+    private let launchAgentService: LaunchAgentServicing
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let manifestLoader: ManifestLoading
 
     init(
-        launchAgentService: LaunchAgentService = LaunchAgentService(),
+        launchAgentService: LaunchAgentServicing = LaunchAgentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         manifestLoader: ManifestLoading = ManifestLoader.current

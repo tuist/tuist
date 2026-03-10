@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import TuistEnvironment
 import TuistLogging
@@ -18,7 +19,17 @@ public enum LaunchAgentServiceError: Equatable, LocalizedError {
     }
 }
 
-public struct LaunchAgentService {
+@Mockable
+public protocol LaunchAgentServicing {
+    func setupLaunchAgent(
+        label: String,
+        plistFileName: String,
+        programArguments: [String],
+        environmentVariables: [String: String]
+    ) async throws
+}
+
+public struct LaunchAgentService: LaunchAgentServicing {
     private let fileSystem: FileSysteming
     private let launchctlController: LaunchctlControlling
 
