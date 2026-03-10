@@ -8,7 +8,11 @@ defmodule TuistWeb.Plugs.MCPPlug do
   This causes MCP clients to hang indefinitely. Since the MCP spec allows servers
   to respond with either JSON or SSE for POST requests, we always use JSON.
 
-  GET and DELETE requests are delegated to the Anubis plug unchanged.
+  GET SSE requests are rejected with 405 because the Anubis plug opens a
+  long-lived SSE stream that never sends data, causing MCP clients like Codex
+  to time out waiting for the stream to become ready.
+
+  DELETE requests are delegated to the Anubis plug for session cleanup.
 
   See: https://github.com/cloudwalk/hermes-mcp/issues/244
   """
@@ -34,7 +38,13 @@ defmodule TuistWeb.Plugs.MCPPlug do
 
   @impl Plug
   def call(%Plug.Conn{method: "POST"} = conn, opts), do: handle_post(conn, opts)
-  def call(conn, opts), do: AnubisPlug.call(conn, opts)
+  def call(%Plug.Conn{method: "DELETE"} = conn, opts), do: AnubisPlug.call(conn, opts)
+
+  def call(%Plug.Conn{method: "GET"} = conn, _opts) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(405, ~s({"error":"SSE streams are not supported. Use POST for all requests."}))
+  end
 
   defp handle_post(conn, %{transport: transport, timeout: timeout}) do
     with {:ok, body, conn} <- fetch_body(conn, timeout),
@@ -71,7 +81,7 @@ defmodule TuistWeb.Plugs.MCPPlug do
   end
 
   defp handle_request(conn, message, params) do
-    case StreamableHTTP.handle_message(params) do
+    case safe_handle_message(params) do
       {:ok, response} ->
         send_json(conn, 200, response)
 
@@ -84,8 +94,15 @@ defmodule TuistWeb.Plugs.MCPPlug do
   end
 
   defp handle_notification(conn, params) do
-    StreamableHTTP.handle_message(params)
+    safe_handle_message(params)
     send_json(conn, 202, "{}")
+  end
+
+  defp safe_handle_message(params) do
+    StreamableHTTP.handle_message(params)
+  catch
+    :exit, reason ->
+      {:error, Error.protocol(:internal_error, %{message: "Transport unavailable: #{inspect(reason)}"})}
   end
 
   defp fetch_body(%{body_params: %Unfetched{}} = conn, timeout) do

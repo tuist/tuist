@@ -80,6 +80,20 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
       assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
     end
+
+    test "uses default port when behind a reverse proxy with x-forwarded-proto", %{conn: conn} do
+      conn =
+        conn
+        |> Map.put(:host, "tuist.dev")
+        |> Map.put(:port, 80)
+        |> put_req_header("x-forwarded-proto", "https")
+        |> get("/.well-known/oauth-protected-resource/mcp")
+
+      response = json_response(conn, 200)
+
+      assert response["resource"] == "https://tuist.dev/mcp"
+      assert response["authorization_servers"] == ["https://tuist.dev"]
+    end
   end
 
   describe "GET /.well-known/apple-app-site-association" do
