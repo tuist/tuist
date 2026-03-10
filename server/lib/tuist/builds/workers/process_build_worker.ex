@@ -122,14 +122,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1)
       })
 
-    case Builds.create_build(attrs) do
-      {:ok, _build} ->
-        :ok
-
-      {:error, changeset} ->
-        Logger.error("Failed to create build #{build_id}: #{inspect(changeset.errors)}")
-        {:error, "failed_to_create_build"}
-    end
+    {:ok, _build} = Builds.create_build(attrs)
+    :ok
   end
 
   defp mark_build_failed(build_id, project_id, account_id) do
