@@ -3,28 +3,37 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
   use Mimic
 
   alias Tuist.Builds.Workers.ProcessBuildWorker
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   setup :verify_on_exit!
 
-  @build_id "B12673DA-1345-4077-BB30-D7576FEACE09"
   @storage_key "tuist/builds/test-archive.zip"
-  @project_id "P12673DA-1345-4077-BB30-D7576FEACE09"
 
   setup do
     %{account: account} =
       TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account])
 
-    %{account: account}
+    project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture()
+
+    {:ok, build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        status: "processing",
+        duration: 0
+      )
+
+    %{account: account, project: project, build: build}
   end
 
-  defp job_args(account_id, opts \\ []) do
+  defp job_args(build_id, account_id, project_id, opts \\ []) do
     xcode_cache_upload_enabled = Keyword.get(opts, :xcode_cache_upload_enabled, true)
 
     %{
-      "build_id" => @build_id,
+      "build_id" => build_id,
       "storage_key" => @storage_key,
       "account_id" => account_id,
-      "project_id" => @project_id,
+      "project_id" => project_id,
       "xcode_cache_upload_enabled" => xcode_cache_upload_enabled
     }
   end
@@ -74,37 +83,44 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       :ok
     end
 
-    test "sends build to remote processor and writes result to ClickHouse", %{account: account} do
+    test "sends build to remote processor and writes result", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Req, :post, fn url, opts ->
         assert url == "http://localhost:4002/webhooks/process-build"
         body = Jason.decode!(opts[:body])
-        assert body["build_id"] == @build_id
+        assert body["build_id"] == build.id
         assert body["storage_key"] == @storage_key
         assert body["xcode_cache_upload_enabled"] == true
         assert Enum.any?(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
         {:ok, %{status: 200, body: parsed_data()}}
       end)
 
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.id == @build_id
-        assert attrs.project_id == @project_id
+        assert attrs.id == build.id
+        assert attrs.project_id == project.id
         assert attrs.duration == 1200
         assert attrs.status == "success"
         assert attrs.machine_metrics == []
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "converts machine metrics from camelCase to snake_case", %{account: account} do
+    test "converts machine metrics from camelCase to snake_case", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Req, :post, fn _url, _opts ->
         {:ok, %{status: 200, body: parsed_data_with_machine_metrics()}}
       end)
-
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert length(attrs.machine_metrics) == 2
@@ -121,13 +137,20 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
         assert second.timestamp == 1_710_000_005
         assert second.cpu_usage_percent == 82.3
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "signs webhook request with HMAC-SHA256", %{account: account} do
+    test "signs webhook request with HMAC-SHA256", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Req, :post, fn _url, opts ->
         body = opts[:body]
         {_, signature} = Enum.find(opts[:headers], fn {k, _v} -> k == "x-webhook-signature" end)
@@ -141,38 +164,53 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, %{status: 200, body: parsed_data()}}
       end)
 
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: @build_id}} end)
+      expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "marks build as failed when processor returns non-200", %{account: account} do
+    test "marks build as failed when processor returns non-200", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Req, :post, fn _url, _opts ->
         {:ok, %{status: 500, body: %{"error" => "internal error"}}}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
-        assert attrs.id == @build_id
-        {:ok, %{id: @build_id}}
+        assert attrs.id == build.id
+        {:ok, %{id: build.id}}
       end)
 
-      assert {:error, _} = ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert {:error, _} =
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "marks build as failed when HTTP request fails", %{account: account} do
+    test "marks build as failed when HTTP request fails", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Req, :post, fn _url, _opts ->
         {:error, :timeout}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
       assert {:error, :timeout} =
-               ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
   end
 
@@ -182,7 +220,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       :ok
     end
 
-    test "processes locally when processor module is available", %{account: account} do
+    test "processes locally when processor module is available", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Tuist.Storage, :download_to_file, fn @storage_key, path, ^account ->
         assert String.ends_with?(path, ".zip")
         {:ok, :done}
@@ -193,20 +235,25 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, parsed_data()}
       end)
 
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.id == @build_id
-        assert attrs.project_id == @project_id
+        assert attrs.id == build.id
+        assert attrs.project_id == project.id
         assert attrs.duration == 1200
         assert attrs.status == "success"
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "processes locally with machine metrics", %{account: account} do
+    test "processes locally with machine metrics", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
         {:ok, :done}
       end)
@@ -215,8 +262,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, parsed_data_with_machine_metrics()}
       end)
 
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert length(attrs.machine_metrics) == 2
 
@@ -224,27 +269,40 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert first.timestamp == 1_710_000_000
         assert first.cpu_usage_percent == 75.5
         assert first.memory_used_bytes == 8_000_000_000
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "marks build as failed when download fails", %{account: account} do
+    test "marks build as failed when download fails", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
         {:error, :not_found}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
       assert {:error, :not_found} =
-               ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "marks build as failed when local processing returns error", %{account: account} do
+    test "marks build as failed when local processing returns error", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
         {:ok, :done}
       end)
@@ -255,25 +313,29 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
       assert {:error, {:parse_failed, "NIF not loaded"}} =
-               ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "marks build as failed when account is not found" do
+    test "marks build as failed when account is not found", %{project: project, build: build} do
       expect(Tuist.Accounts, :get_account_by_id, fn _id ->
         {:error, :not_found}
       end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.status == "failed_processing"
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
       assert {:error, :not_found} =
-               ProcessBuildWorker.perform(%Oban.Job{args: job_args("999999")})
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, "999999", project.id)
+               })
     end
   end
 
@@ -283,7 +345,11 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       :ok
     end
 
-    test "treats empty string as unconfigured and processes locally", %{account: account} do
+    test "treats empty string as unconfigured and processes locally", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Tuist.Storage, :download_to_file, fn @storage_key, _path, ^account ->
         {:ok, :done}
       end)
@@ -293,15 +359,16 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         {:ok, parsed_data()}
       end)
 
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.id == @build_id
+        assert attrs.id == build.id
         assert attrs.status == "success"
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
   end
 
@@ -312,51 +379,51 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       :ok
     end
 
-    test "sets project_id on parsed data before writing", %{account: account} do
+    test "preserves original build fields when merging with parsed data", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       expect(Req, :post, fn _url, _opts ->
         {:ok, %{status: 200, body: parsed_data()}}
       end)
-
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
 
       expect(Tuist.Builds, :create_build, fn attrs ->
-        assert attrs.project_id == @project_id
-        {:ok, %{id: @build_id}}
+        assert attrs.id == build.id
+        assert attrs.project_id == project.id
+        assert attrs.account_id == account.id
+        assert attrs.is_ci == false
+        assert attrs.duration == 1200
+        assert attrs.status == "success"
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
 
-    test "returns error when create_build fails", %{account: account} do
-      expect(Req, :post, fn _url, _opts ->
-        {:ok, %{status: 200, body: parsed_data()}}
-      end)
-
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-
-      expect(Tuist.Builds, :create_build, fn _attrs ->
-        {:error, %Ecto.Changeset{errors: [id: {"is invalid", []}]}}
-      end)
-
-      assert {:error, "failed_to_create_build"} =
-               ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
-    end
-
-    test "handles missing machine_metrics in parsed data gracefully", %{account: account} do
+    test "handles missing machine_metrics in parsed data gracefully", %{
+      account: account,
+      project: project,
+      build: build
+    } do
       data_without_metrics = Map.delete(parsed_data(), "machine_metrics")
 
       expect(Req, :post, fn _url, _opts ->
         {:ok, %{status: 200, body: data_without_metrics}}
       end)
 
-      expect(Tuist.Builds, :get_build, fn @build_id -> nil end)
-
       expect(Tuist.Builds, :create_build, fn attrs ->
         assert attrs.machine_metrics == []
-        {:ok, %{id: @build_id}}
+        {:ok, %{id: build.id}}
       end)
 
-      assert :ok == ProcessBuildWorker.perform(%Oban.Job{args: job_args(account.id)})
+      assert :ok ==
+               ProcessBuildWorker.perform(%Oban.Job{
+                 args: job_args(build.id, account.id, project.id)
+               })
     end
   end
 end

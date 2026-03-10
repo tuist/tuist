@@ -103,15 +103,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     parsed = atomize_keys(parsed_data)
 
     base_attrs =
-      case Builds.get_build(build_id) do
-        nil ->
-          %{id: build_id}
-
-        build ->
-          build
-          |> Map.from_struct()
-          |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
-      end
+      build_id
+      |> Builds.get_build()
+      |> Map.from_struct()
+      |> Map.drop([:__meta__, :project, :ran_by_account, :issues, :files, :targets])
 
     attrs =
       Map.merge(base_attrs, %{
@@ -127,10 +122,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         machine_metrics: convert_machine_metrics(parsed[:machine_metrics] || [])
       })
 
-    case Builds.create_build(attrs) do
-      {:ok, _build} -> :ok
-      {:error, _} -> {:error, "failed_to_create_build"}
-    end
+    {:ok, _build} = Builds.create_build(attrs)
+    :ok
   end
 
   defp mark_build_failed(build_id, project_id, account_id) do
