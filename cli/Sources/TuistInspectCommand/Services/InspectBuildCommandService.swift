@@ -262,92 +262,95 @@
 
             let buildId = UUID().uuidString
 
-            let archiveData = try await bundleBuildArchive(
-                mostRecentActivityLogPath: mostRecentActivityLogPath
-            )
+            let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build_archive") { tempDirectory in
+                let archivePath = try await bundleBuildArchive(
+                    mostRecentActivityLogPath: mostRecentActivityLogPath,
+                    into: tempDirectory
+                )
+                let contentLength = try await fileSystem.fileSizeInBytes(at: archivePath) ?? 0
 
-            _ = try await uploadBuildArchiveService.uploadBuildArchive(
-                id: buildId,
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                archiveData: archiveData,
-                contentLength: archiveData.count
-            )
+                _ = try await uploadBuildArchiveService.uploadBuildArchive(
+                    id: buildId,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    archivePath: archivePath,
+                    contentLength: Int(contentLength)
+                )
 
-            let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
-            let ciInfo = ciController.ciInfo()
-            let customMetadata = readCustomMetadata()
-            let build = try await createBuildService.createBuild(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                id: buildId,
-                category: .incremental,
-                configuration: Environment.current.variables["CONFIGURATION"],
-                customMetadata: customMetadata,
-                duration: 0,
-                files: [],
-                gitBranch: gitInfo.branch,
-                gitCommitSHA: gitInfo.sha,
-                gitRef: gitInfo.ref,
-                gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
-                isCI: Environment.current.isCI,
-                issues: [],
-                modelIdentifier: machineEnvironment.modelIdentifier(),
-                macOSVersion: machineEnvironment.macOSVersion,
-                scheme: Environment.current.schemeName,
-                targets: [],
-                xcodeVersion: try await xcodeBuildController.version()?.description,
-                status: .processing,
-                ciRunId: ciInfo?.runId,
-                ciProjectHandle: ciInfo?.projectHandle,
-                ciHost: ciInfo?.host,
-                ciProvider: ciInfo?.provider,
-                cacheableTasks: [],
-                casOutputs: []
-            )
+                let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
+                let ciInfo = ciController.ciInfo()
+                let customMetadata = readCustomMetadata()
+                return try await createBuildService.createBuild(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    id: buildId,
+                    category: .incremental,
+                    configuration: Environment.current.variables["CONFIGURATION"],
+                    customMetadata: customMetadata,
+                    duration: 0,
+                    files: [],
+                    gitBranch: gitInfo.branch,
+                    gitCommitSHA: gitInfo.sha,
+                    gitRef: gitInfo.ref,
+                    gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+                    isCI: Environment.current.isCI,
+                    issues: [],
+                    modelIdentifier: machineEnvironment.modelIdentifier(),
+                    macOSVersion: machineEnvironment.macOSVersion,
+                    scheme: Environment.current.schemeName,
+                    targets: [],
+                    xcodeVersion: try await xcodeBuildController.version()?.description,
+                    status: .processing,
+                    ciRunId: ciInfo?.runId,
+                    ciProjectHandle: ciInfo?.projectHandle,
+                    ciHost: ciInfo?.host,
+                    ciProvider: ciInfo?.provider,
+                    cacheableTasks: [],
+                    casOutputs: []
+                )
+            }
             AlertController.current.success(
                 .alert("Build uploaded for processing. View status at \(build.url.absoluteString)")
             )
         }
 
         private func bundleBuildArchive(
-            mostRecentActivityLogPath: AbsolutePath
-        ) async throws -> Data {
-            try await fileSystem.runInTemporaryDirectory(prefix: "build_archive") { tempDirectory in
-                let archiveDirectory = tempDirectory.appending(component: "build_archive")
-                try await fileSystem.makeDirectory(at: archiveDirectory)
+            mostRecentActivityLogPath: AbsolutePath,
+            into tempDirectory: AbsolutePath
+        ) async throws -> AbsolutePath {
+            let archiveDirectory = tempDirectory.appending(component: "build_archive")
+            try await fileSystem.makeDirectory(at: archiveDirectory)
 
-                let xcactivitylogDir = archiveDirectory.appending(component: "xcactivitylog")
-                try await fileSystem.makeDirectory(at: xcactivitylogDir)
-                try await fileSystem.copy(
-                    mostRecentActivityLogPath,
-                    to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
-                )
+            let xcactivitylogDir = archiveDirectory.appending(component: "xcactivitylog")
+            try await fileSystem.makeDirectory(at: xcactivitylogDir)
+            try await fileSystem.copy(
+                mostRecentActivityLogPath,
+                to: xcactivitylogDir.appending(component: mostRecentActivityLogPath.basename)
+            )
 
-                let stateDir = Environment.current.stateDirectory
-                let casMetadataDir = archiveDirectory.appending(component: "cas_metadata")
-                try await fileSystem.makeDirectory(at: casMetadataDir)
+            let stateDir = Environment.current.stateDirectory
+            let casMetadataDir = archiveDirectory.appending(component: "cas_metadata")
+            try await fileSystem.makeDirectory(at: casMetadataDir)
 
-                for subdirectory in ["nodes", "cas", "keyvalue"] {
-                    let sourceDir = stateDir.appending(component: subdirectory)
-                    if try await fileSystem.exists(sourceDir) {
-                        let destDir = casMetadataDir.appending(component: subdirectory)
-                        try await fileSystem.copy(sourceDir, to: destDir)
-                    }
+            for subdirectory in ["nodes", "cas", "keyvalue"] {
+                let sourceDir = stateDir.appending(component: subdirectory)
+                if try await fileSystem.exists(sourceDir) {
+                    let destDir = casMetadataDir.appending(component: subdirectory)
+                    try await fileSystem.copy(sourceDir, to: destDir)
                 }
-
-                let manifest = BuildArchiveManifest(
-                    cacheUploadEnabled: true,
-                    macOSVersion: machineEnvironment.macOSVersion,
-                    modelIdentifier: machineEnvironment.modelIdentifier(),
-                    xcodeVersion: try await xcodeBuildController.version()?.description
-                )
-                try await fileSystem.writeAsJSON(manifest, at: archiveDirectory.appending(component: "manifest.json"))
-
-                let zipPath = tempDirectory.appending(component: "build.zip")
-                try await fileSystem.zipFileOrDirectoryContent(at: archiveDirectory, to: zipPath)
-                return try Data(contentsOf: URL(fileURLWithPath: zipPath.pathString))
             }
+
+            let manifest = BuildArchiveManifest(
+                cacheUploadEnabled: true,
+                macOSVersion: machineEnvironment.macOSVersion,
+                modelIdentifier: machineEnvironment.modelIdentifier(),
+                xcodeVersion: try await xcodeBuildController.version()?.description
+            )
+            try await fileSystem.writeAsJSON(manifest, at: archiveDirectory.appending(component: "manifest.json"))
+
+            let zipPath = tempDirectory.appending(component: "build.zip")
+            try await fileSystem.zipFileOrDirectoryContent(at: archiveDirectory, to: zipPath)
+            return zipPath
         }
 
         private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {

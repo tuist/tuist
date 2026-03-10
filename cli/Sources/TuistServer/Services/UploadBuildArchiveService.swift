@@ -2,6 +2,7 @@
     import Foundation
     import Mockable
     import OpenAPIRuntime
+    import Path
     import TuistSupport
     import TuistHTTP
 
@@ -11,7 +12,7 @@
             id: String,
             fullHandle: String,
             serverURL: URL,
-            archiveData: Data,
+            archivePath: AbsolutePath,
             contentLength: Int
         ) async throws -> ServerUpload
     }
@@ -59,7 +60,7 @@
             id: String,
             fullHandle: String,
             serverURL: URL,
-            archiveData: Data,
+            archivePath: AbsolutePath,
             contentLength: Int
         ) async throws -> ServerUpload {
             let client = Client.authenticated(serverURL: serverURL)
@@ -115,11 +116,11 @@
 
             var request = URLRequest(url: upload.uploadURL)
             request.httpMethod = "PUT"
-            request.httpBody = archiveData
             request.setValue("application/zip", forHTTPHeaderField: "Content-Type")
             request.setValue("\(contentLength)", forHTTPHeaderField: "Content-Length")
 
-            let (_, uploadResponse) = try await URLSession.shared.data(for: request)
+            let fileURL = URL(fileURLWithPath: archivePath.pathString)
+            let (_, uploadResponse) = try await URLSession.shared.upload(for: request, fromFile: fileURL)
             guard let httpResponse = uploadResponse as? HTTPURLResponse else {
                 throw UploadBuildArchiveServiceError.uploadError("No HTTP response received")
             }
