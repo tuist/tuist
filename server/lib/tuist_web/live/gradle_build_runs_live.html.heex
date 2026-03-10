@@ -97,10 +97,17 @@
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Requested tasks")}>
             <.text_cell label={
-              if(build.requested_tasks == [],
-                do: dgettext("dashboard_gradle", "Unknown"),
-                else: Enum.join(build.requested_tasks, " ")
-              )
+              case build.requested_tasks do
+                [] ->
+                  dgettext("dashboard_gradle", "Unknown")
+
+                tasks ->
+                  truncated = Enum.take(tasks, 2)
+
+                  if length(tasks) > 2,
+                    do: Enum.join(truncated, " ") <> " +#{length(tasks) - 2}",
+                    else: Enum.join(truncated, " ")
+              end
             } />
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Built by")}>
