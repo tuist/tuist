@@ -85,24 +85,14 @@ defmodule Tuist.Bundles do
     end
   end
 
-  def list_bundle_artifacts(bundle_id, opts \\ []) do
-    parent_artifact_id = Keyword.get(opts, :parent_artifact_id)
-
-    query =
-      from(a in Artifact,
-        where: a.bundle_id == ^bundle_id,
-        order_by: [asc: a.path]
-      )
-
-    query =
-      if parent_artifact_id do
-        where(query, [a], a.artifact_id == ^parent_artifact_id)
-      else
-        where(query, [a], is_nil(a.artifact_id))
-      end
-
-    Repo.all(query)
+  def get_bundle_artifact_tree(bundle_id) do
+    from(a in Artifact,
+      where: a.bundle_id == ^bundle_id,
+      order_by: [asc: a.path]
+    )
+    |> Repo.all()
   end
+
 
   defp bundle_artifacts(%Bundle{id: id}) do
     # Get all artifacts for this bundle in a single query

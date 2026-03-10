@@ -31,14 +31,13 @@ defmodule Tuist.MCP.ServerTest do
       assert "get_test_case_run" in tool_names
       assert "list_bundles" in tool_names
       assert "get_bundle" in tool_names
-      assert "list_bundle_artifacts" in tool_names
+      assert "get_bundle_artifact_tree" in tool_names
       assert "list_generations" in tool_names
       assert "get_generation" in tool_names
       assert "list_cache_runs" in tool_names
       assert "get_cache_run" in tool_names
       assert "list_xcode_module_cache_targets" in tool_names
       assert "list_test_case_run_attachments" in tool_names
-      assert "get_test_case_run_attachment" in tool_names
       assert "list_projects" in tool_names
     end
 

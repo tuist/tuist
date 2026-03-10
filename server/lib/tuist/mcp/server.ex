@@ -21,14 +21,13 @@ defmodule Tuist.MCP.Server do
   alias Tuist.MCP.Components.Prompts.CompareTestRuns
   alias Tuist.MCP.Components.Prompts.FixFlakyTest
   alias Tuist.MCP.Components.Tools.GetBundle
+  alias Tuist.MCP.Components.Tools.GetBundleArtifactTree
   alias Tuist.MCP.Components.Tools.GetCacheRun
   alias Tuist.MCP.Components.Tools.GetGeneration
   alias Tuist.MCP.Components.Tools.GetTestCase
   alias Tuist.MCP.Components.Tools.GetTestCaseRun
-  alias Tuist.MCP.Components.Tools.GetTestCaseRunAttachment
   alias Tuist.MCP.Components.Tools.GetTestRun
   alias Tuist.MCP.Components.Tools.GetXcodeBuild
-  alias Tuist.MCP.Components.Tools.ListBundleArtifacts
   alias Tuist.MCP.Components.Tools.ListBundles
   alias Tuist.MCP.Components.Tools.ListCacheRuns
   alias Tuist.MCP.Components.Tools.ListGenerations
@@ -66,12 +65,11 @@ defmodule Tuist.MCP.Server do
   component(GetTestRun, name: "get_test_run")
   component(GetTestCaseRun, name: "get_test_case_run")
   component(ListTestCaseRunAttachments, name: "list_test_case_run_attachments")
-  component(GetTestCaseRunAttachment, name: "get_test_case_run_attachment")
 
   # Bundle tools
   component(ListBundles, name: "list_bundles")
   component(GetBundle, name: "get_bundle")
-  component(ListBundleArtifacts, name: "list_bundle_artifacts")
+  component(GetBundleArtifactTree, name: "get_bundle_artifact_tree")
 
   # Generation tools
   component(ListGenerations, name: "list_generations")

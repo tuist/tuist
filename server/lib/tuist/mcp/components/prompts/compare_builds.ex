@@ -14,15 +14,17 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     field :project_handle, :string, description: "The project handle."
 
     field :base, :string,
-      description:
-        "Base build: an ID, a Tuist dashboard URL, or a branch name. " <>
-          "Defaults to the latest build on the project's default branch when omitted."
+      description: """
+      Base build: an ID, a Tuist dashboard URL, or a branch name. \
+      Defaults to the latest build on the project's default branch when omitted.\
+      """
 
     field :head, :string,
-      description:
-        "Head build: an ID, a Tuist dashboard URL, or a branch name. " <>
-          "This is the build you want to evaluate. When provided without a base, " <>
-          "the base defaults to the latest build on the project's default branch."
+      description: """
+      Head build: an ID, a Tuist dashboard URL, or a branch name. \
+      This is the build you want to evaluate. When provided without a base, \
+      the base defaults to the latest build on the project's default branch.\
+      """
   end
 
   @impl true

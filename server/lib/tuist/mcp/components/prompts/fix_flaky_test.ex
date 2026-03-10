@@ -49,8 +49,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
       `test_case_id` is the `id` field returned by `list_test_cases`.
     - **get_test_run**: Get detailed metrics for a test run (requires test_run_id).
     - **get_test_case_run**: Get failure details for a specific test case run (requires test_case_run_id).
-    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run.
-    - **get_test_case_run_attachment**: Get a download URL for a specific attachment.
+    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run. Each attachment includes a temporary download URL.
 
     ## Workflow
 
@@ -89,8 +88,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
 
     ### 5. Inspect attachments
 
-    Use `list_test_case_run_attachments` to find diagnostic artifacts for the failing run.
-    Then use `get_test_case_run_attachment` to get download URLs.
+    Use `list_test_case_run_attachments` to find diagnostic artifacts for the failing run. Each attachment includes a download URL.
 
     - **Text attachments** (logs, crash reports, JSON, XML, CSV): download and include relevant excerpts inline to aid diagnosis.
     - **Image attachments** (screenshots, PNGs, JPGs): present the download URL so the developer can view them. Describe what the image likely shows based on its file name and context.

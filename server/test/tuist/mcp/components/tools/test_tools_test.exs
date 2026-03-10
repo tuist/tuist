@@ -519,7 +519,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   end
 
   describe "test case run attachments" do
-    test "list_test_case_run_attachments returns attachments" do
+    test "list_test_case_run_attachments returns attachments with download URLs" do
       stub(Tests, :get_test_case_run_by_id, fn "run-1", [preload: [:attachments]] ->
         {:ok,
          %{
@@ -537,6 +537,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       end)
 
       stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
+
+      stub(Tuist.Storage, :generate_download_url, fn _key, _account, _opts ->
+        "https://s3.example.com/presigned-url"
+      end)
 
       request = %{
         "method" => "tools/call",
@@ -556,79 +560,12 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       att1 = Enum.find(data["attachments"], &(&1["id"] == "att-1"))
       assert att1["file_name"] == "crash-report.ips"
       assert att1["type"] == "crash_report"
+      assert att1["download_url"] == "https://s3.example.com/presigned-url"
 
       att2 = Enum.find(data["attachments"], &(&1["id"] == "att-2"))
       assert att2["file_name"] == "screenshot.png"
       assert att2["type"] == "image"
-    end
-
-    test "get_test_case_run_attachment returns download URL" do
-      stub(Tests, :get_test_case_run_by_id, fn "run-1", [preload: [:attachments]] ->
-        {:ok,
-         %{
-           id: "run-1",
-           project_id: 1,
-           attachments: [
-             %{id: "att-1", file_name: "crash-report.ips"}
-           ]
-         }}
-      end)
-
-      stub(Projects, :get_project_by_id, fn 1 ->
-        %{id: 1, account: %{name: "acme"}, name: "app"}
-      end)
-
-      stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
-
-      stub(Tuist.Storage, :generate_download_url, fn _key, _account, _opts ->
-        "https://s3.example.com/presigned-url"
-      end)
-
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_test_case_run_attachment",
-          "arguments" => %{
-            "test_case_run_id" => "run-1",
-            "attachment_id" => "att-1"
-          }
-        }
-      }
-
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
-
-      data = Jason.decode!(json)
-      assert data["id"] == "att-1"
-      assert data["file_name"] == "crash-report.ips"
-      assert data["download_url"] == "https://s3.example.com/presigned-url"
-      assert data["expires_in_seconds"] == 3600
-    end
-
-    test "get_test_case_run_attachment returns error for missing attachment" do
-      stub(Tests, :get_test_case_run_by_id, fn "run-1", [preload: [:attachments]] ->
-        {:ok, %{id: "run-1", project_id: 1, attachments: []}}
-      end)
-
-      stub(Projects, :get_project_by_id, fn 1 ->
-        %{id: 1, account: %{name: "acme"}, name: "app"}
-      end)
-
-      stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
-
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_test_case_run_attachment",
-          "arguments" => %{
-            "test_case_run_id" => "run-1",
-            "attachment_id" => "nonexistent"
-          }
-        }
-      }
-
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-      assert message(error) =~ "Attachment not found"
+      assert att2["download_url"] == "https://s3.example.com/presigned-url"
     end
   end
 

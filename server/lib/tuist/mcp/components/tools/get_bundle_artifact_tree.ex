@@ -1,6 +1,6 @@
-defmodule Tuist.MCP.Components.Tools.ListBundleArtifacts do
+defmodule Tuist.MCP.Components.Tools.GetBundleArtifactTree do
   @moduledoc """
-  List artifacts for a bundle. Use parent_artifact_id to drill into nested artifacts. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}.
+  Get the full artifact tree for a bundle as a flat list sorted by path. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -16,17 +16,10 @@ defmodule Tuist.MCP.Components.Tools.ListBundleArtifacts do
     field :bundle_id, :string,
       required: true,
       description: "The ID of the bundle."
-
-    field :parent_artifact_id, :string,
-      description:
-        "The ID of a parent artifact to list children of. " <>
-          "Omit to list top-level artifacts."
   end
 
   @impl true
-  def execute(%{bundle_id: bundle_id} = arguments, frame) do
-    parent_artifact_id = Map.get(arguments, :parent_artifact_id)
-
+  def execute(%{bundle_id: bundle_id}, frame) do
     with {:ok, bundle} <-
            ToolSupport.load_resource(
              Bundles.get_bundle(bundle_id),
@@ -40,21 +33,16 @@ defmodule Tuist.MCP.Components.Tools.ListBundleArtifacts do
              @authorization_action,
              @authorization_category
            ) do
-      opts = if parent_artifact_id, do: [parent_artifact_id: parent_artifact_id], else: []
-      artifacts = Bundles.list_bundle_artifacts(bundle_id, opts)
+      artifacts = Bundles.get_bundle_artifact_tree(bundle_id)
 
       data = %{
         bundle_id: bundle_id,
-        parent_artifact_id: parent_artifact_id,
         artifacts:
           Enum.map(artifacts, fn artifact ->
             %{
-              id: artifact.id,
               artifact_type: to_string(artifact.artifact_type),
               path: artifact.path,
-              size: artifact.size,
-              shasum: artifact.shasum,
-              has_children: artifact.artifact_type == :directory
+              size: artifact.size
             }
           end)
       }

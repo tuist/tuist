@@ -14,15 +14,17 @@ defmodule Tuist.MCP.Components.Prompts.CompareBundles do
     field :project_handle, :string, description: "The project handle."
 
     field :base, :string,
-      description:
-        "Base bundle: an ID, a Tuist dashboard URL, or a branch name. " <>
-          "Defaults to the latest bundle on the project's default branch when omitted."
+      description: """
+      Base bundle: an ID, a Tuist dashboard URL, or a branch name. \
+      Defaults to the latest bundle on the project's default branch when omitted.\
+      """
 
     field :head, :string,
-      description:
-        "Head bundle: an ID, a Tuist dashboard URL, or a branch name. " <>
-          "This is the bundle you want to evaluate. When provided without a base, " <>
-          "the base defaults to the latest bundle on the project's default branch."
+      description: """
+      Head bundle: an ID, a Tuist dashboard URL, or a branch name. \
+      This is the bundle you want to evaluate. When provided without a base, \
+      the base defaults to the latest bundle on the project's default branch.\
+      """
   end
 
   @impl true
@@ -54,7 +56,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareBundles do
     - **list_projects**: List all accessible projects.
     - **list_bundles**: List bundles for a project (supports git_branch filter).
     - **get_bundle**: Get bundle metadata (sizes, version, platforms).
-    - **list_bundle_artifacts**: List artifacts for a bundle. Use `parent_artifact_id` to drill into directories.
+    - **get_bundle_artifact_tree**: Get the full artifact tree for a bundle as a flat list sorted by path. Each artifact includes `artifact_type`, `path`, and `size`.
 
     ## Workflow
 
@@ -70,15 +72,14 @@ defmodule Tuist.MCP.Components.Prompts.CompareBundles do
 
     ### 3. Compare artifact trees
 
-    Use `list_bundle_artifacts` for both bundles to get top-level artifacts. For each artifact:
+    Use `get_bundle_artifact_tree` for both the base and head bundles. Save each result to a local JSON file so you can operate on the data without further API calls.
+
+    Once you have both artifact trees locally:
     - Match artifacts by `path` between base and head.
     - Calculate size delta for each matched artifact.
     - Identify new artifacts in head that don't exist in base.
     - Identify removed artifacts that were in base but not in head.
-
-    **Always drill into directories.** For every artifact with `has_children: true`, call `list_bundle_artifacts` again with `parent_artifact_id` set to that artifact's `id` for both base and head bundles. Continue recursing until you reach leaf artifacts (files). This is essential to pinpoint which specific files drove size changes.
-
-    Sort artifacts by absolute size increase to find the biggest contributors.
+    - Sort artifacts by absolute size increase to find the biggest contributors.
 
     ### Summary format
 

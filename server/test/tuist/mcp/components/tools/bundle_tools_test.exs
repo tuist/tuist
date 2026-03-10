@@ -128,29 +128,30 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
     end
   end
 
-  describe "list_bundle_artifacts" do
-    test "returns artifacts for a bundle" do
+  describe "get_bundle_artifact_tree" do
+    test "returns flat artifact tree for a bundle" do
       project = %{id: 1, name: "app"}
 
       stub(Bundles, :get_bundle, fn "bundle-1" ->
         {:ok, %{id: "bundle-1", project_id: 1}}
       end)
 
-      stub(Bundles, :list_bundle_artifacts, fn "bundle-1", [] ->
+      stub(Bundles, :get_bundle_artifact_tree, fn "bundle-1" ->
         [
           %{
-            id: "art-1",
             artifact_type: :directory,
             path: "MyApp.app",
-            size: 50_000_000,
-            shasum: "sha256abc"
+            size: 50_000_000
           },
           %{
-            id: "art-2",
+            artifact_type: :file,
+            path: "MyApp.app/Info.plist",
+            size: 1_000
+          },
+          %{
             artifact_type: :file,
             path: "MyApp.app/MyApp",
-            size: 20_000_000,
-            shasum: "sha256def"
+            size: 20_000_000
           }
         ]
       end)
@@ -161,7 +162,7 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
       request = %{
         "method" => "tools/call",
         "params" => %{
-          "name" => "list_bundle_artifacts",
+          "name" => "get_bundle_artifact_tree",
           "arguments" => %{"bundle_id" => "bundle-1"}
         }
       }
@@ -172,55 +173,17 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
                Server.handle_request(request, frame)
 
       result = JSON.decode!(text)
-      assert length(result["artifacts"]) == 2
+      assert length(result["artifacts"]) == 3
       assert result["bundle_id"] == "bundle-1"
-      assert result["parent_artifact_id"] == nil
 
-      dir = Enum.find(result["artifacts"], &(&1["artifact_type"] == "directory"))
-      assert dir["has_children"] == true
+      paths = Enum.map(result["artifacts"], & &1["path"])
+      assert paths == ["MyApp.app", "MyApp.app/Info.plist", "MyApp.app/MyApp"]
 
-      file = Enum.find(result["artifacts"], &(&1["artifact_type"] == "file"))
-      assert file["has_children"] == false
-    end
-
-    test "returns artifacts with parent_artifact_id filter" do
-      project = %{id: 1, name: "app"}
-
-      stub(Bundles, :get_bundle, fn "bundle-1" ->
-        {:ok, %{id: "bundle-1", project_id: 1}}
-      end)
-
-      stub(Bundles, :list_bundle_artifacts, fn "bundle-1", [parent_artifact_id: "art-1"] ->
-        [
-          %{
-            id: "art-3",
-            artifact_type: :file,
-            path: "MyApp.app/Info.plist",
-            size: 1_000,
-            shasum: "sha256ghi"
-          }
-        ]
-      end)
-
-      stub(Projects, :get_project_by_id, fn 1 -> project end)
-      stub(Tuist.Authorization, :authorize, fn :bundle_read, :subject, ^project -> :ok end)
-
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_bundle_artifacts",
-          "arguments" => %{"bundle_id" => "bundle-1", "parent_artifact_id" => "art-1"}
-        }
-      }
-
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
-      result = JSON.decode!(text)
-      assert length(result["artifacts"]) == 1
-      assert result["parent_artifact_id"] == "art-1"
+      first = hd(result["artifacts"])
+      assert first["artifact_type"] == "directory"
+      assert first["size"] == 50_000_000
+      refute Map.has_key?(first, "id")
+      refute Map.has_key?(first, "shasum")
     end
   end
 

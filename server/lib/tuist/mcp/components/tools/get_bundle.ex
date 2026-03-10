@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.GetBundle do
   @moduledoc """
-  Get detailed information about a specific bundle. Use list_bundle_artifacts to drill into the artifact tree. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}.
+  Get detailed information about a specific bundle. Use get_bundle_artifact_tree to get the full artifact list. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}.
   """
 
   use Anubis.Server.Component, type: :tool

@@ -1,12 +1,13 @@
 defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
   @moduledoc """
-  List attachments for a test case run. Use get_test_case_run_attachment to get a download URL for a specific attachment.
+  List attachments for a test case run. Each attachment includes a temporary download URL (valid for 1 hour).
   """
 
   use Anubis.Server.Component, type: :tool
 
   alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.Storage
   alias Tuist.Tests
 
   @authorization_action :read
@@ -26,7 +27,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
              "Test case run not found: #{test_case_run_id}",
              frame
            ),
-         {:ok, _project} <-
+         {:ok, project} <-
            ToolSupport.authorize_project_by_id(
              frame,
              run.project_id,
@@ -37,10 +38,20 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
         test_case_run_id: test_case_run_id,
         attachments:
           Enum.map(run.attachments || [], fn attachment ->
+            s3_object_key =
+              Tests.attachment_storage_key(%{
+                account_handle: project.account.name,
+                project_handle: project.name,
+                test_case_run_id: test_case_run_id,
+                attachment_id: attachment.id,
+                file_name: attachment.file_name
+              })
+
             %{
               id: attachment.id,
               file_name: attachment.file_name,
-              type: attachment_type(attachment.file_name)
+              type: attachment_type(attachment.file_name),
+              download_url: Storage.generate_download_url(s3_object_key, project.account, expires_in: 3600)
             }
           end)
       }

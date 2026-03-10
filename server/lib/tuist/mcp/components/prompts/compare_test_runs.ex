@@ -58,8 +58,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestRuns do
     - **list_test_suite_runs**: List per-suite results (optionally filtered by module).
     - **list_test_case_runs**: List individual test case runs (supports test_run_id filter).
     - **get_test_case_run**: Get failure details and repetitions for a specific test case run.
-    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run.
-    - **get_test_case_run_attachment**: Get a download URL for a specific attachment.
+    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run. Each attachment includes a temporary download URL.
 
     ## Workflow
 
@@ -100,8 +99,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestRuns do
 
     ### 7. Inspect attachments
 
-    For failing or flaky test case runs, use `list_test_case_run_attachments` to find diagnostic artifacts.
-    Then use `get_test_case_run_attachment` to get download URLs.
+    For failing or flaky test case runs, use `list_test_case_run_attachments` to find diagnostic artifacts. Each attachment includes a download URL.
 
     - **Text attachments** (logs, crash reports, JSON, XML, CSV): download and include relevant excerpts inline.
     - **Image attachments** (screenshots, PNGs, JPGs): present the download URL so the developer can view them. Describe what the image likely shows based on its file name and context.

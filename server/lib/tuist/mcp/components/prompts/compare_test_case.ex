@@ -51,8 +51,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
     - **get_test_case**: Get test case metrics (reliability, flakiness, avg duration).
     - **list_test_case_runs**: List runs for a test case (supports filtering by test_run_id).
     - **get_test_case_run**: Get failure details, repetitions for a specific run.
-    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run.
-    - **get_test_case_run_attachment**: Get a download URL for a specific attachment.
+    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run. Each attachment includes a temporary download URL.
     - **list_test_runs**: List test runs (supports git_branch filter).
 
     ## Workflow
@@ -88,8 +87,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
 
     ### 5. Inspect attachments
 
-    For failing runs, use `list_test_case_run_attachments` to find diagnostic artifacts.
-    Then use `get_test_case_run_attachment` to get download URLs.
+    For failing runs, use `list_test_case_run_attachments` to find diagnostic artifacts. Each attachment includes a download URL.
 
     - **Text attachments** (logs, crash reports, JSON, XML, CSV): download and include relevant excerpts inline.
     - **Image attachments** (screenshots, PNGs, JPGs): present the download URL so the developer can view them.
