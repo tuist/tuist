@@ -3,13 +3,17 @@
     import Foundation
     import IOKit
     import Path
+    @preconcurrency import TSCBasic
     import TuistEnvironment
 
     public final class MachineMetricsSampler: @unchecked Sendable {
-        private let metricsFilePath: AbsolutePath
+        private let metricsFilePath: Path.AbsolutePath
+        private let fileLock: TSCBasic.FileLock
 
         public init() {
             metricsFilePath = MachineMetricsReader.metricsFilePath
+            // swiftlint:disable:next force_try
+            fileLock = TSCBasic.FileLock(at: try! TSCBasic.AbsolutePath(validating: metricsFilePath.pathString + ".lock"))
         }
 
         public func run() async throws {
@@ -43,11 +47,11 @@
                 previousNetworkBytes = currentNetworkBytes
                 previousDiskBytes = currentDiskBytes
 
-                appendSample(sample)
+                try await appendSample(sample)
 
                 sampleCount += 1
                 if sampleCount % 60 == 0 {
-                    trimSamples()
+                    try await trimSamples()
                 }
             }
         }
@@ -187,23 +191,13 @@
             return DiskBytes(bytesRead: totalRead, bytesWritten: totalWritten)
         }
 
-        private func withFileLock<T>(exclusive: Bool = true, _ body: () -> T) -> T? {
-            let lockPath = metricsFilePath.pathString + ".lock"
-            let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
-            guard fd >= 0 else { return nil }
-            defer { close(fd) }
-            guard flock(fd, exclusive ? LOCK_EX : LOCK_SH) == 0 else { return nil }
-            defer { flock(fd, LOCK_UN) }
-            return body()
-        }
-
-        private func appendSample(_ sample: MachineMetricSample) {
+        private func appendSample(_ sample: MachineMetricSample) async throws {
             let encoder = JSONEncoder()
             guard let data = try? encoder.encode(sample),
                   let line = String(data: data, encoding: .utf8)
             else { return }
 
-            withFileLock {
+            try await fileLock.withLock(type: .exclusive) {
                 let fileManager = FileManager.default
                 let path = metricsFilePath.pathString
 
@@ -220,8 +214,8 @@
             }
         }
 
-        private func trimSamples() {
-            withFileLock {
+        private func trimSamples() async throws {
+            try await fileLock.withLock(type: .exclusive) {
                 let path = metricsFilePath.pathString
                 guard let data = FileManager.default.contents(atPath: path),
                       let content = String(data: data, encoding: .utf8)
