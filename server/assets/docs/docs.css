@@ -5,7 +5,6 @@
 @import "../shared/css/code-group.css";
 @import "./css/layouts/root.css";
 @import "./css/components/nav.css";
-@import "./css/components/page_layout.css";
 @import "./css/components/toc.css";
 @import "./css/components/admonition.css";
 @import "./css/components/overview.css";
@@ -55,4 +54,35 @@ p {
   width: 1px;
   height: 1px;
   white-space: nowrap;
+}
+
+/* Skip-to-content link */
+.docs-skip-link {
+  position: fixed;
+  top: -100%;
+  left: var(--noora-spacing-4);
+  z-index: 100;
+  border-radius: var(--noora-radius-medium);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-3) var(--noora-spacing-5);
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  text-decoration: none;
+
+  &:focus {
+    top: var(--noora-spacing-4);
+    outline: 2px solid var(--noora-surface-label-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* Global focus-visible indicator */
+:focus-visible {
+  outline: 2px solid var(--noora-surface-label-primary);
+  outline-offset: 2px;
+}
+
+/* Remove default outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
 }

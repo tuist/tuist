@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="[scrollbar-gutter:stable]">
+<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -26,7 +26,10 @@
     <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
   </head>
   <body data-scrollable="true">
-    <nav id="docs-nav">
+    <a href="#docs-content" class="docs-skip-link">
+      {dgettext("docs", "Skip to content")}
+    </a>
+    <nav id="docs-nav" aria-label={dgettext("docs", "Main navigation")}>
       <div data-part="header">
         <.link navigate="/docs/en" data-part="logo-link">
           <img data-part="logo" src={~p"/docs/images/logo.webp"} alt="Tuist" />
@@ -65,31 +68,64 @@
         />
 
         <div data-part="socials">
-          <.neutral_button size="large" href="https://github.com/tuist/tuist" target="_blank">
+          <.neutral_button
+            size="large"
+            href="https://github.com/tuist/tuist"
+            target="_blank"
+            aria-label={dgettext("docs", "GitHub")}
+          >
             <.brand_github />
           </.neutral_button>
-          <.neutral_button size="large" href="https://fosstodon.org/@tuist" target="_blank">
+          <.neutral_button
+            size="large"
+            href="https://fosstodon.org/@tuist"
+            target="_blank"
+            aria-label={dgettext("docs", "Mastodon")}
+          >
             <.brand_mastodon />
           </.neutral_button>
-          <.neutral_button size="large" href="https://slack.tuist.dev" target="_blank">
+          <.neutral_button
+            size="large"
+            href="https://slack.tuist.dev"
+            target="_blank"
+            aria-label={dgettext("docs", "Slack")}
+          >
             <.brand_slack />
           </.neutral_button>
-          <.neutral_button size="large" href="https://bsky.app/profile/tuist.dev" target="_blank">
+          <.neutral_button
+            size="large"
+            href="https://bsky.app/profile/tuist.dev"
+            target="_blank"
+            aria-label={dgettext("docs", "Bluesky")}
+          >
             <.brand_bluesky />
           </.neutral_button>
         </div>
       </div>
       <div data-part="mobile-actions">
-        <.neutral_button size="large">
+        <.neutral_button size="large" aria-label={dgettext("docs", "Search")}>
           <.icon name="search" />
         </.neutral_button>
-        <.neutral_button size="large" data-action="toggle-sidebar">
+        <.neutral_button
+          size="large"
+          data-action="toggle-sidebar"
+          aria-label={dgettext("docs", "Toggle sidebar")}
+          aria-expanded="false"
+          aria-controls="docs-sidebar"
+        >
           <.icon name="menu" />
         </.neutral_button>
       </div>
     </nav>
-    <div id="docs-mobile-menu-bar">
-      <button type="button" data-part="mobile-menu-btn" id="docs-mobile-menu-trigger" phx-hook="DocsMobileSidebar">
+    <div id="docs-mobile-menu-bar" role="toolbar" aria-label={dgettext("docs", "Page navigation")}>
+      <button
+        type="button"
+        data-part="mobile-menu-btn"
+        id="docs-mobile-menu-trigger"
+        phx-hook="DocsMobileSidebar"
+        aria-expanded="false"
+        aria-controls="docs-sidebar"
+      >
         <.icon name="menu_3" />
         <span>{dgettext("docs", "Menu")}</span>
       </button>
@@ -97,13 +133,15 @@
         type="button"
         data-part="mobile-toc-btn"
         id="docs-mobile-toc-trigger"
+        aria-expanded="false"
+        aria-controls="docs-mobile-toc"
         phx-click={JS.toggle_attribute({"data-state", "open", "closed"}, to: "#docs-mobile-toc")}
       >
         <span>{dgettext("docs", "On this page")}</span>
         <.icon name="news" />
       </button>
     </div>
-    <div id="docs-mobile-sidebar-overlay"></div>
+    <div id="docs-mobile-sidebar-overlay" role="presentation"></div>
     {@inner_content}
   </body>
 </html>
