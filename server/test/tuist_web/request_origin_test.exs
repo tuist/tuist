@@ -1,6 +1,7 @@
 defmodule TuistWeb.RequestOriginTest do
   use ExUnit.Case, async: true
 
+  import Plug.Conn
   import Plug.Test
 
   alias TuistWeb.RequestOrigin
