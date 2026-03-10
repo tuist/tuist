@@ -3,7 +3,7 @@
     import TuistLogging
     import TuistMachineMetrics
 
-    struct InsightsStartCommandService {
+    struct SampleHostMetricsService {
         func run() async throws {
             Logger.current.debug("Starting machine metrics sampler")
             let sampler = MachineMetricsSampler()

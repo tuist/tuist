@@ -13,12 +13,12 @@ struct SetupInsightsCommandService {
 
     func run() async throws {
         try await launchAgentService.setupLaunchAgent(
-            label: "tuist.insights",
-            plistFileName: "tuist.insights.plist",
-            programArguments: ["insights-start"],
+            label: "tuist.metrics-sampler",
+            plistFileName: "tuist.metrics-sampler.plist",
+            programArguments: ["sample-host-metrics"],
             environmentVariables: [:]
         )
 
-        Logger.current.info("Insights daemon has been set up successfully", metadata: .success)
+        Logger.current.info("Metrics sampling daemon has been set up successfully", metadata: .success)
     }
 }
