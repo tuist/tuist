@@ -6,6 +6,7 @@ defmodule TuistWeb.BuildController do
   alias Tuist.Projects
   alias Tuist.Storage
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
 
   def download(conn, %{"account_handle" => account_handle, "project_handle" => project_handle, "build_run_id" => build_id}) do
     user = Authentication.current_user(conn)
@@ -23,16 +24,10 @@ defmodule TuistWeb.BuildController do
       |> halt()
     else
       {:error, :forbidden} ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{message: "You are not authorized to access this resource"})
-        |> halt()
+        raise NotFoundError, dgettext("errors", "Build not found")
 
       _ ->
-        conn
-        |> put_status(:not_found)
-        |> text("Build not found")
-        |> halt()
+        raise NotFoundError, dgettext("errors", "Build not found")
     end
   end
 end
