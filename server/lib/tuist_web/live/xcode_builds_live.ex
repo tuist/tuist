@@ -281,16 +281,15 @@ defmodule TuistWeb.XcodeBuildsLive do
             %{
               first: 40,
               filters: [
-                %{field: :project_id, op: :==, value: project.id}
+                %{field: :project_id, op: :==, value: project.id},
+                %{field: :status, op: :!=, value: "processing"},
+                %{field: :status, op: :!=, value: "failed_processing"}
               ],
               order_by: [:inserted_at],
               order_directions: [:desc]
             },
             preload: [:ran_by_account]
           )
-
-        recent_builds =
-          Enum.reject(recent_builds, fn run -> run.status in ["processing", "failed_processing"] end)
 
         recent_builds_chart_data =
           Enum.map(recent_builds, fn run ->
