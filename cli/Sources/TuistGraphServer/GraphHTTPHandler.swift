@@ -43,7 +43,7 @@ final class GraphHTTPHandler: ChannelInboundHandler, RemovableChannelHandler {
     // MARK: - HTML Generation
 
     /// The CDN URL for the web component bundle.
-    private static let cdnURL = "https://cdn.jsdelivr.net/npm/xcode-graph@1.34.5-3/dist/xcodegraph.js"
+    private static let cdnURL = "https://cdn.jsdelivr.net/npm/xcode-graph@1.34.5-4/dist/xcodegraph.js"
 
     private static func generateHTML(port: Int) -> String {
         """
