@@ -23,7 +23,9 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
-COPY package.json js/ css/ /app/noora/
+COPY package.json /app/noora/
+COPY js/ /app/noora/js/
+COPY css/ /app/noora/css/
 COPY lib/ /app/noora/lib/
 COPY mix.exs /app/noora/
 
