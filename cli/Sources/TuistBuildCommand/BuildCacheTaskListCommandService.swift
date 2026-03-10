@@ -3,6 +3,7 @@ import Noora
 import Path
 import TuistConfigLoader
 import TuistEnvironment
+import TuistNooraExtension
 import TuistServer
 
 protocol BuildCacheTaskListCommandServicing {
@@ -95,7 +96,7 @@ struct BuildCacheTaskListCommandService: BuildCacheTaskListCommandServicing {
                 task.key,
                 task.status.rawValue,
                 task._type.rawValue,
-                formatDuration(task.read_duration),
+                task.read_duration.map { Formatters.formatDuration(Int($0)) } ?? "-",
             ]
         }
 
@@ -122,24 +123,10 @@ struct BuildCacheTaskListCommandService: BuildCacheTaskListCommandServicing {
                         task.key,
                         task.status.rawValue,
                         task._type.rawValue,
-                        formatDuration(task.read_duration),
+                        task.read_duration.map { Formatters.formatDuration(Int($0)) } ?? "-",
                     ]
                 }
             }
         )
-    }
-
-    private func formatDuration(_ milliseconds: Double?) -> String {
-        guard let milliseconds else { return "-" }
-        if milliseconds < 1000 {
-            return "\(Int(milliseconds))ms"
-        } else if milliseconds < 60000 {
-            let seconds = milliseconds / 1000.0
-            return String(format: "%.1fs", seconds)
-        } else {
-            let minutes = Int(milliseconds) / 60000
-            let seconds = (Int(milliseconds) % 60000) / 1000
-            return "\(minutes)m \(seconds)s"
-        }
     }
 }

@@ -3,6 +3,7 @@ import Noora
 import Path
 import TuistConfigLoader
 import TuistEnvironment
+import TuistNooraExtension
 import TuistServer
 
 protocol BuildTargetListCommandServicing {
@@ -91,7 +92,7 @@ struct BuildTargetListCommandService: BuildTargetListCommandServicing {
             [
                 target.name,
                 target.status.rawValue,
-                formatDuration(target.build_duration),
+                Formatters.formatDuration(target.build_duration),
             ]
         }
 
@@ -116,23 +117,10 @@ struct BuildTargetListCommandService: BuildTargetListCommandServicing {
                     [
                         target.name,
                         target.status.rawValue,
-                        formatDuration(target.build_duration),
+                        Formatters.formatDuration(target.build_duration),
                     ]
                 }
             }
         )
-    }
-
-    private func formatDuration(_ milliseconds: Int) -> String {
-        if milliseconds < 1000 {
-            return "\(milliseconds)ms"
-        } else if milliseconds < 60000 {
-            let seconds = Double(milliseconds) / 1000.0
-            return String(format: "%.1fs", seconds)
-        } else {
-            let minutes = milliseconds / 60000
-            let seconds = (milliseconds % 60000) / 1000
-            return "\(minutes)m \(seconds)s"
-        }
     }
 }

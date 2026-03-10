@@ -3,6 +3,7 @@ import Noora
 import Path
 import TuistConfigLoader
 import TuistEnvironment
+import TuistNooraExtension
 import TuistServer
 
 protocol BuildCASOutputListCommandServicing {
@@ -95,7 +96,7 @@ struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
                 output.node_id,
                 output.operation.rawValue,
                 output._type?.rawValue ?? "-",
-                formatSize(output.size),
+                Formatters.formatBytes(output.size),
             ]
         }
 
@@ -122,25 +123,10 @@ struct BuildCASOutputListCommandService: BuildCASOutputListCommandServicing {
                         output.node_id,
                         output.operation.rawValue,
                         output._type?.rawValue ?? "-",
-                        formatSize(output.size),
+                        Formatters.formatBytes(output.size),
                     ]
                 }
             }
         )
-    }
-
-    private func formatSize(_ bytes: Int) -> String {
-        if bytes < 1024 {
-            return "\(bytes)B"
-        } else if bytes < 1_048_576 {
-            let kb = Double(bytes) / 1024.0
-            return String(format: "%.1fKB", kb)
-        } else if bytes < 1_073_741_824 {
-            let mb = Double(bytes) / 1_048_576.0
-            return String(format: "%.1fMB", mb)
-        } else {
-            let gb = Double(bytes) / 1_073_741_824.0
-            return String(format: "%.1fGB", gb)
-        }
     }
 }
