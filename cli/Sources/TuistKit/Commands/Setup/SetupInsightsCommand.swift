@@ -6,7 +6,7 @@ struct SetupInsightsCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "insights",
             _superCommandName: "setup",
-            abstract: "Set up the Tuist machine metrics daemon for insights"
+            abstract: "Set up the insights daemon to gain access to richer data, such as machine metrics for build insights"
         )
     }
 
