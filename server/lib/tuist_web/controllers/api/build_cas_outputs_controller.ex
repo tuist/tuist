@@ -128,54 +128,56 @@ defmodule TuistWeb.API.BuildCASOutputsController do
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
-        if build.project_id == selected_project.id do
-          filters = [%{field: :build_run_id, op: :==, value: build_id}]
+      %{project_id: project_id} when project_id == selected_project.id ->
+        filters = build_filters(build_id, params)
 
-          filters =
-            Enum.reduce([:operation, :type], filters, fn field, acc ->
-              case Map.get(params, field) do
-                nil -> acc
-                value -> acc ++ [%{field: field, op: :==, value: value}]
-              end
-            end)
-
-          {outputs, meta} =
-            Builds.list_cas_outputs(%{
-              filters: filters,
-              order_by: [:size],
-              order_directions: [:desc],
-              page: page,
-              page_size: page_size
-            })
-
-          json(conn, %{
-            outputs:
-              Enum.map(outputs, fn output ->
-                %{
-                  node_id: output.node_id,
-                  checksum: output.checksum,
-                  size: output.size,
-                  compressed_size: output.compressed_size,
-                  duration: output.duration,
-                  operation: to_string(output.operation),
-                  type: to_string(output.type)
-                }
-              end),
-            pagination_metadata: %{
-              has_next_page: meta.has_next_page?,
-              has_previous_page: meta.has_previous_page?,
-              current_page: meta.current_page,
-              page_size: meta.page_size,
-              total_count: meta.total_count,
-              total_pages: meta.total_pages
-            }
+        {outputs, meta} =
+          Builds.list_cas_outputs(%{
+            filters: filters,
+            order_by: [:size],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
           })
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Build not found."})
-        end
+
+        json(conn, %{
+          outputs:
+            Enum.map(outputs, fn output ->
+              %{
+                node_id: output.node_id,
+                checksum: output.checksum,
+                size: output.size,
+                compressed_size: output.compressed_size,
+                duration: output.duration,
+                operation: to_string(output.operation),
+                type: to_string(output.type)
+              }
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+
+      _build ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Build not found."})
     end
+  end
+
+  defp build_filters(build_id, params) do
+    base = [%{field: :build_run_id, op: :==, value: build_id}]
+
+    Enum.reduce([:operation, :type], base, fn field, acc ->
+      case Map.get(params, field) do
+        nil -> acc
+        value -> acc ++ [%{field: field, op: :==, value: value}]
+      end
+    end)
   end
 end

@@ -112,51 +112,50 @@ defmodule TuistWeb.API.BuildTargetsController do
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
-        if build.project_id == selected_project.id do
-          filters = [%{field: :build_run_id, op: :==, value: build_id}]
+      %{project_id: project_id} when project_id == selected_project.id ->
+        filters = [%{field: :build_run_id, op: :==, value: build_id}]
 
-          filters =
-            if Map.get(params, :status) do
-              filters ++ [%{field: :status, op: :==, value: params.status}]
-            else
-              filters
-            end
+        filters =
+          if Map.get(params, :status) do
+            filters ++ [%{field: :status, op: :==, value: params.status}]
+          else
+            filters
+          end
 
-          {targets, meta} =
-            Builds.list_build_targets(%{
-              filters: filters,
-              order_by: [:build_duration],
-              order_directions: [:desc],
-              page: page,
-              page_size: page_size
-            })
-
-          json(conn, %{
-            targets:
-              Enum.map(targets, fn target ->
-                %{
-                  name: target.name,
-                  project: target.project,
-                  build_duration: target.build_duration,
-                  compilation_duration: target.compilation_duration,
-                  status: to_string(target.status)
-                }
-              end),
-            pagination_metadata: %{
-              has_next_page: meta.has_next_page?,
-              has_previous_page: meta.has_previous_page?,
-              current_page: meta.current_page,
-              page_size: meta.page_size,
-              total_count: meta.total_count,
-              total_pages: meta.total_pages
-            }
+        {targets, meta} =
+          Builds.list_build_targets(%{
+            filters: filters,
+            order_by: [:build_duration],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
           })
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Build not found."})
-        end
+
+        json(conn, %{
+          targets:
+            Enum.map(targets, fn target ->
+              %{
+                name: target.name,
+                project: target.project,
+                build_duration: target.build_duration,
+                compilation_duration: target.compilation_duration,
+                status: to_string(target.status)
+              }
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+
+      _build ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Build not found."})
     end
   end
 end

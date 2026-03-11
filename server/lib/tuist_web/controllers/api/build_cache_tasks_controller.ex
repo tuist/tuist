@@ -131,54 +131,56 @@ defmodule TuistWeb.API.BuildCacheTasksController do
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
-        if build.project_id == selected_project.id do
-          filters = [%{field: :build_run_id, op: :==, value: build_id}]
+      %{project_id: project_id} when project_id == selected_project.id ->
+        filters = build_filters(build_id, params)
 
-          filters =
-            Enum.reduce([:status, :type], filters, fn field, acc ->
-              case Map.get(params, field) do
-                nil -> acc
-                value -> acc ++ [%{field: field, op: :==, value: value}]
-              end
-            end)
-
-          {tasks, meta} =
-            Builds.list_cacheable_tasks(%{
-              filters: filters,
-              order_by: [:inserted_at],
-              order_directions: [:desc],
-              page: page,
-              page_size: page_size
-            })
-
-          json(conn, %{
-            tasks:
-              Enum.map(tasks, fn task ->
-                %{
-                  type: to_string(task.type),
-                  status: to_string(task.status),
-                  key: task.key,
-                  read_duration: task.read_duration,
-                  write_duration: task.write_duration,
-                  description: task.description,
-                  cas_output_node_ids: task.cas_output_node_ids
-                }
-              end),
-            pagination_metadata: %{
-              has_next_page: meta.has_next_page?,
-              has_previous_page: meta.has_previous_page?,
-              current_page: meta.current_page,
-              page_size: meta.page_size,
-              total_count: meta.total_count,
-              total_pages: meta.total_pages
-            }
+        {tasks, meta} =
+          Builds.list_cacheable_tasks(%{
+            filters: filters,
+            order_by: [:inserted_at],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
           })
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Build not found."})
-        end
+
+        json(conn, %{
+          tasks:
+            Enum.map(tasks, fn task ->
+              %{
+                type: to_string(task.type),
+                status: to_string(task.status),
+                key: task.key,
+                read_duration: task.read_duration,
+                write_duration: task.write_duration,
+                description: task.description,
+                cas_output_node_ids: task.cas_output_node_ids
+              }
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+
+      _build ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Build not found."})
     end
+  end
+
+  defp build_filters(build_id, params) do
+    base = [%{field: :build_run_id, op: :==, value: build_id}]
+
+    Enum.reduce([:status, :type], base, fn field, acc ->
+      case Map.get(params, field) do
+        nil -> acc
+        value -> acc ++ [%{field: field, op: :==, value: value}]
+      end
+    end)
   end
 end
