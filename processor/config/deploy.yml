@@ -34,3 +34,6 @@ env:
     - S3_SECRET_ACCESS_KEY
     - WEBHOOK_SECRET
     - GIT_SHA
+
+volumes:
+  - /tmp/processor:/tmp:rw
