@@ -13,7 +13,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
   @impl EMCP.Prompt
   def description,
     do:
-      "Guides you through comparing two build runs to identify performance regressions, cache changes, and build issues. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL."
+      "Guides you through comparing two build runs to identify performance regressions, cache changes, and build issues. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL."
 
   @impl EMCP.Prompt
   def arguments do

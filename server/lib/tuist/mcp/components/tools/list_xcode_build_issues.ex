@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
   @impl EMCP.Tool
   def description,
     do:
-      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

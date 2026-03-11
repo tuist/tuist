@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestModuleRuns do
   @impl EMCP.Tool
   def description,
     do:
-      "List test module runs for a specific test run. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}."
+      "List test module runs for a specific test run. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

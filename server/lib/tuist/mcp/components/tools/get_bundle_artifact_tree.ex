@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.GetBundleArtifactTree do
   @impl EMCP.Tool
   def description,
     do:
-      "Get the full artifact tree for a bundle as a flat list sorted by path. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}."
+      "Get the full artifact tree for a bundle as a flat list sorted by path. The bundle_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/bundles/{id}."
 
   @impl EMCP.Tool
   def input_schema do

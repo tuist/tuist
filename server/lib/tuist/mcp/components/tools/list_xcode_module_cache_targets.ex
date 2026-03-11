@@ -18,7 +18,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
   @impl EMCP.Tool
   def description,
     do:
-      "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/runs/{id}."
+      "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

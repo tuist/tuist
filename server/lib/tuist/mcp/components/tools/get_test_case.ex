@@ -18,7 +18,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}."
+      "Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def input_schema do

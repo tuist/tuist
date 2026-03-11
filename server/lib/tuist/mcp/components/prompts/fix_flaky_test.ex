@@ -13,7 +13,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
   @impl EMCP.Prompt
   def description,
     do:
-      "Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
+      "Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
 
   @impl EMCP.Prompt
   def arguments do

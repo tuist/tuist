@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
   @impl EMCP.Tool
   def description,
     do:
-      "List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+      "List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

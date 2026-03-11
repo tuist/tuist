@@ -18,7 +18,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
   @impl EMCP.Tool
   def description,
     do:
-      "List Xcode build runs for a project. Only available for projects with build_system=xcode. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}."
+      "List Xcode build runs for a project. Only available for projects with build_system=xcode. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def input_schema do

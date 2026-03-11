@@ -17,7 +17,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
   @impl EMCP.Tool
   def description,
     do:
-      "List build targets for a specific Xcode build run. Only available for projects with build_system=xcode. The project is derived from the build run, so no account or project handle is needed. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+      "List build targets for a specific Xcode build run. Only available for projects with build_system=xcode. The project is derived from the build run, so no account or project handle is needed. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

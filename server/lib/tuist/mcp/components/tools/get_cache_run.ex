@@ -18,7 +18,7 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific cache run. The cache_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/runs/{id}."
+      "Get detailed information about a specific cache run. The cache_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

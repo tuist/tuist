@@ -18,7 +18,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
   @impl EMCP.Tool
   def description,
     do:
-      "Get detailed information about a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+      "Get detailed information about a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   @impl EMCP.Tool
   def input_schema do

@@ -18,7 +18,7 @@ defmodule Tuist.MCP.Components.Tools.ListCacheRuns do
   @impl EMCP.Tool
   def description,
     do:
-      "List cache runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}."
+      "List cache runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def input_schema do
