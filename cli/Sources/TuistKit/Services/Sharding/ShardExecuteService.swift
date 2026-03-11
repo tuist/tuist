@@ -23,6 +23,7 @@
     public enum ShardExecuteServiceError: LocalizedError, Equatable {
         case cannotDeriveSessionId
         case downloadFailed(String)
+        case unzipFailed(String)
 
         public var errorDescription: String? {
             switch self {
@@ -30,6 +31,8 @@
                 return "Cannot derive a shard session ID. Make sure you are running in a supported CI environment."
             case let .downloadFailed(message):
                 return "Failed to download shard artifacts: \(message)"
+            case let .unzipFailed(message):
+                return "Failed to unzip shard bundle: \(message)"
             }
         }
     }
@@ -71,9 +74,33 @@
 
             Logger.current.info("Shard \(shardIndex) assigned targets: \(assignment.testTargets.joined(separator: ", "))")
 
-            let bundlePath = outputPath.appending(component: "\(scheme).xctestproducts")
-            try await downloadFile(from: assignment.bundleDownloadURL, to: bundlePath)
+            let bundleZipPath = outputPath.appending(component: "\(scheme).xctestproducts.zip")
+            try await downloadFile(from: assignment.bundleDownloadURL, to: bundleZipPath)
             Logger.current.info("Downloaded test products bundle.")
+
+            let unzippedPath = outputPath.appending(component: "unzipped")
+            try FileManager.default.createDirectory(
+                atPath: unzippedPath.pathString,
+                withIntermediateDirectories: true
+            )
+            let dittoProcess = Process()
+            dittoProcess.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            dittoProcess.arguments = ["-x", "-k", bundleZipPath.pathString, unzippedPath.pathString]
+            try dittoProcess.run()
+            dittoProcess.waitUntilExit()
+            guard dittoProcess.terminationStatus == 0 else {
+                throw ShardExecuteServiceError.unzipFailed("ditto exited with status \(dittoProcess.terminationStatus)")
+            }
+
+            let bundlePath: AbsolutePath
+            if let found = try await fileSystem.glob(directory: unzippedPath, include: ["*.xctestproducts"])
+                .first(where: { _ in true })
+            {
+                bundlePath = found
+            } else {
+                bundlePath = unzippedPath
+            }
+            Logger.current.info("Unzipped test products to \(bundlePath.pathString)")
 
             let xctestrunPath = outputPath.appending(component: "\(scheme).xctestrun")
             try await downloadFile(from: assignment.xctestrunDownloadURL, to: xctestrunPath)

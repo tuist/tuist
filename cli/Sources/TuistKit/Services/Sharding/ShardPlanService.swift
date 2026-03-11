@@ -46,6 +46,7 @@
         private let generateShardXctestrunUploadURLService: GenerateShardXctestrunUploadURLServicing
         private let ciController: CIControlling
         private let fileSystem: FileSysteming
+        private let fileArchiver: FileArchivingFactorying
 
         public init(
             xcTestRunParser: XCTestRunParsing = XCTestRunParser(),
@@ -59,7 +60,8 @@
             generateShardXctestrunUploadURLService: GenerateShardXctestrunUploadURLServicing =
                 GenerateShardXctestrunUploadURLService(),
             ciController: CIControlling = CIController(),
-            fileSystem: FileSysteming = FileSystem()
+            fileSystem: FileSysteming = FileSystem(),
+            fileArchiver: FileArchivingFactorying = FileArchivingFactory()
         ) {
             self.xcTestRunParser = xcTestRunParser
             self.xcTestEnumerator = xcTestEnumerator
@@ -70,6 +72,7 @@
             self.generateShardXctestrunUploadURLService = generateShardXctestrunUploadURLService
             self.ciController = ciController
             self.fileSystem = fileSystem
+            self.fileArchiver = fileArchiver
         }
 
         public func plan(
@@ -134,8 +137,11 @@
             }
 
             Logger.current.info("Uploading test products bundle...")
+            let archivePath = try await fileArchiver
+                .makeFileArchiver(for: [xctestproductsPath])
+                .zip(name: "bundle.xctestproducts")
             let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                artifactPath: xctestproductsPath,
+                artifactPath: archivePath,
                 generateUploadURL: { part in
                     try await multipartUploadGenerateURLShardsService.generateUploadURL(
                         fullHandle: fullHandle,
@@ -155,7 +161,7 @@
                 serverURL: serverURL,
                 sessionId: sessionId,
                 uploadId: session.uploadId,
-                parts: parts
+                parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
             )
 
             Logger.current.info("Upload complete. Shard matrix ready.")

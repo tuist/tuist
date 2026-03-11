@@ -79,6 +79,9 @@ struct XcodeBuildTestCommandService {
                 serverURL: serverURL,
                 outputPath: outputPath
             )
+            passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
+            passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
+            passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments += ["-testProductsPath", result.testProductsPath.pathString]
             for target in result.testTargets {
                 passthroughXcodebuildArguments += ["-only-testing", target]
@@ -198,6 +201,20 @@ struct XcodeBuildTestCommandService {
         let valueIndex = arguments.index(after: optionIndex)
         guard arguments.endIndex > valueIndex else { return nil }
         return arguments[valueIndex]
+    }
+
+    private func removeOption(
+        _ option: String,
+        from arguments: [String]
+    ) -> [String] {
+        var result = arguments
+        if let index = result.firstIndex(of: option) {
+            result.remove(at: index)
+            if index < result.count {
+                result.remove(at: index)
+            }
+        }
+        return result
     }
 
     private func inspectResultBundleIfNeeded(
