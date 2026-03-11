@@ -11,6 +11,7 @@
     import TuistGit
     import TuistLoader
     import TuistLogging
+    import TuistMachineMetrics
     import TuistProcess
     import TuistServer
     import TuistSupport
@@ -50,6 +51,7 @@
         private let gitController: GitControlling
         private let ciController: CIControlling
         private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
+        private let machineMetricsReader: MachineMetricsReader
 
         init(
             derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
@@ -64,7 +66,8 @@
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             gitController: GitControlling = GitController(),
             ciController: CIControlling = CIController(),
-            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
+            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
+            machineMetricsReader: MachineMetricsReader = MachineMetricsReader()
         ) {
             self.derivedDataLocator = derivedDataLocator
             self.fileSystem = fileSystem
@@ -79,6 +82,7 @@
             self.gitController = gitController
             self.ciController = ciController
             self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
+            self.machineMetricsReader = machineMetricsReader
         }
 
         func run(
@@ -188,6 +192,14 @@
             let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
             let ciInfo = ciController.ciInfo()
             let customMetadata = readCustomMetadata()
+
+            let buildStartDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStartedRecording)
+            let buildEndDate = Date(timeIntervalSinceReferenceDate: xcactivityLog.mainSection.timeStoppedRecording)
+            let machineMetrics = try await machineMetricsReader.readSamples(
+                startDate: buildStartDate,
+                endDate: buildEndDate
+            )
+
             let build = try await createBuildService.createBuild(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
@@ -216,7 +228,8 @@
                 ciProvider: ciInfo?.provider,
                 cacheableTasks: xcactivityLog.cacheableTasks,
                 casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
-                    xcactivityLog.casOutputs.filter { $0.operation != .upload }
+                    xcactivityLog.casOutputs.filter { $0.operation != .upload },
+                machineMetrics: machineMetrics
             )
             AlertController.current.success(
                 .alert("View the analyzed build at \(build.url.absoluteString)")
