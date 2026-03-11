@@ -8,6 +8,7 @@ alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Builds.Build
+alias Tuist.Builds.BuildMachineMetric
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
@@ -2894,7 +2895,10 @@ IO.puts(
 # of Xcode and Gradle builds so the machine metrics tab has data to display.
 
 machine_metrics_build_count = min(200, length(builds))
-IO.puts("Generating machine metrics for #{machine_metrics_build_count} Xcode builds and #{length(gradle_builds)} Gradle builds...")
+
+IO.puts(
+  "Generating machine metrics for #{machine_metrics_build_count} Xcode builds and #{length(gradle_builds)} Gradle builds..."
+)
 
 xcode_machine_metrics =
   builds
@@ -2904,7 +2908,7 @@ xcode_machine_metrics =
     duration_seconds = max(div(build.duration, 1000), 10)
     sample_count = max(div(duration_seconds, 5), 2)
     # Use build inserted_at as epoch base
-    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> then(&(&1 * 1.0))
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> Kernel.*(1.0)
     total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
 
     Enum.map(0..(sample_count - 1), fn i ->
@@ -2934,14 +2938,13 @@ xcode_machine_metrics =
     end)
   end)
 
-SeedHelpers.insert_bulk_ch(xcode_machine_metrics, Tuist.Builds.BuildMachineMetric, IngestRepo, "Xcode machine metrics")
+SeedHelpers.insert_bulk_ch(xcode_machine_metrics, BuildMachineMetric, IngestRepo, "Xcode machine metrics")
 
 gradle_machine_metrics =
-  gradle_builds
-  |> Enum.flat_map(fn build ->
+  Enum.flat_map(gradle_builds, fn build ->
     duration_seconds = max(div(build.duration_ms, 1000), 10)
     sample_count = max(div(duration_seconds, 5), 2)
-    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> then(&(&1 * 1.0))
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> Kernel.*(1.0)
     total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
 
     Enum.map(0..(sample_count - 1), fn i ->
@@ -2968,7 +2971,7 @@ gradle_machine_metrics =
     end)
   end)
 
-SeedHelpers.insert_bulk_ch(gradle_machine_metrics, Tuist.Builds.BuildMachineMetric, IngestRepo, "Gradle machine metrics")
+SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRepo, "Gradle machine metrics")
 
 IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")

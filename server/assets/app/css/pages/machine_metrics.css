@@ -6,8 +6,8 @@
   }
 
   & [data-part="chart-card"] {
-    overflow: clip;
     gap: var(--noora-spacing-7);
+    overflow: clip;
   }
 
   & #cpu-usage-chart,
