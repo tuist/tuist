@@ -4,7 +4,7 @@ defmodule Tuist.MCP.Components.PromptSupport do
   alias Tuist.Projects
 
   def resolve_project_handles(arguments) do
-    case {Map.get(arguments, :account_handle), Map.get(arguments, :project_handle)} do
+    case {Map.get(arguments, "account_handle"), Map.get(arguments, "project_handle")} do
       {ah, ph} when is_binary(ah) and is_binary(ph) -> {ah, ph}
       _ -> {nil, nil}
     end

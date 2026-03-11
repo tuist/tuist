@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
   Get detailed information about a specific generation run. The generation_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.CommandEvents
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
@@ -13,23 +12,38 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
   @authorization_action :read
   @authorization_category :run
 
-  schema do
-    field :generation_id, :string,
-      required: true,
-      description: "The ID of the generation."
+  @impl EMCP.Tool
+  def name, do: "get_generation"
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get detailed information about a specific generation run. The generation_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/runs/{id}."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "generation_id" => %{
+          "type" => "string",
+          "description" => "The ID of the generation."
+        }
+      },
+      "required" => ["generation_id"]
+    }
   end
 
-  @impl true
-  def execute(%{generation_id: generation_id}, frame) do
+  @impl EMCP.Tool
+  def call(conn, %{"generation_id" => generation_id}) do
     with {:ok, event} <-
            ToolSupport.load_resource(
              get_generation(generation_id),
-             "Generation not found: #{generation_id}",
-             frame
+             "Generation not found: #{generation_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              event.project_id,
              @authorization_action,
              @authorization_category
@@ -52,7 +66,9 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
         ran_at: Formatter.iso8601(event.created_at, naive: :utc)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 

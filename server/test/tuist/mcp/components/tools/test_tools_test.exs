@@ -2,8 +2,15 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Anubis.Server.Frame
-  alias Tuist.MCP.Server
+  alias Tuist.MCP.Components.Tools.GetTestCase
+  alias Tuist.MCP.Components.Tools.GetTestCaseRun
+  alias Tuist.MCP.Components.Tools.GetTestRun
+  alias Tuist.MCP.Components.Tools.ListTestCaseRunAttachments
+  alias Tuist.MCP.Components.Tools.ListTestCaseRuns
+  alias Tuist.MCP.Components.Tools.ListTestCases
+  alias Tuist.MCP.Components.Tools.ListTestModuleRuns
+  alias Tuist.MCP.Components.Tools.ListTestRuns
+  alias Tuist.MCP.Components.Tools.ListTestSuiteRuns
   alias Tuist.Projects
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
@@ -42,18 +49,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         [%{test_run_id: "run-1", total_tests: 50, ran_tests: 45, skipped_tests: 5}]
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_runs",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestRuns.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
       result = JSON.decode!(text)
       assert length(result["test_runs"]) == 1
@@ -94,18 +93,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_module_runs",
-          "arguments" => %{"test_run_id" => "run-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestModuleRuns.call(conn, %{"test_run_id" => "run-1"})
 
       result = JSON.decode!(text)
       assert length(result["modules"]) == 1
@@ -146,18 +137,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_suite_runs",
-          "arguments" => %{"test_run_id" => "run-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestSuiteRuns.call(conn, %{"test_run_id" => "run-1"})
 
       result = JSON.decode!(text)
       assert length(result["suites"]) == 1
@@ -199,22 +182,14 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_case_runs",
-          "arguments" => %{
-            "account_handle" => "acme",
-            "project_handle" => "app",
-            "test_case_id" => "tc-1"
-          }
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestCaseRuns.call(conn, %{
+                 "account_handle" => "acme",
+                 "project_handle" => "app",
+                 "test_case_id" => "tc-1"
+               })
 
       result = JSON.decode!(text)
       assert length(result["test_case_runs"]) == 1
@@ -253,18 +228,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_cases",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestCases.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
       result = JSON.decode!(text)
       assert length(result["test_cases"]) == 1
@@ -280,19 +247,12 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_cases",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListTestCases.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to project: acme/app"
+      assert text =~ "You do not have access to project: acme/app"
     end
   end
 
@@ -307,16 +267,12 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{"name" => "get_test_case", "arguments" => %{"test_case_id" => "test-case-id"}}
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetTestCase.call(conn, %{"test_case_id" => "test-case-id"})
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to this resource."
+      assert text =~ "You do not have access to this resource."
     end
 
     test "requires :test_read to read by identifier" do
@@ -328,37 +284,25 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_test_case",
-          "arguments" => %{
-            "account_handle" => "acme",
-            "project_handle" => "app",
-            "identifier" => "AuthTests/LoginSuite/testLogin"
-          }
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetTestCase.call(conn, %{
+                 "account_handle" => "acme",
+                 "project_handle" => "app",
+                 "identifier" => "AuthTests/LoginSuite/testLogin"
+               })
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to project: acme/app"
+      assert text =~ "You do not have access to project: acme/app"
     end
 
     test "returns error without test_case_id or identifier" do
-      request = %{
-        "method" => "tools/call",
-        "params" => %{"name" => "get_test_case", "arguments" => %{}}
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetTestCase.call(conn, %{})
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-
-      assert message(error) ==
+      assert text =~
                "Provide either test_case_id, or identifier with account_handle and project_handle."
     end
   end
@@ -390,18 +334,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         %{total_count: 50, failed_count: 2, flaky_count: 1, avg_duration: 300}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_test_run",
-          "arguments" => %{"test_run_id" => "run-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetTestRun.call(conn, %{"test_run_id" => "run-1"})
 
       result = JSON.decode!(text)
       assert result["id"] == "run-1"
@@ -419,16 +355,12 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{"name" => "get_test_run", "arguments" => %{"test_run_id" => "test-run-id"}}
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetTestRun.call(conn, %{"test_run_id" => "test-run-id"})
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to this resource."
+      assert text =~ "You do not have access to this resource."
     end
   end
 
@@ -470,18 +402,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_test_case_run",
-          "arguments" => %{"test_case_run_id" => "tcr-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetTestCaseRun.call(conn, %{"test_case_run_id" => "tcr-1"})
 
       result = JSON.decode!(text)
       assert result["id"] == "tcr-1"
@@ -505,16 +429,12 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{"name" => "get_test_case_run", "arguments" => %{"test_case_run_id" => "run-id"}}
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetTestCaseRun.call(conn, %{"test_case_run_id" => "run-id"})
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to this resource."
+      assert text =~ "You do not have access to this resource."
     end
   end
 
@@ -542,16 +462,10 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
         "https://s3.example.com/presigned-url"
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_test_case_run_attachments",
-          "arguments" => %{"test_case_run_id" => "run-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
+      assert %{"content" => [%{"text" => json}]} =
+               ListTestCaseRunAttachments.call(conn, %{"test_case_run_id" => "run-1"})
 
       data = Jason.decode!(json)
       assert data["test_case_run_id"] == "run-1"
@@ -568,6 +482,4 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert att2["download_url"] == "https://s3.example.com/presigned-url"
     end
   end
-
-  defp message(error), do: Map.get(error.data, :message) || Map.get(error.data, "message")
 end

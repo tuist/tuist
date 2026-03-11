@@ -3,37 +3,64 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
   alias Tuist.MCP.Components.ToolSupport
 
   @authorization_action :read
   @authorization_category :build
 
-  schema do
-    field :build_run_id, :string,
-      required: true,
-      description: "The ID of the build run."
+  @impl EMCP.Tool
+  def name, do: "list_xcode_build_cas_outputs"
 
-    field :operation, :string, description: "Filter by operation: download or upload."
-    field :type, :string, description: "Filter by CAS output type (e.g. swift, object, dSYM)."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run."
+        },
+        "operation" => %{
+          "type" => "string",
+          "description" => "Filter by operation: download or upload."
+        },
+        "type" => %{
+          "type" => "string",
+          "description" => "Filter by CAS output type (e.g. swift, object, dSYM)."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["build_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{build_run_id: build_run_id} = arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
+    build_run_id = Map.get(args, "build_run_id")
+
     with {:ok, build} <-
            ToolSupport.load_resource(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}",
-             frame
+             "Build not found: #{build_run_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              build.project_id,
              @authorization_action,
              @authorization_category
@@ -42,14 +69,14 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
 
       filters =
         Enum.reduce([:operation, :type], filters, fn field, acc ->
-          case Map.get(arguments, field) do
+          case Map.get(args, to_string(field)) do
             nil -> acc
             value -> acc ++ [%{field: field, op: :==, value: value}]
           end
         end)
 
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
 
       {outputs, meta} =
         Builds.list_cas_outputs(%{
@@ -76,7 +103,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
         pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 

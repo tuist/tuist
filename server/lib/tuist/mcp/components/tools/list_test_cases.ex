@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   List test cases for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
@@ -13,36 +12,72 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
   @authorization_action :read
   @authorization_category :test
 
-  schema do
-    field :account_handle, :string,
-      required: true,
-      description: "The account handle (organization or user)."
+  @impl EMCP.Tool
+  def name, do: "list_test_cases"
 
-    field :project_handle, :string,
-      required: true,
-      description: "The project handle."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List test cases for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}."
 
-    field :flaky, :boolean, description: "When true, returns only flaky test cases."
-    field :quarantined, :boolean, description: "Filter by quarantined status."
-    field :module_name, :string, description: "Filter by module name."
-    field :name, :string, description: "Filter by test case name."
-    field :suite_name, :string, description: "Filter by suite name."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "account_handle" => %{
+          "type" => "string",
+          "description" => "The account handle (organization or user)."
+        },
+        "project_handle" => %{
+          "type" => "string",
+          "description" => "The project handle."
+        },
+        "flaky" => %{
+          "type" => "boolean",
+          "description" => "When true, returns only flaky test cases."
+        },
+        "quarantined" => %{
+          "type" => "boolean",
+          "description" => "Filter by quarantined status."
+        },
+        "module_name" => %{
+          "type" => "string",
+          "description" => "Filter by module name."
+        },
+        "name" => %{
+          "type" => "string",
+          "description" => "Filter by test case name."
+        },
+        "suite_name" => %{
+          "type" => "string",
+          "description" => "Filter by suite name."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["account_handle", "project_handle"]
+    }
   end
 
-  @impl true
-  def execute(arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
     with {:ok, project} <-
            ToolSupport.resolve_and_authorize_project(
-             arguments,
-             frame,
+             args,
+             conn.assigns,
              @authorization_action,
              @authorization_category
            ) do
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
-      filters = build_filters(arguments)
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
+      filters = build_filters(args)
 
       {test_cases, meta} =
         Tests.list_test_cases(project.id, %{
@@ -72,25 +107,27 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
         pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 
-  defp build_filters(arguments) do
-    arguments
-    |> Map.take([:flaky, :quarantined, :module_name, :name, :suite_name])
-    |> Enum.reduce([], fn
-      {:flaky, value}, filters -> maybe_add_filter(filters, :is_flaky, value)
-      {:quarantined, value}, filters -> maybe_add_filter(filters, :is_quarantined, value)
-      {field, value}, filters -> maybe_add_filter(filters, field, value)
+  defp build_filters(args) do
+    [
+      {"flaky", :is_flaky},
+      {"quarantined", :is_quarantined},
+      {"module_name", :module_name},
+      {"name", :name},
+      {"suite_name", :suite_name}
+    ]
+    |> Enum.reduce([], fn {key, field}, filters ->
+      case Map.get(args, key) do
+        nil -> filters
+        true when field in [:is_flaky, :is_quarantined] -> [%{field: field, op: :==, value: true} | filters]
+        value -> [%{field: field, op: :==, value: value} | filters]
+      end
     end)
     |> Enum.reverse()
   end
-
-  defp maybe_add_filter(filters, _field, nil), do: filters
-
-  defp maybe_add_filter(filters, field, true) when field in [:is_flaky, :is_quarantined],
-    do: [%{field: field, op: :==, value: true} | filters]
-
-  defp maybe_add_filter(filters, field, value), do: [%{field: field, op: :==, value: value} | filters]
 end

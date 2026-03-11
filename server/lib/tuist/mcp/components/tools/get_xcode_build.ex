@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
   Get detailed information about a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
@@ -13,23 +12,40 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
   @authorization_action :read
   @authorization_category :build
 
-  schema do
-    field :build_run_id, :string,
-      required: true,
-      description: "The ID of the build run."
+  @impl EMCP.Tool
+  def name, do: "get_xcode_build"
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get detailed information about a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run."
+        }
+      },
+      "required" => ["build_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{build_run_id: build_run_id}, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
+    build_run_id = Map.get(args, "build_run_id")
+
     with {:ok, build} <-
            ToolSupport.load_resource(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}",
-             frame
+             "Build not found: #{build_run_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              build.project_id,
              @authorization_action,
              @authorization_category
@@ -54,7 +70,9 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         inserted_at: Formatter.iso8601(build.inserted_at, naive: :utc)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 

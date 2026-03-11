@@ -3,39 +3,38 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
   Guides you through comparing a test case's behavior across two branches or time periods. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL.
   """
 
-  use Anubis.Server.Component, type: :prompt
+  @behaviour EMCP.Prompt
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Components.PromptSupport
 
-  schema do
-    field :account_handle, :string, description: "The account handle (organization or user)."
+  @impl EMCP.Prompt
+  def name, do: "compare_test_case"
 
-    field :project_handle, :string, description: "The project handle."
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through comparing a test case's behavior across two branches or time periods. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
 
-    field :test_case_id, :string, description: "The test case ID or a Tuist dashboard URL."
-
-    field :base_branch, :string,
-      description: "The base branch to compare against (defaults to the project's default branch)."
-
-    field :head_branch, :string, description: "The head branch to evaluate."
+  @impl EMCP.Prompt
+  def arguments do
+    [
+      %{name: "account_handle", description: "The account handle (organization or user)."},
+      %{name: "project_handle", description: "The project handle."},
+      %{name: "test_case_id", description: "The test case ID or a Tuist dashboard URL."},
+      %{name: "base_branch", description: "The base branch to compare against (defaults to the project's default branch)."},
+      %{name: "head_branch", description: "The head branch to evaluate."}
+    ]
   end
 
-  @impl true
-  def get_messages(arguments, frame) do
-    test_case_id = Map.get(arguments, :test_case_id)
-    {account_handle, project_handle} = PromptSupport.resolve_project_handles(arguments)
+  @impl EMCP.Prompt
+  def template(_conn, args) do
+    test_case_id = Map.get(args, "test_case_id")
+    {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
     default_branch = PromptSupport.resolve_default_branch(account_handle, project_handle)
-    base_branch = Map.get(arguments, :base_branch) || default_branch || "main"
-    head_branch = Map.get(arguments, :head_branch)
+    base_branch = Map.get(args, "base_branch") || default_branch || "main"
+    head_branch = Map.get(args, "head_branch")
 
-    response =
-      Response.user_message(Response.prompt(), %{
-        "type" => "text",
-        "text" => prompt_text(test_case_id, base_branch, head_branch, account_handle, project_handle)
-      })
-
-    {:reply, response, frame}
+    %{messages: [%{role: "user", content: %{type: "text", text: prompt_text(test_case_id, base_branch, head_branch, account_handle, project_handle)}}]}
   end
 
   defp prompt_text(test_case_id, base_branch, head_branch, account_handle, project_handle) do

@@ -3,38 +3,64 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
   List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
   alias Tuist.MCP.Components.ToolSupport
 
   @authorization_action :read
   @authorization_category :build
 
-  schema do
-    field :build_run_id, :string,
-      required: true,
-      description: "The ID of the build run."
+  @impl EMCP.Tool
+  def name, do: "list_xcode_build_cache_tasks"
 
-    field :status, :string, description: "Filter by cache status: hit_local, hit_remote, or miss."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
 
-    field :type, :string, description: "Filter by task type: clang or swift."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run."
+        },
+        "status" => %{
+          "type" => "string",
+          "description" => "Filter by cache status: hit_local, hit_remote, or miss."
+        },
+        "type" => %{
+          "type" => "string",
+          "description" => "Filter by task type: clang or swift."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["build_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{build_run_id: build_run_id} = arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
+    build_run_id = Map.get(args, "build_run_id")
+
     with {:ok, build} <-
            ToolSupport.load_resource(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}",
-             frame
+             "Build not found: #{build_run_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              build.project_id,
              @authorization_action,
              @authorization_category
@@ -43,14 +69,14 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
 
       filters =
         Enum.reduce([:status, :type], filters, fn field, acc ->
-          case Map.get(arguments, field) do
+          case Map.get(args, to_string(field)) do
             nil -> acc
             value -> acc ++ [%{field: field, op: :==, value: value}]
           end
         end)
 
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
 
       {tasks, meta} =
         Builds.list_cacheable_tasks(%{
@@ -77,7 +103,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
         pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 

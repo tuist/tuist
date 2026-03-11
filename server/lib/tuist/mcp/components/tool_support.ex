@@ -1,7 +1,6 @@
 defmodule Tuist.MCP.Components.ToolSupport do
   @moduledoc false
 
-  alias Anubis.MCP.Error
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
@@ -9,56 +8,56 @@ defmodule Tuist.MCP.Components.ToolSupport do
     Authorization.authenticated_subject(assigns)
   end
 
-  def authorize_project(frame, project, action, category, message \\ "You do not have access to this resource.") do
-    if Authorization.authorize(authenticated_subject(frame.assigns), action, project, category) do
+  def authorize_project(assigns, project, action, category, message \\ "You do not have access to this resource.") do
+    if Authorization.authorize(authenticated_subject(assigns), action, project, category) do
       :ok
     else
-      invalid_params(message, frame)
+      {:error, message}
     end
   end
 
-  def load_resource({:ok, resource}, _message, _frame), do: {:ok, resource}
-  def load_resource({:error, :not_found}, message, frame), do: invalid_params(message, frame)
-  def load_resource(_result, message, frame), do: invalid_params(message, frame)
+  def load_resource({:ok, resource}, _message), do: {:ok, resource}
+  def load_resource({:error, :not_found}, message), do: {:error, message}
+  def load_resource(_result, message), do: {:error, message}
 
-  def load_project(project_id, frame, message \\ "Project not found.") do
+  def load_project(project_id, message \\ "Project not found.") do
     case Projects.get_project_by_id(project_id) do
-      nil -> invalid_params(message, frame)
+      nil -> {:error, message}
       project -> {:ok, project}
     end
   end
 
   def authorize_project_by_id(
-        frame,
+        assigns,
         project_id,
         action,
         category,
         unauthorized_message \\ "You do not have access to this resource.",
         not_found_message \\ "Project not found."
       ) do
-    with {:ok, project} <- load_project(project_id, frame, not_found_message),
-         :ok <- authorize_project(frame, project, action, category, unauthorized_message) do
+    with {:ok, project} <- load_project(project_id, not_found_message),
+         :ok <- authorize_project(assigns, project, action, category, unauthorized_message) do
       {:ok, project}
     end
   end
 
-  def load_project_by_handle(account_handle, project_handle, frame) do
+  def load_project_by_handle(account_handle, project_handle) do
     case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
-      nil -> invalid_params("Project not found: #{account_handle}/#{project_handle}", frame)
+      nil -> {:error, "Project not found: #{account_handle}/#{project_handle}"}
       project -> {:ok, project}
     end
   end
 
-  def load_and_authorize_project_by_handle(account_handle, project_handle, frame, action, category, unauthorized_message) do
-    with {:ok, project} <- load_project_by_handle(account_handle, project_handle, frame),
-         :ok <- authorize_project(frame, project, action, category, unauthorized_message) do
+  def load_and_authorize_project_by_handle(account_handle, project_handle, assigns, action, category, unauthorized_message) do
+    with {:ok, project} <- load_project_by_handle(account_handle, project_handle),
+         :ok <- authorize_project(assigns, project, action, category, unauthorized_message) do
       {:ok, project}
     end
   end
 
   def resolve_and_authorize_project(
-        %{account_handle: account_handle, project_handle: project_handle},
-        frame,
+        %{"account_handle" => account_handle, "project_handle" => project_handle},
+        assigns,
         action,
         category
       )
@@ -66,33 +65,33 @@ defmodule Tuist.MCP.Components.ToolSupport do
     load_and_authorize_project_by_handle(
       account_handle,
       project_handle,
-      frame,
+      assigns,
       action,
       category,
       "You do not have access to project: #{account_handle}/#{project_handle}"
     )
   end
 
-  def resolve_and_authorize_project(_arguments, frame, _action, _category) do
-    invalid_params("Provide account_handle and project_handle.", frame)
+  def resolve_and_authorize_project(_arguments, _assigns, _action, _category) do
+    {:error, "Provide account_handle and project_handle."}
   end
 
-  def invalid_params(message, frame) do
-    {:error, Error.protocol(:invalid_params, %{message: message}), frame}
+  def invalid_params(message) do
+    {:error, message}
   end
 
   @max_page_size 100
   @default_page_size 20
 
   def page(arguments) do
-    case Map.get(arguments, :page) do
+    case Map.get(arguments, "page") do
       value when is_integer(value) and value > 0 -> value
       _ -> 1
     end
   end
 
   def page_size(arguments) do
-    case Map.get(arguments, :page_size) do
+    case Map.get(arguments, "page_size") do
       value when is_integer(value) and value > 0 -> min(value, @max_page_size)
       _ -> @default_page_size
     end
@@ -107,5 +106,9 @@ defmodule Tuist.MCP.Components.ToolSupport do
       current_page: meta.current_page,
       page_size: meta.page_size
     }
+  end
+
+  def json_response(data) do
+    EMCP.Tool.response([%{"type" => "text", "text" => Jason.encode!(data)}])
   end
 end

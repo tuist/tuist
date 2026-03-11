@@ -3,36 +3,60 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
   List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
   alias Tuist.MCP.Components.ToolSupport
 
   @authorization_action :read
   @authorization_category :build
 
-  schema do
-    field :build_run_id, :string,
-      required: true,
-      description: "The ID of the build run."
+  @impl EMCP.Tool
+  def name, do: "list_xcode_build_issues"
 
-    field :type, :string, description: "Filter by issue type: warning or error."
-    field :target, :string, description: "Filter by target name."
-    field :step_type, :string, description: "Filter by compilation step type (e.g. swift_compilation, linker)."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run."
+        },
+        "type" => %{
+          "type" => "string",
+          "description" => "Filter by issue type: warning or error."
+        },
+        "target" => %{
+          "type" => "string",
+          "description" => "Filter by target name."
+        },
+        "step_type" => %{
+          "type" => "string",
+          "description" => "Filter by compilation step type (e.g. swift_compilation, linker)."
+        }
+      },
+      "required" => ["build_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{build_run_id: build_run_id} = arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
+    build_run_id = Map.get(args, "build_run_id")
+
     with {:ok, build} <-
            ToolSupport.load_resource(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}",
-             frame
+             "Build not found: #{build_run_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              build.project_id,
              @authorization_action,
              @authorization_category
@@ -41,9 +65,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
 
       issues =
         issues
-        |> maybe_filter(:type, Map.get(arguments, :type))
-        |> maybe_filter(:target, Map.get(arguments, :target))
-        |> maybe_filter(:step_type, Map.get(arguments, :step_type))
+        |> maybe_filter(:type, Map.get(args, "type"))
+        |> maybe_filter(:target, Map.get(args, "target"))
+        |> maybe_filter(:step_type, Map.get(args, "step_type"))
 
       data =
         Enum.map(issues, fn issue ->
@@ -63,7 +87,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
           }
         end)
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 

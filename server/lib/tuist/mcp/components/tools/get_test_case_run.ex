@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   Get detailed information about a specific test case run including failures and repetitions. Use list_test_case_run_attachments to inspect attachments.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
@@ -13,25 +12,40 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
   @authorization_action :read
   @authorization_category :test
 
-  schema do
-    field :test_case_run_id, :string,
-      required: true,
-      description: "The ID of the test case run."
+  @impl EMCP.Tool
+  def name, do: "get_test_case_run"
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get detailed information about a specific test case run including failures and repetitions. Use list_test_case_run_attachments to inspect attachments."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "test_case_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the test case run."
+        }
+      },
+      "required" => ["test_case_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{test_case_run_id: test_case_run_id}, frame) do
+  @impl EMCP.Tool
+  def call(conn, %{"test_case_run_id" => test_case_run_id}) do
     with {:ok, run} <-
            ToolSupport.load_resource(
              Tests.get_test_case_run_by_id(test_case_run_id,
                preload: [:failures, :repetitions]
              ),
-             "Test case run not found: #{test_case_run_id}",
-             frame
+             "Test case run not found: #{test_case_run_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              run.project_id,
              @authorization_action,
              @authorization_category
@@ -71,7 +85,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
           end)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 end

@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
   List test runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
@@ -13,34 +12,64 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
   @authorization_action :read
   @authorization_category :test
 
-  schema do
-    field :account_handle, :string,
-      required: true,
-      description: "The account handle (organization or user)."
+  @impl EMCP.Tool
+  def name, do: "list_test_runs"
 
-    field :project_handle, :string,
-      required: true,
-      description: "The project handle."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List test runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}."
 
-    field :git_branch, :string, description: "Filter by git branch."
-    field :status, :string, description: "Filter by status: success, failure, or skipped."
-    field :scheme, :string, description: "Filter by scheme name."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "account_handle" => %{
+          "type" => "string",
+          "description" => "The account handle (organization or user)."
+        },
+        "project_handle" => %{
+          "type" => "string",
+          "description" => "The project handle."
+        },
+        "git_branch" => %{
+          "type" => "string",
+          "description" => "Filter by git branch."
+        },
+        "status" => %{
+          "type" => "string",
+          "description" => "Filter by status: success, failure, or skipped."
+        },
+        "scheme" => %{
+          "type" => "string",
+          "description" => "Filter by scheme name."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["account_handle", "project_handle"]
+    }
   end
 
-  @impl true
-  def execute(arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
     with {:ok, project} <-
            ToolSupport.resolve_and_authorize_project(
-             arguments,
-             frame,
+             args,
+             conn.assigns,
              @authorization_action,
              @authorization_category
            ) do
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
-      filters = build_filters(project.id, arguments)
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
+      filters = build_filters(project.id, args)
 
       {runs, meta} =
         Tests.list_test_runs(%{
@@ -79,17 +108,19 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
         pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 
-  defp build_filters(project_id, arguments) do
+  defp build_filters(project_id, args) do
     base = [%{field: :project_id, op: :==, value: project_id}]
 
-    Enum.reduce([:git_branch, :status, :scheme], base, fn field, filters ->
-      case Map.get(arguments, field) do
+    Enum.reduce(["git_branch", "status", "scheme"], base, fn key, filters ->
+      case Map.get(args, key) do
         nil -> filters
-        value -> filters ++ [%{field: field, op: :==, value: value}]
+        value -> filters ++ [%{field: String.to_existing_atom(key), op: :==, value: value}]
       end
     end)
   end

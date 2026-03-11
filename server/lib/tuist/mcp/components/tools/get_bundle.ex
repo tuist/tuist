@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
   Get detailed information about a specific bundle. Use get_bundle_artifact_tree to get the full artifact list. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.Bundles
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
@@ -13,23 +12,38 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
   @authorization_action :read
   @authorization_category :bundle
 
-  schema do
-    field :bundle_id, :string,
-      required: true,
-      description: "The ID of the bundle."
+  @impl EMCP.Tool
+  def name, do: "get_bundle"
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get detailed information about a specific bundle. Use get_bundle_artifact_tree to get the full artifact list. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "bundle_id" => %{
+          "type" => "string",
+          "description" => "The ID of the bundle."
+        }
+      },
+      "required" => ["bundle_id"]
+    }
   end
 
-  @impl true
-  def execute(%{bundle_id: bundle_id}, frame) do
+  @impl EMCP.Tool
+  def call(conn, %{"bundle_id" => bundle_id}) do
     with {:ok, bundle} <-
            ToolSupport.load_resource(
              Bundles.get_bundle(bundle_id),
-             "Bundle not found: #{bundle_id}",
-             frame
+             "Bundle not found: #{bundle_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              bundle.project_id,
              @authorization_action,
              @authorization_category
@@ -49,7 +63,9 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
         inserted_at: Formatter.iso8601(bundle.inserted_at)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 end

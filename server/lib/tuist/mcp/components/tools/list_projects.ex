@@ -3,18 +3,29 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
   List all projects accessible to the authenticated user.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
-  schema do
+  @impl EMCP.Tool
+  def name, do: "list_projects"
+
+  @impl EMCP.Tool
+  def description,
+    do: "List all projects accessible to the authenticated user."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{}
+    }
   end
 
-  @impl true
-  def execute(_arguments, frame) do
-    subject = Authorization.authenticated_subject(frame.assigns)
+  @impl EMCP.Tool
+  def call(conn, _args) do
+    subject = Authorization.authenticated_subject(conn.assigns)
     projects = Projects.list_accessible_projects(subject, preload: [:account])
 
     data =
@@ -29,6 +40,6 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
         }
       end)
 
-    {:reply, Response.json(Response.tool(), data), frame}
+    Tuist.MCP.Components.ToolSupport.json_response(data)
   end
 end

@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
   List Xcode build runs for a project. Only available for projects with build_system=xcode. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
@@ -13,35 +12,68 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
   @authorization_action :read
   @authorization_category :build
 
-  schema do
-    field :account_handle, :string,
-      required: true,
-      description: "The account handle (organization or user)."
+  @impl EMCP.Tool
+  def name, do: "list_xcode_builds"
 
-    field :project_handle, :string,
-      required: true,
-      description: "The project handle."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List Xcode build runs for a project. Only available for projects with build_system=xcode. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}."
 
-    field :git_branch, :string, description: "Filter by git branch."
-    field :status, :string, description: "Filter by status: success or failure."
-    field :scheme, :string, description: "Filter by scheme name."
-    field :configuration, :string, description: "Filter by configuration name."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "account_handle" => %{
+          "type" => "string",
+          "description" => "The account handle (organization or user)."
+        },
+        "project_handle" => %{
+          "type" => "string",
+          "description" => "The project handle."
+        },
+        "git_branch" => %{
+          "type" => "string",
+          "description" => "Filter by git branch."
+        },
+        "status" => %{
+          "type" => "string",
+          "description" => "Filter by status: success or failure."
+        },
+        "scheme" => %{
+          "type" => "string",
+          "description" => "Filter by scheme name."
+        },
+        "configuration" => %{
+          "type" => "string",
+          "description" => "Filter by configuration name."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["account_handle", "project_handle"]
+    }
   end
 
-  @impl true
-  def execute(arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, args) do
     with {:ok, project} <-
            ToolSupport.resolve_and_authorize_project(
-             arguments,
-             frame,
+             args,
+             conn.assigns,
              @authorization_action,
              @authorization_category
            ) do
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
-      filters = build_filters(project.id, arguments)
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
+      filters = build_filters(project.id, args)
 
       {builds, meta} =
         Builds.list_build_runs(%{
@@ -74,15 +106,17 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
         pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 
-  defp build_filters(project_id, arguments) do
+  defp build_filters(project_id, args) do
     base = [%{field: :project_id, op: :==, value: project_id}]
 
     Enum.reduce([:git_branch, :status, :scheme, :configuration], base, fn field, filters ->
-      case Map.get(arguments, field) do
+      case Map.get(args, to_string(field)) do
         nil -> filters
         value -> filters ++ [%{field: field, op: :==, value: value}]
       end

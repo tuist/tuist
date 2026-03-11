@@ -3,9 +3,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   Get detailed metrics for a specific test run.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.MCP.Formatter
   alias Tuist.Tests
@@ -14,17 +13,33 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   @authorization_action :read
   @authorization_category :test
 
-  schema do
-    field :test_run_id, :string, required: true, description: "The ID of the test run."
+  @impl EMCP.Tool
+  def name, do: "get_test_run"
+
+  @impl EMCP.Tool
+  def description, do: "Get detailed metrics for a specific test run."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "test_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the test run."
+        }
+      },
+      "required" => ["test_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{test_run_id: test_run_id}, frame) do
+  @impl EMCP.Tool
+  def call(conn, %{"test_run_id" => test_run_id}) do
     with {:ok, run} <-
-           ToolSupport.load_resource(Tests.get_test(test_run_id), "Test run not found: #{test_run_id}", frame),
+           ToolSupport.load_resource(Tests.get_test(test_run_id), "Test run not found: #{test_run_id}"),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              run.project_id,
              @authorization_action,
              @authorization_category
@@ -47,7 +62,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         avg_test_duration: metrics.avg_duration
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 end

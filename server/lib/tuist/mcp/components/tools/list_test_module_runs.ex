@@ -3,36 +3,58 @@ defmodule Tuist.MCP.Components.Tools.ListTestModuleRuns do
   List test module runs for a specific test run. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  @behaviour EMCP.Tool
 
-  alias Anubis.Server.Response
   alias Tuist.MCP.Components.ToolSupport
   alias Tuist.Tests
 
   @authorization_action :read
   @authorization_category :test
 
-  schema do
-    field :test_run_id, :string,
-      required: true,
-      description: "The ID of the test run."
+  @impl EMCP.Tool
+  def name, do: "list_test_module_runs"
 
-    field :status, :string, description: "Filter by status: success or failure."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List test module runs for a specific test run. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}."
+
+  @impl EMCP.Tool
+  def input_schema do
+    %{
+      "type" => "object",
+      "properties" => %{
+        "test_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the test run."
+        },
+        "status" => %{
+          "type" => "string",
+          "description" => "Filter by status: success or failure."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["test_run_id"]
+    }
   end
 
-  @impl true
-  def execute(%{test_run_id: test_run_id} = arguments, frame) do
+  @impl EMCP.Tool
+  def call(conn, %{"test_run_id" => test_run_id} = args) do
     with {:ok, run} <-
            ToolSupport.load_resource(
              Tests.get_test(test_run_id),
-             "Test run not found: #{test_run_id}",
-             frame
+             "Test run not found: #{test_run_id}"
            ),
          {:ok, _project} <-
            ToolSupport.authorize_project_by_id(
-             frame,
+             conn.assigns,
              run.project_id,
              @authorization_action,
              @authorization_category
@@ -40,13 +62,13 @@ defmodule Tuist.MCP.Components.Tools.ListTestModuleRuns do
       filters = [%{field: :test_run_id, op: :==, value: test_run_id}]
 
       filters =
-        case Map.get(arguments, :status) do
+        case Map.get(args, "status") do
           nil -> filters
           status -> filters ++ [%{field: :status, op: :==, value: status}]
         end
 
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
 
       {modules, meta} =
         Tests.list_test_module_runs(%{
@@ -73,7 +95,9 @@ defmodule Tuist.MCP.Components.Tools.ListTestModuleRuns do
         pagination_metadata: ToolSupport.pagination_metadata(meta)
       }
 
-      {:reply, Response.json(Response.tool(), data), frame}
+      ToolSupport.json_response(data)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 end
