@@ -72,8 +72,14 @@ public struct FocusTargetsGraphMappers: GraphMapping {
                 guard case let .named(name) = $0 else { return nil }
                 return name
             }
-            let unavailableIncludedTargets = Set(includedTargetNames)
+            var unavailableIncludedTargets = Set(includedTargetNames)
                 .subtracting(userSpecifiedSourceTargets.map(\.target.name))
+            if let initialGraph = environment.initialGraph {
+                let initialGraphTargetNames = Set(
+                    initialGraph.projects.values.flatMap(\.targets.values).map(\.name)
+                )
+                unavailableIncludedTargets = unavailableIncludedTargets.subtracting(initialGraphTargetNames)
+            }
             if !unavailableIncludedTargets.isEmpty {
                 throw FocusTargetsGraphMappersError.targetsNotFound(Array(unavailableIncludedTargets))
             }
