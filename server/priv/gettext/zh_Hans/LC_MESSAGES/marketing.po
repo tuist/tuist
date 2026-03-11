@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-03-01 17:09+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-25 14:36+0000\n"
+"PO-Revision-Date: 2026-03-01 17:09+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -41,9 +53,6 @@ msgstr ""
 "<p>我们对开源的承诺和核心价值观塑造了我们独特的定价方式。与许多试图通过“联系销售”电话、有限的演示和其他销售手段榨取您每一分钱的模式不同，我们秉持公平和透明的原则。我们平等对待每一位客户，并制定对所有人都公平的价格。选择我们的服务，您不仅能获得优质的产品，还能支持更多开源项目的开发。我们认为，打造一个蓬勃发展的企业是一个长期的过程，而不是充斥着不正当手段的短期冲刺。您可以点击 %{read_more} 了解更多关于我们理念的信息。</p>\n"
 "<p>支持 Tuist，您也支持更多面向 Swift 生态系统的开源软件的开发。</p>\n"
 
-msgid "A confirmation email has been sent to your account with further details."
-msgstr "确认邮件已发送至您的账户，详情请查收。"
-
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr "Tuist 团队官方通讯：产品动态、现代 iOS 开发洞察、未来规划前瞻。与我们一同洞察方向，理解选择。"
 
@@ -55,12 +64,6 @@ msgstr "关于"
 
 msgid "Active community members and counting"
 msgstr "活跃社区成员持续增长中"
-
-msgid "Agentic QA"
-msgstr "智能测试"
-
-msgid "Agentic testing of your app completed"
-msgstr "应用智能测试已完成"
 
 msgid "Air"
 msgstr "空气"
@@ -79,9 +82,6 @@ msgstr "你需要的所有功能，"
 
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr "结合环境、Xcode 版本、提交等元数据，深度分析目标、文件的构建时间。"
-
-msgid "Automate testing your apps for Apple platforms using agents."
-msgstr "运用智能体，实现 Apple 平台应用测试自动化。"
 
 msgid "Base price"
 msgstr "基础价格"
@@ -175,9 +175,6 @@ msgstr "公司"
 
 msgid "Compare our plans"
 msgstr "比较我们的计划"
-
-msgid "Concise Summary"
-msgstr "简洁摘要"
 
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
 msgstr "结识 Tuist 用户伙伴，交流心得体会，获得社区助力。"
@@ -278,9 +275,6 @@ msgstr "生成的项目"
 msgid "Get Support"
 msgstr "获取支持"
 
-msgid "Get early access"
-msgstr "获得早期访问"
-
 msgid "Get help when you need it through various support channels."
 msgstr "多种支持渠道，随时为您提供所需帮助。"
 
@@ -346,9 +340,6 @@ msgstr "付费计划有免费试用吗？"
 
 msgid "Is there a minimum contract length?"
 msgstr "有最短合同期限吗？"
-
-msgid "Issue Tracking"
-msgstr "问题跟踪"
 
 msgid "Issues"
 msgstr "问题"
@@ -482,9 +473,6 @@ msgstr "产品"
 msgid "Pull requests merged"
 msgstr "已合并的拉取请求"
 
-msgid "QA"
-msgstr "质量保证"
-
 msgid "Read engaging stories and expert insights."
 msgstr "阅读引人入胜的故事和专家见解。"
 
@@ -502,12 +490,6 @@ msgstr "需要生成的项目"
 
 msgid "Resources"
 msgstr "资源"
-
-msgid "Right Inside Your Workflow"
-msgstr "就在您的工作流程中"
-
-msgid "Screenshots & Replays"
-msgstr "截图和回放"
 
 msgid "Security"
 msgstr "安全"
@@ -535,9 +517,6 @@ msgstr "通过清理代码和资源来缩小应用体积"
 
 msgid "Sign up"
 msgstr "注册"
-
-msgid "Sign up to get early access to Tuist QA"
-msgstr "注册获得 Tuist QA 的早期访问权限"
 
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
 msgstr "iOS 项目引入 Tuist 后，可扩展性与生产力实现质的飞跃。开发流程更加高效，团队能专注于功能构建，不再受工具限制束缚。"
@@ -685,12 +664,6 @@ msgstr "Tuist 图标"
 
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
 msgstr "Tuist 专业版通过我们的社区论坛和 GitHub 问题提供支持。企业计划包括通过 Slack 频道提供专用支持，响应时间优先级高。"
-
-msgid "Tuist QA"
-msgstr "Tuist QA"
-
-msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
-msgstr "Tuist QA 在 PR 中运行 AI 测试，生成包含问题、步骤、截图的摘要，让 bug 在合并主分支前无处遁形。"
 
 msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
 msgstr "Tuist 弥补 Apple 工具短板，破解团队效率瓶颈。化解构建复杂、流程摩擦、协作难题，助您高速交付卓越应用。"
@@ -851,17 +824,8 @@ msgstr "开源"
 msgid "pay as you go"
 msgstr "按需付费"
 
-msgid "pinpoint the exact moment of the issue during testing"
-msgstr "在测试期间精确定位问题发生的时刻"
-
 msgid "read more"
 msgstr "阅读更多"
-
-msgid "review every step the agent took with visual context"
-msgstr "通过视觉上下文审查智能体采取的每一步"
-
-msgid "see what was tested, issues found, and results at a glance"
-msgstr "一目了然地看到测试内容、发现的问题和结果"
 
 msgid "via Community Forum"
 msgstr "通过社区论坛"
@@ -972,10 +936,6 @@ msgid "Tuist Customers"
 msgstr "Tuist 客户"
 
 #, fuzzy
-msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr "代理质量保证测试结账流程，发现8个问题并截取16张屏幕截图"
-
-#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
 msgstr "应用预览界面展示分享预览按钮及平台选项"
 
@@ -1006,10 +966,6 @@ msgstr "测试历史与自动化创建模态框的测试仪表板"
 #, fuzzy
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
 msgstr "从代码到反馈仅需数分钟。即时预览与AI驱动的测试，让构建与验证的闭环无缝衔接。"
-
-#, fuzzy
-msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
-msgstr "在PR中@tuist-qa，AI代理将像真实用户一样测试您的应用，探索边界情况并通过截图和日志报告问题。"
 
 #, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
@@ -1070,6 +1026,62 @@ msgstr "仅运行受变更影响的测试，以加快反馈循环并减少等待
 #, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
 msgstr "跳过手动步骤，自动生成项目，加速构建，并通过内置分析功能探索洞察。"
+
+#~ msgid "A confirmation email has been sent to your account with further details."
+#~ msgstr "确认邮件已发送至您的账户，详情请查收。"
+
+#~ msgid "Agentic QA"
+#~ msgstr "智能测试"
+
+#~ msgid "Agentic testing of your app completed"
+#~ msgstr "应用智能测试已完成"
+
+#~ msgid "Automate testing your apps for Apple platforms using agents."
+#~ msgstr "运用智能体，实现 Apple 平台应用测试自动化。"
+
+#~ msgid "Concise Summary"
+#~ msgstr "简洁摘要"
+
+#~ msgid "Get early access"
+#~ msgstr "获得早期访问"
+
+#~ msgid "Issue Tracking"
+#~ msgstr "问题跟踪"
+
+#~ msgid "QA"
+#~ msgstr "质量保证"
+
+#~ msgid "Right Inside Your Workflow"
+#~ msgstr "就在您的工作流程中"
+
+#~ msgid "Screenshots & Replays"
+#~ msgstr "截图和回放"
+
+#~ msgid "Sign up to get early access to Tuist QA"
+#~ msgstr "注册获得 Tuist QA 的早期访问权限"
+
+#~ msgid "Tuist QA"
+#~ msgstr "Tuist QA"
+
+#~ msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+#~ msgstr "Tuist QA 在 PR 中运行 AI 测试，生成包含问题、步骤、截图的摘要，让 bug 在合并主分支前无处遁形。"
+
+#~ msgid "pinpoint the exact moment of the issue during testing"
+#~ msgstr "在测试期间精确定位问题发生的时刻"
+
+#~ msgid "review every step the agent took with visual context"
+#~ msgstr "通过视觉上下文审查智能体采取的每一步"
+
+#~ msgid "see what was tested, issues found, and results at a glance"
+#~ msgstr "一目了然地看到测试内容、发现的问题和结果"
+
+#, fuzzy
+#~ msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+#~ msgstr "代理质量保证测试结账流程，发现8个问题并截取16张屏幕截图"
+
+#, fuzzy
+#~ msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+#~ msgstr "在PR中@tuist-qa，AI代理将像真实用户一样测试您的应用，探索边界情况并通过截图和日志报告问题。"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "AI 写得更快。您的构建也应该如此。"

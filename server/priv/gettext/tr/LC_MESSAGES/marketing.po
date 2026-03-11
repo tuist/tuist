@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2026-02-06 12:43+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.2\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-05 15:32+0000\n"
+"PO-Revision-Date: 2026-02-06 12:43+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -41,9 +53,6 @@ msgstr ""
 "<p>Açık kaynağa bağlılığımız ve temel değerlerimiz, fiyatlandırmaya olan yaklaşımımızı benzersiz kılıyor. Birçok modelin “satış için iletişime geçin”, sınırlı demolar ve diğer satış taktikleriyle sizden her doları almaya çalışmasının aksine, biz adalet ve şeffaflığa inanıyoruz. Herkese eşit davranıyor ve herkese adil fiyatlar belirliyoruz. Hizmetlerimizi seçerek yalnızca harika bir ürün almakla kalmıyor, aynı zamanda daha fazla açık kaynak projesinin geliştirilmesini destekliyorsunuz. Biz başarılı bir işi; kısa vadeli, dürüst olmayan uygulamalarla aceleye getirmiyor, uzun vadeli bir yolculuk olarak görüyoruz. Felsefemiz hakkında daha fazla %{read_more} okuyabilirsiniz. </p>\n"
 "<p>Tuist’i destekleyerek aynı zamanda Swift ekosistemi için daha fazla açık kaynak yazılım geliştirilmesini de destekliyorsunuz.</p>\n"
 
-msgid "A confirmation email has been sent to your account with further details."
-msgstr "Hesabınıza daha fazla detay içeren bir doğrulama e-postası gönderildi."
-
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr "Tuist ekibinden; ürün güncellemelerini, modern uygulama geliştirme konusundaki bakış açımızı ve ufukta olanları paylaşan bir bülten. Nereye gittiğimizi ve nedenini takipte kalın."
 
@@ -55,12 +64,6 @@ msgstr "Hakkında"
 
 msgid "Active community members and counting"
 msgstr "Aktif topluluk üyeleri ve sayıları artıyor"
-
-msgid "Agentic QA"
-msgstr "Yapay zeka destekli test süreçleri"
-
-msgid "Agentic testing of your app completed"
-msgstr "Uygulamanızın yapay zeka destekli testleri tamamlandı"
 
 msgid "Air"
 msgstr "Air"
@@ -79,9 +82,6 @@ msgstr "İhtiyacınız olan tüm özellikler,"
 
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr "Hedef ve dosya bazında derleme sürelerini; ortam, Xcode sürümü ve commit gibi metaverilerle birlikte analiz edin."
-
-msgid "Automate testing your apps for Apple platforms using agents."
-msgstr "Ajanlar kullanarak Apple platformları için uygulamalarınızın testini otomatikleştirin."
 
 msgid "Base price"
 msgstr "Taban fiyat"
@@ -175,9 +175,6 @@ msgstr "Şirket"
 
 msgid "Compare our plans"
 msgstr "Planlarımızı karşılaştırın"
-
-msgid "Concise Summary"
-msgstr "Kısa Özet"
 
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
 msgstr "Diğer Tuist kullanıcıları ile bağlantı kurun, deneyimlerinizi paylaşın ve topluluktan yardım alın."
@@ -278,9 +275,6 @@ msgstr "Oluşturulmuş projeler"
 msgid "Get Support"
 msgstr "Destek Alın"
 
-msgid "Get early access"
-msgstr "Erken erişim sağlayın"
-
 msgid "Get help when you need it through various support channels."
 msgstr "İhtiyacınız olduğunda çeşitli destek kanalları aracılığıyla yardım alın."
 
@@ -346,9 +340,6 @@ msgstr "Ücretli planlarda ücretsiz deneme var mı?"
 
 msgid "Is there a minimum contract length?"
 msgstr "Minimum sözleşme süresi var mı?"
-
-msgid "Issue Tracking"
-msgstr "Sorun Takibi"
 
 msgid "Issues"
 msgstr "Sorunlar"
@@ -482,9 +473,6 @@ msgstr "Ürün"
 msgid "Pull requests merged"
 msgstr "Pull requestler mergelendi"
 
-msgid "QA"
-msgstr "QA"
-
 msgid "Read engaging stories and expert insights."
 msgstr "İlgi çekici hikayeleri ve uzman görüşlerini okuyun."
 
@@ -502,12 +490,6 @@ msgstr "Oluşturulmuş proje gerektirir"
 
 msgid "Resources"
 msgstr "Kaynaklar"
-
-msgid "Right Inside Your Workflow"
-msgstr "İş Akışınızın Tam İçinde"
-
-msgid "Screenshots & Replays"
-msgstr "Ekran Görüntüleri & Kayıtlar"
 
 msgid "Security"
 msgstr "Güvenlik"
@@ -535,9 +517,6 @@ msgstr "Kod ve medyayı temizleyerek uygulamanızı küçültün"
 
 msgid "Sign up"
 msgstr "Kaydolun"
-
-msgid "Sign up to get early access to Tuist QA"
-msgstr "Tuist QA'ya erken erişim için kaydolun"
 
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
 msgstr "Tuist'i iOS projemizde kullanmaya başladığımızdan beri ölçeklenebilirlik ve üretkenlikte önemli gelişmeler gördük. Genel olarak, geliştirme sürecimizi daha hızlı ve daha verimli hale getirerek ekibin araç sınırlamaları tarafından yavaşlatılmadan özellikler oluşturmaya odaklanmasını sağladı."
@@ -685,12 +664,6 @@ msgstr "Tuist İkon"
 
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
 msgstr "Tuist Pro, topluluk forumumuz ve GitHub sorunları aracılığıyla destek içerir. Kurumsal planlar, yüksek öncelikli yanıt sürelerine sahip Slack kanalları aracılığıyla özel destek içerir."
-
-msgid "Tuist QA"
-msgstr "Tuist QA"
-
-msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
-msgstr "Tuist QA, PR'larınızdan yapay zeka destekli testler çalıştırarak size sorunlar, adımlar ve ekran görüntüleri içeren özetler sunar - böylece hatalar ana sayfaya ulaşmadan yakalanır."
 
 msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
 msgstr "Tuist, Apple'ın araçlarında ekiplerin hızlı hareket etmesini engelleyen boşlukları dolduruyor. Olağanüstü uygulamaları hızlı bir şekilde sunabilmeniz için derleme karmaşıklığını, iş akışı sürtünmesini ve işbirliği zorluklarını çözüyoruz."
@@ -851,17 +824,8 @@ msgstr "açık kaynak"
 msgid "pay as you go"
 msgstr "Gittiğin kadar öde"
 
-msgid "pinpoint the exact moment of the issue during testing"
-msgstr "Test sırasında sorunun tam olarak ne zaman ortaya çıktığını saptamak"
-
 msgid "read more"
 msgstr "daha fazla oku"
-
-msgid "review every step the agent took with visual context"
-msgstr "Temsilcinin attığı her adımı görsel bağlamla gözden geçirme"
-
-msgid "see what was tested, issues found, and results at a glance"
-msgstr "Neyin test edildiğini, bulunan sorunları ve sonuçları bir bakışta görün"
 
 msgid "via Community Forum"
 msgstr "Topluluk Forumu aracılığıyla"
@@ -972,10 +936,6 @@ msgid "Tuist Customers"
 msgstr "Tuist Müşterileri"
 
 #, fuzzy
-msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr "Ajan QA, ödeme akışını test ederek 8 sorun tespit etti ve 16 ekran görüntüsü aldı."
-
-#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
 msgstr "Paylaşım önizleme düğmesini ve platform seçeneklerini gösteren uygulama önizleme arayüzü"
 
@@ -1006,10 +966,6 @@ msgstr "Test geçmişini ve otomasyon oluşturma modülünü gösteren Flaky tes
 #, fuzzy
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
 msgstr "Koddan geri bildirime dakikalar içinde. Anlık önizlemeler ve yapay zeka destekli testler, oluşturma ve doğrulama arasındaki döngüyü tamamlar."
-
-#, fuzzy
-msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
-msgstr "PR'nizde @tuist-qa'yı belirtin, bir AI ajanı uygulamanızı gerçek bir kullanıcı gibi test eder, sınır durumlarını keşfeder ve ekran görüntüleri ve günlüklerle sorunları raporlar."
 
 #, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
@@ -1070,6 +1026,62 @@ msgstr "Daha hızlı geri bildirim döngüleri ve daha az bekleme süresi için,
 #, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
 msgstr "Manuel adımları atlayın, projeleri otomatik olarak oluşturun, derlemeleri hızlandırın ve yerleşik analitiklerle içgörüler keşfedin."
+
+#~ msgid "A confirmation email has been sent to your account with further details."
+#~ msgstr "Hesabınıza daha fazla detay içeren bir doğrulama e-postası gönderildi."
+
+#~ msgid "Agentic QA"
+#~ msgstr "Yapay zeka destekli test süreçleri"
+
+#~ msgid "Agentic testing of your app completed"
+#~ msgstr "Uygulamanızın yapay zeka destekli testleri tamamlandı"
+
+#~ msgid "Automate testing your apps for Apple platforms using agents."
+#~ msgstr "Ajanlar kullanarak Apple platformları için uygulamalarınızın testini otomatikleştirin."
+
+#~ msgid "Concise Summary"
+#~ msgstr "Kısa Özet"
+
+#~ msgid "Get early access"
+#~ msgstr "Erken erişim sağlayın"
+
+#~ msgid "Issue Tracking"
+#~ msgstr "Sorun Takibi"
+
+#~ msgid "QA"
+#~ msgstr "QA"
+
+#~ msgid "Right Inside Your Workflow"
+#~ msgstr "İş Akışınızın Tam İçinde"
+
+#~ msgid "Screenshots & Replays"
+#~ msgstr "Ekran Görüntüleri & Kayıtlar"
+
+#~ msgid "Sign up to get early access to Tuist QA"
+#~ msgstr "Tuist QA'ya erken erişim için kaydolun"
+
+#~ msgid "Tuist QA"
+#~ msgstr "Tuist QA"
+
+#~ msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+#~ msgstr "Tuist QA, PR'larınızdan yapay zeka destekli testler çalıştırarak size sorunlar, adımlar ve ekran görüntüleri içeren özetler sunar - böylece hatalar ana sayfaya ulaşmadan yakalanır."
+
+#~ msgid "pinpoint the exact moment of the issue during testing"
+#~ msgstr "Test sırasında sorunun tam olarak ne zaman ortaya çıktığını saptamak"
+
+#~ msgid "review every step the agent took with visual context"
+#~ msgstr "Temsilcinin attığı her adımı görsel bağlamla gözden geçirme"
+
+#~ msgid "see what was tested, issues found, and results at a glance"
+#~ msgstr "Neyin test edildiğini, bulunan sorunları ve sonuçları bir bakışta görün"
+
+#, fuzzy
+#~ msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+#~ msgstr "Ajan QA, ödeme akışını test ederek 8 sorun tespit etti ve 16 ekran görüntüsü aldı."
+
+#, fuzzy
+#~ msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+#~ msgstr "PR'nizde @tuist-qa'yı belirtin, bir AI ajanı uygulamanızı gerçek bir kullanıcı gibi test eder, sınır durumlarını keşfeder ve ekran görüntüleri ve günlüklerle sorunları raporlar."
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "Yapay zeka daha hızlı yazıyor. Yapılarınız da öyle olmalı."
