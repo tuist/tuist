@@ -15,7 +15,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
       |> Enum.sort_by(fn {k, _} -> k end)
       |> Enum.map(fn {_, samples} -> List.last(samples) end)
 
-    labels = Enum.map(metrics, fn m -> format_absolute_time(m.timestamp) end)
+    labels = Enum.map(metrics, fn m -> format_iso_time(m.timestamp) end)
     cpu_data = Enum.map(metrics, fn m -> Float.round(m.cpu_usage_percent + 0.0, 1) end)
     memory_data = Enum.map(metrics, fn m -> bytes_to_gb(m.memory_used_bytes) end)
 
@@ -90,7 +90,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                       axisLabel: %{
                         color: "var:noora-surface-label-secondary",
                         customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0]
+                        padding: [10, 0, 0, 0],
+                        formatter: "fn:toLocaleTime"
                       }
                     },
                     yAxis: %{
@@ -100,7 +101,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                       splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
                       axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
                     },
-                    tooltip: %{valueFormat: "{value}%"}
+                    tooltip: %{valueFormat: "{value}%", dateFormat: "minute"}
                   }
                 }
               />
@@ -122,7 +123,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                       axisLabel: %{
                         color: "var:noora-surface-label-secondary",
                         customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0]
+                        padding: [10, 0, 0, 0],
+                        formatter: "fn:toLocaleTime"
                       }
                     },
                     yAxis: %{
@@ -135,7 +137,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                         formatter: "{value} GB"
                       }
                     },
-                    tooltip: %{valueFormat: "{value} GB"}
+                    tooltip: %{valueFormat: "{value} GB", dateFormat: "minute"}
                   }
                 }
               />
@@ -160,7 +162,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                       axisLabel: %{
                         color: "var:noora-surface-label-secondary",
                         customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0]
+                        padding: [10, 0, 0, 0],
+                        formatter: "fn:toLocaleTime"
                       }
                     },
                     yAxis: %{
@@ -172,7 +175,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                         formatter: "{value} MiB/s"
                       }
                     },
-                    tooltip: %{valueFormat: "{value} MiB/s"},
+                    tooltip: %{valueFormat: "{value} MiB/s", dateFormat: "minute"},
                     legend: @legend_config
                   }
                 }
@@ -198,7 +201,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                       axisLabel: %{
                         color: "var:noora-surface-label-secondary",
                         customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0]
+                        padding: [10, 0, 0, 0],
+                        formatter: "fn:toLocaleTime"
                       }
                     },
                     yAxis: %{
@@ -210,7 +214,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                         formatter: "{value} MiB/s"
                       }
                     },
-                    tooltip: %{valueFormat: "{value} MiB/s"},
+                    tooltip: %{valueFormat: "{value} MiB/s", dateFormat: "minute"},
                     legend: @legend_config
                   }
                 }
@@ -231,9 +235,8 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     Float.round(bytes / (1024 * 1024), 2)
   end
 
-  defp format_absolute_time(epoch_seconds) do
+  defp format_iso_time(epoch_seconds) do
     seconds = trunc(epoch_seconds)
-    datetime = DateTime.from_unix!(seconds)
-    Calendar.strftime(datetime, "%H:%M:%S")
+    DateTime.from_unix!(seconds) |> DateTime.to_iso8601()
   end
 end
