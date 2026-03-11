@@ -29,8 +29,8 @@ if config_env() == :prod do
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
-    secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY"),
-    access_key_id: System.get_env("AWS_ACCESS_KEY_ID"),
+    secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
+    access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
     http_client: TuistCommon.AWS.Client
 
   config :processor,

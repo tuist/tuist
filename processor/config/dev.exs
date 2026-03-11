@@ -10,8 +10,8 @@ config :processor, ProcessorWeb.Endpoint,
 config :logger, :console, format: "[$level] $message\n"
 
 config :ex_aws,
-  access_key_id: System.get_env("AWS_ACCESS_KEY_ID", "minio"),
-  secret_access_key: System.get_env("AWS_SECRET_ACCESS_KEY", "minio1234"),
+  access_key_id: System.get_env("S3_ACCESS_KEY_ID", "minio"),
+  secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY", "minio1234"),
   http_client: TuistCommon.AWS.Client
 
 config :ex_aws, :s3,
