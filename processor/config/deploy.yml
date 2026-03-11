@@ -6,6 +6,9 @@ servers:
     proxy: false
     options:
       publish: 4002:4002
+    healthcheck:
+      path: /health
+      port: 4002
 
 ssh:
   user: github-actions
