@@ -76,6 +76,9 @@
                     "text": "Güncelleme geçmişi"
                 }
             }
+        },
+        "tutorials": {
+            "text": "Öğreticiler"
         }
     },
     "sidebars": {
@@ -92,6 +95,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell tamamlamaları"
+                        },
+                        "debugging": {
+                            "text": "Hata ayıklama"
                         }
                     }
                 },
@@ -111,6 +117,22 @@
                     "items": {
                         "from-v3-to-v4": {
                             "text": "v3'ten v4'e"
+                        }
+                    }
+                },
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Oluşturulmuş projeler"
+                        }
+                    }
+                },
+                "configuration": {
+                    "text": "Yapılandırma",
+                    "items": {
+                        "tuist-toml": {
+                            "text": "tuist.toml"
                         }
                     }
                 }
@@ -144,6 +166,26 @@
                             "text": "Loglama"
                         }
                     }
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": "Dokümanlar"
+                        },
+                        "handbook": {
+                            "text": "El Kitabı"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Sunucu"
+                        }
+                    },
+                    "text": "Kod"
+                },
+                "debugging": {
+                    "text": "Hata ayıklama"
                 }
             }
         },
@@ -315,6 +357,20 @@
                                 },
                                 "module-cache": {
                                     "text": "Modül önbelleği"
+                                },
+                                "xcode": {
+                                    "text": "Xcode",
+                                    "items": {
+                                        "xcode-cache": {
+                                            "text": "Xcode önbelleği"
+                                        },
+                                        "module-cache": {
+                                            "text": "Modül önbelleği"
+                                        }
+                                    }
+                                },
+                                "gradle-cache": {
+                                    "text": "Gradle önbelleği"
                                 }
                             }
                         },
@@ -363,6 +419,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Kararsız testler"
+                                }
+                            },
+                            "text": "Test bilgileri"
                         }
                     }
                 },
@@ -371,6 +435,9 @@
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "Beceriler"
                         }
                     }
                 },
@@ -390,6 +457,9 @@
                                 }
                             },
                             "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -419,9 +489,28 @@
                         },
                         "authentication": {
                             "text": "Kimlik doğrulama"
+                        },
+                        "network": {
+                            "text": "Ağ"
                         }
                     },
                     "text": "Sunucu"
+                },
+                "install-tuist": {
+                    "text": "Tuist'i indir"
+                }
+            }
+        },
+        "tutorials": {
+            "text": "Öğreticiler",
+            "items": {
+                "xcode": {
+                    "text": "Xcode",
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Oluşturulmuş projeleri oluşturun"
+                        }
+                    }
                 }
             }
         }

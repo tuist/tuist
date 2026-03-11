@@ -113,6 +113,13 @@
                             "text": "From v3 to v4"
                         }
                     }
+                },
+                "xcode": {
+                    "items": {
+                        "generated-projects": {
+                            "text": "Projetos gerados"
+                        }
+                    }
                 }
             }
         },
@@ -143,6 +150,26 @@
                     }
                 },
                 "releases": {
+                    "text": ""
+                },
+                "debugging": {
+                    "text": ""
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": ""
+                        },
+                        "handbook": {
+                            "text": ""
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Server"
+                        }
+                    },
                     "text": ""
                 }
             }
@@ -366,6 +393,14 @@
                         },
                         "qa": {
                             "text": ""
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
                         }
                     }
                 },
@@ -392,6 +427,9 @@
                                     "text": ""
                                 }
                             },
+                            "text": ""
+                        },
+                        "slack": {
                             "text": ""
                         }
                     }
@@ -425,6 +463,20 @@
                         }
                     },
                     "text": "Server"
+                },
+                "install-tuist": {
+                    "text": "Install Tuist"
+                }
+            }
+        },
+        "tutorials": {
+            "items": {
+                "xcode": {
+                    "items": {
+                        "create-a-generated-project": {
+                            "text": "Create a new project"
+                        }
+                    }
                 }
             }
         }
