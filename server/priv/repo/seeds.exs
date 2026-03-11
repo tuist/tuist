@@ -2043,7 +2043,6 @@ Enum.each(test_previews, fn preview_attrs ->
   end)
 end)
 
-
 # Create bundles with artifacts
 bundle_types = [:app, :ipa, :xcarchive]
 

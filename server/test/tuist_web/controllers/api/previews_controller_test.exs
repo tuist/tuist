@@ -860,7 +860,6 @@ defmodule TuistWeb.PreviewsControllerTest do
       assert response["message"] ==
                "tuist is not authorized to create preview"
     end
-
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/previews/:preview_id" do

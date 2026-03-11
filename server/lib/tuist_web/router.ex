@@ -212,7 +212,6 @@ defmodule TuistWeb.Router do
              TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},
              private: private
-
       end
 
       get locale_path_prefix, MarketingController, :home,

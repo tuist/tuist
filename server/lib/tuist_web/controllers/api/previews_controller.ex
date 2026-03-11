@@ -894,5 +894,4 @@ defmodule TuistWeb.API.PreviewsController do
       created_from_ci: is_nil(preview.created_by_account) || is_nil(preview.created_by_account.user_id)
     }
   end
-
 end
