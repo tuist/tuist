@@ -371,11 +371,19 @@ user_account_id = user.account.id
 project_id = tuist_project.id
 
 build_generator = fn _i ->
-  status = Enum.random(["success", "failure"])
+  status = Enum.random(["success", "success", "success", "failure", "failure", "processing", "failed_processing"])
   is_ci = Enum.random([true, false])
-  total_tasks = Enum.random(50..200)
-  remote_hits = Enum.random(0..div(total_tasks, 2))
-  local_hits = Enum.random(0..(total_tasks - remote_hits))
+  is_pending = status in ["processing", "failed_processing"]
+
+  {total_tasks, remote_hits, local_hits} =
+    if is_pending do
+      {0, 0, 0}
+    else
+      total = Enum.random(50..200)
+      remote = Enum.random(0..div(total, 2))
+      local = Enum.random(0..(total - remote))
+      {total, remote, local}
+    end
 
   available_tags = [
     "nightly",
@@ -407,7 +415,7 @@ build_generator = fn _i ->
 
   %{
     id: UUIDv7.generate(),
-    duration: Enum.random(10_000..100_000),
+    duration: if(is_pending, do: 0, else: Enum.random(10_000..100_000)),
     macos_version: Enum.random(["11.2.3", "12.3.4", "13.4.5", "14.0", "14.5"]),
     xcode_version: Enum.random(["12.4", "13.0", "13.2", "14.0", "15.0", "15.2"]),
     is_ci: is_ci,
@@ -415,13 +423,14 @@ build_generator = fn _i ->
     project_id: project_id,
     account_id: if(is_ci, do: org_account_id, else: user_account_id),
     scheme: Enum.random(["App", "AppTests"]),
-    configuration: Enum.random(["Debug", "Release"]),
+    configuration: if(is_pending, do: "", else: Enum.random(["Debug", "Release"])),
     inserted_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
         Time.new!(Enum.random(0..23), Enum.random(0..59), Enum.random(0..59), {0, 6})
       ),
     status: status,
+    category: if(is_pending, do: "incremental", else: Enum.random(["clean", "incremental"])),
     cacheable_tasks_count: total_tasks,
     cacheable_task_remote_hits_count: remote_hits,
     cacheable_task_local_hits_count: local_hits,
@@ -530,7 +539,9 @@ cas_output_generator = fn build ->
   end)
 end
 
-cas_outputs = SeedHelpers.parallel_flat_map(builds, cas_output_generator)
+completed_builds = Enum.reject(builds, fn b -> b.status in ["processing", "failed_processing"] end)
+
+cas_outputs = SeedHelpers.parallel_flat_map(completed_builds, cas_output_generator)
 SeedHelpers.insert_bulk_ch(cas_outputs, Tuist.Builds.CASOutput, IngestRepo, "CAS outputs")
 
 # Generate CAS events based on CAS outputs
@@ -561,11 +572,11 @@ cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
 builds_by_id = Map.new(builds, fn b -> {b.id, b} end)
 
 # For cacheable tasks, use a proportion of builds based on scale
-cacheable_tasks_build_count = min(length(builds), max(500, div(seed_config.build_runs, 4)))
+cacheable_tasks_build_count = min(length(completed_builds), max(500, div(seed_config.build_runs, 4)))
 IO.puts("Generating cacheable tasks for #{cacheable_tasks_build_count} builds...")
 
 cacheable_tasks =
-  builds
+  completed_builds
   |> Enum.map(& &1.id)
   |> Enum.shuffle()
   |> Enum.take(cacheable_tasks_build_count)
@@ -722,7 +733,7 @@ if seed_config.targets_per_build > 0 do
   project_names = ["App", "Modules", "Features", "Core", "Platform"]
 
   build_targets =
-    SeedHelpers.parallel_flat_map(builds, fn build ->
+    SeedHelpers.parallel_flat_map(completed_builds, fn build ->
       target_count = max(5, Enum.random(div(seed_config.targets_per_build, 2)..seed_config.targets_per_build))
       inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
       selected_targets = Enum.take_random(target_names, min(target_count, length(target_names)))
@@ -811,7 +822,7 @@ if seed_config.files_per_build > 0 do
   project_names_for_files = ["App", "Modules", "Features", "Core", "Platform"]
 
   build_files =
-    SeedHelpers.parallel_flat_map(builds, fn build ->
+    SeedHelpers.parallel_flat_map(completed_builds, fn build ->
       file_count = max(10, Enum.random(div(seed_config.files_per_build, 2)..seed_config.files_per_build))
       inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
 

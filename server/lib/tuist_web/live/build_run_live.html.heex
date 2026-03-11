@@ -103,7 +103,25 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
-          :if={Tuist.Builds.build_ci_run_url(@run)}
+          :if={@run.status == "processing"}
+          label={dgettext("dashboard_builds", "CI Run")}
+          variant="secondary"
+          size="medium"
+          disabled
+        >
+          <:icon_left><.external_link /></:icon_left>
+        </.button>
+        <.button
+          :if={@run.status == "processing"}
+          label={dgettext("dashboard_builds", "Download result")}
+          variant="secondary"
+          size="medium"
+          disabled
+        >
+          <:icon_left><.download /></:icon_left>
+        </.button>
+        <.button
+          :if={@run.status != "processing" && Tuist.Builds.build_ci_run_url(@run)}
           href={Tuist.Builds.build_ci_run_url(@run)}
           label={dgettext("dashboard_builds", "CI Run")}
           variant="secondary"
@@ -115,6 +133,10 @@
       </div>
     </div>
     <div :if={@run.status == "processing"} data-part="processing-state">
+      <div data-part="image">
+        <img src="/images/processing_build_light.png" data-theme="light" />
+        <img src="/images/processing_build_dark.png" data-theme="dark" />
+      </div>
       <div data-part="labels">
         <span data-part="title">
           {dgettext("dashboard_builds", "Your build is being processed")}
@@ -122,10 +144,20 @@
         <span data-part="subtitle">
           {dgettext(
             "dashboard_builds",
-            "This usually takes a few seconds. The page will update automatically."
+            "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
           )}
         </span>
       </div>
+      <.button
+        label={dgettext("dashboard_builds", "Refresh")}
+        variant="secondary"
+        size="medium"
+        phx-click="refresh_build"
+      >
+        <:icon_left>
+          <.reload />
+        </:icon_left>
+      </.button>
     </div>
     <.tab_menu_horizontal :if={@run.status != "processing"}>
       <.tab_menu_horizontal_item

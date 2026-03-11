@@ -217,6 +217,20 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   @impl true
+  def handle_event("refresh_build", _params, %{assigns: %{run: run}} = socket) do
+    refreshed_run =
+      run.id
+      |> Builds.get_build()
+      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
+      |> Tuist.ClickHouseRepo.preload([:issues, :machine_metrics])
+
+    {:noreply,
+     socket
+     |> assign(:run, refreshed_run)
+     |> assign(:machine_metrics, refreshed_run.machine_metrics)
+     |> assign_build_data(refreshed_run)}
+  end
+
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
       when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and is_struct(project) do
     if Project.gradle_project?(project) do
