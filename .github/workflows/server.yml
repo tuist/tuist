@@ -33,14 +33,15 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   MISE_TASK_RUN_AUTO_INSTALL: 0
+  MISE_GITHUB_ATTESTATIONS: 0
 
 defaults:
   run:
     working-directory: server
 
 jobs:
-  gettext_marketing:
-    name: Gettext (Marketing)
+  gettext:
+    name: Gettext
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
@@ -100,32 +101,6 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
-  gettext_dashboard:
-    name: Gettext (Dashboard)
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "erlang elixir"
-          cache: "false"
-          working_directory: server
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Install dependencies
-        run: mix deps.get
       - name: Check dashboard gettext templates are up-to-date
         run: |
           # Dashboard domains to check

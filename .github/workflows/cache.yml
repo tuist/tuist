@@ -29,6 +29,7 @@ defaults:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
   format:
