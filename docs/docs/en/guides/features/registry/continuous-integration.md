@@ -7,15 +7,19 @@
 ---
 # Continuous Integration (CI) {#continuous-integration-ci}
 
-To use the registry on your CI, you need to ensure that you have logged in to the registry by running `tuist registry login` as part of your workflow.
+The registry works out of the box on CI without any additional authentication setup. By default, unauthenticated requests are rate-limited to **1,000 requests per minute** per IP address.
 
-::: info ONLY XCODE INTEGRATION
+If you need a higher rate limit of **20,000 requests per minute**, you can authenticate by running `tuist registry login`. This requires the `TUIST_TOKEN` environment variable to be set. You can create a project token by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
+
+::: info
 <!-- -->
-Creating a new pre-unlocked keychain is required only if you are using the Xcode integration of packages.
+The keychain setup below is only required if you use `tuist registry login` to get higher rate limits. In most cases, the default unauthenticated rate limit is sufficient and you can skip this entirely.
+
+Additionally, creating a new pre-unlocked keychain is only needed when using the Xcode integration of packages.
 <!-- -->
 :::
 
-Since the registry credentials are stored in a keychain, you need to ensure the keychain can be accessed in the CI environment. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
+Since `tuist registry login` stores credentials in a keychain, you need to ensure the keychain can be accessed in the CI environment. Note some CI providers or automation tools like [Fastlane](https://fastlane.tools/) already create a temporary keychain or provide a built-in way how to create one. However, you can also create one by creating a custom step with the following code:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -26,33 +30,7 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist registry login` will then store the credentials in the default keychain. Ensure that your default keychain is created and unlocked _before_ `tuist registry login` is run.
-
-Additionally, you need to ensure the `TUIST_TOKEN` environment variable is set. You can create one by following the documentation <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
-
-An example workflow for GitHub Actions could then look like this:
-```yaml
-name: Build
-
-jobs:
-  build:
-    steps:
-      - # Your set up steps...
-      - name: Create keychain
-        run: |
-        TMP_DIRECTORY=$(mktemp -d)
-        KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
-        KEYCHAIN_PASSWORD=$(uuidgen)
-        security create-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-        security default-keychain -s $KEYCHAIN_PATH
-        security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
-      - name: Log in to the Tuist Registry
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
-        run: tuist registry login
-      - # Your build steps
-```
+Ensure that your default keychain is created and unlocked _before_ running `tuist registry login`.
 
 ### Incremental resolution across environments {#incremental-resolution-across-environments}
 
