@@ -3,12 +3,8 @@
   "checkpoint_id": "79df315c715c",
   "strategy": "manual-commit",
   "branch": "feat/comparison-skills",
-  "checkpoints_count": 1,
+  "checkpoints_count": 3,
   "files_touched": [
-    "cli/Sources/TuistBuildCommand/BuildCASOutputListCommand.swift",
-    "cli/Sources/TuistBuildCommand/BuildIssueListCommandService.swift",
-    "cli/Sources/TuistBundleCommand/Services/BundleArtifactListCommandService.swift",
-    "cli/Sources/TuistServer/Services/ListBuildIssuesService.swift",
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
     "examples/xcode/generated_tuist_plugin/Package.swift",
@@ -19,23 +15,10 @@
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
-    "server/lib/tuist_web/controllers/api/module_cache_targets_controller.ex",
-    "server/lib/tuist_web/router.ex",
-    "server/test/tuist_web/controllers/api/build_cache_tasks_controller_test.exs",
-    "server/test/tuist_web/controllers/api/build_cas_outputs_controller_test.exs",
-    "server/test/tuist_web/controllers/api/build_files_controller_test.exs",
-    "server/test/tuist_web/controllers/api/build_issues_controller_test.exs",
-    "server/test/tuist_web/controllers/api/build_targets_controller_test.exs",
-    "server/test/tuist_web/controllers/api/bundle_artifacts_controller_test.exs",
-    "server/test/tuist_web/controllers/api/module_cache_targets_controller_test.exs",
-    "server/test/tuist_web/controllers/api/test_module_runs_controller_test.exs",
-    "server/test/tuist_web/controllers/api/test_suite_runs_controller_test.exs",
-    "skills/skills/compare-builds/SKILL.md",
-    "skills/skills/compare-bundles/SKILL.md",
-    "skills/skills/compare-cache-runs/SKILL.md",
-    "skills/skills/compare-generations/SKILL.md",
-    "skills/skills/compare-test-case/SKILL.md",
-    "skills/skills/compare-test-runs/SKILL.md"
+    "server/lib/tuist_web/controllers/api/build_cache_tasks_controller.ex",
+    "server/lib/tuist_web/controllers/api/build_cas_outputs_controller.ex",
+    "server/lib/tuist_web/controllers/api/build_files_controller.ex",
+    "server/lib/tuist_web/controllers/api/build_targets_controller.ex"
   ],
   "sessions": [
     {
@@ -47,10 +30,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 54,
-    "cache_creation_tokens": 169964,
-    "cache_read_tokens": 6691555,
-    "output_tokens": 14601,
-    "api_call_count": 48
+    "input_tokens": 79,
+    "cache_creation_tokens": 366173,
+    "cache_read_tokens": 7085691,
+    "output_tokens": 14263,
+    "api_call_count": 71
   }
 }
