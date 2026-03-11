@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-26 10:17+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-03-11 16:37+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/tr/>\n"
 "Language: tr\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.16\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -195,7 +195,7 @@ msgstr "Kuruluşu sil"
 
 #, fuzzy
 msgid "Deleting the organization will delete all of its projects"
-msgstr "Kuruluşun silinmesi, tüm projelerinin de silinmesine neden olur."
+msgstr "Kuruluş silindiğinde, tüm projeleri de silinir."
 
 #, fuzzy
 msgid ""
@@ -257,8 +257,8 @@ msgstr "Cömert taban fiyat"
 #, fuzzy
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr ""
-"Cömert temel fiyat: Ücretsiz kullanım sınırının altındaysanız hiçbir ücret "
-"ödemezsiniz."
+"Cömert temel fiyat: Ücretsiz kademenin sınırlarının altındaysa hiçbir şey "
+"ödemeyin"
 
 #, fuzzy
 msgid "Generous free monthly tier"
@@ -473,7 +473,7 @@ msgstr "Kuruluşun adını değiştirin"
 
 #, fuzzy
 msgid "Rename your organization?"
-msgstr "Kuruluşunuzun adını değiştirmek mi istiyorsunuz?"
+msgstr "Kuruluşunuzun adını mı değiştirmek istiyorsunuz?"
 
 #, fuzzy
 msgid "Renaming can have unexpected consequences"
