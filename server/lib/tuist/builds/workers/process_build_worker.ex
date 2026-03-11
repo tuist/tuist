@@ -146,5 +146,4 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
       other -> other
     end)
   end
-
 end
