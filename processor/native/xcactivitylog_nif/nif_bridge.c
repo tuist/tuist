@@ -45,10 +45,12 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
 
     /* Null-terminate the paths */
     char *path = malloc(path_bin.size + 1);
+    if (!path) return enif_make_badarg(env);
     memcpy(path, path_bin.data, path_bin.size);
     path[path_bin.size] = '\0';
 
     char *cas_path = malloc(cas_path_bin.size + 1);
+    if (!cas_path) { free(path); return enif_make_badarg(env); }
     memcpy(cas_path, cas_path_bin.data, cas_path_bin.size);
     cas_path[cas_path_bin.size] = '\0';
 
@@ -83,7 +85,7 @@ static ERL_NIF_TERM parse_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"parse_nif", 3, parse_nif, 0}
+    {"parse_nif", 3, parse_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND}
 };
 
 ERL_NIF_INIT(Elixir.Processor.XCActivityLogNIF, nif_funcs, NULL, NULL, NULL, NULL)

@@ -10,7 +10,7 @@ defmodule ProcessorWeb.Plugs.WebhookAuthPlug do
 
     if is_nil(secret) or secret == "" do
       conn
-      |> send_resp(500, "Webhook secret not configured")
+      |> json_error(500, "Webhook secret not configured")
       |> halt()
     else
       verify_signature(conn, secret)
@@ -22,7 +22,7 @@ defmodule ProcessorWeb.Plugs.WebhookAuthPlug do
 
     if is_nil(signature) do
       conn
-      |> send_resp(401, "Missing x-webhook-signature header")
+      |> json_error(401, "Missing x-webhook-signature header")
       |> halt()
     else
       raw_body =
@@ -38,9 +38,15 @@ defmodule ProcessorWeb.Plugs.WebhookAuthPlug do
         conn
       else
         conn
-        |> send_resp(403, "Invalid signature")
+        |> json_error(403, "Invalid signature")
         |> halt()
       end
     end
+  end
+
+  defp json_error(conn, status, message) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(status, JSON.encode!(%{error: message}))
   end
 end

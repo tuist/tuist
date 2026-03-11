@@ -67,7 +67,7 @@ defmodule Processor.BuildProcessor do
       |> File.stream!()
       |> Stream.map(&String.trim/1)
       |> Stream.reject(&(&1 == ""))
-      |> Stream.map(&Jason.decode!/1)
+      |> Stream.map(fn line -> line |> JSON.decode!() end)
       |> Stream.filter(fn sample ->
         ts = sample["timestamp"]
         ts >= start_unix and ts <= end_unix
@@ -77,8 +77,6 @@ defmodule Processor.BuildProcessor do
       []
     end
   end
-
-  defp cleanup_temp(nil), do: :ok
 
   defp cleanup_temp(temp_dir) do
     File.rm_rf(temp_dir)

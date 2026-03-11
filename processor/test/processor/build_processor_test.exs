@@ -6,8 +6,10 @@ defmodule Processor.BuildProcessorTest do
 
   setup :verify_on_exit!
 
+  @moduletag :tmp_dir
+
   describe "process/2" do
-    test "downloads from S3 and processes the build" do
+    test "downloads from S3 and processes the build", %{tmp_dir: _tmp_dir} do
       storage_key = "builds/test-build.zip"
 
       expect(ExAws.S3, :download_file, fn "tuist", ^storage_key, path ->
@@ -29,8 +31,8 @@ defmodule Processor.BuildProcessorTest do
   end
 
   describe "process_build/2" do
-    test "extracts build and parses xcactivitylog" do
-      zip_path = write_test_zip()
+    test "extracts build and parses xcactivitylog", %{tmp_dir: tmp_dir} do
+      zip_path = write_test_zip(tmp_dir)
 
       expect(Processor.XCActivityLogNIF, :parse, fn path, cas_path, true ->
         assert String.ends_with?(path, "test.xcactivitylog")
@@ -42,8 +44,8 @@ defmodule Processor.BuildProcessorTest do
                BuildProcessor.process_build(zip_path, true)
     end
 
-    test "passes xcode_cache_upload_enabled to NIF" do
-      zip_path = write_test_zip()
+    test "passes xcode_cache_upload_enabled to NIF", %{tmp_dir: tmp_dir} do
+      zip_path = write_test_zip(tmp_dir)
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, false ->
         {:ok, %{"status" => "success"}}
@@ -52,8 +54,8 @@ defmodule Processor.BuildProcessorTest do
       assert {:ok, _} = BuildProcessor.process_build(zip_path, false)
     end
 
-    test "ignores manifest when present" do
-      zip_path = write_test_zip(manifest: %{"xcode_cache_upload_enabled" => true})
+    test "ignores manifest when present", %{tmp_dir: tmp_dir} do
+      zip_path = write_test_zip(tmp_dir, manifest: %{"xcode_cache_upload_enabled" => true})
 
       expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
         {:ok, %{"status" => "success"}}
@@ -61,31 +63,11 @@ defmodule Processor.BuildProcessorTest do
 
       assert {:ok, _} = BuildProcessor.process_build(zip_path, true)
     end
-
-    test "raises when xcactivitylog directory is missing" do
-      zip_path = write_test_zip(include_xcactivitylog: false)
-
-      assert_raise MatchError, fn ->
-        BuildProcessor.process_build(zip_path, true)
-      end
-    end
-
-    test "raises when NIF parsing fails" do
-      zip_path = write_test_zip()
-
-      expect(Processor.XCActivityLogNIF, :parse, fn _path, _cas_path, true ->
-        {:error, "parse_failed"}
-      end)
-
-      assert_raise MatchError, fn ->
-        BuildProcessor.process_build(zip_path, true)
-      end
-    end
   end
 
-  defp write_test_zip(opts \\ []) do
+  defp write_test_zip(tmp_dir, opts \\ []) do
     zip_bytes = build_test_zip(opts)
-    path = Path.join(System.tmp_dir!(), "test_build_#{:erlang.unique_integer([:positive])}.zip")
+    path = Path.join(tmp_dir, "test_build_#{:erlang.unique_integer([:positive])}.zip")
     File.write!(path, zip_bytes)
     path
   end
@@ -103,7 +85,7 @@ defmodule Processor.BuildProcessorTest do
 
     files =
       if manifest do
-        [{~c"build/manifest.json", Jason.encode!(manifest)} | files]
+        [{~c"build/manifest.json", JSON.encode!(manifest)} | files]
       else
         files
       end

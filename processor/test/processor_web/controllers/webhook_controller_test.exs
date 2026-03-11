@@ -28,18 +28,18 @@ defmodule ProcessorWeb.WebhookControllerTest do
 
   describe "POST /webhooks/process-build" do
     test "returns 401 when x-webhook-signature header is missing" do
-      body = Jason.encode!(@valid_payload)
+      body = JSON.encode!(@valid_payload)
 
       conn =
         build_conn()
         |> post_webhook(body)
 
       assert conn.status == 401
-      assert conn.resp_body == "Missing x-webhook-signature header"
+      assert json_response(conn, 401) == %{"error" => "Missing x-webhook-signature header"}
     end
 
     test "returns 403 when x-webhook-signature is invalid" do
-      body = Jason.encode!(@valid_payload)
+      body = JSON.encode!(@valid_payload)
 
       conn =
         build_conn()
@@ -47,7 +47,7 @@ defmodule ProcessorWeb.WebhookControllerTest do
         |> post_webhook(body)
 
       assert conn.status == 403
-      assert conn.resp_body == "Invalid signature"
+      assert json_response(conn, 403) == %{"error" => "Invalid signature"}
     end
 
     test "returns 200 with parsed data when signature is valid and processing succeeds" do
@@ -55,7 +55,7 @@ defmodule ProcessorWeb.WebhookControllerTest do
         {:ok, %{"duration" => 1200, "targets" => []}}
       end)
 
-      body = Jason.encode!(@valid_payload)
+      body = JSON.encode!(@valid_payload)
       signature = sign_body(body)
 
       conn =

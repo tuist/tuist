@@ -16,7 +16,7 @@ defmodule Processor.XCActivityLogNIF do
     case :erlang.load_nif(nif_path, 0) do
       :ok -> :ok
       {:error, {:reload, _}} -> :ok
-      {:error, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -37,7 +37,7 @@ defmodule Processor.XCActivityLogNIF do
   def parse(xcactivitylog_path, cas_metadata_path, xcode_cache_upload_enabled) do
     case parse_nif(xcactivitylog_path, cas_metadata_path, xcode_cache_upload_enabled) do
       {:ok, json_binary} ->
-        Jason.decode(json_binary)
+        JSON.decode(json_binary)
 
       {:error, reason} ->
         {:error, reason}
