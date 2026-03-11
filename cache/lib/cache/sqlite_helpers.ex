@@ -3,6 +3,8 @@ defmodule Cache.SQLiteHelpers do
 
   alias Cache.Config
 
+  require Logger
+
   def busy_error?(%Exqlite.Error{message: message}) when is_binary(message) do
     String.contains?(message, ["database is locked", "SQLITE_BUSY"])
   end
@@ -27,7 +29,13 @@ defmodule Cache.SQLiteHelpers do
   def restore_busy_timeout!(repo) do
     set_busy_timeout!(repo, Config.repo_busy_timeout_ms(repo))
   rescue
-    _ -> :ok
+    error ->
+      if busy_error?(error) do
+        :ok
+      else
+        Logger.warning("Failed to restore busy timeout for #{inspect(repo)}: #{inspect(error)}")
+        :ok
+      end
   end
 
   def set_busy_timeout!(repo, timeout_ms) do

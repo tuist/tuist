@@ -70,7 +70,9 @@ S3_BUCKET=your-cache-bucket
 S3_HOST=s3.us-east-1.amazonaws.com
 S3_REGION=us-east-1
 
-# Optional: dedicated Xcode cache bucket (see S3_XCODE_CACHE_BUCKET below)
+# Optional: dedicated Xcode cache bucket.
+# Useful when you want separate retention policies, storage classes,
+# or cost tracking for Xcode cache vs. module/Gradle cache artifacts.
 # S3_XCODE_CACHE_BUCKET=your-xcode-cache-bucket
 
 # S3 authentication (Option 1: static credentials)
@@ -100,7 +102,7 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
 | `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
 | `S3_BUCKET` | Yes | | S3 bucket for module and Gradle cache artifacts. Also used for Xcode cache artifacts when `S3_XCODE_CACHE_BUCKET` is unset. |
-| `S3_XCODE_CACHE_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for Xcode cache artifacts. When set, Xcode cache reads and writes use this bucket directly. |
+| `S3_XCODE_CACHE_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for Xcode cache artifacts. When set, Xcode cache reads and writes use this bucket directly. Useful when you want separate retention policies, storage classes, or cost tracking for Xcode cache artifacts. |
 | `S3_HOST` | Yes | | S3 endpoint hostname (e.g. `s3.us-east-1.amazonaws.com`). |
 | `S3_REGION` | Yes | | S3 region. Also accepted as `AWS_REGION`. |
 | `S3_ACCESS_KEY_ID` | Conditional | | S3 access key. Required when using static credentials. Also accepted as `AWS_ACCESS_KEY_ID`. See [S3 authentication](#s3-authentication). |
@@ -193,13 +195,13 @@ The Docker Compose configuration uses three volumes:
 
 ## Background maintenance {#background-maintenance}
 
-The cache service runs several background maintenance loops that are worth knowing when you self-host it:
+The cache service runs several background maintenance loops that keep disk and database usage within bounds. You can tune their behavior through the environment variables listed in the [configuration table](#environment-variables) above.
 
-- **CAS disk eviction** removes local artifacts when disk usage crosses the configured watermarks.
-- **KV eviction** prunes old key-value entries and keeps the dedicated KV SQLite database within its configured size budget.
-- **Orphan cleanup** scans the disk storage tree for files that no longer have a matching `cache_artifacts` row and deletes them.
+- **CAS disk eviction** — When disk usage exceeds `CAS_DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `CAS_DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
+- **KV eviction** — When the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
+- **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
 
-Orphan cleanup depends on the primary metadata database, not the dedicated KV database.
+For a detailed explanation of how each process works internally, see the <LocalizedLink href="/guides/cache/architecture">architecture guide</LocalizedLink>.
 
 ## Health checks {#health-checks}
 
@@ -229,15 +231,7 @@ docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
-
-That includes both SQLite databases: the primary metadata DB and the dedicated KV DB.
-
-If you are upgrading from an older version that stored KV metadata in `repo.sqlite`, this transition is an intentional cold start for the KV store. Existing `key_value_entries` and `key_value_entry_hashes` rows are disposable cache metadata, so they are not copied into `key_value.sqlite`.
-
-After the upgrade, the cache service reads and writes KV metadata only from the dedicated KV database. Expect a brief warm-up period where KV entries are repopulated from new traffic.
-
-The legacy KV tables in `repo.sqlite` are no longer used after rollout. You can leave them in place temporarily, or remove them during a maintenance window once all cache nodes are running the version that uses `key_value.sqlite` if you want to reclaim that space.
+The service runs database migrations automatically on startup. After upgrading, expect a brief warm-up period while the KV cache repopulates from new traffic.
 
 ## Troubleshooting {#troubleshooting}
 
@@ -248,6 +242,12 @@ If you expect caching but are seeing consistent cache misses (for example, the C
 1. Verify the custom cache endpoint is correctly configured in your organization settings.
 2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
 3. Check the cache service logs for any errors: `docker compose logs cache`.
+
+### Do I need the repo.sqlite file? {#troubleshooting-repo-sqlite}
+
+`repo.sqlite` is the primary metadata database. It stores artifact metadata, orphan cleanup state, and background job data. It is required for normal operation.
+
+If you upgraded from an older version that also stored KV metadata in `repo.sqlite`, KV data has moved to the dedicated `key_value.sqlite` file. The legacy KV tables (`key_value_entries`, `key_value_entry_hashes`) in `repo.sqlite` are no longer used and can be removed during a maintenance window to reclaim space.
 
 ### Socket path mismatch {#troubleshooting-socket}
 
