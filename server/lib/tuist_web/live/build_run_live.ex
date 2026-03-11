@@ -19,6 +19,7 @@ defmodule TuistWeb.BuildRunLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
+  @impl true
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) when is_struct(project) do
     if Project.gradle_project?(project) do
       mount_gradle(params, session, socket)
@@ -138,6 +139,7 @@ defmodule TuistWeb.BuildRunLive do
     {:noreply, socket}
   end
 
+  @impl true
   def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
     params = Query.query_params(uri)
 
@@ -212,6 +214,7 @@ defmodule TuistWeb.BuildRunLive do
     }
   end
 
+  @impl true
   def handle_event(event, params, %{assigns: %{selected_project: project}} = socket)
       when event in ["search-tasks", "search-cacheable-tasks", "add_filter", "update_filter"] and is_struct(project) do
     if Project.gradle_project?(project) do
