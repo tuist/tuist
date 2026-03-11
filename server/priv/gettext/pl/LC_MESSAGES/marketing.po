@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-03-01 17:09+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.16.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:48+0000\n"
+"PO-Revision-Date: 2026-03-01 17:09+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\n"
+"Language: pl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -46,11 +58,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>Nasze zaangażowanie w open source i nasze podstawowe wartości kształtują nasze unikalne podejście do ustalania cen. W przeciwieństwie do wielu modeli, które próbują wyciągnąć od Ciebie jak najwięcej pieniędzy za pomocą telefonów „kontaktowych”, ograniczonych wersji demonstracyjnych i innych taktyk sprzedażowych, wierzymy w uczciwość i przejrzystość. Traktujemy wszystkich jednakowo i ustalamy ceny, które są sprawiedliwe dla wszystkich. Wybierając nasze usługi, nie tylko otrzymujesz świetny produkt, ale także wspierasz rozwój kolejnych projektów open source. Budowanie prosperującego biznesu postrzegamy jako długoterminową podróż, a nie krótkoterminowy sprint pełen nieuczciwych praktyk. Możesz %{read_more}  o naszej filozofii.</p>\n<p>Wspierając Tuist, wspierasz również rozwój kolejnych programów open source dla ekosystemu Swift.</p>\n"
-
-#, fuzzy
-msgid "A confirmation email has been sent to your account with further details."
-msgstr "Wiadomość e-mail z potwierdzeniem została wysłana na Twoje konto wraz z dalszymi szczegółami."
+msgstr ""
+"<p>Nasze zaangażowanie w open source i nasze podstawowe wartości kształtują nasze unikalne podejście do ustalania cen. W przeciwieństwie do wielu modeli, które próbują wyciągnąć od Ciebie jak najwięcej pieniędzy za pomocą telefonów „kontaktowych”, ograniczonych wersji demonstracyjnych i innych taktyk sprzedażowych, wierzymy w uczciwość i przejrzystość. Traktujemy wszystkich jednakowo i ustalamy ceny, które są sprawiedliwe dla wszystkich. Wybierając nasze usługi, nie tylko otrzymujesz świetny produkt, ale także wspierasz rozwój kolejnych projektów open source. Budowanie prosperującego biznesu postrzegamy jako długoterminową podróż, a nie krótkoterminowy sprint pełen nieuczciwych praktyk. Możesz %{read_more}  o naszej filozofii.</p>\n"
+"<p>Wspierając Tuist, wspierasz również rozwój kolejnych programów open source dla ekosystemu Swift.</p>\n"
 
 #, fuzzy
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
@@ -67,14 +77,6 @@ msgstr "Informacje"
 #, fuzzy
 msgid "Active community members and counting"
 msgstr "Aktywni członkowie społeczności i ich liczba"
-
-#, fuzzy
-msgid "Agentic QA"
-msgstr "Agentowe QA"
-
-#, fuzzy
-msgid "Agentic testing of your app completed"
-msgstr "Testowanie agentyczne aplikacji zakończone"
 
 #, fuzzy
 msgid "Air"
@@ -99,10 +101,6 @@ msgstr "Wszystkie potrzebne funkcje,"
 #, fuzzy
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
 msgstr "Analizuj czasy kompilacji dla poszczególnych celów i plików wraz z metadanymi, takimi jak środowisko, wersja Xcode i commit."
-
-#, fuzzy
-msgid "Automate testing your apps for Apple platforms using agents."
-msgstr "Zautomatyzuj testowanie aplikacji na platformy Apple za pomocą agentów."
 
 #, fuzzy
 msgid "Base price"
@@ -227,10 +225,6 @@ msgstr "Firma"
 #, fuzzy
 msgid "Compare our plans"
 msgstr "Porównaj nasze plany"
-
-#, fuzzy
-msgid "Concise Summary"
-msgstr "Zwięzłe podsumowanie"
 
 #, fuzzy
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
@@ -365,10 +359,6 @@ msgid "Get Support"
 msgstr "Uzyskaj wsparcie"
 
 #, fuzzy
-msgid "Get early access"
-msgstr "Uzyskaj wczesny dostęp"
-
-#, fuzzy
 msgid "Get help when you need it through various support channels."
 msgstr "W razie potrzeby skorzystaj z pomocy dostępnej za pośrednictwem różnych kanałów wsparcia."
 
@@ -455,10 +445,6 @@ msgstr "Czy istnieje bezpłatna wersja próbna płatnych planów?"
 #, fuzzy
 msgid "Is there a minimum contract length?"
 msgstr "Czy istnieje minimalna długość umowy?"
-
-#, fuzzy
-msgid "Issue Tracking"
-msgstr "Śledzenie problemów"
 
 #, fuzzy
 msgid "Issues"
@@ -637,10 +623,6 @@ msgid "Pull requests merged"
 msgstr "Scalone żądania pull"
 
 #, fuzzy
-msgid "QA"
-msgstr "QA"
-
-#, fuzzy
 msgid "Read engaging stories and expert insights."
 msgstr "Czytaj ciekawe historie i opinie ekspertów."
 
@@ -663,14 +645,6 @@ msgstr "Wymaga wygenerowanego projektu."
 #, fuzzy
 msgid "Resources"
 msgstr "Zasoby"
-
-#, fuzzy
-msgid "Right Inside Your Workflow"
-msgstr "Wprost w Twoim przepływie pracy"
-
-#, fuzzy
-msgid "Screenshots & Replays"
-msgstr "Zrzuty ekranu i powtórki"
 
 #, fuzzy
 msgid "Security"
@@ -707,10 +681,6 @@ msgstr "Zmniejsz rozmiar aplikacji, czyszcząc kod i zasoby."
 #, fuzzy
 msgid "Sign up"
 msgstr "Zarejestruj się"
-
-#, fuzzy
-msgid "Sign up to get early access to Tuist QA"
-msgstr "Zarejestruj się, aby uzyskać wczesny dostęp do Tuist QA."
 
 #, fuzzy
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
@@ -907,14 +877,6 @@ msgstr "Ikona Tuist"
 #, fuzzy
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
 msgstr "Tuist Pro zapewnia wsparcie poprzez nasze forum społecznościowe i zgłoszenia na GitHubie. Plany Enterprise obejmują dedykowane wsparcie poprzez kanały Slacka z priorytetowym czasem odpowiedzi."
-
-#, fuzzy
-msgid "Tuist QA"
-msgstr "Tuist QA"
-
-#, fuzzy
-msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
-msgstr "Tuist QA przeprowadza testy oparte na sztucznej inteligencji na podstawie Twoich PR, dostarczając podsumowania zawierające problemy, kroki i zrzuty ekranu — dzięki czemu błędy są wykrywane, zanim trafią do wersji głównej."
 
 #, fuzzy
 msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
@@ -1129,20 +1091,8 @@ msgid "pay as you go"
 msgstr "płać na bieżąco"
 
 #, fuzzy
-msgid "pinpoint the exact moment of the issue during testing"
-msgstr "określ dokładny moment wystąpienia problemu podczas testowania"
-
-#, fuzzy
 msgid "read more"
 msgstr "czytaj więcej"
-
-#, fuzzy
-msgid "review every step the agent took with visual context"
-msgstr "Sprawdź każdy krok podjęty przez agenta w kontekście wizualnym."
-
-#, fuzzy
-msgid "see what was tested, issues found, and results at a glance"
-msgstr "Zobacz, co zostało przetestowane, jakie problemy wykryto i jakie są wyniki."
 
 #, fuzzy
 msgid "via Community Forum"
@@ -1269,10 +1219,6 @@ msgid "Tuist Customers"
 msgstr "Klienci Tuist"
 
 #, fuzzy
-msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr "Testowanie jakości agentowej procesu realizacji transakcji, w wyniku którego zidentyfikowano 8 problemów i wykonano 16 zrzutów ekranu."
-
-#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
 msgstr "Interfejs podglądu aplikacji pokazujący przycisk podglądu udostępniania i opcje platformy"
 
@@ -1303,10 +1249,6 @@ msgstr "Panel testów Flaky pokazujący historię testów i modal tworzenia auto
 #, fuzzy
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
 msgstr "Od kodu do opinii w kilka minut. Natychmiastowe podglądy i testy oparte na sztucznej inteligencji zamykają pętlę między tworzeniem a weryfikacją."
-
-#, fuzzy
-msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
-msgstr "Wspomnij @tuist-qa w swoim PR, a agent AI przetestuje Twoją aplikację jak prawdziwy użytkownik, badając skrajne przypadki i zgłaszając problemy wraz ze zrzutami ekranu i logami."
 
 #, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
@@ -1367,6 +1309,78 @@ msgstr "Uruchamiaj tylko testy, na które mają wpływ Twoje zmiany, aby uzyska�
 #, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
 msgstr "Pomiń ręczne czynności, automatycznie generuj projekty, przyspiesz kompilację i odkrywaj nowe informacje dzięki wbudowanym narzędziom analitycznym."
+
+#, fuzzy
+#~ msgid "A confirmation email has been sent to your account with further details."
+#~ msgstr "Wiadomość e-mail z potwierdzeniem została wysłana na Twoje konto wraz z dalszymi szczegółami."
+
+#, fuzzy
+#~ msgid "Agentic QA"
+#~ msgstr "Agentowe QA"
+
+#, fuzzy
+#~ msgid "Agentic testing of your app completed"
+#~ msgstr "Testowanie agentyczne aplikacji zakończone"
+
+#, fuzzy
+#~ msgid "Automate testing your apps for Apple platforms using agents."
+#~ msgstr "Zautomatyzuj testowanie aplikacji na platformy Apple za pomocą agentów."
+
+#, fuzzy
+#~ msgid "Concise Summary"
+#~ msgstr "Zwięzłe podsumowanie"
+
+#, fuzzy
+#~ msgid "Get early access"
+#~ msgstr "Uzyskaj wczesny dostęp"
+
+#, fuzzy
+#~ msgid "Issue Tracking"
+#~ msgstr "Śledzenie problemów"
+
+#, fuzzy
+#~ msgid "QA"
+#~ msgstr "QA"
+
+#, fuzzy
+#~ msgid "Right Inside Your Workflow"
+#~ msgstr "Wprost w Twoim przepływie pracy"
+
+#, fuzzy
+#~ msgid "Screenshots & Replays"
+#~ msgstr "Zrzuty ekranu i powtórki"
+
+#, fuzzy
+#~ msgid "Sign up to get early access to Tuist QA"
+#~ msgstr "Zarejestruj się, aby uzyskać wczesny dostęp do Tuist QA."
+
+#, fuzzy
+#~ msgid "Tuist QA"
+#~ msgstr "Tuist QA"
+
+#, fuzzy
+#~ msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+#~ msgstr "Tuist QA przeprowadza testy oparte na sztucznej inteligencji na podstawie Twoich PR, dostarczając podsumowania zawierające problemy, kroki i zrzuty ekranu — dzięki czemu błędy są wykrywane, zanim trafią do wersji głównej."
+
+#, fuzzy
+#~ msgid "pinpoint the exact moment of the issue during testing"
+#~ msgstr "określ dokładny moment wystąpienia problemu podczas testowania"
+
+#, fuzzy
+#~ msgid "review every step the agent took with visual context"
+#~ msgstr "Sprawdź każdy krok podjęty przez agenta w kontekście wizualnym."
+
+#, fuzzy
+#~ msgid "see what was tested, issues found, and results at a glance"
+#~ msgstr "Zobacz, co zostało przetestowane, jakie problemy wykryto i jakie są wyniki."
+
+#, fuzzy
+#~ msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+#~ msgstr "Testowanie jakości agentowej procesu realizacji transakcji, w wyniku którego zidentyfikowano 8 problemów i wykonano 16 zrzutów ekranu."
+
+#, fuzzy
+#~ msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+#~ msgstr "Wspomnij @tuist-qa w swoim PR, a agent AI przetestuje Twoją aplikację jak prawdziwy użytkownik, badając skrajne przypadki i zgłaszając problemy wraz ze zrzutami ekranu i logami."
 
 #, fuzzy
 #~ msgid "AI writes faster. So should your builds."

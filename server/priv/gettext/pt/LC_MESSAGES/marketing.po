@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-03-01 17:09+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Portuguese <https://translate.tuist.dev/projects/tuist/marketing/pt/>\nLanguage: pt\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n > 1;\nX-Generator: Weblate 5.16.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:48+0000\n"
+"PO-Revision-Date: 2026-03-01 17:09+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Portuguese <https://translate.tuist.dev/projects/tuist/marketing/pt/>\n"
+"Language: pt\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n > 1;\n"
+"X-Generator: Weblate 5.16.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -39,9 +51,6 @@ msgid ""
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
 msgstr ""
 
-msgid "A confirmation email has been sent to your account with further details."
-msgstr ""
-
 msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
 msgstr ""
 
@@ -53,12 +62,6 @@ msgid "About"
 msgstr ""
 
 msgid "Active community members and counting"
-msgstr ""
-
-msgid "Agentic QA"
-msgstr ""
-
-msgid "Agentic testing of your app completed"
 msgstr ""
 
 msgid "Air"
@@ -77,9 +80,6 @@ msgid "All the features you need,"
 msgstr ""
 
 msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
-msgstr ""
-
-msgid "Automate testing your apps for Apple platforms using agents."
 msgstr ""
 
 msgid "Base price"
@@ -175,9 +175,6 @@ msgid "Company"
 msgstr ""
 
 msgid "Compare our plans"
-msgstr ""
-
-msgid "Concise Summary"
 msgstr ""
 
 msgid "Connect with other Tuist users, share experiences, and get help from the community."
@@ -285,9 +282,6 @@ msgstr "Generated projects"
 msgid "Get Support"
 msgstr ""
 
-msgid "Get early access"
-msgstr ""
-
 msgid "Get help when you need it through various support channels."
 msgstr ""
 
@@ -354,9 +348,6 @@ msgid "Is there a free trial on paid plans?"
 msgstr ""
 
 msgid "Is there a minimum contract length?"
-msgstr ""
-
-msgid "Issue Tracking"
 msgstr ""
 
 msgid "Issues"
@@ -492,9 +483,6 @@ msgstr ""
 msgid "Pull requests merged"
 msgstr ""
 
-msgid "QA"
-msgstr ""
-
 msgid "Read engaging stories and expert insights."
 msgstr ""
 
@@ -514,12 +502,6 @@ msgstr ""
 #, fuzzy
 msgid "Resources"
 msgstr "Resources"
-
-msgid "Right Inside Your Workflow"
-msgstr ""
-
-msgid "Screenshots & Replays"
-msgstr ""
 
 msgid "Security"
 msgstr ""
@@ -547,9 +529,6 @@ msgid "Shrink your app by cleaning up code and assets"
 msgstr ""
 
 msgid "Sign up"
-msgstr ""
-
-msgid "Sign up to get early access to Tuist QA"
 msgstr ""
 
 msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
@@ -698,12 +677,6 @@ msgid "Tuist Icon"
 msgstr ""
 
 msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
-msgstr ""
-
-msgid "Tuist QA"
-msgstr ""
-
-msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
 msgstr ""
 
 msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
@@ -865,16 +838,7 @@ msgstr ""
 msgid "pay as you go"
 msgstr ""
 
-msgid "pinpoint the exact moment of the issue during testing"
-msgstr ""
-
 msgid "read more"
-msgstr ""
-
-msgid "review every step the agent took with visual context"
-msgstr ""
-
-msgid "see what was tested, issues found, and results at a glance"
 msgstr ""
 
 msgid "via Community Forum"
@@ -971,9 +935,6 @@ msgstr ""
 msgid "Tuist Customers"
 msgstr ""
 
-msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr ""
-
 msgid "App preview interface showing share preview button and platform options"
 msgstr ""
 
@@ -996,9 +957,6 @@ msgid "Flaky tests dashboard showing test history and automation creation modal"
 msgstr ""
 
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr ""
-
-msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
 msgstr ""
 
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
