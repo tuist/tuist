@@ -149,7 +149,10 @@
                         projectPath: projectPath
                     )
                 } catch {
-                    Logger.current.warning("Remote build upload failed: \(error.localizedDescription). Falling back to local mode.")
+                    Logger.current
+                        .warning(
+                            "Remote build upload failed: \(error.localizedDescription). Falling back to local mode."
+                        )
                     try await createLocalBuild(
                         mostRecentActivityLogPath: mostRecentActivityLogPath,
                         projectPath: projectPath
