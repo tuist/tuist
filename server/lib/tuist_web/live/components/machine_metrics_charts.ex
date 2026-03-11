@@ -71,156 +71,154 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     ~H"""
     <div class="tuist-machine-metrics">
       <.card icon="chart_dots" title={dgettext("dashboard", "Metrics")}>
-        <.card_section>
-          <div data-part="charts-grid">
-            <div data-part="chart-card">
-              <span data-part="chart-title">CPU</span>
-              <.chart
-                id="cpu-usage-chart"
-                type="line"
-                labels={@labels}
-                smooth={0.1}
-                series={[%{name: "Usage", values: @cpu_data}]}
-                show_legend={false}
-                extra_options={
-                  %{
-                    grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
-                    xAxis: %{
-                      boundaryGap: false,
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0],
-                        formatter: "fn:toLocaleTime"
-                      }
-                    },
-                    yAxis: %{
-                      min: 0,
-                      max: 100,
-                      splitNumber: 4,
-                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                      axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
-                    },
-                    tooltip: %{valueFormat: "{value}%", dateFormat: "minute"}
-                  }
+        <.card_section data-part="charts-grid">
+          <.card_section data-part="chart-card">
+            <span data-part="chart-title">CPU</span>
+            <.chart
+              id="cpu-usage-chart"
+              type="line"
+              labels={@labels}
+              smooth={0.1}
+              series={[%{name: "Usage", values: @cpu_data}]}
+              show_legend={false}
+              extra_options={
+                %{
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0],
+                      formatter: "fn:toLocaleTime"
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    max: 100,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+                  },
+                  tooltip: %{valueFormat: "{value}%", dateFormat: "minute"}
                 }
-              />
-            </div>
-            <div data-part="chart-card">
-              <span data-part="chart-title">Memory</span>
-              <.chart
-                id="memory-usage-chart"
-                type="line"
-                labels={@labels}
-                smooth={0.1}
-                series={[%{name: "Used", values: @memory_data}]}
-                show_legend={false}
-                extra_options={
-                  %{
-                    grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
-                    xAxis: %{
-                      boundaryGap: false,
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0],
-                        formatter: "fn:toLocaleTime"
-                      }
-                    },
-                    yAxis: %{
-                      min: 0,
-                      max: @memory_total,
-                      splitNumber: 4,
-                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        formatter: "{value} GB"
-                      }
-                    },
-                    tooltip: %{valueFormat: "{value} GB", dateFormat: "minute"}
-                  }
+              }
+            />
+          </.card_section>
+          <.card_section data-part="chart-card">
+            <span data-part="chart-title">Memory</span>
+            <.chart
+              id="memory-usage-chart"
+              type="line"
+              labels={@labels}
+              smooth={0.1}
+              series={[%{name: "Used", values: @memory_data}]}
+              show_legend={false}
+              extra_options={
+                %{
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0],
+                      formatter: "fn:toLocaleTime"
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    max: @memory_total,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value} GB"
+                    }
+                  },
+                  tooltip: %{valueFormat: "{value} GB", dateFormat: "minute"}
                 }
-              />
-            </div>
-            <div data-part="chart-card">
-              <span data-part="chart-title">Network</span>
-              <.chart
-                id="network-io-chart"
-                type="line"
-                labels={@labels}
-                smooth={0.1}
-                series={[
-                  %{name: "In", values: @network_in_data},
-                  %{name: "Out", values: @network_out_data}
-                ]}
-                colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
-                extra_options={
-                  %{
-                    grid: %{width: "93%", left: "0%", right: "7%", height: "68%", top: "5%"},
-                    xAxis: %{
-                      boundaryGap: false,
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0],
-                        formatter: "fn:toLocaleTime"
-                      }
-                    },
-                    yAxis: %{
-                      min: 0,
-                      splitNumber: 4,
-                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        formatter: "{value} MiB/s"
-                      }
-                    },
-                    tooltip: %{valueFormat: "{value} MiB/s", dateFormat: "minute"},
-                    legend: @legend_config
-                  }
+              }
+            />
+          </.card_section>
+          <.card_section data-part="chart-card">
+            <span data-part="chart-title">Network</span>
+            <.chart
+              id="network-io-chart"
+              type="line"
+              labels={@labels}
+              smooth={0.1}
+              series={[
+                %{name: "In", values: @network_in_data},
+                %{name: "Out", values: @network_out_data}
+              ]}
+              colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
+              extra_options={
+                %{
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "68%", top: "5%"},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0],
+                      formatter: "fn:toLocaleTime"
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value} MiB/s"
+                    }
+                  },
+                  tooltip: %{valueFormat: "{value} MiB/s", dateFormat: "minute"},
+                  legend: @legend_config
                 }
-              />
-            </div>
-            <div data-part="chart-card">
-              <span data-part="chart-title">Disk I/O</span>
-              <.chart
-                id="disk-io-chart"
-                type="line"
-                labels={@labels}
-                smooth={0.1}
-                series={[
-                  %{name: "Read", values: @disk_read_data},
-                  %{name: "Write", values: @disk_write_data}
-                ]}
-                colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
-                extra_options={
-                  %{
-                    grid: %{width: "93%", left: "0%", right: "7%", height: "68%", top: "5%"},
-                    xAxis: %{
-                      boundaryGap: false,
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        customValues: @label_custom_values,
-                        padding: [10, 0, 0, 0],
-                        formatter: "fn:toLocaleTime"
-                      }
-                    },
-                    yAxis: %{
-                      min: 0,
-                      splitNumber: 4,
-                      splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                      axisLabel: %{
-                        color: "var:noora-surface-label-secondary",
-                        formatter: "{value} MiB/s"
-                      }
-                    },
-                    tooltip: %{valueFormat: "{value} MiB/s", dateFormat: "minute"},
-                    legend: @legend_config
-                  }
+              }
+            />
+          </.card_section>
+          <.card_section data-part="chart-card">
+            <span data-part="chart-title">Disk I/O</span>
+            <.chart
+              id="disk-io-chart"
+              type="line"
+              labels={@labels}
+              smooth={0.1}
+              series={[
+                %{name: "Read", values: @disk_read_data},
+                %{name: "Write", values: @disk_write_data}
+              ]}
+              colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
+              extra_options={
+                %{
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "68%", top: "5%"},
+                  xAxis: %{
+                    boundaryGap: false,
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0],
+                      formatter: "fn:toLocaleTime"
+                    }
+                  },
+                  yAxis: %{
+                    min: 0,
+                    splitNumber: 4,
+                    splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value} MiB/s"
+                    }
+                  },
+                  tooltip: %{valueFormat: "{value} MiB/s", dateFormat: "minute"},
+                  legend: @legend_config
                 }
-              />
-            </div>
-          </div>
+              }
+            />
+          </.card_section>
         </.card_section>
       </.card>
     </div>
@@ -237,6 +235,6 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
 
   defp format_iso_time(epoch_seconds) do
     seconds = trunc(epoch_seconds)
-    DateTime.from_unix!(seconds) |> DateTime.to_iso8601()
+    seconds |> DateTime.from_unix!() |> DateTime.to_iso8601()
   end
 end
