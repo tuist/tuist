@@ -56,53 +56,54 @@ defmodule Tuist.MCP.Components.Tools.ListCacheRuns do
 
   @impl EMCP.Tool
   def call(conn, args) do
-    with {:ok, project} <-
-           ToolSupport.resolve_and_authorize_project(
-             args,
-             conn.assigns,
-             @authorization_action,
-             @authorization_category
-           ) do
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
-      filters = build_filters(project.id, args)
+    case ToolSupport.resolve_and_authorize_project(
+           args,
+           conn.assigns,
+           @authorization_action,
+           @authorization_category
+         ) do
+      {:ok, project} ->
+        page = ToolSupport.page(args)
+        page_size = ToolSupport.page_size(args)
+        filters = build_filters(project.id, args)
 
-      {events, meta} =
-        CommandEvents.list_command_events(%{
-          filters: filters,
-          order_by: [:ran_at],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+        {events, meta} =
+          CommandEvents.list_command_events(%{
+            filters: filters,
+            order_by: [:ran_at],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
+          })
 
-      data = %{
-        cache_runs:
-          Enum.map(events, fn event ->
-            %{
-              id: event.id,
-              duration: event.duration,
-              status: status_to_string(event.status),
-              tuist_version: event.tuist_version,
-              swift_version: event.swift_version,
-              macos_version: event.macos_version,
-              is_ci: event.is_ci,
-              git_branch: event.git_branch,
-              git_commit_sha: event.git_commit_sha,
-              git_ref: event.git_ref,
-              command_arguments: event.command_arguments,
-              cacheable_targets: event.cacheable_targets,
-              local_cache_target_hits: event.local_cache_target_hits,
-              remote_cache_target_hits: event.remote_cache_target_hits,
-              ran_at: Formatter.iso8601(event.created_at, naive: :utc)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
+        data = %{
+          cache_runs:
+            Enum.map(events, fn event ->
+              %{
+                id: event.id,
+                duration: event.duration,
+                status: status_to_string(event.status),
+                tuist_version: event.tuist_version,
+                swift_version: event.swift_version,
+                macos_version: event.macos_version,
+                is_ci: event.is_ci,
+                git_branch: event.git_branch,
+                git_commit_sha: event.git_commit_sha,
+                git_ref: event.git_ref,
+                command_arguments: event.command_arguments,
+                cacheable_targets: event.cacheable_targets,
+                local_cache_target_hits: event.local_cache_target_hits,
+                remote_cache_target_hits: event.remote_cache_target_hits,
+                ran_at: Formatter.iso8601(event.created_at, naive: :utc)
+              }
+            end),
+          pagination_metadata: ToolSupport.pagination_metadata(meta)
+        }
 
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+        ToolSupport.json_response(data)
+
+      {:error, message} ->
+        EMCP.Tool.error(message)
     end
   end
 

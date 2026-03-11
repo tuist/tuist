@@ -60,51 +60,52 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
 
   @impl EMCP.Tool
   def call(conn, args) do
-    with {:ok, project} <-
-           ToolSupport.resolve_and_authorize_project(
-             args,
-             conn.assigns,
-             @authorization_action,
-             @authorization_category
-           ) do
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
-      filters = build_filters(project.id, args)
+    case ToolSupport.resolve_and_authorize_project(
+           args,
+           conn.assigns,
+           @authorization_action,
+           @authorization_category
+         ) do
+      {:ok, project} ->
+        page = ToolSupport.page(args)
+        page_size = ToolSupport.page_size(args)
+        filters = build_filters(project.id, args)
 
-      {runs, meta} =
-        Tests.list_test_case_runs(%{
-          filters: filters,
-          order_by: [:inserted_at],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+        {runs, meta} =
+          Tests.list_test_case_runs(%{
+            filters: filters,
+            order_by: [:inserted_at],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
+          })
 
-      data = %{
-        test_case_runs:
-          Enum.map(runs, fn run ->
-            %{
-              id: run.id,
-              test_case_id: run.test_case_id,
-              test_run_id: run.test_run_id,
-              name: run.name,
-              module_name: run.module_name,
-              suite_name: run.suite_name,
-              status: to_string(run.status),
-              duration: run.duration,
-              is_ci: run.is_ci,
-              is_flaky: run.is_flaky,
-              git_branch: run.git_branch,
-              git_commit_sha: run.git_commit_sha,
-              ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
+        data = %{
+          test_case_runs:
+            Enum.map(runs, fn run ->
+              %{
+                id: run.id,
+                test_case_id: run.test_case_id,
+                test_run_id: run.test_run_id,
+                name: run.name,
+                module_name: run.module_name,
+                suite_name: run.suite_name,
+                status: to_string(run.status),
+                duration: run.duration,
+                is_ci: run.is_ci,
+                is_flaky: run.is_flaky,
+                git_branch: run.git_branch,
+                git_commit_sha: run.git_commit_sha,
+                ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
+              }
+            end),
+          pagination_metadata: ToolSupport.pagination_metadata(meta)
+        }
 
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+        ToolSupport.json_response(data)
+
+      {:error, message} ->
+        EMCP.Tool.error(message)
     end
   end
 

@@ -48,7 +48,14 @@ defmodule Tuist.MCP.Components.ToolSupport do
     end
   end
 
-  def load_and_authorize_project_by_handle(account_handle, project_handle, assigns, action, category, unauthorized_message) do
+  def load_and_authorize_project_by_handle(
+        account_handle,
+        project_handle,
+        assigns,
+        action,
+        category,
+        unauthorized_message
+      ) do
     with {:ok, project} <- load_project_by_handle(account_handle, project_handle),
          :ok <- authorize_project(assigns, project, action, category, unauthorized_message) do
       {:ok, project}

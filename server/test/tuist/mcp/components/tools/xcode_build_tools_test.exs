@@ -8,8 +8,8 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
   alias Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs
   alias Tuist.MCP.Components.Tools.ListXcodeBuildFiles
   alias Tuist.MCP.Components.Tools.ListXcodeBuildIssues
-  alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
   alias Tuist.MCP.Components.Tools.ListXcodeBuilds
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
   alias Tuist.Projects
 
   defp conn_with_subject do

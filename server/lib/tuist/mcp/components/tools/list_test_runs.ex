@@ -60,57 +60,58 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
 
   @impl EMCP.Tool
   def call(conn, args) do
-    with {:ok, project} <-
-           ToolSupport.resolve_and_authorize_project(
-             args,
-             conn.assigns,
-             @authorization_action,
-             @authorization_category
-           ) do
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
-      filters = build_filters(project.id, args)
+    case ToolSupport.resolve_and_authorize_project(
+           args,
+           conn.assigns,
+           @authorization_action,
+           @authorization_category
+         ) do
+      {:ok, project} ->
+        page = ToolSupport.page(args)
+        page_size = ToolSupport.page_size(args)
+        filters = build_filters(project.id, args)
 
-      {runs, meta} =
-        Tests.list_test_runs(%{
-          filters: filters,
-          order_by: [:ran_at],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+        {runs, meta} =
+          Tests.list_test_runs(%{
+            filters: filters,
+            order_by: [:ran_at],
+            order_directions: [:desc],
+            page: page,
+            page_size: page_size
+          })
 
-      metrics_map =
-        runs
-        |> Tests.Analytics.test_runs_metrics()
-        |> Map.new(&{&1.test_run_id, &1})
+        metrics_map =
+          runs
+          |> Tests.Analytics.test_runs_metrics()
+          |> Map.new(&{&1.test_run_id, &1})
 
-      data = %{
-        test_runs:
-          Enum.map(runs, fn run ->
-            metrics = Map.get(metrics_map, run.id, %{})
+        data = %{
+          test_runs:
+            Enum.map(runs, fn run ->
+              metrics = Map.get(metrics_map, run.id, %{})
 
-            %{
-              id: run.id,
-              duration: run.duration,
-              status: to_string(run.status),
-              is_ci: run.is_ci,
-              is_flaky: run.is_flaky,
-              scheme: run.scheme,
-              git_branch: run.git_branch,
-              git_commit_sha: run.git_commit_sha,
-              ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
-              total_test_count: Map.get(metrics, :total_tests, 0),
-              ran_tests: Map.get(metrics, :ran_tests, 0),
-              skipped_tests: Map.get(metrics, :skipped_tests, 0)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
+              %{
+                id: run.id,
+                duration: run.duration,
+                status: to_string(run.status),
+                is_ci: run.is_ci,
+                is_flaky: run.is_flaky,
+                scheme: run.scheme,
+                git_branch: run.git_branch,
+                git_commit_sha: run.git_commit_sha,
+                ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
+                total_test_count: Map.get(metrics, :total_tests, 0),
+                ran_tests: Map.get(metrics, :ran_tests, 0),
+                skipped_tests: Map.get(metrics, :skipped_tests, 0)
+              }
+            end),
+          pagination_metadata: ToolSupport.pagination_metadata(meta)
+        }
 
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+        ToolSupport.json_response(data)
+
+      {:error, message} ->
+        EMCP.Tool.error(message)
     end
   end
 

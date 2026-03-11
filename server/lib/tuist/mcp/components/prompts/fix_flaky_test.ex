@@ -34,7 +34,11 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
     test_case_id = Map.get(args, "test_case_id")
 
-    %{messages: [%{role: "user", content: %{type: "text", text: prompt_text(account_handle, project_handle, test_case_id)}}]}
+    %{
+      messages: [
+        %{role: "user", content: %{type: "text", text: prompt_text(account_handle, project_handle, test_case_id)}}
+      ]
+    }
   end
 
   defp prompt_text(account_handle, project_handle, test_case_id) do

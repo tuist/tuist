@@ -84,9 +84,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   end
 
   def call(_conn, _args) do
-    EMCP.Tool.error(
-      "Provide either test_case_id, or identifier with account_handle and project_handle."
-    )
+    EMCP.Tool.error("Provide either test_case_id, or identifier with account_handle and project_handle.")
   end
 
   defp parse_identifier(identifier) do

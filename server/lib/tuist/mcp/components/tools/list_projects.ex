@@ -12,8 +12,7 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
   def name, do: "list_projects"
 
   @impl EMCP.Tool
-  def description,
-    do: "List all projects accessible to the authenticated user."
+  def description, do: "List all projects accessible to the authenticated user."
 
   @impl EMCP.Tool
   def input_schema do

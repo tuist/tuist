@@ -21,7 +21,10 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
       %{name: "account_handle", description: "The account handle (organization or user)."},
       %{name: "project_handle", description: "The project handle."},
       %{name: "test_case_id", description: "The test case ID or a Tuist dashboard URL."},
-      %{name: "base_branch", description: "The base branch to compare against (defaults to the project's default branch)."},
+      %{
+        name: "base_branch",
+        description: "The base branch to compare against (defaults to the project's default branch)."
+      },
       %{name: "head_branch", description: "The head branch to evaluate."}
     ]
   end
@@ -34,7 +37,17 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
     base_branch = Map.get(args, "base_branch") || default_branch || "main"
     head_branch = Map.get(args, "head_branch")
 
-    %{messages: [%{role: "user", content: %{type: "text", text: prompt_text(test_case_id, base_branch, head_branch, account_handle, project_handle)}}]}
+    %{
+      messages: [
+        %{
+          role: "user",
+          content: %{
+            type: "text",
+            text: prompt_text(test_case_id, base_branch, head_branch, account_handle, project_handle)
+          }
+        }
+      ]
+    }
   end
 
   defp prompt_text(test_case_id, base_branch, head_branch, account_handle, project_handle) do

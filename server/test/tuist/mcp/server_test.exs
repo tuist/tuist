@@ -2,11 +2,12 @@ defmodule Tuist.MCP.ServerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.MCP.Server
   alias Tuist.Projects
 
   describe "server/0" do
     test "returns a server with all tools" do
-      server = Tuist.MCP.Server.server()
+      server = Server.server()
 
       tool_names = server.tools |> Map.keys() |> Enum.sort()
 
@@ -38,7 +39,7 @@ defmodule Tuist.MCP.ServerTest do
     end
 
     test "returns a server with all prompts" do
-      server = Tuist.MCP.Server.server()
+      server = Server.server()
 
       prompt_names = server.prompts |> Map.keys() |> Enum.sort()
 

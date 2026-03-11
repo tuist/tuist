@@ -43,7 +43,11 @@ defmodule Tuist.MCP.Components.Prompts.CompareBuilds do
     {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
     meta = PromptSupport.resolve_project_metadata(account_handle, project_handle)
 
-    %{messages: [%{role: "user", content: %{type: "text", text: prompt_text(base, head, account_handle, project_handle, meta)}}]}
+    %{
+      messages: [
+        %{role: "user", content: %{type: "text", text: prompt_text(base, head, account_handle, project_handle, meta)}}
+      ]
+    }
   end
 
   defp prompt_text(base, head, account_handle, project_handle, meta) do

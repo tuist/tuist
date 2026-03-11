@@ -43,7 +43,14 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestRuns do
     {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
     default_branch = PromptSupport.resolve_default_branch(account_handle, project_handle)
 
-    %{messages: [%{role: "user", content: %{type: "text", text: prompt_text(base, head, account_handle, project_handle, default_branch)}}]}
+    %{
+      messages: [
+        %{
+          role: "user",
+          content: %{type: "text", text: prompt_text(base, head, account_handle, project_handle, default_branch)}
+        }
+      ]
+    }
   end
 
   defp prompt_text(base, head, account_handle, project_handle, default_branch) do
