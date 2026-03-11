@@ -29,6 +29,8 @@ extension XcodeGraph.Product {
             return .stickerPackExtension
         case .watch2App:
             return .watch2App
+        case .watch2AppContainer:
+            return .watch2AppContainer
         case .watch2Extension:
             return .watch2Extension
         case .messagesExtension:

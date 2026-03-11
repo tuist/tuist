@@ -19,6 +19,14 @@ final class ProductTests: XCTestCase {
         XCTAssertCodable(subject)
     }
 
+    func test_codable_watch2AppContainer() {
+        // Given
+        let subject = Product.watch2AppContainer
+
+        // Then
+        XCTAssertCodable(subject)
+    }
+
     func test_description() {
         XCTAssertEqual(Product.app.description, "application")
         XCTAssertEqual(Product.staticLibrary.description, "static library")
@@ -29,6 +37,7 @@ final class ProductTests: XCTestCase {
         XCTAssertEqual(Product.appExtension.description, "app extension")
         XCTAssertEqual(Product.stickerPackExtension.description, "sticker pack extension")
         XCTAssertEqual(Product.appClip.description, "appClip")
+        XCTAssertEqual(Product.watch2AppContainer.description, "watch 2 app container")
     }
 
     func test_forPlatform_when_ios() {
@@ -184,6 +193,10 @@ final class ProductTests: XCTestCase {
 
         // System Extension
         subject = Product.systemExtension
+        XCTAssertFalse(subject.canHostTests())
+
+        // Watch 2 App Container
+        subject = Product.watch2AppContainer
         XCTAssertFalse(subject.canHostTests())
     }
 }

@@ -3,67 +3,75 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
   List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  use Tuist.MCP.Tool,
+    name: "list_xcode_build_issues",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run."
+        },
+        "type" => %{
+          "type" => "string",
+          "description" => "Filter by issue type: warning or error."
+        },
+        "target" => %{
+          "type" => "string",
+          "description" => "Filter by target name."
+        },
+        "step_type" => %{
+          "type" => "string",
+          "description" => "Filter by compilation step type (e.g. swift_compilation, linker)."
+        }
+      },
+      "required" => ["build_run_id"]
+    }
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
-  alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.MCP.Tool, as: MCPTool
 
-  @authorization_action :read
-  @authorization_category :build
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
-  schema do
-    field :build_run_id, :string,
-      required: true,
-      description: "The ID of the build run."
+  def execute(conn, args) do
+    build_run_id = Map.get(args, "build_run_id")
 
-    field :type, :string, description: "Filter by issue type: warning or error."
-    field :target, :string, description: "Filter by target name."
-    field :step_type, :string, description: "Filter by compilation step type (e.g. swift_compilation, linker)."
-  end
-
-  @impl true
-  def execute(%{build_run_id: build_run_id} = arguments, frame) do
-    with {:ok, build} <-
-           ToolSupport.load_resource(
+    with {:ok, _build, _project} <-
+           MCPTool.load_and_authorize(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}",
-             frame
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             frame,
-             build.project_id,
-             @authorization_action,
-             @authorization_category
+             conn.assigns,
+             :read,
+             :build,
+             "Build not found: #{build_run_id}"
            ) do
       issues = Builds.list_build_issues(build_run_id)
 
       issues =
         issues
-        |> maybe_filter(:type, Map.get(arguments, :type))
-        |> maybe_filter(:target, Map.get(arguments, :target))
-        |> maybe_filter(:step_type, Map.get(arguments, :step_type))
+        |> maybe_filter(:type, Map.get(args, "type"))
+        |> maybe_filter(:target, Map.get(args, "target"))
+        |> maybe_filter(:step_type, Map.get(args, "step_type"))
 
-      data =
-        Enum.map(issues, fn issue ->
-          %{
-            type: to_string(issue.type),
-            target: issue.target,
-            project: issue.project,
-            title: issue.title,
-            message: issue.message,
-            signature: issue.signature,
-            step_type: to_string(issue.step_type),
-            path: issue.path,
-            starting_line: issue.starting_line,
-            ending_line: issue.ending_line,
-            starting_column: issue.starting_column,
-            ending_column: issue.ending_column
-          }
-        end)
-
-      {:reply, Response.json(Response.tool(), data), frame}
+      {:ok,
+       Enum.map(issues, fn issue ->
+         %{
+           type: to_string(issue.type),
+           target: issue.target,
+           project: issue.project,
+           title: issue.title,
+           message: issue.message,
+           signature: issue.signature,
+           step_type: to_string(issue.step_type),
+           path: issue.path,
+           starting_line: issue.starting_line,
+           ending_line: issue.ending_line,
+           starting_column: issue.starting_column,
+           ending_column: issue.ending_column
+         }
+       end)}
     end
   end
 

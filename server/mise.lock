@@ -1,35 +1,35 @@
-[tools.age]
+[[tools.age]]
 version = "1.2.1"
 backend = "aqua:FiloSottile/age"
 
-[tools."asdf:aeons/asdf-minio"]
+[[tools."asdf:aeons/asdf-minio"]]
 version = "2025-09-07T16-13-09Z"
 backend = "asdf:aeons/asdf-minio"
 
-[tools."github:ClickHouse/ClickHouse"]
+[[tools."github:ClickHouse/ClickHouse"]]
 version = "26.1.2.11-stable"
 backend = "github:ClickHouse/ClickHouse"
 
-[tools.node]
+[[tools.node]]
 version = "24.11.0"
 backend = "core:node"
 
-[tools."npm:appium"]
+[[tools."npm:appium"]]
 version = "3.0.1"
 backend = "npm:appium"
 
-[tools."npm:prettier"]
+[[tools."npm:prettier"]]
 version = "3.4.2"
 backend = "npm:prettier"
 
-[tools.pnpm]
+[[tools.pnpm]]
 version = "10.17.1"
 backend = "aqua:pnpm/pnpm"
 
-[tools.sops]
+[[tools.sops]]
 version = "3.9.3"
 backend = "aqua:getsops/sops"
 
-[tools."ubi:aquasecurity/trivy"]
+[[tools."ubi:aquasecurity/trivy"]]
 version = "0.63.0"
 backend = "ubi:aquasecurity/trivy"

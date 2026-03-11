@@ -2,10 +2,19 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Anubis.Server.Frame
   alias Tuist.Builds
-  alias Tuist.MCP.Server
+  alias Tuist.MCP.Components.Tools.GetXcodeBuild
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildFiles
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildIssues
+  alias Tuist.MCP.Components.Tools.ListXcodeBuilds
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
   alias Tuist.Projects
+
+  defp conn_with_subject do
+    %Plug.Conn{assigns: %{current_subject: :subject}}
+  end
 
   describe "list_xcode_builds" do
     test "returns paginated builds" do
@@ -41,19 +50,13 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_builds",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      result =
+        ListXcodeBuilds.call(conn_with_subject(), %{
+          "account_handle" => "acme",
+          "project_handle" => "app"
+        })
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert length(result["builds"]) == 1
       assert hd(result["builds"])["id"] == "build-1"
@@ -68,19 +71,14 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_builds",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      result =
+        ListXcodeBuilds.call(conn_with_subject(), %{
+          "account_handle" => "acme",
+          "project_handle" => "app"
+        })
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to project: acme/app"
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
+      assert text == "You do not have access to project: acme/app"
     end
   end
 
@@ -114,19 +112,9 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_xcode_build",
-          "arguments" => %{"build_run_id" => "build-1"}
-        }
-      }
+      result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert result["id"] == "build-1"
       assert result["duration"] == 5000
@@ -165,19 +153,9 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_build_targets",
-          "arguments" => %{"build_run_id" => "build-1"}
-        }
-      }
+      result = ListXcodeBuildTargets.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert length(result["targets"]) == 1
       assert hd(result["targets"])["name"] == "AppTarget"
@@ -213,19 +191,9 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_build_files",
-          "arguments" => %{"build_run_id" => "build-1"}
-        }
-      }
+      result = ListXcodeBuildFiles.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert length(result["files"]) == 1
       assert hd(result["files"])["path"] == "Sources/App.swift"
@@ -259,19 +227,9 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
         ]
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_build_issues",
-          "arguments" => %{"build_run_id" => "build-1"}
-        }
-      }
+      result = ListXcodeBuildIssues.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert length(result) == 1
       assert hd(result)["title"] == "Type mismatch"
@@ -308,19 +266,9 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_build_cache_tasks",
-          "arguments" => %{"build_run_id" => "build-1"}
-        }
-      }
+      result = ListXcodeBuildCacheTasks.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert length(result["tasks"]) == 1
       assert hd(result["tasks"])["status"] == "hit_remote"
@@ -357,25 +305,13 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_build_cas_outputs",
-          "arguments" => %{"build_run_id" => "build-1"}
-        }
-      }
+      result = ListXcodeBuildCASOutputs.call(conn_with_subject(), %{"build_run_id" => "build-1"})
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
       assert length(result["outputs"]) == 1
       assert hd(result["outputs"])["node_id"] == "node-1"
       assert hd(result["outputs"])["size"] == 1024
     end
   end
-
-  defp message(error), do: Map.get(error.data, :message) || Map.get(error.data, "message")
 end
