@@ -1,0 +1,24 @@
+# Session Context
+
+## User Prompts
+
+### Prompt 1
+
+Can you make sure that the CLI commands added in this branch are organized such that the build ones that are xcode specific are namespaced under:
+tuist build xcode .....
+
+### Prompt 2
+
+<task-notification>
+<task-id>b26z5so7w</task-id>
+<tool-use-id>toolu_01KS8YmuPYk3tLhrGAAXy1JP</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b26z5so7w.output</output-file>
+<status>completed</status>
+<summary>Background command "Build full workspace" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/b26z5so7w.output
+
+### Prompt 3
+
+Can you commit and push the changes?
+
