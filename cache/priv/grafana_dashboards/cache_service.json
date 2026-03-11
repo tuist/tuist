@@ -7539,7 +7539,7 @@
           {
             "selected": false,
             "text": "Production",
-            "value": "cache-(eu-central|eu-north|us-east|us-west|ap-southeast|sa-west)"
+            "value": "cache-[^-]+-[^-]+$"
           },
           {
             "selected": false,
@@ -7552,7 +7552,7 @@
             "value": "cache-.*-canary.*"
           }
         ],
-        "query": "All : cache-.*, Production : cache-(eu-central|eu-north|us-east|us-west|ap-southeast|sa-west), Staging : cache-.*-staging.*, Canary : cache-.*-canary.*",
+        "query": "All : cache-.*, Production : cache-[^-]+-[^-]+$, Staging : cache-.*-staging.*, Canary : cache-.*-canary.*",
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"
