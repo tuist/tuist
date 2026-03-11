@@ -18,6 +18,7 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
 
   alias Tuist.CommandEvents
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
   def description,
@@ -26,7 +27,7 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
 
   def execute(conn, %{"generation_id" => generation_id}) do
     with {:ok, event, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              get_generation(generation_id),
              conn.assigns,
              :read,

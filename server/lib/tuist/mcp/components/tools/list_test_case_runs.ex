@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
 
   use Tuist.MCP.Tool,
     name: "list_test_case_runs",
+    authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -41,6 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
     }
 
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
 
   @impl EMCP.Tool
@@ -48,45 +50,42 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
     do:
       "List test case runs, optionally filtered by test case or test run. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-  def execute(conn, args) do
-    with {:ok, project} <-
-           ToolSupport.resolve_and_authorize_project(args, conn.assigns, :read, :test) do
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
-      filters = build_filters(project.id, args)
+  def execute(_conn, args, project) do
+    page = MCPTool.page(args)
+    page_size = MCPTool.page_size(args)
+    filters = build_filters(project.id, args)
 
-      {runs, meta} =
-        Tests.list_test_case_runs(%{
-          filters: filters,
-          order_by: [:inserted_at],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+    {runs, meta} =
+      Tests.list_test_case_runs(%{
+        filters: filters,
+        order_by: [:inserted_at],
+        order_directions: [:desc],
+        page: page,
+        page_size: page_size
+      })
 
-      {:ok,
-       %{
-         test_case_runs:
-           Enum.map(runs, fn run ->
-             %{
-               id: run.id,
-               test_case_id: run.test_case_id,
-               test_run_id: run.test_run_id,
-               name: run.name,
-               module_name: run.module_name,
-               suite_name: run.suite_name,
-               status: to_string(run.status),
-               duration: run.duration,
-               is_ci: run.is_ci,
-               is_flaky: run.is_flaky,
-               git_branch: run.git_branch,
-               git_commit_sha: run.git_commit_sha,
-               ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
-             }
-           end),
-         pagination_metadata: ToolSupport.pagination_metadata(meta)
-       }}
-    end
+    {:ok,
+     %{
+       test_case_runs:
+         Enum.map(runs, fn run ->
+           %{
+             id: run.id,
+             test_case_id: run.test_case_id,
+             test_run_id: run.test_run_id,
+             name: run.name,
+             module_name: run.module_name,
+             suite_name: run.suite_name,
+             status: to_string(run.status),
+             duration: run.duration,
+             is_ci: run.is_ci,
+             is_flaky: run.is_flaky,
+             git_branch: run.git_branch,
+             git_commit_sha: run.git_commit_sha,
+             ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
+           }
+         end),
+       pagination_metadata: MCPTool.pagination_metadata(meta)
+     }}
   end
 
   defp build_filters(project_id, args) do

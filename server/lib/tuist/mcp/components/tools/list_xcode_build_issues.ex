@@ -29,6 +29,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
     }
 
   alias Tuist.Builds
+  alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
   def description,
@@ -39,7 +40,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
     build_run_id = Map.get(args, "build_run_id")
 
     with {:ok, _build, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
              :read,

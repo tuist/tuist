@@ -29,6 +29,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
     }
 
   alias Tuist.Builds
+  alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
   def description,
@@ -39,7 +40,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
     build_run_id = Map.get(args, "build_run_id")
 
     with {:ok, _build, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
              :read,
@@ -54,8 +55,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
           status -> filters ++ [%{field: :status, op: :==, value: status}]
         end
 
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
       {targets, meta} =
         Builds.list_build_targets(%{
@@ -78,7 +79,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
                status: to_string(target.status)
              }
            end),
-         pagination_metadata: ToolSupport.pagination_metadata(meta)
+         pagination_metadata: MCPTool.pagination_metadata(meta)
        }}
     end
   end

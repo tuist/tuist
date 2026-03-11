@@ -17,6 +17,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
     }
 
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
 
@@ -25,7 +26,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
 
   def execute(conn, %{"test_run_id" => test_run_id}) do
     with {:ok, run, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
              conn.assigns,
              :read,

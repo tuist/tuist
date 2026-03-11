@@ -32,6 +32,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
       "required" => ["test_run_id"]
     }
 
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
 
   @impl EMCP.Tool
@@ -41,7 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
     with {:ok, _run, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
              conn.assigns,
              :read,
@@ -58,8 +59,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
           end
         end)
 
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
       {suites, meta} =
         Tests.list_test_suite_runs(%{
@@ -93,7 +94,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
                avg_test_case_duration: suite.avg_test_case_duration
              }
            end),
-         pagination_metadata: ToolSupport.pagination_metadata(meta)
+         pagination_metadata: MCPTool.pagination_metadata(meta)
        }}
     end
   end

@@ -11,6 +11,7 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
     }
 
   alias Tuist.MCP.Authorization
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Projects
 
   @impl EMCP.Tool
@@ -33,6 +34,6 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
         }
       end)
 
-    ToolSupport.json_response(data)
+    MCPTool.json_response(data)
   end
 end

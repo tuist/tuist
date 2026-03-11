@@ -18,6 +18,7 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
 
   alias Tuist.CommandEvents
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
   def description,
@@ -26,7 +27,7 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
 
   def execute(conn, %{"cache_run_id" => cache_run_id}) do
     with {:ok, event, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              get_cache_run(cache_run_id),
              conn.assigns,
              :read,

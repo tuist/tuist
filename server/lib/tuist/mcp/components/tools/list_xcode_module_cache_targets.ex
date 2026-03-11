@@ -29,6 +29,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
     }
 
   alias Tuist.CommandEvents
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Xcode
 
   @impl EMCP.Tool
@@ -38,15 +39,15 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
 
   def execute(conn, %{"run_id" => run_id} = args) do
     with {:ok, event, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              get_command_event(run_id),
              conn.assigns,
              :read,
              :run,
              "Run not found: #{run_id}"
            ) do
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
       flop_params = maybe_add_filter(%{page: page, page_size: page_size}, args)
 
@@ -66,7 +67,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
                subhashes: build_subhashes(target)
              }
            end),
-         pagination_metadata: ToolSupport.pagination_metadata(meta)
+         pagination_metadata: MCPTool.pagination_metadata(meta)
        }}
     end
   end

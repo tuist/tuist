@@ -37,6 +37,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildFiles do
     }
 
   alias Tuist.Builds
+  alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
   def description,
@@ -47,7 +48,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildFiles do
     build_run_id = Map.get(args, "build_run_id")
 
     with {:ok, _build, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              get_build(build_run_id),
              conn.assigns,
              :read,
@@ -70,8 +71,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildFiles do
           _ -> {[:compilation_duration], [:desc]}
         end
 
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
       {files, meta} =
         Builds.list_build_files(%{
@@ -94,7 +95,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildFiles do
                compilation_duration: file.compilation_duration
              }
            end),
-         pagination_metadata: ToolSupport.pagination_metadata(meta)
+         pagination_metadata: MCPTool.pagination_metadata(meta)
        }}
     end
   end

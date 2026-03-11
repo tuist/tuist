@@ -5,6 +5,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
 
   use Tuist.MCP.Tool,
     name: "list_test_runs",
+    authorize: [action: :read, category: :test],
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -41,6 +42,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
     }
 
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
 
   @impl EMCP.Tool
@@ -48,51 +50,48 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
     do:
       "List test runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-  def execute(conn, args) do
-    with {:ok, project} <-
-           ToolSupport.resolve_and_authorize_project(args, conn.assigns, :read, :test) do
-      page = ToolSupport.page(args)
-      page_size = ToolSupport.page_size(args)
-      filters = build_filters(project.id, args)
+  def execute(_conn, args, project) do
+    page = MCPTool.page(args)
+    page_size = MCPTool.page_size(args)
+    filters = build_filters(project.id, args)
 
-      {runs, meta} =
-        Tests.list_test_runs(%{
-          filters: filters,
-          order_by: [:ran_at],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        })
+    {runs, meta} =
+      Tests.list_test_runs(%{
+        filters: filters,
+        order_by: [:ran_at],
+        order_directions: [:desc],
+        page: page,
+        page_size: page_size
+      })
 
-      metrics_map =
-        runs
-        |> Tests.Analytics.test_runs_metrics()
-        |> Map.new(&{&1.test_run_id, &1})
+    metrics_map =
+      runs
+      |> Tests.Analytics.test_runs_metrics()
+      |> Map.new(&{&1.test_run_id, &1})
 
-      {:ok,
-       %{
-         test_runs:
-           Enum.map(runs, fn run ->
-             metrics = Map.get(metrics_map, run.id, %{})
+    {:ok,
+     %{
+       test_runs:
+         Enum.map(runs, fn run ->
+           metrics = Map.get(metrics_map, run.id, %{})
 
-             %{
-               id: run.id,
-               duration: run.duration,
-               status: to_string(run.status),
-               is_ci: run.is_ci,
-               is_flaky: run.is_flaky,
-               scheme: run.scheme,
-               git_branch: run.git_branch,
-               git_commit_sha: run.git_commit_sha,
-               ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
-               total_test_count: Map.get(metrics, :total_tests, 0),
-               ran_tests: Map.get(metrics, :ran_tests, 0),
-               skipped_tests: Map.get(metrics, :skipped_tests, 0)
-             }
-           end),
-         pagination_metadata: ToolSupport.pagination_metadata(meta)
-       }}
-    end
+           %{
+             id: run.id,
+             duration: run.duration,
+             status: to_string(run.status),
+             is_ci: run.is_ci,
+             is_flaky: run.is_flaky,
+             scheme: run.scheme,
+             git_branch: run.git_branch,
+             git_commit_sha: run.git_commit_sha,
+             ran_at: Formatter.iso8601(run.ran_at, naive: :utc),
+             total_test_count: Map.get(metrics, :total_tests, 0),
+             ran_tests: Map.get(metrics, :ran_tests, 0),
+             skipped_tests: Map.get(metrics, :skipped_tests, 0)
+           }
+         end),
+       pagination_metadata: MCPTool.pagination_metadata(meta)
+     }}
   end
 
   defp build_filters(project_id, args) do

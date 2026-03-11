@@ -29,6 +29,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
       }
     }
 
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
 
@@ -42,7 +43,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
 
   @impl EMCP.Tool
   def call(conn, %{"test_case_id" => test_case_id}) when is_binary(test_case_id) do
-    case ToolSupport.load_and_authorize(
+    case MCPTool.load_and_authorize(
            Tests.get_test_case_by_id(test_case_id),
            conn.assigns,
            @authorization_action,
@@ -57,7 +58,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   def call(conn, %{"identifier" => identifier} = args) when is_binary(identifier) do
     with {:ok, {module_name, suite_name, name}} <- parse_identifier(identifier),
          {:ok, project} <-
-           ToolSupport.resolve_and_authorize_project(
+           MCPTool.resolve_and_authorize_project(
              args,
              conn.assigns,
              @authorization_action,
@@ -123,6 +124,6 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
       failed_runs: analytics.failed_count
     }
 
-    ToolSupport.json_response(data)
+    MCPTool.json_response(data)
   end
 end

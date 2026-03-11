@@ -16,6 +16,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
       "required" => ["test_case_run_id"]
     }
 
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Storage
   alias Tuist.Tests
 
@@ -25,7 +26,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
 
   def execute(conn, %{"test_case_run_id" => test_case_run_id}) do
     with {:ok, run, project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              Tests.get_test_case_run_by_id(test_case_run_id, preload: [:attachments]),
              conn.assigns,
              :read,

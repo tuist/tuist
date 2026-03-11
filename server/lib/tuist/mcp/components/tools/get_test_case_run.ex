@@ -17,6 +17,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
     }
 
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
 
   @impl EMCP.Tool
@@ -26,7 +27,7 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
 
   def execute(conn, %{"test_case_run_id" => test_case_run_id}) do
     with {:ok, run, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              Tests.get_test_case_run_by_id(test_case_run_id,
                preload: [:failures, :repetitions]
              ),

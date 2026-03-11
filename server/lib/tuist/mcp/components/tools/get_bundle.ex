@@ -18,6 +18,7 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
 
   alias Tuist.Bundles
   alias Tuist.MCP.Formatter
+  alias Tuist.MCP.Tool, as: MCPTool
 
   @impl EMCP.Tool
   def description,
@@ -26,7 +27,7 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
 
   def execute(conn, %{"bundle_id" => bundle_id}) do
     with {:ok, bundle, _project} <-
-           ToolSupport.load_and_authorize(
+           MCPTool.load_and_authorize(
              Bundles.get_bundle(bundle_id),
              conn.assigns,
              :read,
