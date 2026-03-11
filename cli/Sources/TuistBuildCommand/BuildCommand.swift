@@ -19,21 +19,13 @@ public struct BuildCommand: AsyncParsableCommand {
                 BuildRunCommand.self,
                 BuildListCommand.self,
                 BuildShowCommand.self,
-                BuildTargetCommand.self,
-                BuildFileCommand.self,
-                BuildIssueCommand.self,
-                BuildCacheTaskCommand.self,
-                BuildCASOutputCommand.self,
+                BuildXcodeCommand.self,
             ]
         #else
             [
                 BuildListCommand.self,
                 BuildShowCommand.self,
-                BuildTargetCommand.self,
-                BuildFileCommand.self,
-                BuildIssueCommand.self,
-                BuildCacheTaskCommand.self,
-                BuildCASOutputCommand.self,
+                BuildXcodeCommand.self,
             ]
         #endif
     }
