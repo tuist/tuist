@@ -126,20 +126,10 @@ defmodule TuistWeb.API.TestSuiteRunsController do
             filters
           end
 
-        attrs = %{
-          filters: filters,
-          order_by: [:duration],
-          order_directions: [:desc],
-          page: page,
-          page_size: page_size
-        }
-
-        {suites, meta} = Tests.list_test_suite_runs(attrs)
-
-        suites =
+        filters =
           case Map.get(params, :module_name) do
             nil ->
-              suites
+              filters
 
             module_name ->
               module_filters = [
@@ -154,9 +144,24 @@ defmodule TuistWeb.API.TestSuiteRunsController do
                   page_size: 100
                 })
 
-              module_run_ids = MapSet.new(module_runs, & &1.id)
-              Enum.filter(suites, &MapSet.member?(module_run_ids, &1.test_module_run_id))
+              module_run_ids = Enum.map(module_runs, & &1.id)
+
+              if module_run_ids == [] do
+                filters ++ [%{field: :test_module_run_id, op: :==, value: nil}]
+              else
+                filters ++ [%{field: :test_module_run_id, op: :in, value: module_run_ids}]
+              end
           end
+
+        attrs = %{
+          filters: filters,
+          order_by: [:duration],
+          order_directions: [:desc],
+          page: page,
+          page_size: page_size
+        }
+
+        {suites, meta} = Tests.list_test_suite_runs(attrs)
 
         json(conn, %{
           suites:
