@@ -8,6 +8,8 @@ defmodule Cache.S3 do
   For registry-specific operations, use the registry-prefixed functions.
   """
 
+  import Cachex.Spec, only: [limit: 1]
+
   alias Cache.Config
   alias ExAws.S3.Upload
 
@@ -20,7 +22,8 @@ defmodule Cache.S3 do
   def child_spec(_) do
     %{
       id: __MODULE__,
-      start: {Cachex, :start_link, [@exists_cache, []]}
+      start:
+        {Cachex, :start_link, [@exists_cache, [limit: limit(size: 500_000, policy: Cachex.Policy.LRW, reclaim: 0.1)]]}
     }
   end
 
