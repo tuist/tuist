@@ -1,6 +1,8 @@
 defmodule Processor.BuildProcessor do
   @moduledoc false
 
+  @apple_reference_date_offset 978_307_200
+
   def process(storage_key, xcode_cache_upload_enabled) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
     temp_dir = make_temp_dir()
@@ -55,9 +57,6 @@ defmodule Processor.BuildProcessor do
     file = Enum.find(files, &String.ends_with?(&1, ".xcactivitylog"))
     Path.join(xcactivitylog_dir, file)
   end
-
-  # Apple's reference date (Jan 1, 2001) as Unix timestamp
-  @apple_reference_date_offset 978_307_200
 
   defp read_machine_metrics(path, start_time, end_time) do
     if File.exists?(path) do

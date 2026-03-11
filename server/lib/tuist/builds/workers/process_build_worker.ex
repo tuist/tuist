@@ -8,6 +8,8 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
 
   require Logger
 
+  @processor_module Processor.BuildProcessor
+
   @impl Oban.Worker
   def perform(%Oban.Job{
         args:
@@ -34,8 +36,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         {:error, reason}
     end
   end
-
-  @processor_module Processor.BuildProcessor
 
   defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
     if Code.ensure_loaded?(@processor_module) do
