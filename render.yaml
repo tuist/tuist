@@ -156,11 +156,11 @@ services:
       - key: SECRET_KEY_BASE
         generateValue: true
       - key: PHX_HOST
-        value: storybook.noora.tuist.dev
+        value: noora.storybook.dev
       - key: PORT
         value: "8080"
     domains:
-      - storybook.noora.tuist.dev
+      - noora.storybook.dev
 
   # ── Preview environment ─────────────────────────────────────────────
   # Each PR touching server/** gets an isolated preview with its own
