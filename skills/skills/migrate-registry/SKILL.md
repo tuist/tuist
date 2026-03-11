@@ -205,6 +205,26 @@ xcodebuild -resolvePackageDependencies
 - **Resolver not found**: activate `mise` or use the project's existing toolchain setup first.
 - **Mixed dependency styles**: keep package declarations in the single location used by that project type.
 
+### Step 5 - Check build scripts that assume `SourcePackages/checkouts`
+
+Registry migration can break post-build scripts that hardcode package checkout paths.
+
+- **Check all build phases**: search for any script that references `SourcePackages/checkouts/...`
+- **Why it breaks**: registry-backed packages are stored under `SourcePackages/registry/downloads/.../{version}/`, and the version directory changes on updates
+- **Fix**: replace hardcoded checkout paths with dynamic lookup logic or Xcode-provided variables
+- **Common example**: Firebase Crashlytics archive or dSYM upload scripts often hardcode `SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run`
+
+Example:
+
+```bash
+PACKAGE_SCRIPT=$(find "${BUILD_DIR%/Build/*}/SourcePackages" -path "*/Crashlytics/run" | head -n 1)
+if [ -z "$PACKAGE_SCRIPT" ]; then
+  echo "error: Could not find package build script"
+  exit 1
+fi
+"$PACKAGE_SCRIPT"
+```
+
 ## Authentication
 
 Authentication is optional.
@@ -222,6 +242,7 @@ tuist registry login
 - Registry setup matches the project type
 - All eligible package references were migrated before validation
 - Unsupported packages were recorded and left URL-based
+- Build scripts no longer assume `SourcePackages/checkouts/...` for any migrated package
 - The resolver command for the project type succeeds
 - Packages missing from the registry remain URL-based
 - Dotted repository names use `_` in the registry identifier
