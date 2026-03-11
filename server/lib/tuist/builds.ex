@@ -208,6 +208,10 @@ defmodule Tuist.Builds do
     ClickHouseRepo.all(from(i in BuildIssue, where: i.build_run_id == ^build_run_id))
   end
 
+  def list_build_issues_paginated(attrs) do
+    ClickHouseFlop.validate_and_run!(BuildIssue, attrs, for: BuildIssue)
+  end
+
   def list_build_files(attrs) do
     ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
   end

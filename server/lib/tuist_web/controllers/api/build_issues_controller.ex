@@ -5,6 +5,7 @@ defmodule TuistWeb.API.BuildIssuesController do
   alias OpenApiSpex.Schema
   alias Tuist.Builds
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PaginationMetadata
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -56,6 +57,27 @@ defmodule TuistWeb.API.BuildIssuesController do
         in: :query,
         type: :string,
         description: "Filter by compilation step type."
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "BuildIssuesIndexPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
+      ],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "BuildIssuesIndexPageSize",
+          description: "The maximum number of issues to return in a single page.",
+          type: :integer,
+          default: 20,
+          minimum: 1,
+          maximum: 100
+        }
       ]
     ],
     responses: %{
@@ -95,16 +117,23 @@ defmodule TuistWeb.API.BuildIssuesController do
                    :ending_column
                  ]
                }
-             }
+             },
+             pagination_metadata: PaginationMetadata
            },
-           required: [:issues]
+           required: [:issues, :pagination_metadata]
          }},
       not_found: {"Build not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
-  def index(%{assigns: %{selected_project: selected_project}, params: %{build_id: build_id} = params} = conn, _params) do
+  def index(
+        %{
+          assigns: %{selected_project: selected_project},
+          params: %{build_id: build_id, page: page, page_size: page_size} = params
+        } = conn,
+        _params
+      ) do
     case Builds.get_build(build_id) do
       nil ->
         conn
@@ -113,13 +142,37 @@ defmodule TuistWeb.API.BuildIssuesController do
 
       build ->
         if build.project_id == selected_project.id do
-          issues = Builds.list_build_issues(build_id)
+          filters = [%{field: :build_run_id, op: :==, value: build_id}]
 
-          issues =
-            issues
-            |> maybe_filter(:type, Map.get(params, :type))
-            |> maybe_filter(:target, Map.get(params, :target))
-            |> maybe_filter(:step_type, Map.get(params, :step_type))
+          filters =
+            if Map.get(params, :type) do
+              filters ++ [%{field: :type, op: :==, value: params.type}]
+            else
+              filters
+            end
+
+          filters =
+            if Map.get(params, :target) do
+              filters ++ [%{field: :target, op: :==, value: params.target}]
+            else
+              filters
+            end
+
+          filters =
+            if Map.get(params, :step_type) do
+              filters ++ [%{field: :step_type, op: :==, value: params.step_type}]
+            else
+              filters
+            end
+
+          {issues, meta} =
+            Builds.list_build_issues_paginated(%{
+              filters: filters,
+              order_by: [:inserted_at],
+              order_directions: [:asc],
+              page: page,
+              page_size: page_size
+            })
 
           json(conn, %{
             issues:
@@ -138,7 +191,15 @@ defmodule TuistWeb.API.BuildIssuesController do
                   starting_column: issue.starting_column,
                   ending_column: issue.ending_column
                 }
-              end)
+              end),
+            pagination_metadata: %{
+              has_next_page: meta.has_next_page?,
+              has_previous_page: meta.has_previous_page?,
+              current_page: meta.current_page,
+              page_size: meta.page_size,
+              total_count: meta.total_count,
+              total_pages: meta.total_pages
+            }
           })
         else
           conn
@@ -146,11 +207,5 @@ defmodule TuistWeb.API.BuildIssuesController do
           |> json(%{message: "Build not found."})
         end
     end
-  end
-
-  defp maybe_filter(items, _field, nil), do: items
-
-  defp maybe_filter(items, field, value) do
-    Enum.filter(items, fn item -> to_string(Map.get(item, field)) == value end)
   end
 end
