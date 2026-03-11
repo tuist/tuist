@@ -72,8 +72,9 @@ RUN mkdir config
 # Only runner's mix.exs needed for deps.get to work
 COPY server/runner/mix.exs runner/mix.exs
 
-# Copy tuist_common for path dependency
+# Copy path dependencies
 COPY tuist_common /tuist_common
+COPY noora /noora
 
 # Copy processor source for path dependency (when TUIST_PROCESSOR_URL not set)
 COPY processor /processor
@@ -120,6 +121,7 @@ COPY --from=deps-builder /app/deps deps
 COPY --from=deps-builder /app/_build _build
 COPY --from=deps-builder /app/config config
 COPY --from=deps-builder /tuist_common /tuist_common
+COPY --from=deps-builder /noora /noora
 
 COPY server/runner runner
 

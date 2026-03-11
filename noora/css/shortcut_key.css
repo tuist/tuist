@@ -1,0 +1,27 @@
+.noora-shortcut-key {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+  box-shadow:
+    0px -2px 0px 0px
+      light-dark(var(--noora-neutral-light-500), var(--noora-neutral-dark-700))
+      inset,
+    0px 0px 0px 1px
+      light-dark(rgba(132, 143, 154, 0.25), rgba(113, 113, 113, 0.4)) inset;
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-1) var(--noora-spacing-3);
+  color: var(--noora-surface-label-secondary);
+
+  &[data-size="small"] {
+    border-radius: var(--noora-radius-small);
+    padding: var(--noora-spacing-1) var(--noora-spacing-2);
+    font: var(--noora-font-body-small);
+  }
+
+  &[data-size="large"] {
+    border-radius: var(--noora-radius-medium);
+    padding: var(--noora-spacing-2) var(--noora-spacing-3);
+    font: var(--noora-font-body-medium);
+  }
+}
