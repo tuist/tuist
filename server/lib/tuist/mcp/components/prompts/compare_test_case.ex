@@ -3,21 +3,9 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
   Guides you through comparing a test case's behavior across two branches or time periods. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL.
   """
 
-  @behaviour EMCP.Prompt
-
-  alias Tuist.MCP.Components.PromptSupport
-
-  @impl EMCP.Prompt
-  def name, do: "compare_test_case"
-
-  @impl EMCP.Prompt
-  def description,
-    do:
-      "Guides you through comparing a test case's behavior across two branches or time periods. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
-
-  @impl EMCP.Prompt
-  def arguments do
-    [
+  use Tuist.MCP.Prompt,
+    name: "compare_test_case",
+    arguments: [
       %{name: "account_handle", description: "The account handle (organization or user)."},
       %{name: "project_handle", description: "The project handle."},
       %{name: "test_case_id", description: "The test case ID or a Tuist dashboard URL."},
@@ -27,7 +15,11 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
       },
       %{name: "head_branch", description: "The head branch to evaluate."}
     ]
-  end
+
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through comparing a test case's behavior across two branches or time periods. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
 
   @impl EMCP.Prompt
   def template(_conn, args) do

@@ -3,21 +3,9 @@ defmodule Tuist.MCP.Components.Prompts.CompareCacheRuns do
   Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL.
   """
 
-  @behaviour EMCP.Prompt
-
-  alias Tuist.MCP.Components.PromptSupport
-
-  @impl EMCP.Prompt
-  def name, do: "compare_cache_runs"
-
-  @impl EMCP.Prompt
-  def description,
-    do:
-      "Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL."
-
-  @impl EMCP.Prompt
-  def arguments do
-    [
+  use Tuist.MCP.Prompt,
+    name: "compare_cache_runs",
+    arguments: [
       %{name: "account_handle", description: "The account handle (organization or user)."},
       %{name: "project_handle", description: "The project handle."},
       %{
@@ -34,7 +22,11 @@ defmodule Tuist.MCP.Components.Prompts.CompareCacheRuns do
             "the base defaults to the latest cache run on the project's default branch."
       }
     ]
-  end
+
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL."
 
   @impl EMCP.Prompt
   def template(_conn, args) do

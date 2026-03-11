@@ -3,26 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListGenerations do
   List generation runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.CommandEvents
-  alias Tuist.MCP.Components.ToolSupport
-  alias Tuist.MCP.Formatter
-
-  @authorization_action :read
-  @authorization_category :run
-
-  @impl EMCP.Tool
-  def name, do: "list_generations"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "List generation runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "list_generations",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "account_handle" => %{
@@ -52,58 +35,55 @@ defmodule Tuist.MCP.Components.Tools.ListGenerations do
       },
       "required" => ["account_handle", "project_handle"]
     }
-  end
+
+  alias Tuist.CommandEvents
+  alias Tuist.MCP.Formatter
 
   @impl EMCP.Tool
-  def call(conn, args) do
-    case ToolSupport.resolve_and_authorize_project(
-           args,
-           conn.assigns,
-           @authorization_action,
-           @authorization_category
-         ) do
-      {:ok, project} ->
-        page = ToolSupport.page(args)
-        page_size = ToolSupport.page_size(args)
-        filters = build_filters(project.id, args)
+  def description,
+    do:
+      "List generation runs for a project. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-        {events, meta} =
-          CommandEvents.list_command_events(%{
-            filters: filters,
-            order_by: [:ran_at],
-            order_directions: [:desc],
-            page: page,
-            page_size: page_size
-          })
+  def execute(conn, args) do
+    with {:ok, project} <-
+           ToolSupport.resolve_and_authorize_project(args, conn.assigns, :read, :run) do
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
+      filters = build_filters(project.id, args)
 
-        data = %{
-          generations:
-            Enum.map(events, fn event ->
-              %{
-                id: event.id,
-                duration: event.duration,
-                status: status_to_string(event.status),
-                tuist_version: event.tuist_version,
-                swift_version: event.swift_version,
-                macos_version: event.macos_version,
-                is_ci: event.is_ci,
-                git_branch: event.git_branch,
-                git_commit_sha: event.git_commit_sha,
-                git_ref: event.git_ref,
-                command_arguments: event.command_arguments,
-                cacheable_targets: event.cacheable_targets,
-                local_cache_target_hits: event.local_cache_target_hits,
-                remote_cache_target_hits: event.remote_cache_target_hits,
-                ran_at: Formatter.iso8601(event.created_at, naive: :utc)
-              }
-            end),
-          pagination_metadata: ToolSupport.pagination_metadata(meta)
-        }
+      {events, meta} =
+        CommandEvents.list_command_events(%{
+          filters: filters,
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          page: page,
+          page_size: page_size
+        })
 
-        ToolSupport.json_response(data)
-
-      {:error, message} ->
-        EMCP.Tool.error(message)
+      {:ok,
+       %{
+         generations:
+           Enum.map(events, fn event ->
+             %{
+               id: event.id,
+               duration: event.duration,
+               status: status_to_string(event.status),
+               tuist_version: event.tuist_version,
+               swift_version: event.swift_version,
+               macos_version: event.macos_version,
+               is_ci: event.is_ci,
+               git_branch: event.git_branch,
+               git_commit_sha: event.git_commit_sha,
+               git_ref: event.git_ref,
+               command_arguments: event.command_arguments,
+               cacheable_targets: event.cacheable_targets,
+               local_cache_target_hits: event.local_cache_target_hits,
+               remote_cache_target_hits: event.remote_cache_target_hits,
+               ran_at: Formatter.iso8601(event.created_at, naive: :utc)
+             }
+           end),
+         pagination_metadata: ToolSupport.pagination_metadata(meta)
+       }}
     end
   end
 

@@ -3,26 +3,9 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.MCP.Components.ToolSupport
-  alias Tuist.Tests
-  alias Tuist.Tests.Analytics
-
-  @authorization_action :read
-  @authorization_category :test
-
-  @impl EMCP.Tool
-  def name, do: "get_test_case"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "get_test_case",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "test_case_id" => %{
@@ -45,7 +28,17 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
         }
       }
     }
-  end
+
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
+
+  @authorization_action :read
+  @authorization_category :test
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
   @impl EMCP.Tool
   def call(conn, %{"test_case_id" => test_case_id}) when is_binary(test_case_id) do

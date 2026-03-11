@@ -3,25 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
   List test suite runs for a specific test run, optionally filtered by module. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.MCP.Components.ToolSupport
-  alias Tuist.Tests
-
-  @authorization_action :read
-  @authorization_category :test
-
-  @impl EMCP.Tool
-  def name, do: "list_test_suite_runs"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "List test suite runs for a specific test run, optionally filtered by module. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "list_test_suite_runs",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "test_run_id" => %{
@@ -47,10 +31,15 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
       },
       "required" => ["test_run_id"]
     }
-  end
+
+  alias Tuist.Tests
 
   @impl EMCP.Tool
-  def call(conn, %{"test_run_id" => test_run_id} = args) do
+  def description,
+    do:
+      "List test suite runs for a specific test run, optionally filtered by module. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
+
+  def execute(conn, %{"test_run_id" => test_run_id} = args) do
     with {:ok, run} <-
            ToolSupport.load_resource(
              Tests.get_test(test_run_id),
@@ -60,8 +49,8 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
            ToolSupport.authorize_project_by_id(
              conn.assigns,
              run.project_id,
-             @authorization_action,
-             @authorization_category
+             :read,
+             :test
            ) do
       filters = [%{field: :test_run_id, op: :==, value: test_run_id}]
 
@@ -95,24 +84,21 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
             Enum.filter(suites, &(&1.test_module_run_id in module_ids))
         end
 
-      data = %{
-        suites:
-          Enum.map(suites, fn suite ->
-            %{
-              name: suite.name,
-              status: to_string(suite.status),
-              is_flaky: suite.is_flaky,
-              duration: suite.duration,
-              test_case_count: suite.test_case_count,
-              avg_test_case_duration: suite.avg_test_case_duration
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
-
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+      {:ok,
+       %{
+         suites:
+           Enum.map(suites, fn suite ->
+             %{
+               name: suite.name,
+               status: to_string(suite.status),
+               is_flaky: suite.is_flaky,
+               duration: suite.duration,
+               test_case_count: suite.test_case_count,
+               avg_test_case_duration: suite.avg_test_case_duration
+             }
+           end),
+         pagination_metadata: ToolSupport.pagination_metadata(meta)
+       }}
     end
   end
 

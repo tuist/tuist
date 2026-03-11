@@ -3,21 +3,9 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
   Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL.
   """
 
-  @behaviour EMCP.Prompt
-
-  alias Tuist.MCP.Components.PromptSupport
-
-  @impl EMCP.Prompt
-  def name, do: "fix_flaky_test"
-
-  @impl EMCP.Prompt
-  def description,
-    do:
-      "Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
-
-  @impl EMCP.Prompt
-  def arguments do
-    [
+  use Tuist.MCP.Prompt,
+    name: "fix_flaky_test",
+    arguments: [
       %{name: "account_handle", description: "The account handle (organization or user)."},
       %{name: "project_handle", description: "The project handle."},
       %{
@@ -27,7 +15,11 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
             "When using an identifier, provide a project URL or account_handle and project_handle."
       }
     ]
-  end
+
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
 
   @impl EMCP.Prompt
   def template(_conn, args) do

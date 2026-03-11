@@ -3,26 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
   List test case runs, optionally filtered by test case or test run. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.MCP.Components.ToolSupport
-  alias Tuist.MCP.Formatter
-  alias Tuist.Tests
-
-  @authorization_action :read
-  @authorization_category :test
-
-  @impl EMCP.Tool
-  def name, do: "list_test_case_runs"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "List test case runs, optionally filtered by test case or test run. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "list_test_case_runs",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "account_handle" => %{
@@ -56,56 +39,53 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
       },
       "required" => ["account_handle", "project_handle"]
     }
-  end
+
+  alias Tuist.MCP.Formatter
+  alias Tuist.Tests
 
   @impl EMCP.Tool
-  def call(conn, args) do
-    case ToolSupport.resolve_and_authorize_project(
-           args,
-           conn.assigns,
-           @authorization_action,
-           @authorization_category
-         ) do
-      {:ok, project} ->
-        page = ToolSupport.page(args)
-        page_size = ToolSupport.page_size(args)
-        filters = build_filters(project.id, args)
+  def description,
+    do:
+      "List test case runs, optionally filtered by test case or test run. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-        {runs, meta} =
-          Tests.list_test_case_runs(%{
-            filters: filters,
-            order_by: [:inserted_at],
-            order_directions: [:desc],
-            page: page,
-            page_size: page_size
-          })
+  def execute(conn, args) do
+    with {:ok, project} <-
+           ToolSupport.resolve_and_authorize_project(args, conn.assigns, :read, :test) do
+      page = ToolSupport.page(args)
+      page_size = ToolSupport.page_size(args)
+      filters = build_filters(project.id, args)
 
-        data = %{
-          test_case_runs:
-            Enum.map(runs, fn run ->
-              %{
-                id: run.id,
-                test_case_id: run.test_case_id,
-                test_run_id: run.test_run_id,
-                name: run.name,
-                module_name: run.module_name,
-                suite_name: run.suite_name,
-                status: to_string(run.status),
-                duration: run.duration,
-                is_ci: run.is_ci,
-                is_flaky: run.is_flaky,
-                git_branch: run.git_branch,
-                git_commit_sha: run.git_commit_sha,
-                ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
-              }
-            end),
-          pagination_metadata: ToolSupport.pagination_metadata(meta)
-        }
+      {runs, meta} =
+        Tests.list_test_case_runs(%{
+          filters: filters,
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          page: page,
+          page_size: page_size
+        })
 
-        ToolSupport.json_response(data)
-
-      {:error, message} ->
-        EMCP.Tool.error(message)
+      {:ok,
+       %{
+         test_case_runs:
+           Enum.map(runs, fn run ->
+             %{
+               id: run.id,
+               test_case_id: run.test_case_id,
+               test_run_id: run.test_run_id,
+               name: run.name,
+               module_name: run.module_name,
+               suite_name: run.suite_name,
+               status: to_string(run.status),
+               duration: run.duration,
+               is_ci: run.is_ci,
+               is_flaky: run.is_flaky,
+               git_branch: run.git_branch,
+               git_commit_sha: run.git_commit_sha,
+               ran_at: Formatter.iso8601(run.ran_at, naive: :utc)
+             }
+           end),
+         pagination_metadata: ToolSupport.pagination_metadata(meta)
+       }}
     end
   end
 

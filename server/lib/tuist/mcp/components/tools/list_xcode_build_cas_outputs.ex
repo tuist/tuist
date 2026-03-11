@@ -3,25 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.Builds
-  alias Tuist.MCP.Components.ToolSupport
-
-  @authorization_action :read
-  @authorization_category :build
-
-  @impl EMCP.Tool
-  def name, do: "list_xcode_build_cas_outputs"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "list_xcode_build_cas_outputs",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "build_run_id" => %{
@@ -47,10 +31,15 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
       },
       "required" => ["build_run_id"]
     }
-  end
+
+  alias Tuist.Builds
 
   @impl EMCP.Tool
-  def call(conn, args) do
+  def description,
+    do:
+      "List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
+
+  def execute(conn, args) do
     build_run_id = Map.get(args, "build_run_id")
 
     with {:ok, build} <-
@@ -62,8 +51,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
            ToolSupport.authorize_project_by_id(
              conn.assigns,
              build.project_id,
-             @authorization_action,
-             @authorization_category
+             :read,
+             :build
            ) do
       filters = [%{field: :build_run_id, op: :==, value: build_run_id}]
 
@@ -87,25 +76,22 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
           page_size: page_size
         })
 
-      data = %{
-        outputs:
-          Enum.map(outputs, fn output ->
-            %{
-              node_id: output.node_id,
-              checksum: output.checksum,
-              size: output.size,
-              compressed_size: output.compressed_size,
-              duration: output.duration,
-              operation: to_string(output.operation),
-              type: to_string(output.type)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
-
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+      {:ok,
+       %{
+         outputs:
+           Enum.map(outputs, fn output ->
+             %{
+               node_id: output.node_id,
+               checksum: output.checksum,
+               size: output.size,
+               compressed_size: output.compressed_size,
+               duration: output.duration,
+               operation: to_string(output.operation),
+               type: to_string(output.type)
+             }
+           end),
+         pagination_metadata: ToolSupport.pagination_metadata(meta)
+       }}
     end
   end
 

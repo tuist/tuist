@@ -3,26 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
   List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/runs/{id}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.CommandEvents
-  alias Tuist.MCP.Components.ToolSupport
-  alias Tuist.Xcode
-
-  @authorization_action :read
-  @authorization_category :run
-
-  @impl EMCP.Tool
-  def name, do: "list_xcode_module_cache_targets"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "list_xcode_module_cache_targets",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "run_id" => %{
@@ -44,10 +27,16 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
       },
       "required" => ["run_id"]
     }
-  end
+
+  alias Tuist.CommandEvents
+  alias Tuist.Xcode
 
   @impl EMCP.Tool
-  def call(conn, %{"run_id" => run_id} = args) do
+  def description,
+    do:
+      "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
+
+  def execute(conn, %{"run_id" => run_id} = args) do
     with {:ok, event} <-
            ToolSupport.load_resource(
              get_command_event(run_id),
@@ -57,8 +46,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
            ToolSupport.authorize_project_by_id(
              conn.assigns,
              event.project_id,
-             @authorization_action,
-             @authorization_category
+             :read,
+             :run
            ) do
       page = ToolSupport.page(args)
       page_size = ToolSupport.page_size(args)
@@ -67,25 +56,22 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
 
       {analytics, meta} = Xcode.binary_cache_analytics(event, flop_params)
 
-      data = %{
-        targets:
-          Enum.map(analytics.cacheable_targets, fn target ->
-            %{
-              name: target.name,
-              cache_status: to_string(target.binary_cache_hit),
-              cache_hash: target.binary_cache_hash,
-              product: non_empty(target.product),
-              bundle_id: non_empty(target.bundle_id),
-              product_name: non_empty(target.product_name),
-              subhashes: build_subhashes(target)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
-
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+      {:ok,
+       %{
+         targets:
+           Enum.map(analytics.cacheable_targets, fn target ->
+             %{
+               name: target.name,
+               cache_status: to_string(target.binary_cache_hit),
+               cache_hash: target.binary_cache_hash,
+               product: non_empty(target.product),
+               bundle_id: non_empty(target.bundle_id),
+               product_name: non_empty(target.product_name),
+               subhashes: build_subhashes(target)
+             }
+           end),
+         pagination_metadata: ToolSupport.pagination_metadata(meta)
+       }}
     end
   end
 

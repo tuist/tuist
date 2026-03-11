@@ -3,24 +3,18 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
   List all projects accessible to the authenticated user.
   """
 
-  @behaviour EMCP.Tool
+  use Tuist.MCP.Tool,
+    name: "list_projects",
+    schema: %{
+      "type" => "object",
+      "properties" => %{}
+    }
 
   alias Tuist.MCP.Authorization
   alias Tuist.Projects
 
   @impl EMCP.Tool
-  def name, do: "list_projects"
-
-  @impl EMCP.Tool
   def description, do: "List all projects accessible to the authenticated user."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
-      "type" => "object",
-      "properties" => %{}
-    }
-  end
 
   @impl EMCP.Tool
   def call(conn, _args) do
@@ -39,6 +33,6 @@ defmodule Tuist.MCP.Components.Tools.ListProjects do
         }
       end)
 
-    Tuist.MCP.Components.ToolSupport.json_response(data)
+    ToolSupport.json_response(data)
   end
 end

@@ -3,25 +3,9 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
   List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  @behaviour EMCP.Tool
-
-  alias Tuist.Builds
-  alias Tuist.MCP.Components.ToolSupport
-
-  @authorization_action :read
-  @authorization_category :build
-
-  @impl EMCP.Tool
-  def name, do: "list_xcode_build_issues"
-
-  @impl EMCP.Tool
-  def description,
-    do:
-      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
-
-  @impl EMCP.Tool
-  def input_schema do
-    %{
+  use Tuist.MCP.Tool,
+    name: "list_xcode_build_issues",
+    schema: %{
       "type" => "object",
       "properties" => %{
         "build_run_id" => %{
@@ -43,10 +27,15 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
       },
       "required" => ["build_run_id"]
     }
-  end
+
+  alias Tuist.Builds
 
   @impl EMCP.Tool
-  def call(conn, args) do
+  def description,
+    do:
+      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
+
+  def execute(conn, args) do
     build_run_id = Map.get(args, "build_run_id")
 
     with {:ok, build} <-
@@ -58,8 +47,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
            ToolSupport.authorize_project_by_id(
              conn.assigns,
              build.project_id,
-             @authorization_action,
-             @authorization_category
+             :read,
+             :build
            ) do
       issues = Builds.list_build_issues(build_run_id)
 
@@ -69,27 +58,23 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
         |> maybe_filter(:target, Map.get(args, "target"))
         |> maybe_filter(:step_type, Map.get(args, "step_type"))
 
-      data =
-        Enum.map(issues, fn issue ->
-          %{
-            type: to_string(issue.type),
-            target: issue.target,
-            project: issue.project,
-            title: issue.title,
-            message: issue.message,
-            signature: issue.signature,
-            step_type: to_string(issue.step_type),
-            path: issue.path,
-            starting_line: issue.starting_line,
-            ending_line: issue.ending_line,
-            starting_column: issue.starting_column,
-            ending_column: issue.ending_column
-          }
-        end)
-
-      ToolSupport.json_response(data)
-    else
-      {:error, message} -> EMCP.Tool.error(message)
+      {:ok,
+       Enum.map(issues, fn issue ->
+         %{
+           type: to_string(issue.type),
+           target: issue.target,
+           project: issue.project,
+           title: issue.title,
+           message: issue.message,
+           signature: issue.signature,
+           step_type: to_string(issue.step_type),
+           path: issue.path,
+           starting_line: issue.starting_line,
+           ending_line: issue.ending_line,
+           starting_column: issue.starting_column,
+           ending_column: issue.ending_column
+         }
+       end)}
     end
   end
 
