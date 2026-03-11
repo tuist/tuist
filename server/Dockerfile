@@ -122,7 +122,6 @@ COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 COPY --from=npm-deps /noora/priv/static /noora/priv/static
-COPY --from=npm-deps /noora/priv/static deps/noora/priv/static
 RUN mix assets.deploy
 
 RUN mix release
