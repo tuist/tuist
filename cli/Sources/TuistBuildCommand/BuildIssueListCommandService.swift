@@ -10,6 +10,10 @@ protocol BuildIssueListCommandServicing {
         fullHandle: String?,
         buildId: String,
         path: String?,
+        type: String?,
+        target: String?,
+        page: Int?,
+        pageSize: Int?,
         json: Bool
     ) async throws
 }
@@ -44,6 +48,10 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
         fullHandle: String?,
         buildId: String,
         path: String?,
+        type: String?,
+        target: String?,
+        page: Int?,
+        pageSize: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -55,16 +63,21 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-        let result = try await listBuildIssuesService.listBuildIssues(
+        let startPage = (page ?? 1) - 1
+        let pageSize = pageSize ?? 10
+
+        let initialPage = try await listBuildIssuesService.listBuildIssues(
             fullHandle: resolvedFullHandle,
             serverURL: serverURL,
             buildId: buildId,
-            type: nil,
-            target: nil,
-            stepType: nil
+            type: type,
+            target: target,
+            stepType: nil,
+            page: startPage + 1,
+            pageSize: pageSize
         )
 
-        let issues = result.issues
+        let issues = initialPage.issues
 
         if json {
             try Noora.current.json(issues)
@@ -76,14 +89,45 @@ struct BuildIssueListCommandService: BuildIssueListCommandServicing {
             return
         }
 
-        let lines = issues.map { issue in
-            let type = issue._type.rawValue
-            let message = issue.message ?? issue.title
-            let target = issue.target
-            let filePath = issue.path ?? "-"
-            return "[\(type)] \(message) (target: \(target), file: \(filePath))"
+        let totalPages = initialPage.pagination_metadata.total_pages ?? 1
+
+        let initialRows = issues.map { issue in
+            [
+                issue._type.rawValue,
+                issue.message ?? issue.title,
+                issue.target,
+                issue.path ?? "-",
+            ]
         }
 
-        Noora.current.passthrough("\(lines.joined(separator: "\n"))")
+        try await Noora.current.paginatedTable(
+            headers: ["Type", "Message", "Target", "File"],
+            pageSize: pageSize,
+            totalPages: totalPages,
+            startPage: startPage,
+            loadPage: { [self] pageIndex in
+                if pageIndex == startPage {
+                    return initialRows
+                }
+                let issuePage = try await listBuildIssuesService.listBuildIssues(
+                    fullHandle: resolvedFullHandle,
+                    serverURL: serverURL,
+                    buildId: buildId,
+                    type: type,
+                    target: target,
+                    stepType: nil,
+                    page: pageIndex + 1,
+                    pageSize: pageSize
+                )
+                return issuePage.issues.map { issue in
+                    [
+                        issue._type.rawValue,
+                        issue.message ?? issue.title,
+                        issue.target,
+                        issue.path ?? "-",
+                    ]
+                }
+            }
+        )
     }
 }

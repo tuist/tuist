@@ -3822,6 +3822,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/BuildsIndexPageSize`.
         public typealias BuildsIndexPageSize = Swift.Int
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildIssuesIndexPage`.
+        public typealias BuildIssuesIndexPage = Swift.Int
         /// - Remark: Generated from `#/components/schemas/LatestPreviewResponse`.
         public struct LatestPreviewResponse: Codable, Hashable, Sendable {
             /// - Remark: Generated from `#/components/schemas/LatestPreviewResponse/preview`.
@@ -3842,6 +3846,10 @@ public enum Components {
             case download = "download"
             case upload = "upload"
         }
+        /// The maximum number of issues to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/BuildIssuesIndexPageSize`.
+        public typealias BuildIssuesIndexPageSize = Swift.Int
         /// The maximum number of cache tasks to return in a single page.
         ///
         /// - Remark: Generated from `#/components/schemas/BuildCacheTasksIndexPageSize`.
@@ -17840,20 +17848,34 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues/GET/query/step_type`.
                 public var step_type: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues/GET/query/page`.
+                public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - _type: Filter by issue type.
                 ///   - target: Filter by target name.
                 ///   - step_type: Filter by compilation step type.
+                ///   - page:
+                ///   - page_size:
                 public init(
                     _type: Operations.listBuildIssues.Input.Query._typePayload? = nil,
                     target: Swift.String? = nil,
-                    step_type: Swift.String? = nil
+                    step_type: Swift.String? = nil,
+                    page: Swift.Int? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self._type = _type
                     self.target = target
                     self.step_type = step_type
+                    self.page = page
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBuildIssues.Input.Query
@@ -18009,15 +18031,23 @@ public enum Operations {
                         public typealias issuesPayload = [Operations.listBuildIssues.Output.Ok.Body.jsonPayload.issuesPayloadPayload]
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues/GET/responses/200/content/json/issues`.
                         public var issues: Operations.listBuildIssues.Output.Ok.Body.jsonPayload.issuesPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
                         /// Creates a new `jsonPayload`.
                         ///
                         /// - Parameters:
                         ///   - issues:
-                        public init(issues: Operations.listBuildIssues.Output.Ok.Body.jsonPayload.issuesPayload) {
+                        ///   - pagination_metadata:
+                        public init(
+                            issues: Operations.listBuildIssues.Output.Ok.Body.jsonPayload.issuesPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
                             self.issues = issues
+                            self.pagination_metadata = pagination_metadata
                         }
                         public enum CodingKeys: String, CodingKey {
                             case issues
+                            case pagination_metadata
                         }
                     }
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/issues/GET/responses/200/content/application\/json`.

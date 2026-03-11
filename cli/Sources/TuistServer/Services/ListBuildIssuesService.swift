@@ -11,7 +11,9 @@ public protocol ListBuildIssuesServicing: Sendable {
         buildId: String,
         type: String?,
         target: String?,
-        stepType: String?
+        stepType: String?,
+        page: Int?,
+        pageSize: Int
     ) async throws -> Operations.listBuildIssues.Output.Ok.Body.jsonPayload
 }
 
@@ -51,7 +53,9 @@ public struct ListBuildIssuesService: ListBuildIssuesServicing {
         buildId: String,
         type: String?,
         target: String?,
-        stepType: String?
+        stepType: String?,
+        page: Int?,
+        pageSize: Int
     ) async throws -> Operations.listBuildIssues.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -66,7 +70,9 @@ public struct ListBuildIssuesService: ListBuildIssuesServicing {
                 query: .init(
                     _type: type.flatMap { Operations.listBuildIssues.Input.Query._typePayload(rawValue: $0) },
                     target: target,
-                    step_type: stepType
+                    step_type: stepType,
+                    page: page,
+                    page_size: pageSize
                 )
             )
         )
