@@ -26,12 +26,6 @@
       selected={false}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
     />
-    <.tab_menu_horizontal_item
-      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
-      label={dgettext("dashboard_projects", "QA")}
-      selected={false}
-      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
-    />
   </.tab_menu_horizontal>
 
   <h2 data-part="subtitle">

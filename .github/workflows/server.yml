@@ -129,7 +129,7 @@ jobs:
       - name: Check dashboard gettext templates are up-to-date
         run: |
           # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
 
           # Backup all dashboard .pot files
           for domain in $DASHBOARD_DOMAINS; do
@@ -165,7 +165,7 @@ jobs:
       - name: Check dashboard translations templates exist
         run: |
           # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
 
           MISSING_DOMAINS=""
           for domain in $DASHBOARD_DOMAINS; do

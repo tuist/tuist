@@ -3,7 +3,7 @@
 This area owns Phoenix channels for real-time features.
 
 ## Responsibilities
-- Handle WebSocket channels (e.g., QA log streaming).
+- Handle WebSocket channels.
 - Authorize channel access via `Tuist.Authorization`.
 
 ## Boundaries
