@@ -1,0 +1,16 @@
+.noora-popover {
+  & [data-part="positioner"] {
+    display: none;
+    z-index: var(--noora-z-index-10);
+  }
+
+  & > [data-state="open"] + [data-part="positioner"] {
+    display: block;
+  }
+
+  & [data-part="content"] {
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-large);
+    background: var(--noora-surface-background-primary);
+  }
+}
