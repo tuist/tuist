@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-29 08:29+0000\n"
-"PO-Revision-Date: 2026-03-01 17:09+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\n"
-"Language: zh_Hant\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-29 08:29+0000\nPO-Revision-Date: 2026-03-11 18:32+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\nLanguage: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -985,7 +973,7 @@ msgstr "選擇性測試"
 
 #, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
-msgstr "選擇性測試儀表板顯示跳過的測試項目：本週共跳過 134/196 項測試，節省 15.8 小時"
+msgstr "選擇性測試儀表板顯示跳過的測試項目：本週共跳過134/196項測試，節省15.8小時"
 
 #, fuzzy
 msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
@@ -1009,7 +997,7 @@ msgstr "追蹤測試執行狀況，及早發現緩慢測試，並無需翻閱日
 
 #, fuzzy
 msgid "Download only what you need — faster, lighter builds locally and on CI."
-msgstr "僅下載所需內容——在本地與 CI 環境中實現更快速、更輕量化的建置。"
+msgstr "僅下載所需內容——在本地與持續整合環境中實現更快速、更輕量化的建置。"
 
 #, fuzzy
 msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
