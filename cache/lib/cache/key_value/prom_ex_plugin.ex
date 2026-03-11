@@ -13,7 +13,7 @@ defmodule Cache.KeyValue.PromExPlugin do
   require Logger
 
   @entry_buckets [1, 2, 4, 8, 16, 32, 64, 128]
-  @duration_buckets [10, 50, 100, 250, 500, 1000, 2500, 5000]
+  @duration_buckets [10, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000, 300_000]
   @sqlite_poll_error_event [:cache, :prom_ex, :kv, :sqlite, :poll_error]
   @sqlite_poll_error_log_interval_ms to_timeout(minute: 5)
   @sqlite_poll_error_log_key {__MODULE__, :last_sqlite_poll_error_log_ms}

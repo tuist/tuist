@@ -85,7 +85,7 @@ S3_SECRET_ACCESS_KEY=your-secret-key
 # These are typically injected automatically by EKS or similar platforms.
 
 # CAS storage (required for non-compose deployments)
-DATA_DIR=/data
+STORAGE_DIR=/storage
 
 # Optional dedicated KV SQLite database path.
 # Defaults to /data/key_value.sqlite.
@@ -96,8 +96,8 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 |----------|----------|---------|-------------|
 | `SECRET_KEY_BASE` | Yes | | Secret key used to sign and encrypt data (minimum 64 characters). |
 | `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
-| `SERVER_URL` | Yes | | URL of your Tuist server for authentication. Defaults to `https://tuist.dev` |
-| `DATA_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
+| `SERVER_URL` | No | `https://tuist.dev` | URL of your Tuist server for authentication. |
+| `STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/storage`. |
 | `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
 | `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
 | `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
@@ -116,6 +116,8 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` | No | `1` | Minimum age a key-value entry must reach before size-based KV eviction can remove it. |
 | `KEY_VALUE_EVICTION_MAX_DURATION_MS` | No | `300000` | Maximum runtime for a single KV eviction pass. |
 | `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES` | No | `24696061952` | Target size after KV eviction finishes, providing hysteresis so the worker does not thrash near the limit. |
+| `KEY_VALUE_READ_BUSY_TIMEOUT_MS` | No | `2000` | SQLite busy-timeout (in milliseconds) for KV read-through requests. If the database is locked longer than this, the read is treated as a cache miss and the value is fetched from S3. |
+| `KEY_VALUE_MAINTENANCE_BUSY_TIMEOUT_MS` | No | `50` | SQLite busy-timeout (in milliseconds) for background maintenance operations (PRAGMA queries, incremental vacuum). A low value prevents maintenance from blocking read traffic. |
 | `PHX_SOCKET_PATH` | No | `/run/cache/cache.sock` | Path where the service creates its Unix socket (when enabled). |
 | `PHX_SOCKET_LINK` | No | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | | gRPC endpoint of an OpenTelemetry Collector for distributed tracing. |
@@ -189,7 +191,7 @@ The Docker Compose configuration uses three volumes:
 
 | Volume | Purpose |
 |--------|---------|
-| `cas_data` | Binary artifact storage |
+| `storage` | Binary artifact storage |
 | `sqlite_data` | SQLite metadata storage. By default this holds both `/data/repo.sqlite` (artifact metadata, orphan cleanup state, Oban) and `/data/key_value.sqlite` (KV metadata). |
 | `cache_socket` | Unix socket for Nginx-service communication |
 

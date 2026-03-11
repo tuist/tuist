@@ -26,7 +26,7 @@ defmodule Cache.SQLiteHelpers do
     max(deadline_ms - System.monotonic_time(:millisecond), 0)
   end
 
-  def restore_busy_timeout!(repo) do
+  def restore_busy_timeout(repo) do
     set_busy_timeout!(repo, Config.repo_busy_timeout_ms(repo))
   rescue
     error ->
@@ -66,7 +66,7 @@ defmodule Cache.SQLiteHelpers do
         try do
           fun.()
         after
-          restore_busy_timeout!(repo)
+          restore_busy_timeout(repo)
         end
       end
     end)

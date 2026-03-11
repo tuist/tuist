@@ -248,7 +248,7 @@ defmodule Cache.KeyValueEvictionWorker do
             error -> error
           end
         after
-          SQLiteHelpers.restore_busy_timeout!(KeyValueRepo)
+          SQLiteHelpers.restore_busy_timeout(KeyValueRepo)
         end
       end)
     end
@@ -308,13 +308,7 @@ defmodule Cache.KeyValueEvictionWorker do
 
   defp merge_grouped_hashes(left, right) do
     Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      Enum.concat(left_hashes, right_hashes)
-    end)
-  end
-
-  defp deduplicate_hashes(grouped_hashes) do
-    Map.new(grouped_hashes, fn {scope, hashes} ->
-      {scope, hashes |> Enum.uniq() |> Enum.sort()}
+      (left_hashes ++ right_hashes) |> Enum.uniq() |> Enum.sort()
     end)
   end
 
@@ -329,9 +323,7 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp enqueue_cleanup_jobs(grouped_hashes) do
-    grouped_hashes
-    |> deduplicate_hashes()
-    |> Enum.each(fn {{account, project}, hashes} ->
+    Enum.each(grouped_hashes, fn {{account, project}, hashes} ->
       hashes
       |> Enum.chunk_every(@cleanup_hashes_per_job)
       |> Enum.each(fn chunk ->

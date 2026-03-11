@@ -136,8 +136,7 @@ if config_env() == :prod do
     api_key: System.get_env("TUIST_CACHE_API_KEY"),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
     registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
-    key_value_max_db_size_bytes:
-      String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "#{25 * 1024 * 1024 * 1024}"),
+    key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),
     key_value_eviction_min_retention_days:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),
     key_value_read_busy_timeout_ms: String.to_integer(System.get_env("KEY_VALUE_READ_BUSY_TIMEOUT_MS") || "2000"),
@@ -146,7 +145,7 @@ if config_env() == :prod do
     key_value_eviction_max_duration_ms:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MAX_DURATION_MS") || "300000"),
     key_value_eviction_hysteresis_release_bytes:
-      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "#{23 * 1024 * 1024 * 1024}")
+      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "24696061952")
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level

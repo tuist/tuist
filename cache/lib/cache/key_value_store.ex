@@ -51,7 +51,9 @@ defmodule Cache.KeyValueStore do
 
   @doc """
   Retrieves the pre-encoded JSON payload for a given CAS ID, account, and project.
-  Returns `{:error, :not_found}` if no entry is stored.
+  Returns `{:error, :not_found}` if no entry is stored or if the SQLite database
+  is under lock contention (contention is absorbed as a cache miss to avoid
+  blocking request serving).
   """
   def get_key_value(cas_id, account_handle, project_handle, opts \\ []) do
     key = build_key(account_handle, project_handle, cas_id)

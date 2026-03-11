@@ -142,9 +142,14 @@ defmodule Cache.KeyValueEntries do
       timeout = Config.key_value_maintenance_busy_timeout_ms()
 
       result =
-        SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
-          delete_candidate_batch(cutoff, batch_size, cursor)
-        end)
+        try do
+          SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout, fn ->
+            delete_candidate_batch(cutoff, batch_size, cursor)
+          end)
+        rescue
+          error ->
+            if SQLiteHelpers.busy_error?(error), do: :busy, else: reraise(error, __STACKTRACE__)
+        end
 
       case result do
         :empty ->
@@ -160,13 +165,6 @@ defmodule Cache.KeyValueEntries do
           delete_expired_loop(cutoff, batch_size, deadline_ms, new_cursor, merged, total)
       end
     end
-  rescue
-    error ->
-      if SQLiteHelpers.busy_error?(error) do
-        {to_sorted_hash_lists(hash_sets_acc), count_acc, :busy}
-      else
-        reraise error, __STACKTRACE__
-      end
   end
 
   # Queries candidates for eviction, handling NULL last_accessed_at entries

@@ -1,31 +1,26 @@
 defmodule CacheWeb.CASControllerTest do
-  use ExUnit.Case, async: true
+  use CacheWeb.ConnCase
   use Mimic
 
   import ExUnit.CaptureLog
-  import Phoenix.ConnTest
-  import Plug.Conn
 
   alias Cache.Authentication
   alias Cache.CacheArtifacts
   alias Cache.CAS
+  alias Cache.S3
   alias Cache.S3Transfers
-  alias Ecto.Adapters.SQL.Sandbox
-
-  @endpoint CacheWeb.Endpoint
+  alias Cache.S3TransfersBuffer
 
   setup :set_mimic_from_context
 
   setup context do
-    :ok = Sandbox.checkout(Cache.Repo)
-
     context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
 
     {:ok, test_storage_dir} = Briefly.create(directory: true)
     stub(Cache.Disk, :storage_dir, fn -> test_storage_dir end)
     stub(Authentication, :server_url, fn -> "http://localhost:4000" end)
 
-    {:ok, Map.merge(context, %{conn: build_conn(), test_storage_dir: test_storage_dir})}
+    {:ok, Map.put(context, :test_storage_dir, test_storage_dir)}
   end
 
   describe "POST /api/cache/cas/:id" do
@@ -58,7 +53,7 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      :ok = Cache.S3TransfersBuffer.flush()
+      :ok = S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
       assert length(uploads) == 1
@@ -103,7 +98,7 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      :ok = Cache.S3TransfersBuffer.flush()
+      :ok = S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
       assert length(uploads) == 1
@@ -292,7 +287,7 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      expect(Cache.S3, :presign_download_url, fn key, opts ->
+      expect(S3, :presign_download_url, fn key, opts ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         assert Keyword.get(opts, :type) == :xcode_cache
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
@@ -312,7 +307,7 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.resp_body == ""
     end
 
-    test "returns 404 when S3 presign fails", %{conn: conn} do
+    test "enqueues S3 download transfer when serving from remote", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
       id = "abc123"
@@ -330,7 +325,7 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      expect(Cache.S3, :presign_download_url, fn key, opts ->
+      expect(S3, :presign_download_url, fn key, opts ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         assert Keyword.get(opts, :type) == :xcode_cache
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
@@ -351,7 +346,7 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
-      :ok = Cache.S3TransfersBuffer.flush()
+      :ok = S3TransfersBuffer.flush()
 
       downloads = S3Transfers.pending(:download, 10)
       assert length(downloads) == 1

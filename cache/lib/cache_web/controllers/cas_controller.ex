@@ -49,7 +49,7 @@ defmodule CacheWeb.CASController do
   )
 
   def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
-    :telemetry.execute([:cache, :cas, :download, :hit], %{}, %{})
+    :telemetry.execute([:cache, :cas, :download, :request], %{}, %{})
     key = CAS.Disk.key(account_handle, project_handle, id)
     :ok = CacheArtifacts.track_artifact_access(key)
 

@@ -93,8 +93,8 @@ defmodule Cache.KeyValueBuffer do
 
   @impl true
   def write_batch(:key_values, entries) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-    last_accessed_at = DateTime.utc_now()
+    now = DateTime.utc_now()
+    now_truncated = DateTime.truncate(now, :second)
     keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
 
     rows =
@@ -102,9 +102,9 @@ defmodule Cache.KeyValueBuffer do
         %{
           key: entry.key,
           json_payload: entry.json_payload,
-          last_accessed_at: last_accessed_at,
-          inserted_at: now,
-          updated_at: now
+          last_accessed_at: now,
+          inserted_at: now_truncated,
+          updated_at: now_truncated
         }
       end)
 
@@ -136,8 +136,8 @@ defmodule Cache.KeyValueBuffer do
 
   @impl true
   def write_batch(:key_value_accesses, entries) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-    last_accessed_at = DateTime.utc_now()
+    now = DateTime.utc_now()
+    now_truncated = DateTime.truncate(now, :second)
     keys = Enum.map(entries, fn {_key, entry} -> entry.key end)
 
     keys
@@ -145,7 +145,7 @@ defmodule Cache.KeyValueBuffer do
     |> Enum.each(fn keys_chunk ->
       KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key in ^keys_chunk),
-        set: [last_accessed_at: last_accessed_at, updated_at: now]
+        set: [last_accessed_at: now, updated_at: now_truncated]
       )
     end)
   end

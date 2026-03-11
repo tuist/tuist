@@ -3,11 +3,12 @@ defmodule Cache.SQLiteMaintenanceWorker do
   use Oban.Worker, queue: :maintenance, max_attempts: 1
 
   alias Cache.KeyValueRepo
+  alias Cache.Repo
   alias Cache.SQLiteHelpers
 
   @impl Oban.Worker
   def perform(_job) do
-    Cache.Repo.query("PRAGMA incremental_vacuum(128000)")
+    Repo.query("PRAGMA incremental_vacuum(128000)")
 
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, 0, fn ->
       SQLiteHelpers.query!(KeyValueRepo, "PRAGMA wal_checkpoint(PASSIVE)")

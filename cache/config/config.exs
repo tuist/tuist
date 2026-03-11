@@ -34,7 +34,7 @@ config :cache, Cache.Repo,
 config :cache, Cache.SQLiteBuffer,
   flush_interval_ms: 500,
   flush_timeout_ms: 30_000,
-  max_batch_size: 1000,
+  max_batch_size: 1_000,
   shutdown_ms: 30_000
 
 config :cache, CacheWeb.Endpoint,
