@@ -8,23 +8,63 @@
 import Config
 
 # esbuild
+noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+
+config :boruta, Boruta.Oauth,
+  repo: Tuist.Repo,
+  contexts: [
+    resource_owners: Tuist.OAuth.ResourceOwners,
+    clients: Tuist.OAuth.Clients,
+    access_tokens: Tuist.OAuth.AccessTokens
+  ],
+  token_generator: Tuist.OAuth.TokenGenerator
+
+config :ecto_ch,
+  default_table_engine: "MergeTree"
+
 config :esbuild,
   version: "0.25.2",
   app: [
-    args:
-      ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "app.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/app/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
     cd: Path.expand("../assets/app", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
   marketing: [
-    args:
-      ~w(marketing.js --bundle --loader:.svg=dataurl --loader:.jpg=dataurl --loader:.png=dataurl --loader:.webp=dataurl --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "marketing.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/marketing/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
     cd: Path.expand("../assets/marketing", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
   apidocs: [
-    args:
-      ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "apidocs.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/apidocs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*"
+    ],
     cd: Path.expand("../assets/apidocs", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ]
