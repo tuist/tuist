@@ -252,6 +252,10 @@ defmodule Cache.KeyValueEvictionWorker do
         end
       end)
     end
+  rescue
+    error in [DBConnection.ConnectionError] ->
+      Logger.warning("KV eviction pool checkout failed: #{Exception.message(error)}")
+      {:error, :busy}
   end
 
   defp set_maintenance_busy_timeout do
@@ -271,8 +275,16 @@ defmodule Cache.KeyValueEvictionWorker do
 
   defp kv_query(query) do
     case KeyValueRepo.query(query) do
-      {:ok, result} -> {:ok, result}
-      {:error, _error} -> {:error, :busy}
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, error} ->
+        if SQLiteHelpers.busy_error?(error) do
+          {:error, :busy}
+        else
+          Logger.warning("KV SQLite query failed: #{query} — #{inspect(error)}")
+          {:error, :busy}
+        end
     end
   end
 
@@ -296,7 +308,13 @@ defmodule Cache.KeyValueEvictionWorker do
 
   defp merge_grouped_hashes(left, right) do
     Map.merge(left, right, fn _scope, left_hashes, right_hashes ->
-      left_hashes |> Enum.concat(right_hashes) |> Enum.uniq() |> Enum.sort()
+      Enum.concat(left_hashes, right_hashes)
+    end)
+  end
+
+  defp deduplicate_hashes(grouped_hashes) do
+    Map.new(grouped_hashes, fn {scope, hashes} ->
+      {scope, hashes |> Enum.uniq() |> Enum.sort()}
     end)
   end
 
@@ -311,7 +329,9 @@ defmodule Cache.KeyValueEvictionWorker do
   end
 
   defp enqueue_cleanup_jobs(grouped_hashes) do
-    Enum.each(grouped_hashes, fn {{account, project}, hashes} ->
+    grouped_hashes
+    |> deduplicate_hashes()
+    |> Enum.each(fn {{account, project}, hashes} ->
       hashes
       |> Enum.chunk_every(@cleanup_hashes_per_job)
       |> Enum.each(fn chunk ->

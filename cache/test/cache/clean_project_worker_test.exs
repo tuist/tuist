@@ -5,8 +5,11 @@ defmodule Cache.CleanProjectWorkerTest do
   import ExUnit.CaptureLog
 
   alias Cache.CleanProjectWorker
+  alias Cache.Config
   alias Cache.Disk
   alias Cache.S3
+
+  setup :set_mimic_from_context
 
   describe "perform/1" do
     test "cleans disk and S3 artifacts from both xcode_cache and cache buckets" do
@@ -27,15 +30,16 @@ defmodule Cache.CleanProjectWorkerTest do
       end)
     end
 
-    test "still runs both deletion passes when xcode_cache shares the cache bucket" do
+    test "skips xcode_cache deletion when no dedicated bucket is configured" do
       account_handle = "test_account"
       project_handle = "test_project"
 
+      stub(Config, :xcode_cache_bucket, fn -> nil end)
+
       expect(Disk, :delete_project, fn ^account_handle, ^project_handle -> :ok end)
 
-      expect(S3, :delete_all_with_prefix, 2, fn
-        "test_account/test_project/", [type: :xcode_cache] -> {:ok, 0}
-        "test_account/test_project/", [type: :cache] -> {:ok, 0}
+      expect(S3, :delete_all_with_prefix, 1, fn
+        "test_account/test_project/", [type: :cache] -> {:ok, 2}
       end)
 
       job = %Oban.Job{args: %{"account_handle" => account_handle, "project_handle" => project_handle}}

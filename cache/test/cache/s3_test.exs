@@ -178,6 +178,26 @@ defmodule Cache.S3Test do
         assert S3.exists?(key) == false
       end)
     end
+
+    test "caches results independently per type for the same key" do
+      key = "acc/proj/cas/shared-key"
+
+      expect(ExAws.S3, :head_object, fn "test-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn _head_object, _opts -> {:ok, %{status_code: 200}} end)
+
+      assert S3.exists?(key, type: :cache) == true
+
+      expect(ExAws.S3, :head_object, fn "test-xcode-cache-bucket", ^key ->
+        %ExAws.Operation.S3{bucket: "test-xcode-cache-bucket", path: key}
+      end)
+
+      expect(ExAws, :request, fn _head_object, _opts -> {:error, {:http_error, 404, "Not Found"}} end)
+
+      assert S3.exists?(key, type: :xcode_cache) == false
+    end
   end
 
   describe "upload/1" do

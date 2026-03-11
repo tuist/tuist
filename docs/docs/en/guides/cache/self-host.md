@@ -110,8 +110,8 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `S3_ENDPOINT` | No | | Full S3 endpoint URL. When set, overrides `S3_HOST` with the parsed host and scheme. Useful for S3-compatible providers. |
 | `AWS_WEB_IDENTITY_TOKEN_FILE` | No | | Path to a web identity token file for IAM role authentication. See [S3 authentication](#s3-authentication). |
 | `AWS_ROLE_ARN` | No | | IAM role ARN to assume when using web identity token authentication. |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |
-| `CAS_DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
+| `DISK_HIGH_WATERMARK_PERCENT` | No | `85` | Disk usage percentage that triggers LRU eviction. |
+| `DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
 | `KEY_VALUE_MAX_DB_SIZE_BYTES` | No | `26843545600` | Maximum size of the dedicated key-value SQLite database before size-based KV eviction starts. |
 | `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` | No | `1` | Minimum age a key-value entry must reach before size-based KV eviction can remove it. |
 | `KEY_VALUE_EVICTION_MAX_DURATION_MS` | No | `300000` | Maximum runtime for a single KV eviction pass. |
@@ -197,8 +197,8 @@ The Docker Compose configuration uses three volumes:
 
 The cache service runs several background maintenance loops that keep disk and database usage within bounds. You can tune their behavior through the environment variables listed in the [configuration table](#environment-variables) above.
 
-- **CAS disk eviction** — When disk usage exceeds `CAS_DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `CAS_DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
-- **KV eviction** — When the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
+- **CAS disk eviction** — When disk usage exceeds `DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
+- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
 - **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
 
 For a detailed explanation of how each process works internally, see the <LocalizedLink href="/guides/cache/architecture">architecture guide</LocalizedLink>.

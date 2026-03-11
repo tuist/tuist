@@ -5,6 +5,7 @@ defmodule Cache.CleanProjectWorker do
 
   use Oban.Worker, queue: :clean, max_attempts: 3
 
+  alias Cache.Config
   alias Cache.Disk
   alias Cache.S3
 
@@ -20,7 +21,10 @@ defmodule Cache.CleanProjectWorker do
         Logger.error("Failed to clean disk cache for project #{account_handle}/#{project_handle}: #{inspect(reason)}")
     end
 
-    delete_s3_artifacts(account_handle, project_handle, :xcode_cache, "xcode cache")
+    if Config.xcode_cache_bucket() do
+      delete_s3_artifacts(account_handle, project_handle, :xcode_cache, "xcode cache")
+    end
+
     delete_s3_artifacts(account_handle, project_handle, :cache, "cache")
 
     :ok

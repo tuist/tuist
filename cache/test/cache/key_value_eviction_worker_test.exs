@@ -432,8 +432,8 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert measurements.duration_ms >= 0
   end
 
-  test "size-based eviction reports time_limit_reached when deadline expires before maintenance at retention floor" do
-    stub(Config, :key_value_eviction_max_duration_ms, fn -> 50 end)
+  test "size-based eviction reports time_limit_reached when deadline expires during eviction" do
+    stub(Config, :key_value_eviction_max_duration_ms, fn -> 500 end)
 
     stub(KeyValueRepo, :query, fn query ->
       cond do
@@ -458,7 +458,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     end)
 
     expect(KeyValueEntries, :delete_one_expired_batch, fn 1, _opts ->
-      Process.sleep(75)
+      Process.sleep(750)
       {%{}, 0, :complete}
     end)
 
@@ -469,7 +469,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
     assert metadata == %{trigger: :size, status: :time_limit_reached}
     assert measurements.entries_deleted == 0
-    assert measurements.duration_ms >= 50
+    assert measurements.duration_ms >= 500
   end
 
   test "size-based eviction stops at worker deadline" do
