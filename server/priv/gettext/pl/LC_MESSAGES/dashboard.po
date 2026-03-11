@@ -414,9 +414,12 @@ msgstr "Plik APK podglądu nie istnieje lub wygasł."
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Metrics"
+msgstr ""
+
 #, fuzzy
-msgid "Machine Metrics"
-msgstr "Wskaźniki maszynowe"
+#~ msgid "Machine Metrics"
+#~ msgstr "Wskaźniki maszynowe"
 
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."

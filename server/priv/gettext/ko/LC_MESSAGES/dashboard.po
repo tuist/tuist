@@ -314,9 +314,12 @@ msgstr "미리보기 APK가 존재하지 않거나 만료되었습니다."
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Metrics"
+msgstr ""
+
 #, fuzzy
-msgid "Machine Metrics"
-msgstr "기계 메트릭스"
+#~ msgid "Machine Metrics"
+#~ msgstr "기계 메트릭스"
 
 #~ msgid "This is a public dashboard for the tuist/tuist project."
 #~ msgstr "이것은 tuist/tuist 프로젝트의 공개 대시보드입니다."

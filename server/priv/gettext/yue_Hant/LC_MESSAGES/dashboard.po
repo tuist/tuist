@@ -307,5 +307,5 @@ msgstr ""
 msgid "SSO"
 msgstr ""
 
-msgid "Machine Metrics"
+msgid "Metrics"
 msgstr ""

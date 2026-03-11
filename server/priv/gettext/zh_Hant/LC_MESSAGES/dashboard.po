@@ -402,9 +402,12 @@ msgstr "預覽版 APK 不存在或已過期。"
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Metrics"
+msgstr ""
+
 #, fuzzy
-msgid "Machine Metrics"
-msgstr "機器指標"
+#~ msgid "Machine Metrics"
+#~ msgstr "機器指標"
 
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."

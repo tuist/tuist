@@ -416,9 +416,12 @@ msgstr ""
 msgid "SSO"
 msgstr "SSO"
 
+msgid "Metrics"
+msgstr ""
+
 #, fuzzy
-msgid "Machine Metrics"
-msgstr "Машинные метрики"
+#~ msgid "Machine Metrics"
+#~ msgstr "Машинные метрики"
 
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."

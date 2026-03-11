@@ -411,9 +411,12 @@ msgstr "Önizleme APK'sı mevcut değil veya süresi dolmuş."
 msgid "SSO"
 msgstr "Tek oturum açma"
 
+msgid "Metrics"
+msgstr ""
+
 #, fuzzy
-msgid "Machine Metrics"
-msgstr "Makine Metrikleri"
+#~ msgid "Machine Metrics"
+#~ msgstr "Makine Metrikleri"
 
 #, fuzzy
 #~ msgid "This is a public dashboard for the tuist/tuist project."
