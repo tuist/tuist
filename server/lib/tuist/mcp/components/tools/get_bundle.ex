@@ -25,17 +25,13 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
       "Get detailed information about a specific bundle. Use get_bundle_artifact_tree to get the full artifact list. The bundle_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/bundles/{id}."
 
   def execute(conn, %{"bundle_id" => bundle_id}) do
-    with {:ok, bundle} <-
-           ToolSupport.load_resource(
+    with {:ok, bundle, _project} <-
+           ToolSupport.load_and_authorize(
              Bundles.get_bundle(bundle_id),
-             "Bundle not found: #{bundle_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             bundle.project_id,
              :read,
-             :bundle
+             :bundle,
+             "Bundle not found: #{bundle_id}"
            ) do
       {:ok,
        %{

@@ -20,6 +20,13 @@ defmodule Tuist.MCP.Components.ToolSupport do
   def load_resource({:error, :not_found}, message), do: {:error, message}
   def load_resource(_result, message), do: {:error, message}
 
+  def load_and_authorize(result, assigns, action, category, not_found_message) do
+    with {:ok, resource} <- load_resource(result, not_found_message),
+         {:ok, project} <- authorize_project_by_id(assigns, resource.project_id, action, category) do
+      {:ok, resource, project}
+    end
+  end
+
   def load_project(project_id, message \\ "Project not found.") do
     case Projects.get_project_by_id(project_id) do
       nil -> {:error, message}

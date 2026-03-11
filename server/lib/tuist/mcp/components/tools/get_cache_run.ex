@@ -25,17 +25,13 @@ defmodule Tuist.MCP.Components.Tools.GetCacheRun do
       "Get detailed information about a specific cache run. The cache_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   def execute(conn, %{"cache_run_id" => cache_run_id}) do
-    with {:ok, event} <-
-           ToolSupport.load_resource(
+    with {:ok, event, _project} <-
+           ToolSupport.load_and_authorize(
              get_cache_run(cache_run_id),
-             "Cache run not found: #{cache_run_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             event.project_id,
              :read,
-             :run
+             :run,
+             "Cache run not found: #{cache_run_id}"
            ) do
       {:ok,
        %{

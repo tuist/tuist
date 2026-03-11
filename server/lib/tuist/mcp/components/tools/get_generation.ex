@@ -25,17 +25,13 @@ defmodule Tuist.MCP.Components.Tools.GetGeneration do
       "Get detailed information about a specific generation run. The generation_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   def execute(conn, %{"generation_id" => generation_id}) do
-    with {:ok, event} <-
-           ToolSupport.load_resource(
+    with {:ok, event, _project} <-
+           ToolSupport.load_and_authorize(
              get_generation(generation_id),
-             "Generation not found: #{generation_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             event.project_id,
              :read,
-             :run
+             :run,
+             "Generation not found: #{generation_id}"
            ) do
       {:ok,
        %{

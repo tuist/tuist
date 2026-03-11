@@ -36,17 +36,13 @@ defmodule Tuist.MCP.Components.Tools.ListTestModuleRuns do
       "List test module runs for a specific test run. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
 
   def execute(conn, %{"test_run_id" => test_run_id} = args) do
-    with {:ok, run} <-
-           ToolSupport.load_resource(
+    with {:ok, _run, _project} <-
+           ToolSupport.load_and_authorize(
              Tests.get_test(test_run_id),
-             "Test run not found: #{test_run_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             run.project_id,
              :read,
-             :test
+             :test,
+             "Test run not found: #{test_run_id}"
            ) do
       filters = [%{field: :test_run_id, op: :==, value: test_run_id}]
 

@@ -24,17 +24,13 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRunAttachments do
     do: "List attachments for a test case run. Each attachment includes a temporary download URL (valid for 1 hour)."
 
   def execute(conn, %{"test_case_run_id" => test_case_run_id}) do
-    with {:ok, run} <-
-           ToolSupport.load_resource(
+    with {:ok, run, project} <-
+           ToolSupport.load_and_authorize(
              Tests.get_test_case_run_by_id(test_case_run_id, preload: [:attachments]),
-             "Test case run not found: #{test_case_run_id}"
-           ),
-         {:ok, project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             run.project_id,
              :read,
-             :test
+             :test,
+             "Test case run not found: #{test_case_run_id}"
            ) do
       {:ok,
        %{

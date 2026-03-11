@@ -25,19 +25,15 @@ defmodule Tuist.MCP.Components.Tools.GetTestCaseRun do
       "Get detailed information about a specific test case run including failures and repetitions. Use list_test_case_run_attachments to inspect attachments."
 
   def execute(conn, %{"test_case_run_id" => test_case_run_id}) do
-    with {:ok, run} <-
-           ToolSupport.load_resource(
+    with {:ok, run, _project} <-
+           ToolSupport.load_and_authorize(
              Tests.get_test_case_run_by_id(test_case_run_id,
                preload: [:failures, :repetitions]
              ),
-             "Test case run not found: #{test_case_run_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             run.project_id,
              :read,
-             :test
+             :test,
+             "Test case run not found: #{test_case_run_id}"
            ) do
       {:ok,
        %{

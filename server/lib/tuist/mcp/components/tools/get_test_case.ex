@@ -42,20 +42,14 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
 
   @impl EMCP.Tool
   def call(conn, %{"test_case_id" => test_case_id}) when is_binary(test_case_id) do
-    with {:ok, test_case} <-
-           ToolSupport.load_resource(
-             Tests.get_test_case_by_id(test_case_id),
-             "Test case not found: #{test_case_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             conn.assigns,
-             test_case.project_id,
-             @authorization_action,
-             @authorization_category
-           ) do
-      reply_with_test_case(test_case)
-    else
+    case ToolSupport.load_and_authorize(
+           Tests.get_test_case_by_id(test_case_id),
+           conn.assigns,
+           @authorization_action,
+           @authorization_category,
+           "Test case not found: #{test_case_id}"
+         ) do
+      {:ok, test_case, _project} -> reply_with_test_case(test_case)
       {:error, message} -> EMCP.Tool.error(message)
     end
   end

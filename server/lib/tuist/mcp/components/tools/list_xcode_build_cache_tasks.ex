@@ -42,17 +42,13 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
   def execute(conn, args) do
     build_run_id = Map.get(args, "build_run_id")
 
-    with {:ok, build} <-
-           ToolSupport.load_resource(
+    with {:ok, _build, _project} <-
+           ToolSupport.load_and_authorize(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             build.project_id,
              :read,
-             :build
+             :build,
+             "Build not found: #{build_run_id}"
            ) do
       filters = [%{field: :build_run_id, op: :==, value: build_run_id}]
 

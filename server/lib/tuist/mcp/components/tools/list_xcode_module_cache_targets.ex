@@ -37,17 +37,13 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
       "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
   def execute(conn, %{"run_id" => run_id} = args) do
-    with {:ok, event} <-
-           ToolSupport.load_resource(
+    with {:ok, event, _project} <-
+           ToolSupport.load_and_authorize(
              get_command_event(run_id),
-             "Run not found: #{run_id}"
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
              conn.assigns,
-             event.project_id,
              :read,
-             :run
+             :run,
+             "Run not found: #{run_id}"
            ) do
       page = ToolSupport.page(args)
       page_size = ToolSupport.page_size(args)

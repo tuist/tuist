@@ -24,14 +24,13 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
   def description, do: "Get detailed metrics for a specific test run."
 
   def execute(conn, %{"test_run_id" => test_run_id}) do
-    with {:ok, run} <-
-           ToolSupport.load_resource(Tests.get_test(test_run_id), "Test run not found: #{test_run_id}"),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
+    with {:ok, run, _project} <-
+           ToolSupport.load_and_authorize(
+             Tests.get_test(test_run_id),
              conn.assigns,
-             run.project_id,
              :read,
-             :test
+             :test,
+             "Test run not found: #{test_run_id}"
            ) do
       metrics = Analytics.get_test_run_metrics(run.id)
 
