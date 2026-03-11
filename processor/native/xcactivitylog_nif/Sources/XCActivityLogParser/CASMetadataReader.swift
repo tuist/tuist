@@ -2,14 +2,10 @@ import FileSystem
 import Foundation
 import Path
 
-struct CASNodeEntry: Decodable {
-    let checksum: String
-}
-
 struct CASOutputMetadataEntry: Decodable {
     let size: Int
     let duration: Double
-    let compressed_size: Int
+    let compressedSize: Int
 }
 
 struct KeyValueMetadataEntry: Decodable {
@@ -26,12 +22,10 @@ struct CASMetadataReader {
     }
 
     func readChecksum(nodeID: String) async -> String? {
-        let safeNodeID = nodeID.replacingOccurrences(of: "/", with: "_")
-        let path = casMetadataPath.appending(components: "nodes", "\(safeNodeID).json")
-        guard let data = try? await fileSystem.readFile(at: path),
-              let entry = try? JSONDecoder().decode(CASNodeEntry.self, from: Data(data))
-        else { return nil }
-        return entry.checksum
+        let safeNodeID = sanitize(nodeID)
+        let path = casMetadataPath.appending(components: "nodes", safeNodeID)
+        guard let data = try? await fileSystem.readFile(at: path) else { return nil }
+        return String(data: Data(data), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func readOutputMetadata(checksum: String) async -> CASOutputMetadataEntry? {
@@ -43,11 +37,16 @@ struct CASMetadataReader {
     }
 
     func readKeyValueMetadata(key: String, operationType: String) async -> KeyValueMetadataEntry? {
-        let safeKey = key.replacingOccurrences(of: "/", with: "_")
-        let path = casMetadataPath.appending(components: "keyvalue", "\(safeKey)_\(operationType).json")
+        let safeKey = sanitize(key)
+        let path = casMetadataPath.appending(components: "keyvalue", operationType, "\(safeKey).json")
         guard let data = try? await fileSystem.readFile(at: path),
               let entry = try? JSONDecoder().decode(KeyValueMetadataEntry.self, from: Data(data))
         else { return nil }
         return entry
+    }
+
+    private func sanitize(_ value: String) -> String {
+        value.replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
     }
 }

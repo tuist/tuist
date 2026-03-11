@@ -416,7 +416,7 @@ public struct XCActivityLogParser: Sendable {
             checksum: checksum,
             size: metadata.size,
             duration: metadata.duration,
-            compressed_size: metadata.compressed_size,
+            compressed_size: metadata.compressedSize,
             operation: operation,
             type: type
         )
