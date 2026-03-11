@@ -1,0 +1,66 @@
+name: Select Xcode
+description: Selects the requested Xcode, or validates a preconfigured DEVELOPER_DIR
+
+inputs:
+  version-file:
+    description: File containing the Xcode version to use
+    required: false
+    default: .xcode-version
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        version="$(cat "${{ inputs.version-file }}")"
+        candidates=(
+          "/Applications/Xcode_${version}.app"
+        )
+
+        shopt -s nullglob
+        for candidate in /Applications/Xcode-"${version}"*.app; do
+          candidates+=("${candidate}")
+        done
+        shopt -u nullglob
+
+        desired_app=""
+
+        for candidate in "${candidates[@]}"; do
+          if [[ -d "${candidate}/Contents/Developer" ]]; then
+            desired_app="${candidate}"
+            break
+          fi
+        done
+
+        if [[ -z "${desired_app}" ]]; then
+          echo "Expected Xcode ${version} in /Applications" >&2
+          exit 1
+        fi
+
+        desired_dir="${desired_app}/Contents/Developer"
+
+        echo "DEVELOPER_DIR=${desired_dir}" >> "$GITHUB_ENV"
+
+        if [[ -n "${DEVELOPER_DIR:-}" ]]; then
+          if [[ "${DEVELOPER_DIR}" != "${desired_dir}" ]]; then
+            echo "DEVELOPER_DIR is ${DEVELOPER_DIR}, expected ${desired_dir}" >&2
+            exit 1
+          fi
+
+          echo "Using preconfigured DEVELOPER_DIR=${DEVELOPER_DIR}"
+        else
+          current_dir="$(xcode-select -p)"
+
+          if [[ "${current_dir}" != "${desired_dir}" ]]; then
+            if [[ "${RUNNER_ENVIRONMENT:-}" == "github-hosted" ]]; then
+              sudo xcode-select -switch "${desired_dir}"
+            else
+              echo "Leaving xcode-select unchanged and using DEVELOPER_DIR=${desired_dir}"
+            fi
+          fi
+        fi
+
+        DEVELOPER_DIR="${desired_dir}" xcodebuild -version
