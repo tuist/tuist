@@ -1,9 +1,11 @@
 {
   "cli_version": "0.4.2",
   "checkpoint_id": "79df315c715c",
+  "session_id": "d659bba8-6997-41d0-ae81-46a085f504de",
   "strategy": "manual-commit",
+  "created_at": "2026-03-11T13:54:57.35216Z",
   "branch": "fix/flaky-overview-live-async-tests",
-  "checkpoints_count": 3,
+  "checkpoints_count": 1,
   "files_touched": [
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
@@ -17,27 +19,22 @@
     "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
     "server/test/tuist_web/live/overview_live_test.exs"
   ],
-  "sessions": [
-    {
-      "metadata": "/79/df315c715c/0/metadata.json",
-      "transcript": "/79/df315c715c/0/full.jsonl",
-      "context": "/79/df315c715c/0/context.md",
-      "content_hash": "/79/df315c715c/0/content_hash.txt",
-      "prompt": "/79/df315c715c/0/prompt.txt"
-    },
-    {
-      "metadata": "/79/df315c715c/1/metadata.json",
-      "transcript": "/79/df315c715c/1/full.jsonl",
-      "context": "/79/df315c715c/1/context.md",
-      "content_hash": "/79/df315c715c/1/content_hash.txt",
-      "prompt": "/79/df315c715c/1/prompt.txt"
-    }
-  ],
+  "agent": "Claude Code",
+  "transcript_identifier_at_start": "6c271b50-372c-4ee0-8626-2168ef77822a",
   "token_usage": {
-    "input_tokens": 37,
-    "cache_creation_tokens": 72042,
-    "cache_read_tokens": 1233352,
-    "output_tokens": 5236,
-    "api_call_count": 29
+    "input_tokens": 29,
+    "cache_creation_tokens": 70667,
+    "cache_read_tokens": 927388,
+    "output_tokens": 4948,
+    "api_call_count": 25
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-11T13:54:57.270557Z",
+    "agent_lines": 0,
+    "human_added": 67514,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 67514,
+    "agent_percentage": 0
   }
 }
