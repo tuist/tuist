@@ -35,15 +35,17 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end
   end
 
+  @processor_module Processor.BuildProcessor
+
   defp process_locally(build_id, storage_key, account_id, xcode_cache_upload_enabled) do
-    if Code.ensure_loaded?(Processor.BuildProcessor) do
+    if Code.ensure_loaded?(@processor_module) do
       with {:ok, account} <- Accounts.get_account_by_id(account_id) do
         temp_path = Path.join(System.tmp_dir!(), "build_#{build_id}.zip")
 
         try do
           case Storage.download_to_file(storage_key, temp_path, account) do
             {:ok, _} ->
-              Processor.BuildProcessor.process_build(temp_path, xcode_cache_upload_enabled)
+              apply(@processor_module, :process_build, [temp_path, xcode_cache_upload_enabled])
 
             {:error, _} = error ->
               error
