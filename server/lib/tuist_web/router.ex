@@ -318,7 +318,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:mcp]
 
-    forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server, recreate_missing_session: false
+    forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
   scope path: "/api",

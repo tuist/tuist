@@ -503,8 +503,8 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -650,8 +650,8 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install dependencies
         run: tuist install
 
@@ -740,8 +740,8 @@ jobs:
           cache: "false"
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4

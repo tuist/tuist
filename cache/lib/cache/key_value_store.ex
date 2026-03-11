@@ -4,7 +4,7 @@ defmodule Cache.KeyValueStore do
   Provides pre-serialized payloads to minimize response rendering time.
   """
 
-  import Cachex.Spec, only: [expiration: 1]
+  import Cachex.Spec, only: [expiration: 1, limit: 1]
 
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
@@ -64,6 +64,7 @@ defmodule Cache.KeyValueStore do
     [
       stats: false,
       expiration: expiration(default: @ttl_ms, interval: to_timeout(minute: 5)),
+      limit: limit(size: 100_000, policy: Cachex.Policy.LRW, reclaim: 0.1),
       backend_options: [read_concurrency: true, write_concurrency: true]
     ]
   end
