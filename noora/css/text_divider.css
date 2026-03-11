@@ -1,0 +1,11 @@
+.noora-text-divider {
+  --noora-content-divider-label: light-dark(
+    var(--noora-neutral-light-700),
+    var(--noora-neutral-dark-500)
+  );
+  padding: var(--nora-spacing-4) var(--noora-spacing-2);
+  width: 100%;
+
+  color: var(--noora-content-divider-label);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+}

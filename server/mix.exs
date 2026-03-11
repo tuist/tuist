@@ -128,9 +128,7 @@ defmodule Tuist.MixProject do
       {:redis_mutex, "~> 1.1"},
       {:hammer_backend_redis, "~> 7.0"},
       {:ecto_ch, "~> 0.8.3"},
-      (System.get_env("NOORA_LOCAL") &&
-         {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.74.0"},
+      {:noora, path: "../noora"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},

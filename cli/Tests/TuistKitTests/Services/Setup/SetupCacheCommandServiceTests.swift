@@ -20,16 +20,14 @@ import TuistTesting
 
 struct SetupCacheCommandServiceTests {
     private let subject: SetupCacheCommandService
-    private let fileSystem = FileSystem()
-    private let launchctlController = MockLaunchctlControlling()
+    private let launchAgentService = MockLaunchAgentServicing()
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let manifestLoader = MockManifestLoading()
 
     init() {
         subject = SetupCacheCommandService(
-            fileSystem: fileSystem,
-            launchctlController: launchctlController,
+            launchAgentService: launchAgentService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
             manifestLoader: manifestLoader
@@ -46,11 +44,14 @@ struct SetupCacheCommandServiceTests {
         given(manifestLoader)
             .hasRootManifest(at: .any)
             .willReturn(false)
+
+        given(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .willReturn()
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
         // Given
-        _ = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
@@ -68,25 +69,18 @@ struct SetupCacheCommandServiceTests {
             .hasRootManifest(at: .any)
             .willReturn(true)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-
-        verify(launchctlController)
-            .load(plistPath: .value(expectedPlistPath))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cache.organization_project"),
+                plistFileName: .value("tuist.cache.organization_project.plist"),
+                programArguments: .any,
+                environmentVariables: .any
+            )
             .called(1)
-
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains("<string>tuist.cache.organization_project</string>"))
 
         TuistTest.expectLogs("Xcode Cache has been enabled 🎉")
     }
@@ -106,16 +100,12 @@ struct SetupCacheCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(config)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        verify(launchctlController)
-            .load(plistPath: .any)
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .called(1)
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
@@ -142,24 +132,21 @@ struct SetupCacheCommandServiceTests {
             .url(configServerURL: .value(customURL))
             .willReturn(customURL)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains("--url"))
-        #expect(plistContent.contains("https://custom.tuist.dev"))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .matching { $0.contains("--url") && $0.contains("https://custom.tuist.dev") },
+                environmentVariables: .any
+            )
+            .called(1)
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_unloadsExistingAgent() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_passesCorrectLabelAndPlistFileName() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
@@ -170,141 +157,18 @@ struct SetupCacheCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(config)
 
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-
-        try await fileSystem.makeDirectory(at: expectedPlistPath.parentDirectory)
-        try await fileSystem.writeText("existing plist content", at: expectedPlistPath)
-
-        given(launchctlController)
-            .unload(plistPath: .value(expectedPlistPath))
-            .willReturn()
-
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        verify(launchctlController)
-            .unload(plistPath: .value(expectedPlistPath))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cache.organization_project"),
+                plistFileName: .value("tuist.cache.organization_project.plist"),
+                programArguments: .any,
+                environmentVariables: .any
+            )
             .called(1)
-
-        verify(launchctlController)
-            .load(plistPath: .value(expectedPlistPath))
-            .called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_miseManaged() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let environment = try #require(Environment.mocked)
-        let currentMisePath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
-        )
-        environment.homeDirectory = temporaryDirectory
-        environment.currentExecutablePathStub = currentMisePath
-
-        let expectedBinaryPath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
-        )
-        try await fileSystem.makeDirectory(at: expectedBinaryPath.parentDirectory)
-        try await fileSystem.writeText("", at: expectedBinaryPath)
-
-        let config = Tuist.test(fullHandle: "organization/project")
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains(expectedBinaryPath.pathString.replacingOccurrences(of: "/private", with: "")))
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_miseManagedOldPath() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let environment = try #require(Environment.mocked)
-        let currentMisePath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
-        )
-        environment.homeDirectory = temporaryDirectory
-        environment.currentExecutablePathStub = currentMisePath
-
-        let expectedBinaryPath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
-        )
-        try await fileSystem.makeDirectory(at: expectedBinaryPath.parentDirectory)
-        try await fileSystem.writeText("", at: expectedBinaryPath)
-
-        let config = Tuist.test(fullHandle: "organization/project")
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains(expectedBinaryPath.pathString.replacingOccurrences(of: "/private", with: "")))
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_miseManagedFallbackToCurrentPath() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let environment = try #require(Environment.mocked)
-        let currentMisePath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
-        )
-        environment.homeDirectory = temporaryDirectory
-        environment.currentExecutablePathStub = currentMisePath
-
-        let config = Tuist.test(fullHandle: "organization/project")
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains(currentMisePath.pathString.replacingOccurrences(of: "/private", with: "")))
     }
 
     @Test(.withMockedEnvironment()) func setupCache_missingFullHandle() async throws {
@@ -324,63 +188,7 @@ struct SetupCacheCommandServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment()) func setupCache_missingExecutablePath() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.currentExecutablePathStub = nil
-
-        // When/Then
-        await #expect(throws: SetupCacheCommandServiceError.missingExecutablePath) {
-            try await subject.run(path: nil)
-        }
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_launchDaemonLoadFailure() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-
-        let config = Tuist.test(fullHandle: "organization/project")
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willThrow(NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Load failed"]))
-
-        // When/Then
-        await #expect(throws: SetupCacheCommandServiceError.failedToLoadLaunchDaemon("Load failed")) {
-            try await subject.run(path: nil)
-        }
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_createsLaunchAgentsDirectory() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-
-        let config = Tuist.test(fullHandle: "organization/project")
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let launchAgentsDir = homeDirectory.appending(components: "Library", "LaunchAgents")
-        #expect(try await fileSystem.exists(launchAgentsDir))
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_includesEnvironmentTokenInPlist() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_includesEnvironmentToken() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
@@ -393,23 +201,18 @@ struct SetupCacheCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(config)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains("<key>EnvironmentVariables</key>"))
-        #expect(plistContent.contains("<key>TUIST_TOKEN</key>"))
-        #expect(plistContent.contains("<string>\(token)</string>"))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value(["TUIST_TOKEN": token])
+            )
+            .called(1)
     }
 
     @Test(
@@ -427,22 +230,18 @@ struct SetupCacheCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(config)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(!plistContent.contains("<key>EnvironmentVariables</key>"))
-        #expect(!plistContent.contains("<key>TUIST_CONFIG_TOKEN</key>"))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([:])
+            )
+            .called(1)
     }
 
     @Test(
@@ -462,20 +261,18 @@ struct SetupCacheCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(config)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains("--no-upload"))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .matching { $0.contains("--no-upload") },
+                environmentVariables: .any
+            )
+            .called(1)
     }
 
     @Test(
@@ -495,20 +292,18 @@ struct SetupCacheCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(config)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(!plistContent.contains("--no-upload"))
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .matching { !$0.contains("--no-upload") },
+                environmentVariables: .any
+            )
+            .called(1)
     }
 
     @Test(
@@ -534,21 +329,45 @@ struct SetupCacheCommandServiceTests {
             .hasRootManifest(at: .any)
             .willReturn(true)
 
-        given(launchctlController)
-            .load(plistPath: .any)
-            .willReturn()
-
         // When
         try await subject.run(path: nil)
 
         // Then
-        verify(launchctlController)
-            .load(plistPath: .any)
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .called(1)
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
             )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func setupCache_programArgumentsIncludeCacheStartAndFullHandle() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .matching { $0.contains("cache-start") && $0.contains("organization/project") },
+                environmentVariables: .any
+            )
+            .called(1)
     }
 }

@@ -1,13 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.155.5<!-- RELEASE NOTES START -->
+## What's Changed in 4.156.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* track machine metrics by [@fortmarek](https://github.com/fortmarek) in [#9760](https://github.com/tuist/tuist/pull/9760)
 ### 🐛 Bug Fixes
 
+* support OIDC account tokens for registry login on CI by [@pepicrft](https://github.com/pepicrft) in [#9769](https://github.com/tuist/tuist/pull/9769)
 * fix build category detection for Xcode 26.3+ with compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9762](https://github.com/tuist/tuist/pull/9762)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.4...4.155.5
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.4...4.156.0
 
 ## What's Changed in 4.155.4<!-- RELEASE NOTES START -->
 

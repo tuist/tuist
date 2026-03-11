@@ -140,6 +140,28 @@ services:
       - key: LOKI_TOKEN
         sync: false
 
+  - type: web
+    name: noora-storybook
+    region: frankfurt
+    runtime: docker
+    repo: https://github.com/tuist/tuist
+    dockerfilePath: noora/storybook/Dockerfile
+    dockerContext: noora
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: "off"
+    previews:
+      generation: "off"
+    envVars:
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      - key: PHX_HOST
+        value: storybook.noora.tuist.dev
+      - key: PORT
+        value: "8080"
+    domains:
+      - storybook.noora.tuist.dev
+
   # ── Preview environment ─────────────────────────────────────────────
   # Each PR touching server/** gets an isolated preview with its own
   # PostgreSQL and embedded ClickHouse. No MASTER_KEY or encrypted

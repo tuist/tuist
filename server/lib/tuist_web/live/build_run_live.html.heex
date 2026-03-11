@@ -115,6 +115,12 @@
         selected={@selected_tab == "errors"}
         patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
       />
+      <.tab_menu_horizontal_item
+        :if={length(@machine_metrics) > 0}
+        label={dgettext("dashboard_builds", "Machine Metrics")}
+        selected={@selected_tab == "machine-metrics"}
+        patch={"?#{Query.put(@uri.query, "tab", "machine-metrics")}"}
+      />
     </.tab_menu_horizontal>
     <%= if @selected_tab == "overview" do %>
       <.card
@@ -1538,6 +1544,9 @@
           </.card_section>
         </.card>
       </div>
+    <% end %>
+    <%= if @selected_tab == "machine-metrics" do %>
+      <.machine_metrics_charts metrics={@machine_metrics} />
     <% end %>
   </div>
 <% end %>

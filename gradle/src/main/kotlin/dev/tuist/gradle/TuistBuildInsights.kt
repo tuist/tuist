@@ -94,7 +94,8 @@ data class BuildReportRequest(
     @SerializedName("git_remote_url_origin") val gitRemoteUrlOrigin: String?,
     @SerializedName("root_project_name") val rootProjectName: String?,
     @SerializedName("requested_tasks") val requestedTasks: List<String>,
-    val tasks: List<TaskReportEntry>
+    val tasks: List<TaskReportEntry>,
+    @SerializedName("machine_metrics") val machineMetrics: List<MachineMetricSample>? = null
 )
 
 data class BuildReportResponse(val id: String)
@@ -115,6 +116,7 @@ abstract class TuistBuildInsightsService :
     }
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
+    private val machineMetricsCollector = MachineMetricsCollector().also { it.start() }
 
     internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
@@ -284,13 +286,14 @@ abstract class TuistBuildInsightsService :
             listenerManager?.removeListener(this)
         } catch (_: Exception) {}
 
+        val machineMetrics = downsample(machineMetricsCollector.stop(), maxCount = 3600)
         val shouldUploadInBackground = uploadInBackground ?: !ciDetector.isCi()
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading build insights in the background...")
             Thread({
                 try {
-                    sendReport()
+                    sendReport(machineMetrics)
                 } catch (e: Exception) {
                     logger.warn("Tuist: Failed to send build insights: ${e.message}")
                 }
@@ -300,14 +303,14 @@ abstract class TuistBuildInsightsService :
             }
         } else {
             try {
-                sendReport()
+                sendReport(machineMetrics)
             } catch (e: Exception) {
                 logger.warn("Tuist: Failed to send build insights: ${e.message}")
             }
         }
     }
 
-    private fun sendReport() {
+    private fun sendReport(machineMetrics: List<MachineMetricSample>) {
         val projectValue = parameters.project.orNull
 
         val configProvider = DefaultConfigurationProvider(
@@ -333,12 +336,16 @@ abstract class TuistBuildInsightsService :
             rootProjectName = parameters.rootProjectName.orNull,
             requestedTasks = requestedTaskNames.toList(),
             ciDetector = ciDetector,
-            gitInfoProvider = gitInfoProvider
+            gitInfoProvider = gitInfoProvider,
+            machineMetrics = machineMetrics
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = parameters.url.get().trimEnd('/')
-            val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
+            val resolvedUrl = ServerUrlResolver.resolve(
+                extensionUrl = parameters.url.get(),
+                projectDir = java.io.File(System.getProperty("user.dir"))
+            )
+            val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
             val connection = httpClient.openConnection(url, config)
             try {
                 connection.requestMethod = "POST"
@@ -377,6 +384,14 @@ abstract class TuistBuildInsightsService :
     }
 }
 
+internal fun <T> downsample(samples: List<T>, maxCount: Int): List<T> {
+    if (samples.size <= maxCount || maxCount < 2) return samples
+    val step = (samples.size - 1).toDouble() / (maxCount - 1).toDouble()
+    return (0 until maxCount).map { i ->
+        samples[minOf((i * step).toInt(), samples.size - 1)]
+    }
+}
+
 internal fun buildReport(
     id: String,
     taskOutcomes: List<TaskOutcomeData>,
@@ -386,7 +401,8 @@ internal fun buildReport(
     rootProjectName: String? = null,
     requestedTasks: List<String> = emptyList(),
     ciDetector: CIDetector = EnvironmentCIDetector(),
-    gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider(),
+    machineMetrics: List<MachineMetricSample>? = null
 ): BuildReportRequest {
     val status = when {
         buildFailed -> "failure"
@@ -417,7 +433,8 @@ internal fun buildReport(
                 cacheArtifactSize = task.cacheArtifactSize,
                 startedAt = task.startedAt
             )
-        }
+        },
+        machineMetrics = machineMetrics
     )
 }
 

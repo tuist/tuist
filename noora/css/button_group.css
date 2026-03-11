@@ -1,0 +1,135 @@
+.noora-button-group {
+  --noora-button-group-background: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1200)
+  );
+  --noora-button-group-label: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-50)
+  );
+  --noora-button-group-hover-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1100)
+  );
+  --noora-button-group-hover-label: light-dark(
+    var(--noora-neutral-light-1100),
+    var(--noora-neutral-light-100)
+  );
+  --noora-button-group-active-background: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-group-active-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-button-group-disabled-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-group-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-600)
+  );
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-medium);
+  background-color: var(--noora-button-group-background);
+  padding: var(--noora-spacing-1);
+  overflow: hidden;
+
+  &[data-size="small"] {
+    gap: var(--noora-spacing-1);
+  }
+  &[data-size="medium"],
+  &[data-size="large"] {
+    gap: var(--noora-spacing-2);
+  }
+}
+
+.noora-button-group-item {
+  --noora-border-button-group:
+    inset 0px 2px 2px 0px oklch(31.82% 0.0113 248.18 / 0.06),
+    inset 0px 1px 1px 0px oklch(31.82% 0.0113 248.18 / 0.08);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-1);
+  cursor: pointer;
+  outline: unset;
+  border: unset;
+  border-radius: var(--noora-radius-small);
+
+  background-color: unset;
+  overflow: hidden;
+  color: var(--noora-button-group-label);
+  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  user-select: none;
+  text-decoration: unset;
+
+  html[data-theme="dark"] & {
+    --noora-border-button-group:
+      inset 0px 3px 3px 0px oklch(0% 0 0 / 0.3),
+      inset 0px 1px 1px 0px oklch(0% 0 0 / 0.3);
+  }
+
+  &:hover {
+    background-color: var(--noora-button-group-hover-background);
+    color: var(--noora-button-group-hover-label);
+  }
+
+  &:active,
+  &[data-selected] {
+    box-shadow: var(--noora-border-button-group);
+    background-color: var(--noora-button-group-active-background);
+    color: var(--noora-button-group-active-label);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    background: var(--noora-button-group-disabled-background) !important;
+    color: var(--noora-button-group-disabled-label) !important;
+  }
+
+  & > [data-part="label"] {
+    padding: var(--noora-spacing-0) var(--noora-spacing-2);
+  }
+
+  .noora-button-group[data-size="small"] & {
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
+  .noora-button-group[data-size="medium"] & {
+    gap: var(--noora-spacing-1);
+    padding: var(--noora-spacing-2) var(--noora-spacing-2);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & > [data-part="label"] {
+      padding: var(--noora-spacing-0) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
+  .noora-button-group[data-size="large"] & {
+    padding: var(--noora-spacing-2) var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+    }
+  }
+}
