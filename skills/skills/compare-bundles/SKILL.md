@@ -11,8 +11,9 @@ You'll typically receive two bundle identifiers. Follow these steps:
 
 1. Run `tuist bundle list --json` to find bundles on each branch.
 2. Run `tuist bundle show <bundle-id> --json` for both base and head bundles.
-3. Compare install size, download size, and other metadata.
-4. Summarize size changes with actionable recommendations.
+3. Compare artifact trees with `tuist bundle artifact list <bundle-id> --json`.
+4. Compare install size, download size, and other metadata.
+5. Summarize size changes with actionable recommendations.
 
 ## Step 1: Resolve Bundles
 
@@ -41,7 +42,21 @@ Then fetch full details with `tuist bundle show <id> --json`.
 - If no base is provided, use the project's default branch (usually `main`).
 - If no head is provided, detect the current git branch.
 
-## Step 2: Compare Top-Level Metrics
+## Step 2: Compare Artifact Trees
+
+After fetching both bundles with `tuist bundle show <id> --json`, compare the individual artifacts:
+
+```bash
+tuist bundle artifact list <base-id> --json
+tuist bundle artifact list <head-id> --json
+```
+
+Match artifacts by name across both bundles. Look for:
+- New artifacts added in the head bundle (potential size contributors)
+- Removed artifacts (explain size decreases)
+- Size changes in existing artifacts
+
+## Step 3: Compare Top-Level Metrics
 
 After fetching both bundles, compare:
 
@@ -58,7 +73,7 @@ Compute deltas:
 - Download size delta: `head_download_size - base_download_size`
 - Percentage change: `delta / base_size * 100`
 
-## Step 3: Analyze Size Changes
+## Step 4: Analyze Size Changes
 
 If size increased significantly (>5%):
 
@@ -113,6 +128,7 @@ Recommendations:
 ## Done Checklist
 
 - Resolved both base and head bundles
+- Compared artifact trees using `tuist bundle artifact list`
 - Compared install and download sizes
 - Analyzed root causes of size changes
 - Provided actionable recommendations

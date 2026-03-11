@@ -11,8 +11,9 @@ You'll typically receive two build identifiers (IDs, dashboard URLs, or branch n
 
 1. Run `tuist build list --json` to find builds on each branch.
 2. Run `tuist build show <build-id> --json` for both base and head builds.
-3. Compare duration, status, cache hit rates, and other metrics.
-4. Summarize regressions, improvements, and recommendations.
+3. Fetch sub-resource details: targets (`tuist build target list <id> --json`), issues (`tuist build issue list <id> --json`), and cache tasks (`tuist build cache-task list <id> --json`).
+4. Compare duration, status, cache hit rates, and other metrics.
+5. Summarize regressions, improvements, and recommendations.
 
 If only one identifier is provided, use the project's default branch as the baseline.
 
@@ -43,7 +44,38 @@ Then fetch full details with `tuist build show <id> --json`.
 - If no base is provided, use the project's default branch (usually `main`).
 - If no head is provided, detect the current git branch with `git rev-parse --abbrev-ref HEAD`.
 
-## Step 2: Compare Top-Level Metrics
+## Step 2: Fetch Sub-Resource Details
+
+After fetching both builds with `tuist build show <id> --json`, drill down into sub-resources for a deeper comparison.
+
+### Compare targets
+
+```bash
+tuist build target list <base-id> --json
+tuist build target list <head-id> --json
+```
+
+Look for targets that changed status (e.g., success to failure) or had significant duration changes.
+
+### Compare issues
+
+```bash
+tuist build issue list <base-id> --json
+tuist build issue list <head-id> --json
+```
+
+Look for new warnings or errors introduced in the head build.
+
+### Compare cache tasks
+
+```bash
+tuist build cache-task list <base-id> --json
+tuist build cache-task list <head-id> --json
+```
+
+Identify which specific targets had cache misses or hits and whether that changed between builds.
+
+## Step 3: Compare Top-Level Metrics
 
 After fetching both builds, compare:
 
@@ -60,7 +92,7 @@ After fetching both builds, compare:
 
 Compute the cache miss delta: `base_misses - head_misses`. Positive means head has fewer misses (improvement). Negative means regression.
 
-## Step 3: Investigate Duration Regressions
+## Step 4: Investigate Duration Regressions
 
 If the head build is significantly slower:
 
@@ -68,7 +100,7 @@ If the head build is significantly slower:
 2. Check if cache hit rate dropped, which would explain longer builds.
 3. If both are incremental with similar cache rates, the regression is likely in compilation time.
 
-## Step 4: Investigate Cache Changes
+## Step 5: Investigate Cache Changes
 
 Compare cache statistics:
 
@@ -76,7 +108,7 @@ Compare cache statistics:
 - **Hit rate improved**: Likely due to better cache warming or fewer source changes.
 - **Task count changed**: New targets added or removed.
 
-## Step 5: Check Build Context
+## Step 6: Check Build Context
 
 Compare environment details:
 
@@ -115,6 +147,7 @@ Recommendations:
 ## Done Checklist
 
 - Resolved both base and head builds
+- Fetched sub-resource details (targets, issues, cache tasks)
 - Compared duration, cache, and status metrics
 - Identified root causes for any regressions
 - Provided actionable recommendations

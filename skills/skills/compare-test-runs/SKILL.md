@@ -10,10 +10,11 @@ description: Compares two test runs to identify new failures, newly flaky tests,
 You'll typically receive two test run identifiers. Follow these steps:
 
 1. Run `tuist test show <id> --json` for both base and head test runs.
-2. Run `tuist test case run list --test-run-id <id> --json` to get individual test case results.
-3. Compare failures, flaky tests, durations, and overall status.
-4. Inspect failing test cases with `tuist test case run show <id> --json`.
-5. Summarize findings with actionable recommendations.
+2. Run `tuist test module list <test-run-id> --json` and `tuist test suite list <test-run-id> --json` to get module and suite breakdowns.
+3. Run `tuist test case run list <identifier> --json` to get individual test case results.
+4. Compare failures, flaky tests, durations, and overall status.
+5. Inspect failing test cases with `tuist test case run show <id> --json`.
+6. Summarize findings with actionable recommendations.
 
 ## Step 1: Resolve Test Runs
 
@@ -28,13 +29,14 @@ tuist test show <head-id> --json
 
 ### If base/head are branch names
 
-List recent test case runs on each branch to identify test run IDs:
+List recent test runs on each branch to identify test run IDs:
 
 ```bash
-tuist test case run list --json --page-size 5
+tuist test list --git-branch <base-branch> --json --page-size 5
+tuist test list --git-branch <head-branch> --json --page-size 5
 ```
 
-Look at `test_run_id` fields to find recent test runs per branch.
+Pick the latest test run ID from each branch's results.
 
 ### Defaults
 
@@ -54,18 +56,31 @@ After fetching both test runs, compare:
 | `flaky_test_count` | Compare flaky counts |
 | `avg_test_duration` | Flag significant changes |
 
-## Step 3: Get Test Case Results
+## Step 3: Get Module and Suite Breakdowns
+
+Fetch module and suite-level results for both test runs to understand which areas regressed:
+
+```bash
+tuist test module list <base-test-run-id> --json
+tuist test module list <head-test-run-id> --json
+
+tuist test suite list <base-test-run-id> --json
+tuist test suite list <head-test-run-id> --json
+```
+
+Match modules and suites by name across both runs to identify areas with new failures or duration regressions.
+
+## Step 4: Get Individual Test Case Results
 
 Fetch test case runs for both test runs:
 
 ```bash
-tuist test case run list --test-run-id <base-test-run-id> --json --page-size 100
-tuist test case run list --test-run-id <head-test-run-id> --json --page-size 100
+tuist test case run list <identifier> --json --page-size 100
 ```
 
 Match test cases by their `name` + `module_name` + `suite_name` across both runs.
 
-## Step 4: Classify Changes
+## Step 5: Classify Changes
 
 Group test cases into categories:
 
@@ -77,7 +92,7 @@ Group test cases into categories:
 6. **Removed tests**: Tests present in base but not in head.
 7. **Duration regressions**: Tests with >50% duration increase.
 
-## Step 5: Inspect Failures
+## Step 6: Inspect Failures
 
 For each new failure, get detailed information:
 
@@ -93,7 +108,7 @@ Key fields to examine:
 - `repetitions` -- if present, shows retry behavior (flaky detection)
 - `crash_report` -- crash data if test runner crashed
 
-## Step 6: Inspect Attachments
+## Step 7: Inspect Attachments
 
 The `tuist test case run show` output includes attachment and crash report information. Review:
 - Screenshots or UI test artifacts
@@ -146,6 +161,7 @@ Recommendations:
 
 - Resolved both base and head test runs
 - Compared top-level metrics
+- Fetched module and suite breakdowns for both runs
 - Identified new failures, fixed tests, and flaky changes
 - Inspected failure details for new failures
 - Provided actionable recommendations with file paths
