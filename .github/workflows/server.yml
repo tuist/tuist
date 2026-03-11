@@ -386,9 +386,12 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "erlang elixir ubi:aquasecurity/trivy"
+          install_args: "erlang elixir"
           cache: "false"
           working_directory: server
+      - name: Install Trivy
+        run: |
+          curl -sfL https://github.com/aquasecurity/trivy/releases/download/v0.63.0/trivy_0.63.0_Linux-64bit.tar.gz | tar xzf - -C /usr/local/bin trivy
       - name: Restore Mix Cache
         uses: actions/cache@v4
         with:
