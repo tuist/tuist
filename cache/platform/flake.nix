@@ -61,6 +61,13 @@
         diskConfig = ./disk-config-scaleway.nix;
         targetHost = "51.159.83.73";
         domain = "par.runners.tuist.dev";
+        privateIPv4Routes = [
+          {
+            interface = "ens6";
+            address = "172.16.16.0";
+            prefixLength = 22;
+          }
+        ];
       };
     };
 
@@ -79,7 +86,15 @@
           networking.hostName = hostname;
           networking.domain = machine.domain;
         }
-      ];
+      ]
+      ++ nixpkgs.lib.optional (machine ? privateIPv4Routes) {
+        networking.interfaces = nixpkgs.lib.mapAttrs (_: routes: {
+          ipv4.routes = map (route: {
+            inherit (route) address prefixLength;
+            options.scope = "link";
+          }) routes;
+        }) (nixpkgs.lib.groupBy (route: route.interface) machine.privateIPv4Routes);
+      };
 
     mkColmenaNode = hostname: machine: {
       deployment = {

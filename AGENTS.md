@@ -10,6 +10,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `docs/` - Documentation and guides - see `docs/AGENTS.md`
+- `runners/` - macOS GitHub runner bootstrap - see `runners/AGENTS.md`
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
@@ -31,6 +32,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `cli` - Changes to the Tuist CLI (Swift)
 - `skills` - Changes to the Agent Skills package
 - `docs` - Changes to documentation
+- `runners` - Changes to macOS runner bootstrap
 - `handbook` - Changes to the handbook/guides
 
 
