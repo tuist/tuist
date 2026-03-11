@@ -498,7 +498,7 @@ msgstr ""
 msgid "SSO"
 msgstr ""
 
-#: lib/tuist_web/live/components/machine_metrics_charts.ex:76
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:73
 #, elixir-autogen, elixir-format
-msgid "Machine Metrics"
+msgid "Metrics"
 msgstr ""

@@ -2,22 +2,26 @@
   & [data-part="charts-grid"] {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--noora-spacing-9) var(--noora-spacing-7);
-    padding: var(--noora-spacing-8);
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="chart-card"] {
+    gap: var(--noora-spacing-7);
+    overflow: clip;
   }
 
   & #cpu-usage-chart,
   & #memory-usage-chart {
-    height: 220px;
+    height: 148px;
   }
 
   & #network-io-chart,
   & #disk-io-chart {
-    height: 250px;
+    height: 180px;
   }
 
   & [data-part="chart-title"] {
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
   }
 }
