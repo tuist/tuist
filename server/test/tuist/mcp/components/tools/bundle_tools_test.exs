@@ -2,9 +2,10 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Anubis.Server.Frame
   alias Tuist.Bundles
-  alias Tuist.MCP.Server
+  alias Tuist.MCP.Components.Tools.GetBundle
+  alias Tuist.MCP.Components.Tools.GetBundleArtifactTree
+  alias Tuist.MCP.Components.Tools.ListBundles
   alias Tuist.Projects
 
   describe "list_bundles" do
@@ -39,18 +40,10 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_bundles",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListBundles.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
       result = JSON.decode!(text)
       assert length(result["bundles"]) == 1
@@ -66,19 +59,12 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
         {:error, :forbidden}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_bundles",
-          "arguments" => %{"account_handle" => "acme", "project_handle" => "app"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               ListBundles.call(conn, %{"account_handle" => "acme", "project_handle" => "app"})
 
-      assert {:error, error, _frame} = Server.handle_request(request, frame)
-      assert error.code == -32_602
-      assert message(error) == "You do not have access to project: acme/app"
+      assert text =~ "You do not have access to project: acme/app"
     end
   end
 
@@ -108,18 +94,10 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :bundle_read, :subject, ^project -> :ok end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_bundle",
-          "arguments" => %{"bundle_id" => "bundle-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetBundle.call(conn, %{"bundle_id" => "bundle-1"})
 
       result = JSON.decode!(text)
       assert result["id"] == "bundle-1"
@@ -159,18 +137,10 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :bundle_read, :subject, ^project -> :ok end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_bundle_artifact_tree",
-          "arguments" => %{"bundle_id" => "bundle-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
-
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               GetBundleArtifactTree.call(conn, %{"bundle_id" => "bundle-1"})
 
       result = JSON.decode!(text)
       assert length(result["artifacts"]) == 3
@@ -186,6 +156,4 @@ defmodule Tuist.MCP.Components.Tools.BundleToolsTest do
       refute Map.has_key?(first, "shasum")
     end
   end
-
-  defp message(error), do: Map.get(error.data, :message) || Map.get(error.data, "message")
 end

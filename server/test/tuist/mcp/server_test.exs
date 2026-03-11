@@ -2,17 +2,14 @@ defmodule Tuist.MCP.ServerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Anubis.Server.Frame
   alias Tuist.MCP.Server
   alias Tuist.Projects
 
-  describe "handle_request/2" do
-    test "returns tools list" do
-      request = %{"method" => "tools/list", "params" => %{}}
+  describe "server/0" do
+    test "returns a server with all tools" do
+      server = Server.server()
 
-      assert {:reply, %{"tools" => tools}, _frame} = Server.handle_request(request, Frame.new())
-
-      tool_names = tools |> Enum.map(& &1.name) |> Enum.sort()
+      tool_names = server.tools |> Map.keys() |> Enum.sort()
 
       assert "list_xcode_builds" in tool_names
       assert "get_xcode_build" in tool_names
@@ -41,12 +38,10 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_projects" in tool_names
     end
 
-    test "returns prompts list" do
-      request = %{"method" => "prompts/list", "params" => %{}}
+    test "returns a server with all prompts" do
+      server = Server.server()
 
-      assert {:reply, %{"prompts" => prompts}, _frame} = Server.handle_request(request, Frame.new())
-
-      prompt_names = prompts |> Enum.map(& &1.name) |> Enum.sort()
+      prompt_names = server.prompts |> Map.keys() |> Enum.sort()
 
       assert "fix_flaky_test" in prompt_names
       assert "compare_builds" in prompt_names
@@ -57,75 +52,15 @@ defmodule Tuist.MCP.ServerTest do
       assert "compare_cache_runs" in prompt_names
     end
 
-    test "calls list_projects tool" do
+    test "list_projects tool returns results" do
       stub(Projects, :list_accessible_projects, fn _subject, _opts -> [] end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{"name" => "list_projects", "arguments" => %{}}
-      }
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
 
-      frame = Frame.new(%{current_subject: :subject})
+      result = Tuist.MCP.Components.Tools.ListProjects.call(conn, %{})
 
-      assert {:reply, %{"content" => [%{"type" => "text", "text" => text}]}, _frame} =
-               Server.handle_request(request, frame)
-
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       assert JSON.decode!(text) == []
     end
-
-    test "returns error for unknown tool" do
-      request = %{
-        "method" => "tools/call",
-        "params" => %{"name" => "nonexistent", "arguments" => %{}}
-      }
-
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-
-      assert error.code == -32_602
-      assert error.message == "Invalid params"
-      assert message(error) == "Tool not found: nonexistent"
-    end
-
-    test "returns error for unknown method" do
-      request = %{"method" => "foo/bar", "params" => %{}}
-
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-
-      assert error.code == -32_601
-      assert error.message == "Method not found"
-    end
-
-    test "returns error for tools/call without required params" do
-      request = %{"method" => "tools/call", "params" => %{}}
-
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-
-      assert error.code == -32_602
-      assert message(error) == "Missing required parameter: name."
-    end
-
-    test "returns error for prompts/get without name" do
-      request = %{"method" => "prompts/get", "params" => %{}}
-
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-
-      assert error.code == -32_602
-      assert message(error) == "Missing required parameter: name."
-    end
-
-    test "returns error for unknown prompt" do
-      request = %{
-        "method" => "prompts/get",
-        "params" => %{"name" => "nonexistent", "arguments" => %{}}
-      }
-
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-
-      assert error.code == -32_602
-      assert error.message == "Invalid params"
-      assert message(error) == "Prompt not found: nonexistent"
-    end
   end
-
-  defp message(error), do: Map.get(error.data, :message) || Map.get(error.data, "message")
 end

@@ -3,51 +3,50 @@ defmodule Tuist.MCP.Components.Tools.GetBundleArtifactTree do
   Get the full artifact tree for a bundle as a flat list sorted by path. The bundle_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/bundles/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  use Tuist.MCP.Tool,
+    name: "get_bundle_artifact_tree",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "bundle_id" => %{
+          "type" => "string",
+          "description" => "The ID of the bundle."
+        }
+      },
+      "required" => ["bundle_id"]
+    }
 
-  alias Anubis.Server.Response
   alias Tuist.Bundles
-  alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.MCP.Tool, as: MCPTool
 
-  @authorization_action :read
-  @authorization_category :bundle
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get the full artifact tree for a bundle as a flat list sorted by path. The bundle_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/bundles/{id}."
 
-  schema do
-    field :bundle_id, :string,
-      required: true,
-      description: "The ID of the bundle."
-  end
-
-  @impl true
-  def execute(%{bundle_id: bundle_id}, frame) do
-    with {:ok, bundle} <-
-           ToolSupport.load_resource(
+  def execute(conn, %{"bundle_id" => bundle_id}) do
+    with {:ok, _, _} <-
+           MCPTool.load_and_authorize(
              Bundles.get_bundle(bundle_id),
-             "Bundle not found: #{bundle_id}",
-             frame
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             frame,
-             bundle.project_id,
-             @authorization_action,
-             @authorization_category
+             conn.assigns,
+             :read,
+             :bundle,
+             "Bundle not found: #{bundle_id}"
            ) do
       artifacts = Bundles.get_bundle_artifact_tree(bundle_id)
 
-      data = %{
-        bundle_id: bundle_id,
-        artifacts:
-          Enum.map(artifacts, fn artifact ->
-            %{
-              artifact_type: to_string(artifact.artifact_type),
-              path: artifact.path,
-              size: artifact.size
-            }
-          end)
-      }
-
-      {:reply, Response.json(Response.tool(), data), frame}
+      {:ok,
+       %{
+         bundle_id: bundle_id,
+         artifacts:
+           Enum.map(artifacts, fn artifact ->
+             %{
+               artifact_type: to_string(artifact.artifact_type),
+               path: artifact.path,
+               size: artifact.size
+             }
+           end)
+       }}
     end
   end
 end
