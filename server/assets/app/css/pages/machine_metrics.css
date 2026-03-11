@@ -1,5 +1,8 @@
 .tuist-machine-metrics {
   &[data-part="section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
     background: var(--noora-surface-background-tertiary);
     border-radius: var(--noora-spacing-5);
     padding: var(--noora-spacing-2);
@@ -24,6 +27,11 @@
       0px 1px 1px 0px rgba(14, 14, 14, 0.05),
       0px 0px 0px 1px rgba(46, 51, 56, 0.08),
       0px 1px 1px 0px rgba(46, 51, 56, 0.1);
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
   }
 
   & [data-part="section-title"] {
@@ -62,10 +70,13 @@
   }
 
   & #cpu-usage-chart,
-  & #memory-usage-chart,
+  & #memory-usage-chart {
+    height: 148px;
+  }
+
   & #network-io-chart,
   & #disk-io-chart {
-    height: 148px;
+    height: 180px;
   }
 
   & [data-part="chart-title"] {

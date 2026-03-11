@@ -9,25 +9,19 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
   def machine_metrics_charts(assigns) do
     metrics = assigns.metrics
 
-    min_timestamp =
-      case metrics do
-        [first | _] -> first.timestamp
-        _ -> 0.0
-      end
-
     metrics =
       metrics
-      |> Enum.group_by(fn m -> trunc(m.timestamp - min_timestamp) end)
+      |> Enum.group_by(fn m -> trunc(m.timestamp) end)
       |> Enum.sort_by(fn {k, _} -> k end)
       |> Enum.map(fn {_, samples} -> List.last(samples) end)
 
-    labels = Enum.map(metrics, fn m -> format_time(trunc((m.timestamp - min_timestamp) * 1000)) end)
+    labels = Enum.map(metrics, fn m -> format_absolute_time(m.timestamp) end)
     cpu_data = Enum.map(metrics, fn m -> Float.round(m.cpu_usage_percent + 0.0, 1) end)
-    memory_data = Enum.map(metrics, fn m -> bytes_to_gib(m.memory_used_bytes) end)
+    memory_data = Enum.map(metrics, fn m -> bytes_to_gb(m.memory_used_bytes) end)
 
     memory_total =
       case metrics do
-        [first | _] -> bytes_to_gib(first.memory_total_bytes)
+        [first | _] -> bytes_to_gb(first.memory_total_bytes)
         _ -> 0
       end
 
@@ -36,27 +30,19 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     disk_read_data = Enum.map(metrics, fn m -> bytes_to_mib(m.disk_bytes_read) end)
     disk_write_data = Enum.map(metrics, fn m -> bytes_to_mib(m.disk_bytes_written) end)
 
-    label_count = length(labels)
-    label_interval = max(div(label_count, 8) - 1, 0)
-
-    assigns =
-      assigns
-      |> assign(:labels, labels)
-      |> assign(:label_interval, label_interval)
-      |> assign(:cpu_data, cpu_data)
-      |> assign(:memory_data, memory_data)
-      |> assign(:memory_total, memory_total)
-      |> assign(:network_in_data, network_in_data)
-      |> assign(:network_out_data, network_out_data)
-      |> assign(:disk_read_data, disk_read_data)
-      |> assign(:disk_write_data, disk_write_data)
+    label_custom_values =
+      case labels do
+        [] -> []
+        [single] -> [single]
+        list -> [hd(list), List.last(list)]
+      end
 
     legend_config = %{
       left: "left",
       top: "bottom",
       orient: "horizontal",
       textStyle: %{
-        color: "var:noora-surface-label-secondary",
+        color: "var:noora-surface-label-primary",
         fontFamily: "monospace",
         fontWeight: 400,
         fontSize: 10,
@@ -65,16 +51,28 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
       icon:
         "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
       itemWidth: 8,
-      itemHeight: 4
+      itemHeight: 4,
+      itemGap: 16
     }
 
-    assigns = assign(assigns, :legend_config, legend_config)
+    assigns =
+      assigns
+      |> assign(:labels, labels)
+      |> assign(:label_custom_values, label_custom_values)
+      |> assign(:cpu_data, cpu_data)
+      |> assign(:memory_data, memory_data)
+      |> assign(:memory_total, memory_total)
+      |> assign(:network_in_data, network_in_data)
+      |> assign(:network_out_data, network_out_data)
+      |> assign(:disk_read_data, disk_read_data)
+      |> assign(:disk_write_data, disk_write_data)
+      |> assign(:legend_config, legend_config)
 
     ~H"""
     <div class="tuist-machine-metrics" data-part="section">
       <div data-part="section-header">
         <div data-part="section-icon">
-          <.icon name="chart_cohort" size={16} />
+          <.icon name="chart_dots" size={16} />
         </div>
         <span data-part="section-title">{dgettext("dashboard", "Metrics")}</span>
       </div>
@@ -86,17 +84,18 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               id="cpu-usage-chart"
               type="line"
               labels={@labels}
-              smooth={true}
+              smooth={0.1}
               series={[%{name: "Usage", values: @cpu_data}]}
               show_legend={false}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
                       color: "var:noora-surface-label-secondary",
-                      interval: @label_interval
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0]
                     }
                   },
                   yAxis: %{
@@ -117,17 +116,18 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               id="memory-usage-chart"
               type="line"
               labels={@labels}
-              smooth={true}
+              smooth={0.1}
               series={[%{name: "Used", values: @memory_data}]}
               show_legend={false}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "88%", top: "5%"},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
                       color: "var:noora-surface-label-secondary",
-                      interval: @label_interval
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0]
                     }
                   },
                   yAxis: %{
@@ -135,9 +135,9 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
                     max: @memory_total,
                     splitNumber: 4,
                     splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
-                    axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GiB"}
+                    axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value} GB"}
                   },
-                  tooltip: %{valueFormat: "{value} GiB"}
+                  tooltip: %{valueFormat: "{value} GB"}
                 }
               }
             />
@@ -148,7 +148,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               id="network-io-chart"
               type="line"
               labels={@labels}
-              smooth={true}
+              smooth={0.1}
               series={[
                 %{name: "In", values: @network_in_data},
                 %{name: "Out", values: @network_out_data}
@@ -156,12 +156,13 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "68%", top: "5%"},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
                       color: "var:noora-surface-label-secondary",
-                      interval: @label_interval
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0]
                     }
                   },
                   yAxis: %{
@@ -185,7 +186,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               id="disk-io-chart"
               type="line"
               labels={@labels}
-              smooth={true}
+              smooth={0.1}
               series={[
                 %{name: "Read", values: @disk_read_data},
                 %{name: "Write", values: @disk_write_data}
@@ -193,12 +194,13 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
+                  grid: %{width: "93%", left: "0%", right: "7%", height: "68%", top: "5%"},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
                       color: "var:noora-surface-label-secondary",
-                      interval: @label_interval
+                      customValues: @label_custom_values,
+                      padding: [10, 0, 0, 0]
                     }
                   },
                   yAxis: %{
@@ -222,18 +224,17 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
     """
   end
 
-  defp bytes_to_gib(bytes) do
-    Float.round(bytes / (1024 * 1024 * 1024), 1)
+  defp bytes_to_gb(bytes) do
+    Float.round(bytes / (1000 * 1000 * 1000), 1)
   end
 
   defp bytes_to_mib(bytes) do
     Float.round(bytes / (1024 * 1024), 2)
   end
 
-  defp format_time(offset_ms) do
-    total_seconds = div(offset_ms, 1000)
-    minutes = div(total_seconds, 60)
-    seconds = rem(total_seconds, 60)
-    "#{minutes}:#{String.pad_leading(Integer.to_string(seconds), 2, "0")}"
+  defp format_absolute_time(epoch_seconds) do
+    seconds = trunc(epoch_seconds)
+    datetime = DateTime.from_unix!(seconds)
+    Calendar.strftime(datetime, "%H:%M:%S")
   end
 end

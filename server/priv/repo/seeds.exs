@@ -2886,6 +2886,93 @@ IO.puts(
   "  - Created #{length(gradle_builds)} Gradle builds with #{length(gradle_tasks)} tasks and #{length(gradle_cache_events)} cache events"
 )
 
+# =============================================================================
+# Machine Metrics for Build Runs
+# =============================================================================
+#
+# Generate realistic machine metrics (CPU, memory, network, disk) for a subset
+# of Xcode and Gradle builds so the machine metrics tab has data to display.
+
+machine_metrics_build_count = min(200, length(builds))
+IO.puts("Generating machine metrics for #{machine_metrics_build_count} Xcode builds and #{length(gradle_builds)} Gradle builds...")
+
+xcode_machine_metrics =
+  builds
+  |> Enum.take(machine_metrics_build_count)
+  |> Enum.flat_map(fn build ->
+    # Build duration is in ms, generate a metric every ~5 seconds over the build duration
+    duration_seconds = max(div(build.duration, 1000), 10)
+    sample_count = max(div(duration_seconds, 5), 2)
+    # Use build inserted_at as epoch base
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> then(&(&1 * 1.0))
+    total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      t = base_epoch + i * 5.0
+      # Simulate a build profile: CPU ramps up, peaks mid-build, then drops
+      progress = i / max(sample_count - 1, 1)
+      base_cpu = 20.0 + 60.0 * :math.sin(progress * :math.pi())
+      cpu = min(100.0, max(0.0, base_cpu + (:rand.uniform() - 0.5) * 15.0))
+
+      # Memory grows over time
+      mem_ratio = 0.3 + 0.4 * progress + (:rand.uniform() - 0.5) * 0.05
+      memory_used = trunc(total_memory * min(mem_ratio, 0.95))
+
+      %{
+        build_run_id: build.id,
+        gradle_build_id: nil,
+        timestamp: t,
+        cpu_usage_percent: Float.round(cpu, 1),
+        memory_used_bytes: memory_used,
+        memory_total_bytes: total_memory,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..10_000_000),
+        disk_bytes_written: Enum.random(0..8_000_000),
+        inserted_at: NaiveDateTime.truncate(build.inserted_at, :second)
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(xcode_machine_metrics, Tuist.Builds.BuildMachineMetric, IngestRepo, "Xcode machine metrics")
+
+gradle_machine_metrics =
+  gradle_builds
+  |> Enum.flat_map(fn build ->
+    duration_seconds = max(div(build.duration_ms, 1000), 10)
+    sample_count = max(div(duration_seconds, 5), 2)
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> then(&(&1 * 1.0))
+    total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      t = base_epoch + i * 5.0
+      progress = i / max(sample_count - 1, 1)
+      base_cpu = 25.0 + 55.0 * :math.sin(progress * :math.pi())
+      cpu = min(100.0, max(0.0, base_cpu + (:rand.uniform() - 0.5) * 15.0))
+      mem_ratio = 0.35 + 0.35 * progress + (:rand.uniform() - 0.5) * 0.05
+      memory_used = trunc(total_memory * min(mem_ratio, 0.95))
+
+      %{
+        build_run_id: nil,
+        gradle_build_id: build.id,
+        timestamp: t,
+        cpu_usage_percent: Float.round(cpu, 1),
+        memory_used_bytes: memory_used,
+        memory_total_bytes: total_memory,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..10_000_000),
+        disk_bytes_written: Enum.random(0..8_000_000),
+        inserted_at: NaiveDateTime.truncate(build.inserted_at, :second)
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(gradle_machine_metrics, Tuist.Builds.BuildMachineMetric, IngestRepo, "Gradle machine metrics")
+
+IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
+IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
+
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")
 IO.puts("Generated:")
