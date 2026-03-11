@@ -45,6 +45,14 @@ COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
+# Build noora static assets (JS + CSS) from source
+COPY noora /noora
+WORKDIR /noora
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
+    npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+WORKDIR /app
+
 # ========================================
 # Stage 2: Base dependencies builder
 # Compiles all dependencies including runner as a dependency
@@ -147,6 +155,7 @@ COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
+COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
 
 RUN mix release

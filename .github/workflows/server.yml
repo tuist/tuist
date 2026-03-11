@@ -7,6 +7,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
   pull_request:
@@ -14,6 +15,7 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - noora/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
       - pnpm-lock.yaml
@@ -373,6 +375,12 @@ jobs:
           key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install dependencies
         run: mix deps.get && pnpm install --ignore-workspace
+      - name: Build noora static assets
+        working-directory: noora
+        run: |
+          pnpm install
+          npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js
+          npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
       - name: Install esbuild
         run: mix esbuild.install
       - name: Check esbuild output
