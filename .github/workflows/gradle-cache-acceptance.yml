@@ -66,10 +66,12 @@ jobs:
           cache: mise
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir java gradle tuist"
           cache: "false"
           working_directory: .
       - uses: jdx/mise-action@v3.2.0
         with:
+          install_args: "erlang elixir github:ClickHouse/ClickHouse"
           cache: "false"
           working_directory: server
       - uses: actions/setup-java@v4
