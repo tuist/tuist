@@ -24,6 +24,7 @@ concurrency:
 env:
   MIX_ENV: test
   PNPM_HOME: ~/.pnpm
+  MISE_GITHUB_ATTESTATIONS: 0
 
 defaults:
   run:

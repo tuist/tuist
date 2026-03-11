@@ -55,7 +55,6 @@ WORKDIR /app
 
 # ========================================
 # Stage 2: Base dependencies builder
-# Compiles all dependencies including runner as a dependency
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
@@ -75,9 +74,6 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
-# Only runner's mix.exs needed for deps.get to work
-COPY server/runner/mix.exs runner/mix.exs
-
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
 COPY noora /noora
@@ -88,57 +84,13 @@ RUN mix deps.get --only $MIX_ENV
 # Config files must be present before compiling dependencies
 COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 
-# Minimal runner source needed for compilation
-COPY server/runner/lib runner/lib
-
 # Copy processor source for path dependency compilation
 COPY processor/lib /processor/lib
 
 RUN mix deps.compile
 
 # ========================================
-# Stage 3: Runner binary builder
-# Builds the runner binary using compiled deps from deps-builder
-# ========================================
-FROM ${BUILDER_IMAGE} AS runner-binary-builder
-
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git xz-utils p7zip-full wget \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
-
-# Zig is not available via apt-get
-RUN wget -q https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz \
-  && tar -xf zig-x86_64-linux-0.14.1.tar.xz \
-  && mv zig-x86_64-linux-0.14.1 /usr/local/zig \
-  && ln -s /usr/local/zig/zig /usr/local/bin/zig \
-  && rm zig-x86_64-linux-0.14.1.tar.xz
-
-WORKDIR /app
-
-RUN mix local.hex --force && \
-  mix local.rebar --force
-
-ARG MIX_ENV=prod
-ENV MIX_ENV=$MIX_ENV
-ARG TUIST_HOSTED=1
-ENV TUIST_HOSTED=$TUIST_HOSTED
-
-# Reuse compiled dependencies from deps-builder
-COPY --from=deps-builder /app/mix.* ./
-COPY --from=deps-builder /app/deps deps
-COPY --from=deps-builder /app/_build _build
-COPY --from=deps-builder /app/config config
-COPY --from=deps-builder /tuist_common /tuist_common
-COPY --from=deps-builder /noora /noora
-
-COPY server/runner runner
-
-WORKDIR /app/runner
-RUN mix deps.get --only $MIX_ENV
-RUN MIX_ENV=prod mix release runner
-RUN mkdir -p /app/build && cp burrito_out/runner_macos /app/build/runner
-
-# ========================================
-# Stage 4: Main application builder
+# Stage 3: Main application builder
 # ========================================
 FROM deps-builder AS builder
 
@@ -238,10 +190,8 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
-COPY --from=runner-binary-builder /app/build/runner /app/bin/runner
-
 # ========================================
-# Stage 6: Default runtime (hosted) — no Swift NIF
+# Stage: Default runtime (hosted) — no Swift NIF
 # BuildKit skips swift-builder since it's not referenced by this target
 # ========================================
 FROM runner-base AS runner
@@ -251,7 +201,7 @@ USER nobody
 CMD ["sh", "-c", "/app/bin/start"]
 
 # ========================================
-# Stage 7: Self-hosted runtime — includes Swift NIF
+# Stage: Self-hosted runtime — includes Swift NIF
 # Build with: docker build --target runner-selfhosted .
 # ========================================
 FROM runner-base AS runner-selfhosted

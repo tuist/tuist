@@ -8,6 +8,7 @@ alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Builds.Build
+alias Tuist.Builds.BuildMachineMetric
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
@@ -17,9 +18,6 @@ alias Tuist.Gradle.Task, as: GradleTask
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
-alias Tuist.QA
-alias Tuist.QA.Log
-alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Slack.Installation
 alias Tuist.Tests.Test
@@ -229,8 +227,6 @@ end
 email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
 
-FunWithFlags.enable(:qa)
-
 _account =
   case Accounts.get_user_by_email(email) do
     {:error, :not_found} ->
@@ -337,17 +333,6 @@ tuist_project =
         vcs_provider: :github
       )
   end
-
-if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name: "login-credentials")) do
-  %QA.LaunchArgumentGroup{}
-  |> QA.LaunchArgumentGroup.create_changeset(%{
-    project_id: tuist_project.id,
-    name: "login-credentials",
-    value: "--email tuistrocks@tuist.dev --password tuistrocks",
-    description: "Log in credentials that can be used to skip the login"
-  })
-  |> Repo.insert!()
-end
 
 android_project =
   case Projects.get_project_by_slug("tuist/android") do
@@ -2070,283 +2055,6 @@ Enum.each(test_previews, fn preview_attrs ->
   end)
 end)
 
-app_builds = AppBuild |> Repo.all() |> Repo.preload(preview: :project)
-
-qa_prompts = [
-  "Test the main app flow and login functionality",
-  "Verify that all buttons work correctly and navigation is smooth",
-  "Check if the app handles edge cases properly",
-  "Test the user registration and onboarding process",
-  "Validate the app's performance under various conditions",
-  "Test accessibility features and VoiceOver support",
-  "Verify dark mode and light mode switching",
-  "Test the payment flow and subscription features",
-  "Check if push notifications work correctly",
-  "Test offline functionality and data synchronization"
-]
-
-qa_statuses = ["pending", "running", "completed", "failed"]
-
-selected_app_builds = Enum.take_random(app_builds, 25)
-
-qa_runs =
-  Enum.map(selected_app_builds, fn app_build ->
-    status = Enum.random(qa_statuses)
-    prompt = Enum.random(qa_prompts)
-
-    git_refs = ["main", "develop", "feature/new-ui", "feature/qa-testing", "release/v1.2.0"]
-
-    inserted_at =
-      DateTime.new!(
-        Date.add(DateTime.utc_now(), -Enum.random(0..30)),
-        Time.new!(
-          Enum.random(0..23),
-          Enum.random(0..59),
-          Enum.random(0..59)
-        )
-      )
-
-    finished_at =
-      if status in ["completed", "failed"] do
-        duration_minutes = Enum.random(5..45)
-        DateTime.add(inserted_at, duration_minutes * 60, :second)
-      end
-
-    base_attrs = %{
-      id: UUIDv7.generate(),
-      app_build_id: app_build.id,
-      prompt: prompt,
-      status: status,
-      git_ref: Enum.random(git_refs),
-      issue_comment_id: if(Enum.random([true, false]), do: Enum.random(1000..9999)),
-      inserted_at: inserted_at,
-      updated_at: inserted_at
-    }
-
-    if finished_at do
-      Map.put(base_attrs, :finished_at, finished_at)
-    else
-      base_attrs
-    end
-  end)
-
-Repo.insert_all(Run, qa_runs)
-
-qa_logs =
-  Enum.flat_map(qa_runs, fn qa_run ->
-    log_messages =
-      case qa_run.status do
-        "pending" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"}
-          ]
-
-        "running" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"},
-            {"info", "QA agent started"},
-            {"info", "Starting test execution"},
-            {"debug", "Loading app on simulator"},
-            {"info", "Running automated tests..."}
-          ]
-
-        "completed" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"},
-            {"info", "QA agent started"},
-            {"info", "Starting test execution"},
-            {"debug", "Loading app on simulator"},
-            {"info", "Running automated tests..."},
-            {"debug", "Screenshot captured for main screen"},
-            {"info", "Testing navigation flows"},
-            {"debug", "All UI elements found and verified"},
-            {"info", "Testing user interactions"},
-            {"debug", "Form validation tests passed"},
-            {"info", "Testing edge cases"},
-            {"debug", "Error handling validated"},
-            {"info", "All tests completed successfully"},
-            {"info", "Generating test summary"},
-            {"info", "QA run completed successfully"}
-          ]
-
-        "failed" ->
-          [
-            {"info", "QA run initialized"},
-            {"debug", "Waiting for agent to become available"},
-            {"info", "QA agent started"},
-            {"info", "Starting test execution"},
-            {"debug", "Loading app on simulator"},
-            {"info", "Running automated tests..."},
-            {"warning", "App took longer than expected to load"},
-            {"debug", "Screenshot captured for main screen"},
-            {"info", "Testing navigation flows"},
-            {"error", "Button element not found on screen"},
-            {"debug", "Attempting to retry element lookup"},
-            {"error", "Element lookup failed after retry"},
-            {"warning", "Continuing with remaining tests"},
-            {"info", "Testing user interactions"},
-            {"error", "Form submission failed - validation error"},
-            {"debug", "Error details: Required field missing"},
-            {"error", "Critical test failure detected"},
-            {"info", "Stopping test execution due to failures"},
-            {"error", "QA run failed with critical issues"}
-          ]
-      end
-
-    base_time = qa_run.inserted_at
-
-    duration_minutes =
-      case qa_run.status do
-        "pending" -> 1
-        "running" -> 15
-        "completed" -> 30
-        "failed" -> 20
-      end
-
-    log_messages
-    |> Enum.with_index()
-    |> Enum.map(fn {{level, message}, index} ->
-      minutes_offset = div(duration_minutes * index, length(log_messages))
-
-      log_timestamp =
-        base_time
-        |> NaiveDateTime.add(minutes_offset * 60, :second)
-        |> NaiveDateTime.truncate(:second)
-
-      level_int =
-        case level do
-          "debug" -> 0
-          "info" -> 1
-          "warning" -> 2
-          "error" -> 3
-        end
-
-      app_build = Enum.find(app_builds, &(&1.id == qa_run.app_build_id))
-      project_id = app_build.preview.project.id
-
-      %{
-        project_id: project_id,
-        qa_run_id: qa_run.id,
-        data: message,
-        type: level_int,
-        timestamp: log_timestamp,
-        inserted_at: log_timestamp
-      }
-    end)
-  end)
-
-qa_logs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  processed_logs =
-    Enum.map(chunk, fn log ->
-      %{
-        log
-        | timestamp: NaiveDateTime.truncate(log.timestamp, :second),
-          inserted_at: NaiveDateTime.truncate(log.inserted_at, :second)
-      }
-    end)
-
-  IngestRepo.insert_all(Log, processed_logs, timeout: 120_000)
-end)
-
-token_usage_data =
-  Enum.flat_map(qa_runs, fn qa_run ->
-    app_build = Enum.find(app_builds, &(&1.id == qa_run.app_build_id))
-    account_id = app_build.preview.project.account_id
-
-    case qa_run.status do
-      "completed" ->
-        base_time = qa_run.inserted_at
-
-        [
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(800..1500),
-            output_tokens: Enum.random(400..800),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(10..30), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(10..30), :second),
-            updated_at: DateTime.add(base_time, Enum.random(10..30), :second)
-          },
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(500..1000),
-            output_tokens: Enum.random(300..600),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(60..120), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(60..120), :second),
-            updated_at: DateTime.add(base_time, Enum.random(60..120), :second)
-          },
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(200..600),
-            output_tokens: Enum.random(100..300),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(150..200), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(150..200), :second),
-            updated_at: DateTime.add(base_time, Enum.random(150..200), :second)
-          }
-        ]
-
-      "failed" ->
-        base_time = qa_run.inserted_at
-
-        [
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(600..1200),
-            output_tokens: Enum.random(300..600),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(10..30), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(10..30), :second),
-            updated_at: DateTime.add(base_time, Enum.random(10..30), :second)
-          }
-        ]
-
-      "running" ->
-        base_time = qa_run.inserted_at
-
-        [
-          %{
-            id: UUIDv7.generate(),
-            input_tokens: Enum.random(400..800),
-            output_tokens: Enum.random(200..400),
-            model: "claude-sonnet-4-20250514",
-            feature: "qa",
-            feature_resource_id: qa_run.id,
-            account_id: account_id,
-            timestamp: DateTime.add(base_time, Enum.random(5..15), :second),
-            inserted_at: DateTime.add(base_time, Enum.random(5..15), :second),
-            updated_at: DateTime.add(base_time, Enum.random(5..15), :second)
-          }
-        ]
-
-      _ ->
-        []
-    end
-  end)
-
-if !Enum.empty?(token_usage_data) do
-  Repo.insert_all(Billing.TokenUsage, token_usage_data)
-  IO.puts("Created #{length(token_usage_data)} token usage records")
-end
-
 # Create bundles with artifacts
 bundle_types = [:app, :ipa, :xcarchive]
 
@@ -2896,6 +2604,95 @@ SeedHelpers.insert_bulk_ch(gradle_cache_events, GradleCacheEvent, IngestRepo, "G
 IO.puts(
   "  - Created #{length(gradle_builds)} Gradle builds with #{length(gradle_tasks)} tasks and #{length(gradle_cache_events)} cache events"
 )
+
+# =============================================================================
+# Machine Metrics for Build Runs
+# =============================================================================
+#
+# Generate realistic machine metrics (CPU, memory, network, disk) for a subset
+# of Xcode and Gradle builds so the machine metrics tab has data to display.
+
+machine_metrics_build_count = min(200, length(builds))
+
+IO.puts(
+  "Generating machine metrics for #{machine_metrics_build_count} Xcode builds and #{length(gradle_builds)} Gradle builds..."
+)
+
+xcode_machine_metrics =
+  builds
+  |> Enum.take(machine_metrics_build_count)
+  |> Enum.flat_map(fn build ->
+    # Build duration is in ms, generate a metric every ~5 seconds over the build duration
+    duration_seconds = max(div(build.duration, 1000), 10)
+    sample_count = max(div(duration_seconds, 5), 2)
+    # Use build inserted_at as epoch base
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> Kernel.*(1.0)
+    total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      t = base_epoch + i * 5.0
+      # Simulate a build profile: CPU ramps up, peaks mid-build, then drops
+      progress = i / max(sample_count - 1, 1)
+      base_cpu = 20.0 + 60.0 * :math.sin(progress * :math.pi())
+      cpu = min(100.0, max(0.0, base_cpu + (:rand.uniform() - 0.5) * 15.0))
+
+      # Memory grows over time
+      mem_ratio = 0.3 + 0.4 * progress + (:rand.uniform() - 0.5) * 0.05
+      memory_used = trunc(total_memory * min(mem_ratio, 0.95))
+
+      %{
+        build_run_id: build.id,
+        gradle_build_id: nil,
+        timestamp: t,
+        cpu_usage_percent: Float.round(cpu, 1),
+        memory_used_bytes: memory_used,
+        memory_total_bytes: total_memory,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..10_000_000),
+        disk_bytes_written: Enum.random(0..8_000_000),
+        inserted_at: NaiveDateTime.truncate(build.inserted_at, :second)
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(xcode_machine_metrics, BuildMachineMetric, IngestRepo, "Xcode machine metrics")
+
+gradle_machine_metrics =
+  Enum.flat_map(gradle_builds, fn build ->
+    duration_seconds = max(div(build.duration_ms, 1000), 10)
+    sample_count = max(div(duration_seconds, 5), 2)
+    base_epoch = build.inserted_at |> NaiveDateTime.diff(~N[1970-01-01 00:00:00]) |> Kernel.*(1.0)
+    total_memory = Enum.random([8, 16, 32, 64]) * 1_073_741_824
+
+    Enum.map(0..(sample_count - 1), fn i ->
+      t = base_epoch + i * 5.0
+      progress = i / max(sample_count - 1, 1)
+      base_cpu = 25.0 + 55.0 * :math.sin(progress * :math.pi())
+      cpu = min(100.0, max(0.0, base_cpu + (:rand.uniform() - 0.5) * 15.0))
+      mem_ratio = 0.35 + 0.35 * progress + (:rand.uniform() - 0.5) * 0.05
+      memory_used = trunc(total_memory * min(mem_ratio, 0.95))
+
+      %{
+        build_run_id: nil,
+        gradle_build_id: build.id,
+        timestamp: t,
+        cpu_usage_percent: Float.round(cpu, 1),
+        memory_used_bytes: memory_used,
+        memory_total_bytes: total_memory,
+        network_bytes_in: Enum.random(0..5_000_000),
+        network_bytes_out: Enum.random(0..2_000_000),
+        disk_bytes_read: Enum.random(0..10_000_000),
+        disk_bytes_written: Enum.random(0..8_000_000),
+        inserted_at: NaiveDateTime.truncate(build.inserted_at, :second)
+      }
+    end)
+  end)
+
+SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRepo, "Gradle machine metrics")
+
+IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
+IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

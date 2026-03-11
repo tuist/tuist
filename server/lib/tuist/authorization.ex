@@ -193,33 +193,6 @@ defmodule Tuist.Authorization do
     end
   end
 
-  object :qa_step do
-    action :create do
-      desc("Allows an account token with qa_step_create scope to create QA steps.")
-      allow([:authenticated_as_account, scopes_permit: "project:qa_step:create"])
-    end
-
-    action :update do
-      desc("Allows an account token with qa_step_update scope to update QA steps.")
-      allow([:authenticated_as_account, scopes_permit: "project:qa_step:update"])
-    end
-  end
-
-  object :qa_screenshot do
-    action :create do
-      desc("Allows an account token with qa_screenshot_create scope to create QA screenshots.")
-
-      allow([:authenticated_as_account, scopes_permit: "project:qa_screenshot:create"])
-    end
-  end
-
-  object :qa_run do
-    action :update do
-      desc("Allows an account token with qa_run_update scope to update a QA run.")
-      allow([:authenticated_as_account, scopes_permit: "project:qa_run:update"])
-    end
-  end
-
   object :preview do
     action :create do
       desc("Allows users of a project to create a preview.")
