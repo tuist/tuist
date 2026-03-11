@@ -72,9 +72,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
@@ -105,9 +105,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
@@ -135,9 +135,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -174,9 +174,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache.outputs.cache-matched-key == ''
         run: tuist install
@@ -204,9 +204,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -246,9 +246,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -295,9 +295,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -337,9 +337,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
