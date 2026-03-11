@@ -71,8 +71,6 @@ ARG MIX_ENV=prod
 ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
 ENV TUIST_HOSTED=$TUIST_HOSTED
-ARG TUIST_PROCESSOR_URL
-ENV TUIST_PROCESSOR_URL=$TUIST_PROCESSOR_URL
 
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
@@ -80,12 +78,10 @@ RUN mkdir config
 # Only runner's mix.exs needed for deps.get to work
 COPY server/runner/mix.exs runner/mix.exs
 
-# Copy path dependencies
+# Copy path dependencies (only mix.exs/mix.lock for dep resolution)
 COPY tuist_common /tuist_common
 COPY noora /noora
-
-# Copy processor source for path dependency (when TUIST_PROCESSOR_URL not set)
-COPY processor /processor
+COPY processor/mix.exs processor/mix.lock /processor/
 
 RUN mix deps.get --only $MIX_ENV
 
@@ -94,6 +90,9 @@ COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 
 # Minimal runner source needed for compilation
 COPY server/runner/lib runner/lib
+
+# Copy processor source for path dependency compilation
+COPY processor/lib /processor/lib
 
 RUN mix deps.compile
 
