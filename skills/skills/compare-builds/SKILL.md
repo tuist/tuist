@@ -11,7 +11,7 @@ You'll typically receive two build identifiers (IDs, dashboard URLs, or branch n
 
 1. Run `tuist build list --json` to find builds on each branch.
 2. Run `tuist build show <build-id> --json` for both base and head builds.
-3. Fetch sub-resource details: targets (`tuist build target list <id> --json`), issues (`tuist build issue list <id> --json`), and cache tasks (`tuist build cache-task list <id> --json`).
+3. Fetch sub-resource details: targets (`tuist build xcode target list <id> --json`), issues (`tuist build xcode issue list <id> --json`), and cache tasks (`tuist build xcode cache-task list <id> --json`).
 4. Compare duration, status, cache hit rates, and other metrics.
 5. Summarize regressions, improvements, and recommendations.
 
@@ -51,8 +51,8 @@ After fetching both builds with `tuist build show <id> --json`, drill down into 
 ### Compare targets
 
 ```bash
-tuist build target list <base-id> --json
-tuist build target list <head-id> --json
+tuist build xcode target list <base-id> --json
+tuist build xcode target list <head-id> --json
 ```
 
 Look for targets that changed status (e.g., success to failure) or had significant duration changes.
@@ -60,8 +60,8 @@ Look for targets that changed status (e.g., success to failure) or had significa
 ### Compare issues
 
 ```bash
-tuist build issue list <base-id> --json
-tuist build issue list <head-id> --json
+tuist build xcode issue list <base-id> --json
+tuist build xcode issue list <head-id> --json
 ```
 
 Look for new warnings or errors introduced in the head build.
@@ -69,8 +69,8 @@ Look for new warnings or errors introduced in the head build.
 ### Compare cache tasks
 
 ```bash
-tuist build cache-task list <base-id> --json
-tuist build cache-task list <head-id> --json
+tuist build xcode cache-task list <base-id> --json
+tuist build xcode cache-task list <head-id> --json
 ```
 
 Identify which specific targets had cache misses or hits and whether that changed between builds.
