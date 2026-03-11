@@ -106,6 +106,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let ciController: CIControlling
     private let clock: Clock
     private let listTestCasesService: ListTestCasesServicing
+    private let shardPlanService: ShardPlanServicing
+    private let shardExecuteService: ShardExecuteServicing
 
     public init(
         generatorFactory: GeneratorFactorying,
@@ -141,7 +143,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
         clock: Clock = WallClock(),
-        listTestCasesService: ListTestCasesServicing = ListTestCasesService()
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService(),
+        shardPlanService: ShardPlanServicing = ShardPlanService(),
+        shardExecuteService: ShardExecuteServicing = ShardExecuteService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -163,6 +167,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.ciController = ciController
         self.clock = clock
         self.listTestCasesService = listTestCasesService
+        self.shardPlanService = shardPlanService
+        self.shardExecuteService = shardExecuteService
     }
 
     public static func validateParameters(
@@ -202,7 +208,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
-        skipQuarantine: Bool = false
+        skipQuarantine: Bool = false,
+        shardConfiguration: ShardConfiguration? = nil,
+        shardIndex: Int? = nil
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -354,6 +362,35 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        var effectivePassthroughArgs = passthroughXcodeBuildArguments
+        var shardTestProductsPath: AbsolutePath?
+        let effectiveSchemeName = schemeName ?? schemes.first?.name ?? "Test"
+
+        if shardConfiguration != nil, action == .build {
+            let testProductsDir = path.appending(components: ".tuist", "test-products")
+            try await fileSystem.makeDirectory(at: testProductsDir)
+            let productsPath = testProductsDir.appending(component: "\(effectiveSchemeName).xctestproducts")
+            shardTestProductsPath = productsPath
+            effectivePassthroughArgs += ["-testProductsPath", productsPath.pathString]
+        }
+
+        if let shardIndex, action == .testWithoutBuilding, let fullHandle = config.fullHandle {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let outputPath = path.appending(components: ".tuist", "shard-output")
+            try await fileSystem.makeDirectory(at: outputPath)
+            let result = try await shardExecuteService.execute(
+                shardIndex: shardIndex,
+                scheme: effectiveSchemeName,
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                outputPath: outputPath
+            )
+            effectivePassthroughArgs += ["-testProductsPath", result.testProductsPath.pathString]
+            for target in result.testTargets {
+                effectivePassthroughArgs += ["-only-testing", target]
+            }
+        }
+
         do {
             try await testSchemes(
                 schemes,
@@ -374,7 +411,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testTargets: testTargets,
                 skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                passthroughXcodeBuildArguments: effectivePassthroughArgs,
                 config: config
             )
         } catch {
@@ -389,6 +426,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
+
+        if let shardConfiguration, action == .build,
+           let shardTestProductsPath,
+           let fullHandle = config.fullHandle
+        {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            _ = try await shardPlanService.plan(
+                xctestproductsPath: shardTestProductsPath,
+                scheme: effectiveSchemeName,
+                shardConfiguration: shardConfiguration,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        }
     }
 
     // MARK: - Helpers

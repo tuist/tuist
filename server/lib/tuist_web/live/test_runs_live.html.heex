@@ -487,6 +487,18 @@
           <:col :let={test_run} label={dgettext("dashboard_tests", "Ran by")}>
             <.test_ran_by_badge_cell test={test_run} />
           </:col>
+          <:col
+            :let={test_run}
+            :if={
+              Enum.any?(@test_runs, &(&1.shard_session_id != "" && &1.shard_session_id != nil))
+            }
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell
+              :if={test_run.shard_session_id != "" && test_run.shard_session_id != nil}
+              label={"##{test_run.shard_index}"}
+            />
+          </:col>
           <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
             <.text_cell
               label={

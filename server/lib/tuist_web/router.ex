@@ -407,6 +407,14 @@ defmodule TuistWeb.Router do
           post "/", TestsController, :create
           post "/crash-reports", CrashReportsController, :create
           post "/attachments", TestCaseRunAttachmentsController, :create
+
+          scope "/shards" do
+            post "/", ShardsController, :create
+            post "/generate-url", ShardsController, :generate_url
+            post "/generate-xctestrun-url", ShardsController, :generate_xctestrun_url
+            post "/complete", ShardsController, :complete
+            get "/:session_id/:shard_index", ShardsController, :show
+          end
         end
 
         scope "/builds" do

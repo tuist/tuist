@@ -68,6 +68,8 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
+      |> assign(:shard_balance, Tests.Analytics.shard_balance_metrics(run.shard_session_id))
+      |> assign(:is_sharded, run.shard_session_id != "" && run.shard_session_id != nil)
       |> assign_async(:has_result_bundle, fn ->
         {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
       end)
