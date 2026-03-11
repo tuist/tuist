@@ -15,7 +15,10 @@ public struct TestModuleListCommand: AsyncParsableCommand, NooraReadyCommand {
     @Argument(help: "The ID of the test run.")
     var testRunId: String
 
-    @Option(name: [.customLong("project"), .customShort("P")], help: "The full handle of the project. Must be in the format of account-handle/project-handle.")
+    @Option(
+        name: [.customLong("project"), .customShort("P")],
+        help: "The full handle of the project. Must be in the format of account-handle/project-handle."
+    )
     var project: String?
 
     @Option(name: .shortAndLong, help: "The path to the directory or a subdirectory of the project.", completion: .directory)
