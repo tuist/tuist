@@ -122,7 +122,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         files: Enum.map(parsed[:files] || [], &atomize_keys/1),
         cacheable_tasks: Enum.map(parsed[:cacheable_tasks] || [], &atomize_keys/1),
         cas_outputs: Enum.map(parsed[:cas_outputs] || [], &atomize_keys/1),
-        machine_metrics: Enum.map(parsed[:machine_metrics] || [], &snake_case_keys/1)
+        machine_metrics: Enum.map(parsed[:machine_metrics] || [], &atomize_keys/1)
       })
 
     {:ok, _build} = Builds.create_build(attrs)
@@ -147,10 +147,4 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
     end)
   end
 
-  defp snake_case_keys(map) when is_map(map) do
-    Map.new(map, fn
-      {k, v} when is_binary(k) -> {k |> Macro.underscore() |> String.to_existing_atom(), v}
-      other -> other
-    end)
-  end
 end

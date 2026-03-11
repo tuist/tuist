@@ -57,23 +57,23 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     Map.put(parsed_data(), "machine_metrics", [
       %{
         "timestamp" => 1_710_000_000,
-        "cpuUsagePercent" => 75.5,
-        "memoryUsedBytes" => 8_000_000_000,
-        "memoryTotalBytes" => 16_000_000_000,
-        "networkBytesIn" => 1_000_000,
-        "networkBytesOut" => 500_000,
-        "diskBytesRead" => 2_000_000,
-        "diskBytesWritten" => 1_500_000
+        "cpu_usage_percent" => 75.5,
+        "memory_used_bytes" => 8_000_000_000,
+        "memory_total_bytes" => 16_000_000_000,
+        "network_bytes_in" => 1_000_000,
+        "network_bytes_out" => 500_000,
+        "disk_bytes_read" => 2_000_000,
+        "disk_bytes_written" => 1_500_000
       },
       %{
         "timestamp" => 1_710_000_005,
-        "cpuUsagePercent" => 82.3,
-        "memoryUsedBytes" => 8_500_000_000,
-        "memoryTotalBytes" => 16_000_000_000,
-        "networkBytesIn" => 1_200_000,
-        "networkBytesOut" => 600_000,
-        "diskBytesRead" => 2_500_000,
-        "diskBytesWritten" => 1_800_000
+        "cpu_usage_percent" => 82.3,
+        "memory_used_bytes" => 8_500_000_000,
+        "memory_total_bytes" => 16_000_000_000,
+        "network_bytes_in" => 1_200_000,
+        "network_bytes_out" => 600_000,
+        "disk_bytes_read" => 2_500_000,
+        "disk_bytes_written" => 1_800_000
       }
     ])
   end
@@ -113,7 +113,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
-    test "converts machine metrics from camelCase to snake_case", %{
+    test "atomizes machine metrics keys", %{
       account: account,
       project: project,
       build: build

@@ -38,6 +38,7 @@ public struct MachineMetricsReader {
         }
 
         let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
         let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
 
         let samples = lines.compactMap { line -> MachineMetricSample? in
