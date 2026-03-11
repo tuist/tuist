@@ -83,7 +83,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               show_legend={false}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
+                  grid: %{left: "3%", right: "5%", bottom: "10%", top: "8%", containLabel: true},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
@@ -116,7 +116,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               show_legend={false}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "3%", top: "8%", containLabel: true},
+                  grid: %{left: "3%", right: "5%", bottom: "10%", top: "8%", containLabel: true},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
@@ -155,7 +155,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
+                  grid: %{left: "3%", right: "5%", bottom: "25%", top: "8%", containLabel: true},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
@@ -194,7 +194,7 @@ defmodule TuistWeb.Components.MachineMetricsCharts do
               colors={["var:noora-chart-primary", "var:noora-chart-secondary"]}
               extra_options={
                 %{
-                  grid: %{left: "3%", right: "3%", bottom: "15%", top: "8%", containLabel: true},
+                  grid: %{left: "3%", right: "5%", bottom: "25%", top: "8%", containLabel: true},
                   xAxis: %{
                     boundaryGap: false,
                     axisLabel: %{
