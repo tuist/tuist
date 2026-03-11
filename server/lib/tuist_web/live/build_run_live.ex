@@ -97,6 +97,9 @@ defmodule TuistWeb.BuildRunLive do
         {:error, :not_found} -> nil
       end
 
+    project = socket.assigns.selected_project
+    run_id = run.id
+
     socket
     |> assign(:command_event, command_event)
     |> assign(:test_run, test_run)
@@ -114,8 +117,7 @@ defmodule TuistWeb.BuildRunLive do
       {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
     end)
     |> assign_async(:has_build_download, fn ->
-      project = socket.assigns.selected_project
-      storage_key = Builds.build_storage_key(project.account.name, project.name, run.id)
+      storage_key = Builds.build_storage_key(project.account.name, project.name, run_id)
       {:ok, %{has_build_download: Tuist.Storage.object_exists?(storage_key, project.account)}}
     end)
   end
