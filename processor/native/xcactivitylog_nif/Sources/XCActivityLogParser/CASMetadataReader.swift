@@ -37,7 +37,7 @@ struct CASMetadataReader {
     }
 
     func readKeyValueMetadata(key: String, operationType: String) async -> KeyValueMetadataEntry? {
-        let safeKey = sanitize(key)
+        let safeKey = sanitizeCacheKey(key)
         let path = casMetadataPath.appending(components: "keyvalue", operationType, "\(safeKey).json")
         guard let data = try? await fileSystem.readFile(at: path),
               let entry = try? JSONDecoder().decode(KeyValueMetadataEntry.self, from: Data(data))
@@ -48,5 +48,11 @@ struct CASMetadataReader {
     private func sanitize(_ value: String) -> String {
         value.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
+    }
+
+    private func sanitizeCacheKey(_ value: String) -> String {
+        value.replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+            .replacingOccurrences(of: "~", with: "_")
     }
 }
