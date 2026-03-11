@@ -564,6 +564,10 @@
     var(--noora-yellow-600),
     var(--noora-yellow-500)
   );
+  --noora-badge-status-in-progress: light-dark(
+    var(--noora-neutral-light-900),
+    var(--noora-neutral-dark-200)
+  )
 
   /* Borders */
   --noora-surface-border-primary: light-dark(
