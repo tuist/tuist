@@ -1,0 +1,24 @@
+{
+  "assignment_id": "demo-001",
+  "base_vm": "tuist-sequoia-base",
+  "cache": {
+    "hostname": "tuist-01-test-cache.par.runners.tuist.dev",
+    "host_gateway": "192.168.64.1",
+    "private_ip": "172.16.16.4"
+  },
+  "github": {
+    "registration_mode": "registration_token",
+    "runner_name": "tuist-assignment-demo-001",
+    "work_folder": "_work",
+    "labels": [
+      "self-hosted",
+      "macos",
+      "apple-silicon",
+      "scaleway",
+      "xcode-26-2"
+    ],
+    "registration": {
+      "token": "ghs_dummy_registration_token"
+    }
+  }
+}
