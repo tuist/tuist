@@ -1,0 +1,5 @@
+I tried to use the mcp in production. It workd, but I noticed this even though it eventually succeeds:
+
+---
+
+Can you open a PR with this fix?
