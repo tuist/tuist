@@ -3,9 +3,9 @@
   "checkpoint_id": "79df315c715c",
   "session_id": "9dd43d51-8ce7-4538-92b2-509c08c19c87",
   "strategy": "manual-commit",
-  "created_at": "2026-03-11T11:43:45.252948Z",
-  "branch": "feat/comparison-skills",
-  "checkpoints_count": 3,
+  "created_at": "2026-03-11T13:47:09.376661Z",
+  "branch": "fix/flaky-overview-live-tests",
+  "checkpoints_count": 2,
   "files_touched": [
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
@@ -16,30 +16,26 @@
     "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
-    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
-    "server/lib/tuist_web/controllers/api/build_cache_tasks_controller.ex",
-    "server/lib/tuist_web/controllers/api/build_cas_outputs_controller.ex",
-    "server/lib/tuist_web/controllers/api/build_files_controller.ex",
-    "server/lib/tuist_web/controllers/api/build_targets_controller.ex"
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
   "agent": "Claude Code",
-  "transcript_identifier_at_start": "e617af55-a000-4d1e-b0d7-041133604c82",
-  "checkpoint_transcript_start": 2775,
-  "transcript_lines_at_start": 2775,
+  "transcript_identifier_at_start": "631e3954-d447-4c2c-9f97-fc70a8c09a90",
+  "checkpoint_transcript_start": 2987,
+  "transcript_lines_at_start": 2987,
   "token_usage": {
-    "input_tokens": 79,
-    "cache_creation_tokens": 366173,
-    "cache_read_tokens": 7085691,
-    "output_tokens": 14263,
-    "api_call_count": 71
+    "input_tokens": 8,
+    "cache_creation_tokens": 1375,
+    "cache_read_tokens": 305964,
+    "output_tokens": 288,
+    "api_call_count": 4
   },
   "initial_attribution": {
-    "calculated_at": "2026-03-11T11:43:44.774224Z",
+    "calculated_at": "2026-03-11T13:47:07.873734Z",
     "agent_lines": 0,
-    "human_added": 202667,
+    "human_added": 135155,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 202667,
+    "total_committed": 135155,
     "agent_percentage": 0
   }
 }

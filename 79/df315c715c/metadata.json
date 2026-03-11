@@ -2,8 +2,8 @@
   "cli_version": "0.4.2",
   "checkpoint_id": "79df315c715c",
   "strategy": "manual-commit",
-  "branch": "feat/comparison-skills",
-  "checkpoints_count": 3,
+  "branch": "fix/flaky-overview-live-tests",
+  "checkpoints_count": 2,
   "files_touched": [
     "examples/xcode/generated_tuist_plugin/.gitignore",
     "examples/xcode/generated_tuist_plugin/Package.resolved",
@@ -14,11 +14,7 @@
     "examples/xcode/generated_tuist_plugin/Sources/InspectGraph/main.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/custom_two.swift",
     "examples/xcode/generated_tuist_plugin/Templates/custom_two/platform_two.stencil",
-    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift",
-    "server/lib/tuist_web/controllers/api/build_cache_tasks_controller.ex",
-    "server/lib/tuist_web/controllers/api/build_cas_outputs_controller.ex",
-    "server/lib/tuist_web/controllers/api/build_files_controller.ex",
-    "server/lib/tuist_web/controllers/api/build_targets_controller.ex"
+    "examples/xcode/generated_tuist_plugin/Tests/CreateFileTests/Test.swift"
   ],
   "sessions": [
     {
@@ -30,10 +26,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 79,
-    "cache_creation_tokens": 366173,
-    "cache_read_tokens": 7085691,
-    "output_tokens": 14263,
-    "api_call_count": 71
+    "input_tokens": 8,
+    "cache_creation_tokens": 1375,
+    "cache_read_tokens": 305964,
+    "output_tokens": 288,
+    "api_call_count": 4
   }
 }

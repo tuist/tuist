@@ -396,3 +396,25 @@ Summary:
 
 If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /Users/pepicrft/.REDACTED.jsonl
 Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
+
+---
+
+<task-notification>
+<task-id>bceqonrph</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/bceqonrph.output</output-file>
+<status>completed</status>
+<summary>Background command "Resolve conflicts with theirs and continue rebase" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/bceqonrph.output
+
+---
+
+<task-notification>
+<task-id>bdaulx2go</task-id>
+<tool-use-id>toolu_01Nz884q3oVY2ShvVqjJpP4d</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/bdaulx2go.output</output-file>
+<status>completed</status>
+<summary>Background command "Watch CI checks" completed (exit code 0)</summary>
+</task-notification>
+Read the output file to retrieve the result: /private/tmp/claude-501/-Users-pepicrft-src-github-com-tuist-tuist3/tasks/bdaulx2go.output
