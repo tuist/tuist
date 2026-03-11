@@ -284,6 +284,80 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_included_targets_were_pruned_by_selective_testing_does_not_throw() throws {
+        // Given
+        let aTarget = Target.test(name: "App", product: .app)
+        let aTests = Target.test(name: "AppTests", product: .unitTests)
+        let libTests = Target.test(name: "LibTests", product: .unitTests)
+        let subject = FocusTargetsGraphMappers(
+            includedTargets: [.named("AppTests"), .named("LibTests")]
+        )
+        let path = try temporaryPath()
+        // The initial graph (before selective testing) had LibTests
+        let initialProject = Project.test(path: path, targets: [aTarget, aTests, libTests])
+        let initialGraph = Graph.test(
+            projects: [initialProject.path: initialProject],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        // After selective testing + tree shaking, LibTests was removed
+        let project = Project.test(path: path, targets: [aTarget, aTests])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+
+        // When / Then — should not throw despite LibTests missing from the current graph
+        let (_, gotSideEffects, _) = try subject.map(graph: graph, environment: environment)
+        XCTAssertEmpty(gotSideEffects)
+    }
+
+    func test_map_when_some_included_targets_were_pruned_and_others_do_not_exist_throws() throws {
+        // Given
+        let aTarget = Target.test(name: "App", product: .app)
+        let aTests = Target.test(name: "AppTests", product: .unitTests)
+        let libTests = Target.test(name: "LibTests", product: .unitTests)
+        let subject = FocusTargetsGraphMappers(
+            includedTargets: [.named("AppTests"), .named("LibTests"), .named("NonExistent")]
+        )
+        let path = try temporaryPath()
+        let initialProject = Project.test(path: path, targets: [aTarget, aTests, libTests])
+        let initialGraph = Graph.test(
+            projects: [initialProject.path: initialProject],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        let project = Project.test(path: path, targets: [aTarget, aTests])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: aTests.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraph = initialGraph
+
+        // When / Then — LibTests is in initialGraph so it's fine, but NonExistent is truly missing
+        XCTAssertThrowsSpecific(
+            try subject.map(graph: graph, environment: environment),
+            FocusTargetsGraphMappersError.targetsNotFound(["NonExistent"])
+        )
+    }
+
     func test_map_when_included_targets_is_unused_tag() throws {
         // Given
         let targetNames = ["foo"]
