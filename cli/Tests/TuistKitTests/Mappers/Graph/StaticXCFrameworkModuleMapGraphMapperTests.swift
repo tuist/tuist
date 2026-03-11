@@ -276,6 +276,12 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         let googleMapsPath = projectPath
             .parentDirectory
             .appending(component: "GoogleMaps.xcframework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: googleMapsHeadersPath.appending(component: "module.modulemap")
+        )
 
         let graph: Graph = .test(
             name: "App",
@@ -325,7 +331,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                             ]
                         ),
                         linking: .static,
-                        moduleMaps: []
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
                     ),
                 ],
             ]
