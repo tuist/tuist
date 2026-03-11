@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-02-06 13:03+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
-"Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\n"
-"Language: ja\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-11 18:32+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -946,7 +934,7 @@ msgstr "コード変更なしに失敗する不安定なテストを自動検出
 
 #, fuzzy
 msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
-msgstr "ビルド期間のメトリクス（p90、p99、平均パーセンタイル）を示すインサイトチャートを作成する"
+msgstr "ビルド期間のメトリクス（p90、p99、平均パーセンタイル）を表示するインサイトチャートを作成する"
 
 #, fuzzy
 msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
