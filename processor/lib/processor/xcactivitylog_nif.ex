@@ -16,7 +16,7 @@ defmodule Processor.XCActivityLogNIF do
     case :erlang.load_nif(nif_path, 0) do
       :ok -> :ok
       {:error, {:reload, _}} -> :ok
-      {:error, reason} -> {:error, reason}
+      {:error, _reason} -> :ok
     end
   end
 
