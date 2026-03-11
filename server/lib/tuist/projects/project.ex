@@ -42,6 +42,7 @@ defmodule Tuist.Projects.Project do
 
     has_many :previews, Preview
     has_one :vcs_connection, VCSConnection
+
     has_many :users_with_last_visited_projects, User,
       foreign_key: :last_visited_project_id,
       foreign_key: :last_visited_project_id,

@@ -107,5 +107,4 @@ defmodule Tuist.Loops do
       "cmfgl9s214xcv0izt5jyu7e9d" => true
     })
   end
-
 end
