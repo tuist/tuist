@@ -127,58 +127,60 @@ defmodule TuistWeb.API.BuildFilesController do
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
-        if build.project_id == selected_project.id do
-          filters = [%{field: :build_run_id, op: :==, value: build_id}]
+      %{project_id: project_id} when project_id == selected_project.id ->
+        filters = build_filters(build_id, params)
 
-          filters =
-            Enum.reduce([:target, :type], filters, fn field, acc ->
-              case Map.get(params, field) do
-                nil -> acc
-                value -> acc ++ [%{field: field, op: :==, value: value}]
-              end
-            end)
+        {order_by, order_directions} =
+          case Map.get(params, :sort_by) do
+            "path" -> {[:path], [:asc]}
+            _ -> {[:compilation_duration], [:desc]}
+          end
 
-          {order_by, order_directions} =
-            case Map.get(params, :sort_by) do
-              "path" -> {[:path], [:asc]}
-              _ -> {[:compilation_duration], [:desc]}
-            end
-
-          {files, meta} =
-            Builds.list_build_files(%{
-              filters: filters,
-              order_by: order_by,
-              order_directions: order_directions,
-              page: page,
-              page_size: page_size
-            })
-
-          json(conn, %{
-            files:
-              Enum.map(files, fn file ->
-                %{
-                  type: to_string(file.type),
-                  target: file.target,
-                  project: file.project,
-                  path: file.path,
-                  compilation_duration: file.compilation_duration
-                }
-              end),
-            pagination_metadata: %{
-              has_next_page: meta.has_next_page?,
-              has_previous_page: meta.has_previous_page?,
-              current_page: meta.current_page,
-              page_size: meta.page_size,
-              total_count: meta.total_count,
-              total_pages: meta.total_pages
-            }
+        {files, meta} =
+          Builds.list_build_files(%{
+            filters: filters,
+            order_by: order_by,
+            order_directions: order_directions,
+            page: page,
+            page_size: page_size
           })
-        else
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Build not found."})
-        end
+
+        json(conn, %{
+          files:
+            Enum.map(files, fn file ->
+              %{
+                type: to_string(file.type),
+                target: file.target,
+                project: file.project,
+                path: file.path,
+                compilation_duration: file.compilation_duration
+              }
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
+          }
+        })
+
+      _build ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "Build not found."})
     end
+  end
+
+  defp build_filters(build_id, params) do
+    base = [%{field: :build_run_id, op: :==, value: build_id}]
+
+    Enum.reduce([:target, :type], base, fn field, acc ->
+      case Map.get(params, field) do
+        nil -> acc
+        value -> acc ++ [%{field: field, op: :==, value: value}]
+      end
+    end)
   end
 end
