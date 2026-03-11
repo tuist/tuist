@@ -14,7 +14,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   def perform(%Oban.Job{
         args:
           %{"build_id" => build_id, "storage_key" => storage_key, "account_id" => account_id, "project_id" => project_id} =
-            args
+            args,
+        attempt: attempt,
+        max_attempts: max_attempts
       }) do
     processor_url = Tuist.Environment.processor_url()
     xcode_cache_upload_enabled = Map.get(args, "xcode_cache_upload_enabled", false)
@@ -32,7 +34,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
         replace_build_run(build_id, parsed_data)
 
       {:error, reason} ->
-        mark_build_failed(build_id, project_id, account_id)
+        if attempt >= max_attempts do
+          mark_build_failed(build_id, project_id, account_id)
+        end
+
         {:error, reason}
     end
   end

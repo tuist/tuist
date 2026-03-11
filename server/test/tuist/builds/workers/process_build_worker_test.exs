@@ -26,16 +26,18 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
     %{account: account, project: project, build: build}
   end
 
-  defp job_args(build_id, account_id, project_id, opts \\ []) do
-    xcode_cache_upload_enabled = Keyword.get(opts, :xcode_cache_upload_enabled, true)
-
+  defp job_args(build_id, account_id, project_id) do
     %{
       "build_id" => build_id,
       "storage_key" => @storage_key,
       "account_id" => account_id,
       "project_id" => project_id,
-      "xcode_cache_upload_enabled" => xcode_cache_upload_enabled
+      "xcode_cache_upload_enabled" => true
     }
+  end
+
+  defp oban_job(args, attempt \\ 1, max_attempts \\ 3) do
+    %Oban.Job{args: args, attempt: attempt, max_attempts: max_attempts}
   end
 
   defp parsed_data do
@@ -108,9 +110,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "converts machine metrics from camelCase to snake_case", %{
@@ -141,9 +141,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "signs webhook request with HMAC-SHA256", %{
@@ -167,12 +165,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       expect(Tuist.Builds, :create_build, fn _attrs -> {:ok, %{id: build.id}} end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
-    test "marks build as failed when processor returns non-200", %{
+    test "marks build as failed on final attempt when processor returns non-200", %{
       account: account,
       project: project,
       build: build
@@ -188,12 +184,25 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, _} =
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when HTTP request fails", %{
+    test "does not mark build as failed on non-final attempt", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      expect(Req, :post, fn _url, _opts ->
+        {:error, :closed}
+      end)
+
+      reject(&Tuist.Builds.create_build/1)
+
+      assert {:error, :closed} =
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 1, 3))
+    end
+
+    test "marks build as failed on final attempt when HTTP request fails", %{
       account: account,
       project: project,
       build: build
@@ -208,9 +217,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :timeout} =
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
   end
 
@@ -244,9 +251,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "processes locally with machine metrics", %{
@@ -273,12 +278,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
-    test "marks build as failed when download fails", %{
+    test "marks build as failed when download fails on final attempt", %{
       account: account,
       project: project,
       build: build
@@ -293,12 +296,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :not_found} =
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when local processing returns error", %{
+    test "marks build as failed when local processing returns error on final attempt", %{
       account: account,
       project: project,
       build: build
@@ -317,12 +318,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, {:parse_failed, "NIF not loaded"}} =
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id), 3, 3))
     end
 
-    test "marks build as failed when account is not found", %{project: project, build: build} do
+    test "marks build as failed when account is not found on final attempt", %{project: project, build: build} do
       expect(Tuist.Accounts, :get_account_by_id, fn _id ->
         {:error, :not_found}
       end)
@@ -333,9 +332,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert {:error, :not_found} =
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, "999999", project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, "999999", project.id), 3, 3))
     end
   end
 
@@ -366,9 +363,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
   end
 
@@ -399,9 +394,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "handles missing machine_metrics in parsed data gracefully", %{
@@ -421,9 +414,7 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
       end)
 
       assert :ok ==
-               ProcessBuildWorker.perform(%Oban.Job{
-                 args: job_args(build.id, account.id, project.id)
-               })
+               ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
   end
 end
