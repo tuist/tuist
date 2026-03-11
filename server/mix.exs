@@ -152,12 +152,9 @@ defmodule Tuist.MixProject do
       {:opentelemetry_logger_metadata, "~> 0.1"},
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
-      {:loki_logger_handler, "~> 0.2"}
-    ] ++
-      if(is_nil(System.get_env("TUIST_PROCESSOR_URL")),
-        do: [{:processor, path: "../processor", runtime: false}],
-        else: []
-      )
+      {:loki_logger_handler, "~> 0.2"},
+      {:processor, path: "../processor", runtime: false}
+    ]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.

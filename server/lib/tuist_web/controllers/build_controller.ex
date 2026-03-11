@@ -23,6 +23,12 @@ defmodule TuistWeb.BuildController do
       |> redirect(external: url)
       |> halt()
     else
+      {:error, :forbidden} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{error: dgettext("errors", "You are not authorized to access this build")})
+        |> halt()
+
       _ ->
         raise NotFoundError, dgettext("errors", "Build not found")
     end

@@ -952,7 +952,9 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   operation(:multipart_start,
-    summary: "Start a multipart upload for a build.",
+    summary: "Start a multipart upload for a build archive.",
+    description:
+      "Initiates a multipart upload for a build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics) to be processed server-side.",
     operation_id: "startBuildsMultipartUpload",
     parameters: [
       account_handle: [
@@ -972,7 +974,7 @@ defmodule TuistWeb.API.BuildsController do
       {"Build multipart upload start params", "application/json",
        %Schema{
          title: "BuildMultipartUploadStartParams",
-         description: "Parameters to start a multipart upload for a build.",
+         description: "Parameters to start a multipart upload for a build archive.",
          type: :object,
          properties: %{
            build_id: %Schema{
@@ -1004,9 +1006,9 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   operation(:multipart_generate_url,
-    summary: "Generate a signed URL for uploading a build part.",
+    summary: "Generate a signed URL for uploading a build archive part.",
     description:
-      "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload.",
+      "Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of the build archive (zip containing the xcactivitylog, CAS metadata, and machine metrics).",
     operation_id: "generateBuildsMultipartUploadURL",
     parameters: [
       account_handle: [
@@ -1073,8 +1075,9 @@ defmodule TuistWeb.API.BuildsController do
   end
 
   operation(:multipart_complete,
-    summary: "Complete a multipart upload for a build.",
-    description: "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload.",
+    summary: "Complete a multipart upload for a build archive.",
+    description:
+      "Given the upload ID and all the parts with their ETags, this endpoint completes the multipart upload of the build archive and enqueues it for server-side processing.",
     operation_id: "completeBuildsMultipartUpload",
     parameters: [
       account_handle: [
