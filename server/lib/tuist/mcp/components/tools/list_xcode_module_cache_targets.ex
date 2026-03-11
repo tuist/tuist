@@ -3,66 +3,72 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
   List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  use Tuist.MCP.Tool,
+    name: "list_xcode_module_cache_targets",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the generation or cache run."
+        },
+        "cache_status" => %{
+          "type" => "string",
+          "description" => "Filter by cache status: miss, local, or remote."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["run_id"]
+    }
 
-  alias Anubis.Server.Response
   alias Tuist.CommandEvents
-  alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Xcode
 
-  @authorization_action :read
-  @authorization_category :run
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List module cache targets for a generation or cache run, showing per-target cache hit/miss status and subhashes. Only available for projects with build_system=xcode. The run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/runs/{id}."
 
-  schema do
-    field :run_id, :string,
-      required: true,
-      description: "The ID of the generation or cache run."
-
-    field :cache_status, :string, description: "Filter by cache status: miss, local, or remote."
-
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
-  end
-
-  @impl true
-  def execute(%{run_id: run_id} = arguments, frame) do
-    with {:ok, event} <-
-           ToolSupport.load_resource(
+  def execute(conn, %{"run_id" => run_id} = args) do
+    with {:ok, event, _project} <-
+           MCPTool.load_and_authorize(
              get_command_event(run_id),
-             "Run not found: #{run_id}",
-             frame
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             frame,
-             event.project_id,
-             @authorization_action,
-             @authorization_category
+             conn.assigns,
+             :read,
+             :run,
+             "Run not found: #{run_id}"
            ) do
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
-      flop_params = maybe_add_filter(%{page: page, page_size: page_size}, arguments)
+      flop_params = maybe_add_filter(%{page: page, page_size: page_size}, args)
 
       {analytics, meta} = Xcode.binary_cache_analytics(event, flop_params)
 
-      data = %{
-        targets:
-          Enum.map(analytics.cacheable_targets, fn target ->
-            %{
-              name: target.name,
-              cache_status: to_string(target.binary_cache_hit),
-              cache_hash: target.binary_cache_hash,
-              product: non_empty(target.product),
-              bundle_id: non_empty(target.bundle_id),
-              product_name: non_empty(target.product_name),
-              subhashes: build_subhashes(target)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
-
-      {:reply, Response.json(Response.tool(), data), frame}
+      {:ok,
+       %{
+         targets:
+           Enum.map(analytics.cacheable_targets, fn target ->
+             %{
+               name: target.name,
+               cache_status: to_string(target.binary_cache_hit),
+               cache_hash: target.binary_cache_hash,
+               product: non_empty(target.product),
+               bundle_id: non_empty(target.bundle_id),
+               product_name: non_empty(target.product_name),
+               subhashes: build_subhashes(target)
+             }
+           end),
+         pagination_metadata: MCPTool.pagination_metadata(meta)
+       }}
     end
   end
 
@@ -74,8 +80,8 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets do
     end
   end
 
-  defp maybe_add_filter(flop_params, arguments) do
-    case Map.get(arguments, :cache_status) do
+  defp maybe_add_filter(flop_params, args) do
+    case Map.get(args, "cache_status") do
       nil ->
         flop_params
 

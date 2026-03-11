@@ -3,53 +3,66 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  use Tuist.MCP.Tool,
+    name: "list_xcode_build_cas_outputs",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run."
+        },
+        "operation" => %{
+          "type" => "string",
+          "description" => "Filter by operation: download or upload."
+        },
+        "type" => %{
+          "type" => "string",
+          "description" => "Filter by CAS output type (e.g. swift, object, dSYM)."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["build_run_id"]
+    }
 
-  alias Anubis.Server.Response
   alias Tuist.Builds
-  alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.MCP.Tool, as: MCPTool
 
-  @authorization_action :read
-  @authorization_category :build
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
-  schema do
-    field :build_run_id, :string,
-      required: true,
-      description: "The ID of the build run."
+  def execute(conn, args) do
+    build_run_id = Map.get(args, "build_run_id")
 
-    field :operation, :string, description: "Filter by operation: download or upload."
-    field :type, :string, description: "Filter by CAS output type (e.g. swift, object, dSYM)."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
-  end
-
-  @impl true
-  def execute(%{build_run_id: build_run_id} = arguments, frame) do
-    with {:ok, build} <-
-           ToolSupport.load_resource(
+    with {:ok, _build, _project} <-
+           MCPTool.load_and_authorize(
              get_build(build_run_id),
-             "Build not found: #{build_run_id}",
-             frame
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             frame,
-             build.project_id,
-             @authorization_action,
-             @authorization_category
+             conn.assigns,
+             :read,
+             :build,
+             "Build not found: #{build_run_id}"
            ) do
       filters = [%{field: :build_run_id, op: :==, value: build_run_id}]
 
       filters =
         Enum.reduce([:operation, :type], filters, fn field, acc ->
-          case Map.get(arguments, field) do
+          case Map.get(args, to_string(field)) do
             nil -> acc
             value -> acc ++ [%{field: field, op: :==, value: value}]
           end
         end)
 
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
       {outputs, meta} =
         Builds.list_cas_outputs(%{
@@ -60,23 +73,22 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
           page_size: page_size
         })
 
-      data = %{
-        outputs:
-          Enum.map(outputs, fn output ->
-            %{
-              node_id: output.node_id,
-              checksum: output.checksum,
-              size: output.size,
-              compressed_size: output.compressed_size,
-              duration: output.duration,
-              operation: to_string(output.operation),
-              type: to_string(output.type)
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
-
-      {:reply, Response.json(Response.tool(), data), frame}
+      {:ok,
+       %{
+         outputs:
+           Enum.map(outputs, fn output ->
+             %{
+               node_id: output.node_id,
+               checksum: output.checksum,
+               size: output.size,
+               compressed_size: output.compressed_size,
+               duration: output.duration,
+               operation: to_string(output.operation),
+               type: to_string(output.type)
+             }
+           end),
+         pagination_metadata: MCPTool.pagination_metadata(meta)
+       }}
     end
   end
 

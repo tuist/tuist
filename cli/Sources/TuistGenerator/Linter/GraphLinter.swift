@@ -732,6 +732,10 @@ public struct GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .appExtension),
             LintableTarget(platform: .macOS, product: .macro),
         ],
+        LintableTarget(platform: .iOS, product: .watch2AppContainer): [
+            LintableTarget(platform: .watchOS, product: .watch2App),
+            LintableTarget(platform: .watchOS, product: .app),
+        ],
         LintableTarget(platform: .watchOS, product: .watch2App): [
             LintableTarget(platform: .watchOS, product: .watch2Extension),
             LintableTarget(platform: .macOS, product: .macro),

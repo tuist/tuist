@@ -3,53 +3,64 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
   List test suite runs for a specific test run, optionally filtered by module. The test_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/tests/test-runs/{id}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  use Tuist.MCP.Tool,
+    name: "list_test_suite_runs",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the test run."
+        },
+        "module_name" => %{
+          "type" => "string",
+          "description" => "Filter suites by module name."
+        },
+        "status" => %{
+          "type" => "string",
+          "description" => "Filter by status: success, failure, or skipped."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["test_run_id"]
+    }
 
-  alias Anubis.Server.Response
-  alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
 
-  @authorization_action :read
-  @authorization_category :test
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List test suite runs for a specific test run, optionally filtered by module. The test_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/tests/test-runs/{id}."
 
-  schema do
-    field :test_run_id, :string,
-      required: true,
-      description: "The ID of the test run."
-
-    field :module_name, :string, description: "Filter suites by module name."
-    field :status, :string, description: "Filter by status: success, failure, or skipped."
-    field :page, :integer, description: "Page number (default: 1)."
-    field :page_size, :integer, description: "Results per page (default: 20, max: 100)."
-  end
-
-  @impl true
-  def execute(%{test_run_id: test_run_id} = arguments, frame) do
-    with {:ok, run} <-
-           ToolSupport.load_resource(
+  def execute(conn, %{"test_run_id" => test_run_id} = args) do
+    with {:ok, _run, _project} <-
+           MCPTool.load_and_authorize(
              Tests.get_test(test_run_id),
-             "Test run not found: #{test_run_id}",
-             frame
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             frame,
-             run.project_id,
-             @authorization_action,
-             @authorization_category
+             conn.assigns,
+             :read,
+             :test,
+             "Test run not found: #{test_run_id}"
            ) do
       filters = [%{field: :test_run_id, op: :==, value: test_run_id}]
 
       filters =
-        Enum.reduce([:status], filters, fn field, acc ->
-          case Map.get(arguments, field) do
+        Enum.reduce(["status"], filters, fn key, acc ->
+          case Map.get(args, key) do
             nil -> acc
-            value -> acc ++ [%{field: field, op: :==, value: value}]
+            value -> acc ++ [%{field: String.to_existing_atom(key), op: :==, value: value}]
           end
         end)
 
-      page = ToolSupport.page(arguments)
-      page_size = ToolSupport.page_size(arguments)
+      page = MCPTool.page(args)
+      page_size = MCPTool.page_size(args)
 
       {suites, meta} =
         Tests.list_test_suite_runs(%{
@@ -61,7 +72,7 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
         })
 
       suites =
-        case Map.get(arguments, :module_name) do
+        case Map.get(args, "module_name") do
           nil ->
             suites
 
@@ -70,22 +81,21 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
             Enum.filter(suites, &(&1.test_module_run_id in module_ids))
         end
 
-      data = %{
-        suites:
-          Enum.map(suites, fn suite ->
-            %{
-              name: suite.name,
-              status: to_string(suite.status),
-              is_flaky: suite.is_flaky,
-              duration: suite.duration,
-              test_case_count: suite.test_case_count,
-              avg_test_case_duration: suite.avg_test_case_duration
-            }
-          end),
-        pagination_metadata: ToolSupport.pagination_metadata(meta)
-      }
-
-      {:reply, Response.json(Response.tool(), data), frame}
+      {:ok,
+       %{
+         suites:
+           Enum.map(suites, fn suite ->
+             %{
+               name: suite.name,
+               status: to_string(suite.status),
+               is_flaky: suite.is_flaky,
+               duration: suite.duration,
+               test_case_count: suite.test_case_count,
+               avg_test_case_duration: suite.avg_test_case_duration
+             }
+           end),
+         pagination_metadata: MCPTool.pagination_metadata(meta)
+       }}
     end
   end
 

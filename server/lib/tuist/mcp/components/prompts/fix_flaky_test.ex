@@ -3,34 +3,34 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
   Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL.
   """
 
-  use Anubis.Server.Component, type: :prompt
+  use Tuist.MCP.Prompt,
+    name: "fix_flaky_test",
+    arguments: [
+      %{name: "account_handle", description: "The account handle (organization or user)."},
+      %{name: "project_handle", description: "The project handle."},
+      %{
+        name: "test_case_id",
+        description:
+          "The test case ID or identifier (`Module/Suite/TestCase` or `Module/TestCase`) to fix. " <>
+            "When using an identifier, provide a project URL or account_handle and project_handle."
+      }
+    ]
 
-  alias Anubis.Server.Response
-  alias Tuist.MCP.Components.PromptSupport
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
 
-  schema do
-    field :account_handle, :string, description: "The account handle (organization or user)."
+  @impl EMCP.Prompt
+  def template(_conn, args) do
+    {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
+    test_case_id = Map.get(args, "test_case_id")
 
-    field :project_handle, :string, description: "The project handle."
-
-    field :test_case_id, :string,
-      description:
-        "The test case ID or identifier (`Module/Suite/TestCase` or `Module/TestCase`) to fix. " <>
-          "When using an identifier, provide a project URL or account_handle and project_handle."
-  end
-
-  @impl true
-  def get_messages(arguments, frame) do
-    {account_handle, project_handle} = PromptSupport.resolve_project_handles(arguments)
-    test_case_id = Map.get(arguments, :test_case_id)
-
-    response =
-      Response.user_message(Response.prompt(), %{
-        "type" => "text",
-        "text" => prompt_text(account_handle, project_handle, test_case_id)
-      })
-
-    {:reply, response, frame}
+    %{
+      messages: [
+        %{role: "user", content: %{type: "text", text: prompt_text(account_handle, project_handle, test_case_id)}}
+      ]
+    }
   end
 
   defp prompt_text(account_handle, project_handle, test_case_id) do

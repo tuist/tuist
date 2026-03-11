@@ -200,6 +200,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
             .unitTests,
             .uiTests,
             .appExtension,
+            .watch2AppContainer,
             .watch2Extension,
             .messagesExtension,
             .appClip,
@@ -228,7 +229,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     """)
     public var supportsSources: Bool {
         switch product {
-        case .stickerPackExtension, .watch2App:
+        case .stickerPackExtension, .watch2App, .watch2AppContainer:
             return false
         case .bundle:
             // Bundles only support source when targetting macOS only
@@ -254,6 +255,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
              .bundle,
              .appExtension,
              .watch2App,
+             .watch2AppContainer,
              .watch2Extension,
              .tvTopShelfExtension,
              .messagesExtension,
@@ -310,7 +312,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     /// Determines if the target is able to embed a watch application
     /// i.e. a product that can be bundled with a watchOS application
     public func canEmbedWatchApplications() -> Bool {
-        supports(.iOS) && product == .app
+        supports(.iOS) && (product == .app || product == .watch2AppContainer)
     }
 
     /// Determines if the target is able to embed an system extension

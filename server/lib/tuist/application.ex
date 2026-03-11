@@ -26,6 +26,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
+    EMCP.SessionStore.ETS.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -127,8 +128,6 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        Anubis.Server.Registry,
-        {Tuist.MCP.Server, transport: {:streamable_http, start: true}},
         TuistWeb.Telemetry,
         TuistWeb.Endpoint
       ]

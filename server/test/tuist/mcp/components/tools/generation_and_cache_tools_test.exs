@@ -2,9 +2,12 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
-  alias Anubis.Server.Frame
   alias Tuist.CommandEvents
-  alias Tuist.MCP.Server
+  alias Tuist.MCP.Components.Tools.GetCacheRun
+  alias Tuist.MCP.Components.Tools.GetGeneration
+  alias Tuist.MCP.Components.Tools.ListCacheRuns
+  alias Tuist.MCP.Components.Tools.ListGenerations
+  alias Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets
   alias Tuist.Projects
   alias Tuist.Xcode
 
@@ -48,19 +51,13 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_generations",
-          "arguments" => %{
-            "account_handle" => "acme",
-            "project_handle" => "app"
-          }
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
+      assert %{"content" => [%{"text" => json}]} =
+               ListGenerations.call(conn, %{
+                 "account_handle" => "acme",
+                 "project_handle" => "app"
+               })
 
       data = Jason.decode!(json)
       assert length(data["generations"]) == 1
@@ -101,16 +98,10 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
 
       stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_generation",
-          "arguments" => %{"generation_id" => "gen-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
+      assert %{"content" => [%{"text" => json}]} =
+               GetGeneration.call(conn, %{"generation_id" => "gen-1"})
 
       data = Jason.decode!(json)
       assert data["id"] == "gen-1"
@@ -122,16 +113,12 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
         {:ok, %{id: "cache-1", name: "cache", project_id: 1}}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_generation",
-          "arguments" => %{"generation_id" => "cache-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:error, error, _frame} = Server.handle_request(request, Frame.new())
-      assert message(error) =~ "Generation not found"
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetGeneration.call(conn, %{"generation_id" => "cache-1"})
+
+      assert text =~ "Generation not found"
     end
   end
 
@@ -175,19 +162,13 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_cache_runs",
-          "arguments" => %{
-            "account_handle" => "acme",
-            "project_handle" => "app"
-          }
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
+      assert %{"content" => [%{"text" => json}]} =
+               ListCacheRuns.call(conn, %{
+                 "account_handle" => "acme",
+                 "project_handle" => "app"
+               })
 
       data = Jason.decode!(json)
       assert length(data["cache_runs"]) == 1
@@ -226,16 +207,10 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
 
       stub(Tuist.Authorization, :authorize, fn _action, _subject, _project -> :ok end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "get_cache_run",
-          "arguments" => %{"cache_run_id" => "cr-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
+      assert %{"content" => [%{"text" => json}]} =
+               GetCacheRun.call(conn, %{"cache_run_id" => "cr-1"})
 
       data = Jason.decode!(json)
       assert data["id"] == "cr-1"
@@ -301,16 +276,10 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
          }}
       end)
 
-      request = %{
-        "method" => "tools/call",
-        "params" => %{
-          "name" => "list_xcode_module_cache_targets",
-          "arguments" => %{"run_id" => "gen-1"}
-        }
-      }
+      conn = %Plug.Conn{assigns: %{}}
 
-      assert {:reply, %{"content" => [%{"text" => json}]}, _frame} =
-               Server.handle_request(request, Frame.new())
+      assert %{"content" => [%{"text" => json}]} =
+               ListXcodeModuleCacheTargets.call(conn, %{"run_id" => "gen-1"})
 
       data = Jason.decode!(json)
       assert length(data["targets"]) == 1
@@ -323,6 +292,4 @@ defmodule Tuist.MCP.Components.Tools.GenerationAndCacheToolsTest do
       refute Map.has_key?(target["subhashes"], "headers")
     end
   end
-
-  defp message(error), do: Map.get(error.data, :message) || Map.get(error.data, "message")
 end

@@ -3,42 +3,46 @@ defmodule Tuist.MCP.Components.Prompts.CompareCacheRuns do
   Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL.
   """
 
-  use Anubis.Server.Component, type: :prompt
+  use Tuist.MCP.Prompt,
+    name: "compare_cache_runs",
+    arguments: [
+      %{name: "account_handle", description: "The account handle (organization or user)."},
+      %{name: "project_handle", description: "The project handle."},
+      %{
+        name: "base",
+        description:
+          "Base cache run: an ID, a Tuist dashboard URL, or a branch name. " <>
+            "Defaults to the latest cache run on the project's default branch when omitted."
+      },
+      %{
+        name: "head",
+        description:
+          "Head cache run: an ID, a Tuist dashboard URL, or a branch name. " <>
+            "This is the cache run you want to evaluate. When provided without a base, " <>
+            "the base defaults to the latest cache run on the project's default branch."
+      }
+    ]
 
-  alias Anubis.Server.Response
-  alias Tuist.MCP.Components.PromptSupport
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if base or head is a dashboard URL."
 
-  schema do
-    field :account_handle, :string, description: "The account handle (organization or user)."
-
-    field :project_handle, :string, description: "The project handle."
-
-    field :base, :string,
-      description:
-        "Base cache run: an ID, a Tuist dashboard URL, or a branch name. " <>
-          "Defaults to the latest cache run on the project's default branch when omitted."
-
-    field :head, :string,
-      description:
-        "Head cache run: an ID, a Tuist dashboard URL, or a branch name. " <>
-          "This is the cache run you want to evaluate. When provided without a base, " <>
-          "the base defaults to the latest cache run on the project's default branch."
-  end
-
-  @impl true
-  def get_messages(arguments, frame) do
-    base = Map.get(arguments, :base)
-    head = Map.get(arguments, :head)
-    {account_handle, project_handle} = PromptSupport.resolve_project_handles(arguments)
+  @impl EMCP.Prompt
+  def template(_conn, args) do
+    base = Map.get(args, "base")
+    head = Map.get(args, "head")
+    {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
     default_branch = PromptSupport.resolve_default_branch(account_handle, project_handle)
 
-    response =
-      Response.user_message(Response.prompt(), %{
-        "type" => "text",
-        "text" => prompt_text(base, head, account_handle, project_handle, default_branch)
-      })
-
-    {:reply, response, frame}
+    %{
+      messages: [
+        %{
+          role: "user",
+          content: %{type: "text", text: prompt_text(base, head, account_handle, project_handle, default_branch)}
+        }
+      ]
+    }
   end
 
   defp prompt_text(base, head, account_handle, project_handle, default_branch) do
