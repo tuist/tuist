@@ -73,3 +73,7 @@ Do we need this? Is this also in some other part of the codebase? All the values
     {:dependencies, :dependencies_hash},
     {:project_settings, :project_settings_hash},...
 
+### Prompt 12
+
+Can you make sure the skills are up to date. Make sure all the controller changes are tested, and review the code from the security perspective (and test it too)
+
