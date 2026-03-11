@@ -11,20 +11,58 @@
     opnix,
     ...
   }: let
-    hetznerMachines = [
-      "cache-eu-central"
-      "cache-eu-north"
-      "cache-us-east"
-      "cache-us-west"
-      "cache-ap-southeast"
-      "cache-eu-central-staging"
-      "cache-us-east-staging"
-      "cache-eu-central-canary"
-    ];
-
-    vultrMachines = [
-      "cache-sa-west"
-    ];
+    machines = {
+      "cache-eu-central" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-eu-central.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-eu-north" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-eu-north.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-us-east" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-us-east.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-us-west" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-us-west.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-ap-southeast" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-ap-southeast.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-eu-central-staging" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-eu-central-staging.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-us-east-staging" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-us-east-staging.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-eu-central-canary" = {
+        diskConfig = ./disk-config-hetzner.nix;
+        targetHost = "cache-eu-central-canary.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "cache-sa-west" = {
+        diskConfig = ./disk-config-vultr.nix;
+        targetHost = "cache-sa-west.tuist.dev";
+        domain = "tuist.dev";
+      };
+      "tuist-01-test-cache" = {
+        diskConfig = ./disk-config-scaleway.nix;
+        targetHost = "51.159.83.73";
+        domain = "par.runners.tuist.dev";
+      };
+    };
 
     sharedModules = [
       disko.nixosModules.disko
@@ -33,32 +71,33 @@
       ./users.nix
     ];
 
-    mkModules = diskConfig: hostname:
+    mkModules = machine: hostname:
       sharedModules
       ++ [
-        diskConfig
+        machine.diskConfig
         {
           networking.hostName = hostname;
+          networking.domain = machine.domain;
         }
       ];
 
-    mkColmenaNode = diskConfig: hostname: {
+    mkColmenaNode = hostname: machine: {
       deployment = {
-        targetHost = "${hostname}.tuist.dev";
+        targetHost = machine.targetHost;
         buildOnTarget = true;
       };
-      imports = mkModules diskConfig hostname;
+      imports = mkModules machine hostname;
     };
 
-    mkNixosConfig = diskConfig: hostname:
+    mkNixosConfig = machine: hostname:
       nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        modules = mkModules diskConfig hostname;
+        modules = mkModules machine hostname;
       };
   in {
-    nixosConfigurations =
-      nixpkgs.lib.genAttrs hetznerMachines (mkNixosConfig ./disk-config-hetzner.nix)
-      // nixpkgs.lib.genAttrs vultrMachines (mkNixosConfig ./disk-config-vultr.nix);
+    nixosConfigurations = nixpkgs.lib.mapAttrs (
+      hostname: machine: mkNixosConfig machine hostname
+    ) machines;
 
     colmena =
       {
@@ -66,7 +105,6 @@
           nixpkgs = import nixpkgs {system = "x86_64-linux";};
         };
       }
-      // nixpkgs.lib.genAttrs hetznerMachines (mkColmenaNode ./disk-config-hetzner.nix)
-      // nixpkgs.lib.genAttrs vultrMachines (mkColmenaNode ./disk-config-vultr.nix);
+      // nixpkgs.lib.mapAttrs mkColmenaNode machines;
   };
 }

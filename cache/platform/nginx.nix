@@ -1,4 +1,6 @@
-{config, ...}: {
+{config, ...}: let
+  serverName = "${config.networking.hostName}.${config.networking.domain}";
+in {
   services.nginx = {
     enable = true;
 
@@ -129,7 +131,7 @@
       };
 
       # Main HTTPS server
-      "${config.networking.hostName}.tuist.dev" = {
+      "${serverName}" = {
         forceSSL = true;
         enableACME = true;
         # Offload TLS record encryption to the kernel. Combined with
