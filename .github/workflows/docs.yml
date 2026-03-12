@@ -214,6 +214,9 @@ jobs:
       - name: Install system dependencies
         run: apt-get update && apt-get install -y curl
       - uses: jdx/mise-action@v2
+        with:
+          working_directory: docs
+      - uses: 1password/install-cli-action@v2
       - name: Deploy to Cloudflare Pages
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
