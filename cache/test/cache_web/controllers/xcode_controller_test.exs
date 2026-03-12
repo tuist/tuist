@@ -1,4 +1,4 @@
-defmodule CacheWeb.CASControllerTest do
+defmodule CacheWeb.XcodeControllerTest do
   use CacheWeb.ConnCase
   use Mimic
 
@@ -6,10 +6,10 @@ defmodule CacheWeb.CASControllerTest do
 
   alias Cache.Authentication
   alias Cache.CacheArtifacts
-  alias Cache.CAS
   alias Cache.S3
   alias Cache.S3Transfers
   alias Cache.S3TransfersBuffer
+  alias Cache.Xcode
 
   setup :set_mimic_from_context
 
@@ -34,7 +34,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CAS.Disk
+      Xcode.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -62,7 +62,7 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
       assert upload.artifact_type == :xcode_cache
-      assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+      assert upload.key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
     end
 
     test "streams large artifact to temporary file", %{conn: conn} do
@@ -75,7 +75,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CAS.Disk
+      Xcode.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -107,7 +107,7 @@ defmodule CacheWeb.CASControllerTest do
       assert upload.account_handle == account_handle
       assert upload.project_handle == project_handle
       assert upload.artifact_type == :xcode_cache
-      assert upload.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+      assert upload.key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
     end
 
     test "skips save when artifact already exists", %{conn: conn} do
@@ -120,7 +120,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CAS.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
+      expect(Xcode.Disk, :exists?, fn ^account_handle, ^project_handle, ^id ->
         true
       end)
 
@@ -144,7 +144,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CAS.Disk
+      Xcode.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -175,7 +175,7 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      CAS.Disk
+      Xcode.Disk
       |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
         false
       end)
@@ -246,12 +246,12 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CAS.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:ok, %File.Stat{size: 1024, type: :regular}}
       end)
 
       expect(CacheArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
         :ok
       end)
 
@@ -263,7 +263,7 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.status == 200
 
       assert get_resp_header(conn, "x-accel-redirect") == [
-               "/internal/local/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+               "/internal/local/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
              ]
 
       assert conn.resp_body == ""
@@ -278,19 +278,19 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CAS.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
       expect(CacheArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
         :ok
       end)
 
       expect(S3, :presign_download_url, fn key, opts ->
-        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
         assert Keyword.get(opts, :type) == :xcode_cache
-        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}?token=abc"}
       end)
 
       conn =
@@ -301,7 +301,7 @@ defmodule CacheWeb.CASControllerTest do
       assert conn.status == 200
 
       assert get_resp_header(conn, "x-accel-redirect") == [
-               "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"
+               "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}?token=abc"
              ]
 
       assert conn.resp_body == ""
@@ -316,19 +316,19 @@ defmodule CacheWeb.CASControllerTest do
         {:ok, "Bearer valid-token"}
       end)
 
-      expect(CAS.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+      expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
         {:error, :enoent}
       end)
 
       expect(CacheArtifacts, :track_artifact_access, fn key ->
-        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
         :ok
       end)
 
       expect(S3, :presign_download_url, fn key, opts ->
-        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
         assert Keyword.get(opts, :type) == :xcode_cache
-        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}?token=abc"}
       end)
 
       capture_log(fn ->
@@ -340,7 +340,7 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.status == 200
 
         assert get_resp_header(conn, "x-accel-redirect") == [
-                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"
+                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}?token=abc"
                ]
 
         assert conn.resp_body == ""
@@ -355,7 +355,7 @@ defmodule CacheWeb.CASControllerTest do
       assert download.account_handle == account_handle
       assert download.project_handle == project_handle
       assert download.artifact_type == :xcode_cache
-      assert download.key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+      assert download.key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
     end
 
     test "returns 401 when authentication fails", %{conn: conn} do

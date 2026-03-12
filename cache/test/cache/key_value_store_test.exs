@@ -731,7 +731,7 @@ defmodule Cache.KeyValueStoreTest do
       assert KeyValueRepo.get_by(KeyValueEntry, key: key) == nil
 
       assert_enqueued(
-        worker: Cache.CASCleanupWorker,
+        worker: Cache.XcodeCleanupWorker,
         args: %{
           account_handle: account_handle,
           project_handle: project_handle,

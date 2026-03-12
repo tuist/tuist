@@ -6,12 +6,12 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
   import Ecto.Query
   import ExUnit.CaptureLog
 
-  alias Cache.CASCleanupWorker
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEntryHash
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueRepo
+  alias Cache.XcodeCleanupWorker
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
@@ -68,7 +68,7 @@ defmodule Cache.KeyValueEvictionIntegrationTest do
     assert KeyValueRepo.aggregate(from(h in KeyValueEntryHash, where: h.key_value_entry_id in ^fresh_ids), :count) ==
              10
 
-    enqueued = all_enqueued(worker: CASCleanupWorker)
+    enqueued = all_enqueued(worker: XcodeCleanupWorker)
     assert length(enqueued) == 1
 
     assert [%{args: args}] = enqueued

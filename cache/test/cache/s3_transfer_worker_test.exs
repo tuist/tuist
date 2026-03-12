@@ -25,11 +25,11 @@ defmodule Cache.S3TransferWorkerTest do
   describe "perform/1" do
     test "processes pending CAS uploads via upload_file with type: :xcode_cache" do
       suffix = :erlang.unique_integer([:positive])
-      key_one = "account/project/cas/ar/ti/artifact1-#{suffix}"
-      key_two = "account/project/cas/ar/ti/artifact2-#{suffix}"
+      key_one = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      key_two = "account/project/xcode/ar/ti/artifact2-#{suffix}"
 
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", key_one)
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", key_two)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key_one)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key_two)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -55,11 +55,11 @@ defmodule Cache.S3TransferWorkerTest do
 
     test "processes pending CAS downloads with type: :xcode_cache" do
       suffix = :erlang.unique_integer([:positive])
-      key_one = "account/project/cas/ar/ti/artifact1-#{suffix}"
-      key_two = "account/project/cas/ar/ti/artifact2-#{suffix}"
+      key_one = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      key_two = "account/project/xcode/ar/ti/artifact2-#{suffix}"
 
-      :ok = S3Transfers.enqueue_cas_download("account", "project", key_one)
-      :ok = S3Transfers.enqueue_cas_download("account", "project", key_two)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", key_one)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", key_two)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -85,11 +85,11 @@ defmodule Cache.S3TransferWorkerTest do
 
     test "processes both CAS uploads and downloads" do
       suffix = :erlang.unique_integer([:positive])
-      upload_key = "account/project/cas/ar/ti/artifact1-#{suffix}"
-      download_key = "account/project/cas/ar/ti/artifact2-#{suffix}"
+      upload_key = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      download_key = "account/project/xcode/ar/ti/artifact2-#{suffix}"
 
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", upload_key)
-      :ok = S3Transfers.enqueue_cas_download("account", "project", download_key)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", upload_key)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", download_key)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -120,9 +120,9 @@ defmodule Cache.S3TransferWorkerTest do
 
     test "deletes transfers on non-retryable failure" do
       suffix = :erlang.unique_integer([:positive])
-      key = "account/project/cas/ar/ti/artifact1-#{suffix}"
+      key = "account/project/xcode/ar/ti/artifact1-#{suffix}"
 
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", key)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -147,11 +147,11 @@ defmodule Cache.S3TransferWorkerTest do
 
     test "keeps transfers in queue on rate limiting" do
       suffix = :erlang.unique_integer([:positive])
-      upload_key = "account/project/cas/ar/ti/artifact1-#{suffix}"
-      download_key = "account/project/cas/ar/ti/artifact2-#{suffix}"
+      upload_key = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      download_key = "account/project/xcode/ar/ti/artifact2-#{suffix}"
 
-      :ok = S3Transfers.enqueue_cas_upload("account", "project", upload_key)
-      :ok = S3Transfers.enqueue_cas_download("account", "project", download_key)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", upload_key)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", download_key)
       :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
@@ -180,7 +180,7 @@ defmodule Cache.S3TransferWorkerTest do
 
     test "does nothing when no pending transfers" do
       suffix = :erlang.unique_integer([:positive])
-      key = "account/project/cas/ar/ti/artifact-noop-#{suffix}"
+      key = "account/project/xcode/ar/ti/artifact-noop-#{suffix}"
 
       assert :ok = S3TransferWorker.perform(%Oban.Job{})
 

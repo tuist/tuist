@@ -1,6 +1,6 @@
-defmodule Cache.CASEventsPipeline do
+defmodule Cache.XcodeEventsPipeline do
   @moduledoc """
-  Broadway pipeline for batching and sending CAS events to the server.
+  Broadway pipeline for batching and sending Xcode cache events to the server.
 
   Events are sent to the cache webhook endpoint.
   """
@@ -15,7 +15,7 @@ defmodule Cache.CASEventsPipeline do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {OffBroadwayMemory.Producer, buffer: :cas_events_buffer},
+        module: {OffBroadwayMemory.Producer, buffer: :xcode_events_buffer},
         concurrency: 1
       ],
       processors: [
@@ -32,10 +32,10 @@ defmodule Cache.CASEventsPipeline do
   end
 
   @doc """
-  Pushes a CAS event to the pipeline asynchronously.
+  Pushes a Xcode cache event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:cas_events_buffer, event)
+    OffBroadwayMemory.Buffer.async_push(:xcode_events_buffer, event)
   end
 
   @impl true
@@ -69,6 +69,6 @@ defmodule Cache.CASEventsPipeline do
 
     body = Jason.encode!(%{events: api_events})
 
-    Cache.WebhookClient.signed_post(url, body, "CAS analytics")
+    Cache.WebhookClient.signed_post(url, body, "Xcode cache analytics")
   end
 end

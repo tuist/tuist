@@ -5,12 +5,12 @@ defmodule Cache.KeyValueEvictionWorkerTest do
 
   import ExUnit.CaptureLog
 
-  alias Cache.CASCleanupWorker
   alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
   alias Cache.KeyValueRepo
+  alias Cache.XcodeCleanupWorker
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
@@ -64,7 +64,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert length(entries) == 1
   end
 
-  test "enqueues CASCleanupWorker for expired keyvalue entries" do
+  test "enqueues XcodeCleanupWorker for expired keyvalue entries" do
     old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
     entry =
@@ -80,7 +80,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert [%{args: args}] = all_enqueued(worker: XcodeCleanupWorker)
     assert args["account_handle"] == "acme"
     assert args["project_handle"] == "ios"
     assert args["cas_hashes"] == ["ABCD1234", "EFGH5678"]
@@ -99,7 +99,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    assert [] = all_enqueued(worker: CASCleanupWorker)
+    assert [] = all_enqueued(worker: XcodeCleanupWorker)
   end
 
   test "does not enqueue cleanup when no hash rows are present" do
@@ -115,7 +115,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    assert [] = all_enqueued(worker: CASCleanupWorker)
+    assert [] = all_enqueued(worker: XcodeCleanupWorker)
   end
 
   test "does not enqueue cleanup for entries without extracted hashes" do
@@ -134,7 +134,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    assert [] = all_enqueued(worker: CASCleanupWorker)
+    assert [] = all_enqueued(worker: XcodeCleanupWorker)
   end
 
   test "groups CAS hashes by account and project into a single cleanup job" do
@@ -160,7 +160,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert [%{args: args}] = all_enqueued(worker: XcodeCleanupWorker)
     assert args["account_handle"] == "acme"
     assert args["project_handle"] == "ios"
     assert Enum.sort(args["cas_hashes"]) == ["ABCD1234", "EFGH5678"]
@@ -189,7 +189,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    enqueued = all_enqueued(worker: CASCleanupWorker)
+    enqueued = all_enqueued(worker: XcodeCleanupWorker)
     assert length(enqueued) == 2
 
     projects = enqueued |> Enum.map(fn %{args: args} -> args["project_handle"] end) |> Enum.sort()
@@ -219,7 +219,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert [%{args: args}] = all_enqueued(worker: XcodeCleanupWorker)
     assert args["cas_hashes"] == ["ABCD1234"]
   end
 
@@ -244,7 +244,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
       assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
     end)
 
-    enqueued = all_enqueued(worker: CASCleanupWorker)
+    enqueued = all_enqueued(worker: XcodeCleanupWorker)
     assert length(enqueued) == 2
 
     hash_counts =
@@ -325,7 +325,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert measurements.entries_deleted == 5
     assert measurements.duration_ms >= 0
 
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert [%{args: args}] = all_enqueued(worker: XcodeCleanupWorker)
     assert args["account_handle"] == "acme"
     assert args["project_handle"] == "ios"
     assert args["cas_hashes"] == ["SIZE_HASH"]
@@ -373,7 +373,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert metadata == %{trigger: :size, status: :complete}
     assert measurements.entries_deleted == 0
     assert measurements.duration_ms >= 0
-    assert [] = all_enqueued(worker: CASCleanupWorker)
+    assert [] = all_enqueued(worker: XcodeCleanupWorker)
   end
 
   test "size-based eviction reports floor_limited when no entries to delete" do
@@ -560,7 +560,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert metadata == %{trigger: :time, status: :busy}
     assert measurements.entries_deleted == 2
 
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert [%{args: args}] = all_enqueued(worker: XcodeCleanupWorker)
     assert args["account_handle"] == "acme"
     assert args["project_handle"] == "ios"
     assert args["cas_hashes"] == ["HASH1", "HASH2"]
@@ -590,7 +590,7 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     assert metadata == %{trigger: :size, status: :busy}
     assert measurements.entries_deleted == 3
 
-    assert [%{args: args}] = all_enqueued(worker: CASCleanupWorker)
+    assert [%{args: args}] = all_enqueued(worker: XcodeCleanupWorker)
     assert args["account_handle"] == "acme"
     assert args["project_handle"] == "ios"
     assert args["cas_hashes"] == ["SIZE_HASH"]

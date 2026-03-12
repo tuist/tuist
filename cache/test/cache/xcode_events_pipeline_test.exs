@@ -1,8 +1,8 @@
-defmodule Cache.CASEventsPipelineTest do
+defmodule Cache.XcodeEventsPipelineTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Cache.CASEventsPipeline
+  alias Cache.XcodeEventsPipeline
 
   setup :set_mimic_from_context
 
@@ -26,7 +26,7 @@ defmodule Cache.CASEventsPipelineTest do
         acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
       }
 
-      result = CASEventsPipeline.handle_message(:default, message, %{})
+      result = XcodeEventsPipeline.handle_message(:default, message, %{})
 
       assert result.batch_key == :default
       assert result.batcher == :http
@@ -59,7 +59,7 @@ defmodule Cache.CASEventsPipelineTest do
       reject(&Req.request/1)
 
       result =
-        CASEventsPipeline.handle_batch(
+        XcodeEventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},
@@ -129,7 +129,7 @@ defmodule Cache.CASEventsPipelineTest do
       end)
 
       result =
-        CASEventsPipeline.handle_batch(
+        XcodeEventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},

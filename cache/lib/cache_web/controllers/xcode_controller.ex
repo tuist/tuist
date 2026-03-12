@@ -1,12 +1,12 @@
-defmodule CacheWeb.CASController do
+defmodule CacheWeb.XcodeController do
   use CacheWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
   alias Cache.BodyReader
   alias Cache.CacheArtifacts
-  alias Cache.CAS
   alias Cache.S3
   alias Cache.S3Transfers
+  alias Cache.Xcode
   alias CacheWeb.API.Schemas.Error
 
   require Logger
@@ -14,11 +14,11 @@ defmodule CacheWeb.CASController do
   plug OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true
 
-  tags(["CAS"])
+  tags(["Xcode"])
 
   operation(:download,
-    summary: "Download a CAS artifact",
-    operation_id: "downloadCASArtifact",
+    summary: "Download a Xcode cache artifact",
+    operation_id: "downloadXcodeArtifact",
     parameters: [
       id: [
         in: :path,
@@ -49,15 +49,15 @@ defmodule CacheWeb.CASController do
   )
 
   def download(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
-    :telemetry.execute([:cache, :cas, :download, :request], %{}, %{})
-    key = CAS.Disk.key(account_handle, project_handle, id)
+    :telemetry.execute([:cache, :xcode, :download, :request], %{}, %{})
+    key = Xcode.Disk.key(account_handle, project_handle, id)
     :ok = CacheArtifacts.track_artifact_access(key)
 
-    case CAS.Disk.stat(account_handle, project_handle, id) do
+    case Xcode.Disk.stat(account_handle, project_handle, id) do
       {:ok, %File.Stat{size: size}} ->
-        local_path = CAS.Disk.local_accel_path(account_handle, project_handle, id)
+        local_path = Xcode.Disk.local_accel_path(account_handle, project_handle, id)
 
-        :telemetry.execute([:cache, :cas, :download, :disk_hit], %{size: size}, %{
+        :telemetry.execute([:cache, :xcode, :download, :disk_hit], %{size: size}, %{
           cas_id: id,
           account_handle: account_handle,
           project_handle: project_handle
@@ -68,9 +68,9 @@ defmodule CacheWeb.CASController do
         |> send_resp(:ok, "")
 
       {:error, _} ->
-        :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
+        :telemetry.execute([:cache, :xcode, :download, :disk_miss], %{}, %{})
 
-        S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
+        S3Transfers.enqueue_xcode_download(account_handle, project_handle, key)
 
         case S3.presign_download_url(key, type: :xcode_cache) do
           {:ok, url} ->
@@ -86,7 +86,7 @@ defmodule CacheWeb.CASController do
               }
             )
 
-            :telemetry.execute([:cache, :cas, :download, :error], %{}, %{reason: inspect(reason)})
+            :telemetry.execute([:cache, :xcode, :download, :error], %{}, %{reason: inspect(reason)})
 
             send_resp(conn, :not_found, "")
         end
@@ -94,8 +94,8 @@ defmodule CacheWeb.CASController do
   end
 
   operation(:save,
-    summary: "Save a CAS artifact",
-    operation_id: "saveCASArtifact",
+    summary: "Save a Xcode cache artifact",
+    operation_id: "saveXcodeArtifact",
     parameters: [
       id: [
         in: :path,
@@ -116,7 +116,7 @@ defmodule CacheWeb.CASController do
         description: "The handle of the project"
       ]
     ],
-    request_body: {"The CAS artifact data", "application/octet-stream", nil, required: true},
+    request_body: {"The Xcode cache artifact data", "application/octet-stream", nil, required: true},
     responses: %{
       no_content: {"Upload successful", nil, nil},
       request_entity_too_large: {"Request body exceeded allowed size", "application/json", Error},
@@ -129,7 +129,7 @@ defmodule CacheWeb.CASController do
   )
 
   def save(conn, %{id: id, account_handle: account_handle, project_handle: project_handle}) do
-    if CAS.Disk.exists?(account_handle, project_handle, id) do
+    if Xcode.Disk.exists?(account_handle, project_handle, id) do
       handle_existing_artifact(conn)
     else
       save_new_artifact(conn, account_handle, project_handle, id)
@@ -137,67 +137,67 @@ defmodule CacheWeb.CASController do
   end
 
   defp handle_existing_artifact(conn) do
-    :telemetry.execute([:cache, :cas, :upload, :exists], %{count: 1}, %{})
+    :telemetry.execute([:cache, :xcode, :upload, :exists], %{count: 1}, %{})
 
     {_, conn_after} = BodyReader.drain(conn)
     send_resp(conn_after, :no_content, "")
   end
 
   defp save_new_artifact(conn, account_handle, project_handle, id) do
-    case CAS.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
+    case Xcode.Disk.ensure_artifact_directory(account_handle, project_handle, id) do
       {:ok, target_dir} ->
         case BodyReader.read(conn, tmp_dir: target_dir) do
           {:ok, data, conn_after} ->
             size = get_data_size(data)
-            :telemetry.execute([:cache, :cas, :upload, :attempt], %{size: size}, %{})
+            :telemetry.execute([:cache, :xcode, :upload, :attempt], %{size: size}, %{})
             persist_artifact(conn_after, account_handle, project_handle, id, data, size)
 
           {:error, :too_large, conn_after} ->
-            :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :too_large})
+            :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :too_large})
             send_error(conn_after, :request_entity_too_large, "Request body exceeded allowed size")
 
           {:error, :timeout, conn_after} ->
-            :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :timeout})
+            :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :timeout})
             send_error(conn_after, :request_timeout, "Request body read timed out")
 
           {:error, :cancelled, conn_after} ->
-            :telemetry.execute([:cache, :cas, :upload, :cancelled], %{count: 1}, %{})
+            :telemetry.execute([:cache, :xcode, :upload, :cancelled], %{count: 1}, %{})
             send_resp(conn_after, :no_content, "")
 
           {:error, _reason, conn_after} ->
-            :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :read_error})
+            :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :read_error})
             send_error(conn_after, :internal_server_error, "Failed to persist artifact")
         end
 
       {:error, reason} ->
-        Logger.error("Failed to ensure CAS artifact directory: #{inspect(reason)}")
-        :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :persist_error})
+        Logger.error("Failed to ensure Xcode cache artifact directory: #{inspect(reason)}")
+        :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :persist_error})
         send_error(conn, :internal_server_error, "Failed to persist artifact")
     end
   end
 
   defp persist_artifact(conn, account_handle, project_handle, id, data, size) do
-    case CAS.Disk.put(account_handle, project_handle, id, data) do
+    case Xcode.Disk.put(account_handle, project_handle, id, data) do
       :ok ->
-        :telemetry.execute([:cache, :cas, :upload, :success], %{size: size}, %{
+        :telemetry.execute([:cache, :xcode, :upload, :success], %{size: size}, %{
           cas_id: id,
           account_handle: account_handle,
           project_handle: project_handle
         })
 
-        key = CAS.Disk.key(account_handle, project_handle, id)
+        key = Xcode.Disk.key(account_handle, project_handle, id)
         :ok = CacheArtifacts.track_artifact_access(key)
-        S3Transfers.enqueue_cas_upload(account_handle, project_handle, key)
+        S3Transfers.enqueue_xcode_upload(account_handle, project_handle, key)
         send_resp(conn, :no_content, "")
 
       {:error, :exists} ->
         cleanup_tmp_file(data)
-        :telemetry.execute([:cache, :cas, :upload, :exists], %{count: 1}, %{})
+        :telemetry.execute([:cache, :xcode, :upload, :exists], %{count: 1}, %{})
         send_resp(conn, :no_content, "")
 
       {:error, _reason} ->
         cleanup_tmp_file(data)
-        :telemetry.execute([:cache, :cas, :upload, :error], %{count: 1}, %{reason: :persist_error})
+        :telemetry.execute([:cache, :xcode, :upload, :error], %{count: 1}, %{reason: :persist_error})
         send_error(conn, :internal_server_error, "Failed to persist artifact")
     end
   end

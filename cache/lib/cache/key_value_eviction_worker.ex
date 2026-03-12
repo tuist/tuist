@@ -14,11 +14,11 @@ defmodule Cache.KeyValueEvictionWorker do
     max_attempts: 1,
     unique: [period: :infinity, states: [:available, :scheduled, :executing, :retryable]]
 
-  alias Cache.CASCleanupWorker
   alias Cache.Config
   alias Cache.KeyValueEntries
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
+  alias Cache.XcodeCleanupWorker
 
   require Logger
 
@@ -328,13 +328,13 @@ defmodule Cache.KeyValueEvictionWorker do
       |> Enum.chunk_every(@cleanup_hashes_per_job)
       |> Enum.each(fn chunk ->
         case %{"account_handle" => account, "project_handle" => project, "cas_hashes" => chunk}
-             |> CASCleanupWorker.new()
+             |> XcodeCleanupWorker.new()
              |> Oban.insert() do
           {:ok, _} ->
             :ok
 
           {:error, reason} ->
-            Logger.warning("Failed to enqueue CAS cleanup for #{account}/#{project}: #{inspect(reason)}")
+            Logger.warning("Failed to enqueue Xcode cache cleanup for #{account}/#{project}: #{inspect(reason)}")
         end
       end)
     end)

@@ -177,7 +177,7 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "flush writes and deletes cas artifacts" do
-    key = "account/project/cas/ab/cd/cas1"
+    key = "account/project/xcode/ab/cd/cas1"
     last_accessed_at = DateTime.utc_now()
 
     :ok = CacheArtifactsBuffer.enqueue_access(key, 123, last_accessed_at)
@@ -195,7 +195,7 @@ defmodule Cache.SQLiteBufferTest do
   test "flush inserts and deletes s3 transfers with de-duplication" do
     import Ecto.Query
 
-    key = "account/project/cas/ab/cd/key"
+    key = "account/project/xcode/ab/cd/key"
 
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
     :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
@@ -250,7 +250,7 @@ defmodule Cache.SQLiteBufferTest do
   end
 
   test "concurrent access and delete for same key preserves last operation" do
-    key = "account/project/cas/ab/cd/concurrent"
+    key = "account/project/xcode/ab/cd/concurrent"
     last_accessed_at = DateTime.utc_now()
 
     tasks =

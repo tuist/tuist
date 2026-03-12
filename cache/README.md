@@ -1,12 +1,12 @@
 # Cache Service
 
-A lightweight Elixir/Phoenix service for handling Tuist cache operations, including CAS (Content Addressable Storage) and key-value storage.
+A lightweight Elixir/Phoenix service for handling Tuist cache operations, including Xcode compilation cache and key-value storage.
 
 ## Overview
 
 This service provides:
 - Key-value storage for cache entries using in-memory Cachex
-- CAS (Content Addressable Storage) using local disk storage
+- Xcode compilation cache using local disk storage
 - RESTful API endpoints for cache operations
 - Authentication via the Tuist server API
 - Optimized nginx-based file serving for read operations
@@ -17,9 +17,9 @@ This service provides:
 - `PUT /api/cache/keyvalue/:cas_id` - Retrieve key-value entries (requires `account_handle` and `project_handle` query params)
 - `PUT /api/cache/keyvalue` - Store key-value entries (requires `account_handle` and `project_handle` query params)
 
-### CAS Operations
-- `GET /api/cache/cas/:id` - Retrieve CAS object (nginx serves directly after auth)
-- `POST /api/cache/cas/:id` - Store CAS object (requires `account_handle` and `project_handle` query params)
+### Xcode Cache Operations
+- `GET /api/cache/cas/:id` - Retrieve Xcode cache artifact (nginx serves directly after auth)
+- `POST /api/cache/cas/:id` - Store Xcode cache artifact (requires `account_handle` and `project_handle` query params)
 
 ### Health Check
 - `GET /up` - Health check endpoint
@@ -64,21 +64,21 @@ The service runs on port 4000 by default in development mode.
 
 ### Core Components
 
-- **CacheWeb.CASController** - Handles CAS upload and authentication
+- **CacheWeb.XcodeController** - Handles Xcode cache upload and authentication
   - Uploads limited to 25MB per artifact
   - Streams large files to disk to avoid memory pressure
   - Supports efficient auth subrequests from nginx
 - **CacheWeb.KeyValueController** - Handles key-value cache operations
-- **Cache.Disk** - Local disk storage backend for CAS objects
+- **Cache.Disk** - Local disk storage backend for cache artifacts
   - Atomic file operations with proper error handling
   - Cross-device move support (falls back to copy)
-- **Cache.CASArtifacts** - Persists artifact metadata in SQLite to power LRU eviction logic
+- **Cache.CacheArtifacts** - Persists artifact metadata in SQLite to power LRU eviction logic
 - **Cache.KeyValueStore** - In-memory Cachex-based key-value store
 - **Cache.Authentication** - Authentication against Tuist server API
   - Caches successful auth for 10 minutes
   - Caches failures for 3 seconds
   - Validates project access via `/api/projects` endpoint
-- **Cache.DiskEvictionWorker** - Scheduled Oban worker that evicts least-recently-used artifacts when the CAS volume crosses the configured high watermark
+- **Cache.DiskEvictionWorker** - Scheduled Oban worker that evicts least-recently-used artifacts when the cache volume crosses the configured high watermark
 
 ### Nginx Integration
 
@@ -86,7 +86,7 @@ The service is designed to work with nginx for optimal performance:
 
 1. **Read path (GET)**: nginx uses `auth_request` to validate access via Phoenix, then serves files directly from disk
 2. **Write path (POST)**: nginx proxies requests to Phoenix for authentication and storage
-3. **Auth endpoint**: Internal `/_auth_cas` endpoint for nginx subrequests
+3. **Auth endpoint**: Internal `/_auth` endpoint for nginx subrequests
 
 See `platform/nginx.nix` for the complete nginx configuration.
 
@@ -96,9 +96,9 @@ The cache service is optimized for the **read path**, specifically for handling 
 
 ### Nginx Optimizations
 - **HTTP/2 support**: 512 concurrent streams, 10000 keepalive requests
-- **Direct file serving**: CAS reads bypass Phoenix after auth check
+- **Direct file serving**: Xcode cache reads bypass Phoenix after auth check
 - **Auth subrequests**: Lightweight authentication without proxying file data
-- **Immutable caching**: 1-year cache headers for CAS objects
+- **Immutable caching**: 1-year cache headers for cache artifacts
 - **Buffering disabled**: Optimal for large file uploads
 
 ### Elixir/Phoenix Optimizations
@@ -110,8 +110,8 @@ The cache service is optimized for the **read path**, specifically for handling 
 - **Request ID tracking**: Propagates X-Request-ID for observability
 
 ### Storage Design
-- **Local disk**: CAS artifacts stored on local filesystem for minimal latency
-- **Project isolation**: Artifacts organized by `account/project/cas/` structure
+- **Local disk**: Xcode cache artifacts stored on local filesystem for minimal latency
+- **Project isolation**: Artifacts organized by `account/project/xcode/` structure
 - **Volume mount**: `/storage` directory mounted for persistent storage
 - **Atomic operations**: Proper handling of concurrent writes and race conditions
 - **Automatic eviction**: Background worker uses SQLite-tracked access metadata to free least-recently-used artifacts when disk usage crosses the configured watermark, while retaining authoritative copies in S3
