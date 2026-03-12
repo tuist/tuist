@@ -22,7 +22,8 @@ if config_env() == :prod do
     [
       scheme: "#{s3_scheme}://",
       host: s3_host,
-      region: System.get_env("S3_REGION") || "auto"
+      region: System.get_env("S3_REGION") || "auto",
+      bucket_as_host: true
     ]
     |> then(&if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port)))
 
