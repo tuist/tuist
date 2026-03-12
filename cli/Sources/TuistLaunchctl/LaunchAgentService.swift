@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import Foundation
 import Mockable
@@ -60,6 +61,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
 
         if try await fileSystem.exists(plistPath) {
             Logger.current.debug("Existing LaunchAgent found. Booting out...")
+            try await fileSystem.remove(plistPath)
             do {
                 try await launchctlController.bootout(label: label)
             } catch {
@@ -67,7 +69,6 @@ public struct LaunchAgentService: LaunchAgentServicing {
                     "Failed to boot out existing LaunchAgent: \(error.localizedDescription)"
                 )
             }
-            try await fileSystem.remove(plistPath)
         }
 
         let fullArguments = [tuistBinaryPath.pathString] + programArguments
@@ -95,8 +96,22 @@ public struct LaunchAgentService: LaunchAgentServicing {
         do {
             try await launchctlController.bootstrap(plistPath: plistPath)
             Logger.current.debug("Bootstrapped LaunchAgent")
+        } catch let commandError as CommandError {
+            switch commandError {
+            case .terminated(5, _, _):
+                Logger.current
+                    .debug("LaunchAgent already bootstrapped by launchd, skipping explicit bootstrap")
+            default:
+                var message = String(describing: commandError)
+                if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
+                   !stderrContent.isEmpty
+                {
+                    message += "\nDaemon stderr log:\n\(stderrContent)"
+                }
+                throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
+            }
         } catch {
-            var message = error.localizedDescription
+            var message = String(describing: error)
             if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
                !stderrContent.isEmpty
             {

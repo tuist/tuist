@@ -1,3 +1,4 @@
+import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -182,11 +183,16 @@ struct LaunchAgentServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
+        let bootstrapError = CommandError.terminated(5, stderr: "Bootstrap failed: 5: Input/output error")
+
         given(launchctlController)
             .bootstrap(plistPath: .any)
-            .willThrow(NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bootstrap failed"]))
+            .willThrow(bootstrapError)
 
-        await #expect(throws: LaunchAgentServiceError.failedToLoadLaunchAgent("Bootstrap failed")) {
+        await #expect(
+            throws: LaunchAgentServiceError
+                .failedToLoadLaunchAgent(String(describing: bootstrapError))
+        ) {
             try await subject.setupLaunchAgent(
                 label: "tuist.test",
                 plistFileName: "tuist.test.plist",
