@@ -355,6 +355,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+                .xcarg("SYMROOT", derivedDataPath.appending(component: "Build").pathString),
             ]
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -416,6 +417,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .configuration(configuration),
+                .xcarg("SYMROOT", derivedDataPath.appending(component: "Build").pathString),
             ]
             // We currently skip building for maccatalyst as we prefer to generate a bundle for iOS instead.
             // iOS bundles should be compatible with maccatalyst ones
@@ -591,6 +593,7 @@ import XcodeGraph
                         .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                         .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
+                        .xcarg("SYMROOT", derivedDataPath.appending(component: "Build").pathString),
                         // To prevent the rejection when publishing on the App Store
                         // https://developer.apple.com/library/archive/qa/qa1964/_index.html
                     ] + (isReleaseConfiguration ? [
@@ -636,6 +639,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
+                .xcarg("SYMROOT", derivedDataPath.appending(component: "Build").pathString),
                 // To prevent the rejection when publishing on the App Store
                 // https://developer.apple.com/library/archive/qa/qa1964/_index.html
             ] + (isReleaseConfiguration ? [
@@ -717,6 +721,7 @@ import XcodeGraph
                     .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                     .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
+                    .xcarg("SYMROOT", derivedDataPath.appending(component: "Build").pathString),
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
