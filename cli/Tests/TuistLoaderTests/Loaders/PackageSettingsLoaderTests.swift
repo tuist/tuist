@@ -73,6 +73,7 @@ final class PackageSettingsLoaderTests: TuistUnitTestCase {
         // Then
         let expected: TuistCore.PackageSettings = .init(
             productTypes: [:],
+            baseProductType: .staticFramework,
             productDestinations: [:],
             baseSettings: XcodeGraph.Settings(
                 base: [:],
