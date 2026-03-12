@@ -361,7 +361,9 @@ struct RunCommandServiceTests {
         ) { try await subject.run(runnable: .scheme("App")) }
     }
 
-    @Test
+    @Test(
+        .inTemporaryDirectory
+    )
     func run_throws_unspecifiedPlatform_when_target_is_multiplatform_and_no_platform_given() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

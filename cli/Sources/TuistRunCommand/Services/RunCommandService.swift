@@ -678,7 +678,7 @@ struct RunCommandService {
             } else {
                 throw RunCommandServiceError.unspecifiedPlatform(
                     target: graphTarget.target.name,
-                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue).sorted()
                 )
             }
 
