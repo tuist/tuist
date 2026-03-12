@@ -145,7 +145,7 @@ if config_env() == :prod do
     key_value_eviction_max_duration_ms:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MAX_DURATION_MS") || "300000"),
     key_value_eviction_hysteresis_release_bytes:
-      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "24696061952")
+      String.to_integer(System.get_env("KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES") || "#{23 * 1024 * 1024 * 1024}")
 
   # Note: connect_options cannot be used with Finch
   # Connection settings are handled at the Finch pool level
