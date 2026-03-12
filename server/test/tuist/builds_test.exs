@@ -1448,6 +1448,36 @@ defmodule Tuist.BuildsTest do
     end
   end
 
+  describe "total_count/0" do
+    test "returns the total number of builds" do
+      # Given
+      before_count = Builds.total_count()
+      RunsFixtures.build_fixture()
+      RunsFixtures.build_fixture()
+
+      # When
+      count = Builds.total_count()
+
+      # Then
+      assert count == before_count + 2
+    end
+  end
+
+  describe "last_24h_build_count/0" do
+    test "returns the number of builds from the last 24 hours" do
+      # Given
+      before_count = Builds.last_24h_build_count()
+      RunsFixtures.build_fixture()
+      RunsFixtures.build_fixture()
+
+      # When
+      count = Builds.last_24h_build_count()
+
+      # Then
+      assert count == before_count + 2
+    end
+  end
+
   describe "get_cas_outputs_by_node_ids/3" do
     test "returns CAS outputs matching the given node_ids" do
       # Given

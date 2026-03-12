@@ -173,6 +173,13 @@ defmodule Tuist.Application do
         ],
         else: []
     )
+    # Marketing.Stats polls ClickHouse on init. Skip it in test where
+    # ClickHouse tables may not exist when the app boots for migrations.
+    |> Kernel.++(
+      if Environment.test?(),
+        do: [],
+        else: [Tuist.Marketing.Stats]
+    )
   end
 
   defp s3_ca_cert_opts do
