@@ -28,9 +28,9 @@ defmodule Cache.CacheArtifactsTest do
   end
 
   test "returns all keys when all match" do
-    key1 = "account/project/cas/AB/CD/artifact1"
-    key2 = "account/project/cas/EF/GH/artifact2"
-    key3 = "account/project/cas/IJ/KL/artifact3"
+    key1 = "account/project/xcode/AB/CD/artifact1"
+    key2 = "account/project/xcode/EF/GH/artifact2"
+    key3 = "account/project/xcode/IJ/KL/artifact3"
 
     path1 = Disk.artifact_path(key1)
     path2 = Disk.artifact_path(key2)
@@ -53,8 +53,8 @@ defmodule Cache.CacheArtifactsTest do
   end
 
   test "returns only matching keys" do
-    key_a = "account/project/cas/AA/BB/artifact_a"
-    key_b = "account/project/cas/CC/DD/artifact_b"
+    key_a = "account/project/xcode/AA/BB/artifact_a"
+    key_b = "account/project/xcode/CC/DD/artifact_b"
 
     path_a = Disk.artifact_path(key_a)
     path_b = Disk.artifact_path(key_b)
@@ -80,7 +80,7 @@ defmodule Cache.CacheArtifactsTest do
   test "handles large batch" do
     keys =
       Enum.map(1..100, fn i ->
-        "account/project/cas/#{String.pad_leading(Integer.to_string(i), 2, "0")}/artifact_#{i}"
+        "account/project/xcode/#{String.pad_leading(Integer.to_string(i), 2, "0")}/artifact_#{i}"
       end)
 
     Enum.each(keys, fn key ->

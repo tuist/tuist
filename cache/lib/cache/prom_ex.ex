@@ -17,7 +17,7 @@ defmodule Cache.PromEx do
        endpoint: CacheWeb.Endpoint,
        duration_buckets: [10, 100, 500, 1000, 5000, 10_000, 30_000]},
       PromEx.Plugins.Oban,
-      Cache.CAS.PromExPlugin,
+      Cache.Xcode.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
       Cache.Module.PromExPlugin,
       Cache.Finch.PromExPlugin,

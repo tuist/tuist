@@ -1,201 +1,201 @@
-defmodule Cache.CAS.PromExPlugin do
+defmodule Cache.Xcode.PromExPlugin do
   @moduledoc """
-  Custom Prometheus metrics for CAS (Content Addressable Storage) operations.
+  Custom Prometheus metrics for Xcode cache operations.
 
   Emits counters and distributions for downloads (hits, disk hits/misses, errors)
   and uploads (attempts, successes, duplicates, errors) based on Telemetry events
-  executed by `CacheWeb.CASController`.
+  executed by `CacheWeb.XcodeController`.
   """
   use PromEx.Plugin
 
   @impl true
   def event_metrics(_opts) do
-    Event.build(:cache_cas_event_metrics, [
+    Event.build(:cache_xcode_event_metrics, [
       # Downloads
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :hits,
           :total
         ],
-        event_name: [:cache, :cas, :download, :hit],
-        description: "Total CAS download requests received."
+        event_name: [:cache, :xcode, :download, :hit],
+        description: "Total Xcode cache download requests received."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :disk_hits,
           :total
         ],
-        event_name: [:cache, :cas, :download, :disk_hit],
-        description: "CAS downloads served from local disk."
+        event_name: [:cache, :xcode, :download, :disk_hit],
+        description: "Xcode cache downloads served from local disk."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :disk_misses,
           :total
         ],
-        event_name: [:cache, :cas, :download, :disk_miss],
-        description: "CAS downloads not found on disk (redirected to remote)."
+        event_name: [:cache, :xcode, :download, :disk_miss],
+        description: "Xcode cache downloads not found on disk (redirected to remote)."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :errors,
           :total
         ],
-        event_name: [:cache, :cas, :download, :error],
-        description: "CAS download errors (e.g., S3 presign failures)."
+        event_name: [:cache, :xcode, :download, :error],
+        description: "Xcode cache download errors (e.g., S3 presign failures)."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :s3_hits,
           :total
         ],
-        event_name: [:cache, :cas, :download, :s3_hit],
-        description: "CAS downloads pulled from S3 to local disk."
+        event_name: [:cache, :xcode, :download, :s3_hit],
+        description: "Xcode cache downloads pulled from S3 to local disk."
       ),
       sum(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :s3_bytes
         ],
-        event_name: [:cache, :cas, :download, :s3_hit],
+        event_name: [:cache, :xcode, :download, :s3_hit],
         measurement: :size,
-        description: "Total bytes downloaded from S3 for CAS."
+        description: "Total bytes downloaded from S3 for Xcode cache."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :s3_misses,
           :total
         ],
-        event_name: [:cache, :cas, :download, :s3_miss],
-        description: "CAS downloads not found in S3 (404)."
+        event_name: [:cache, :xcode, :download, :s3_miss],
+        description: "Xcode cache downloads not found in S3 (404)."
       ),
       distribution(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :artifact_size,
           :bytes
         ],
-        event_name: [:cache, :cas, :download, :disk_hit],
+        event_name: [:cache, :xcode, :download, :disk_hit],
         measurement: :size,
         unit: :byte,
-        description: "Distribution of artifact sizes downloaded from CAS.",
+        description: "Distribution of artifact sizes downloaded from Xcode cache.",
         reporter_options: [buckets: exponential!(1024, 2, 20)]
       ),
       sum(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :download,
           :bytes
         ],
-        event_name: [:cache, :cas, :download, :disk_hit],
+        event_name: [:cache, :xcode, :download, :disk_hit],
         measurement: :size,
-        description: "Total bytes downloaded from CAS disk."
+        description: "Total bytes downloaded from Xcode cache disk."
       ),
 
       # Uploads
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :attempts,
           :total
         ],
-        event_name: [:cache, :cas, :upload, :attempt],
-        description: "Total CAS upload attempts received."
+        event_name: [:cache, :xcode, :upload, :attempt],
+        description: "Total Xcode cache upload attempts received."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :success,
           :total
         ],
-        event_name: [:cache, :cas, :upload, :success],
-        description: "Successful CAS uploads."
+        event_name: [:cache, :xcode, :upload, :success],
+        description: "Successful Xcode cache uploads."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :exists,
           :total
         ],
-        event_name: [:cache, :cas, :upload, :exists],
+        event_name: [:cache, :xcode, :upload, :exists],
         description: "Uploads skipped because artifact already exists."
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :errors,
           :total
         ],
-        event_name: [:cache, :cas, :upload, :error],
-        description: "CAS upload errors.",
+        event_name: [:cache, :xcode, :upload, :error],
+        description: "Xcode cache upload errors.",
         tags: [:reason],
         tag_values: fn metadata -> %{reason: to_string(Map.get(metadata, :reason, :unknown))} end
       ),
       counter(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :cancelled,
           :total
         ],
-        event_name: [:cache, :cas, :upload, :cancelled],
-        description: "CAS uploads cancelled by client."
+        event_name: [:cache, :xcode, :upload, :cancelled],
+        description: "Xcode cache uploads cancelled by client."
       ),
       sum(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :bytes
         ],
-        event_name: [:cache, :cas, :upload, :success],
+        event_name: [:cache, :xcode, :upload, :success],
         measurement: :size,
-        description: "Total bytes uploaded to CAS."
+        description: "Total bytes uploaded to Xcode cache."
       ),
       distribution(
         [
           :tuist_cache,
-          :cas,
+          :xcode,
           :upload,
           :artifact_size,
           :bytes
         ],
-        event_name: [:cache, :cas, :upload, :success],
+        event_name: [:cache, :xcode, :upload, :success],
         measurement: :size,
         unit: :byte,
-        description: "Distribution of artifact sizes uploaded to CAS.",
+        description: "Distribution of artifact sizes uploaded to Xcode cache.",
         reporter_options: [buckets: exponential!(1024, 2, 20)]
       )
     ])
