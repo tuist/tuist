@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-12 17:34+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-12 17:34+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1048,8 +1048,9 @@ msgstr "불안정한 테스트 · Tuist"
 msgid "Flaky test integration"
 msgstr "불안정한 테스트 통합"
 
+#, fuzzy
 msgid "Flaky tests"
-msgstr ""
+msgstr "불규칙한 테스트"
 
 #, fuzzy
 msgid "For each flaky test, download the execution data to investigate timing, environment conditions, and logs, so you can reproduce and fix the flakiness."
@@ -1079,8 +1080,9 @@ msgstr "피드백을 더 빨리 받으세요."
 msgid "Gives unified metrics across developer machines and CI runners, without wading through CI logs."
 msgstr "CI 로그를 일일이 확인할 필요 없이 개발자 머신과 CI 러너 전반에 걸쳐 통합된 측정 기준을 제공합니다."
 
+#, fuzzy
 msgid "Gradle cache"
-msgstr ""
+msgstr "Gradle 캐시"
 
 #, fuzzy
 msgid "Granular build time tracking"
