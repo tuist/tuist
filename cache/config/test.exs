@@ -2,6 +2,15 @@ import Config
 
 alias Ecto.Adapters.SQL.Sandbox
 
+config :cache, Cache.DistributedKV.Repo,
+  url: "ecto://postgres:postgres@localhost/cache_test",
+  pool: Sandbox,
+  pool_size: System.schedulers_online() * 2 + 10,
+  timeout: 45_000,
+  queue_target: 45_000,
+  queue_interval: 45_000,
+  show_sensitive_data_on_connection_error: false
+
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
@@ -48,7 +57,10 @@ config :cache, :s3,
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: "/tmp/test_cas",
-  api_key: "test-secret-key"
+  api_key: "test-secret-key",
+  key_value_mode: :local,
+  distributed_kv_node_name: "test-node",
+  distributed_kv_remote_fallback_enabled: true
 
 config :logger, level: :warning
 

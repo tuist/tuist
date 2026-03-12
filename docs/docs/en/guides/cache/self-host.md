@@ -22,6 +22,7 @@ You can connect self-hosted cache nodes to either the hosted Tuist server (`http
 
 - Docker and Docker Compose
 - S3-compatible storage bucket
+- PostgreSQL 16+ if you plan to enable distributed KV replication
 - A running Tuist server instance (hosted or self-hosted)
 
 ## Deployment {#deployment}
@@ -90,6 +91,23 @@ STORAGE_DIR=/storage
 # Optional dedicated KV SQLite database path.
 # Defaults to /data/key_value.sqlite.
 KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
+
+# Optional distributed KV mode. Defaults to local for single-node deployments.
+# Set to distributed only when you also configure the shared PostgreSQL database below.
+# KEY_VALUE_MODE=distributed
+
+# Shared PostgreSQL database used by distributed KV replication.
+# Required only when KEY_VALUE_MODE=distributed.
+# DISTRIBUTED_KV_DATABASE_URL=ecto://postgres:postgres@postgres.example.com:5432/cache_kv
+# DISTRIBUTED_KV_NODE_NAME=cache-us-east-1
+# DISTRIBUTED_KV_POOL_SIZE=5
+# DISTRIBUTED_KV_DATABASE_TIMEOUT_MS=10000
+# DISTRIBUTED_KV_SYNC_INTERVAL_MS=30000
+# DISTRIBUTED_KV_POLL_LAG_MS=30000
+# DISTRIBUTED_KV_SHIP_INTERVAL_MS=200
+# DISTRIBUTED_KV_SHIP_BATCH_SIZE=1000
+# DISTRIBUTED_KV_ACCESS_THROTTLE_MS=30000
+# DISTRIBUTED_KV_TOMBSTONE_RETENTION_DAYS=7
 ```
 
 | Variable | Required | Default | Description |
@@ -99,8 +117,19 @@ KEY_VALUE_DATABASE_PATH=/data/key_value.sqlite
 | `SERVER_URL` | No | `https://tuist.dev` | URL of your Tuist server for authentication. |
 | `STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/storage`. |
 | `KEY_VALUE_DATABASE_PATH` | No | `/data/key_value.sqlite` | Path to the dedicated SQLite database used by the key-value store. |
+| `KEY_VALUE_MODE` | No | `local` | Key-value mode. Use `local` for single-node deployments. Use `distributed` only when you also configure the shared PostgreSQL database below. |
 | `POOL_SIZE` | No | `2` | Connection pool size for the primary metadata SQLite database. |
 | `KEY_VALUE_POOL_SIZE` | No | `POOL_SIZE` | Connection pool size for the dedicated key-value SQLite database. |
+| `DISTRIBUTED_KV_DATABASE_URL` | Conditional | | PostgreSQL connection string for distributed KV replication. Required when `KEY_VALUE_MODE=distributed`. |
+| `DISTRIBUTED_KV_NODE_NAME` | Conditional | `HOSTNAME` | Unique identifier for this cache node in distributed KV mode. |
+| `DISTRIBUTED_KV_POOL_SIZE` | No | `5` | Connection pool size for the distributed KV PostgreSQL database. |
+| `DISTRIBUTED_KV_DATABASE_TIMEOUT_MS` | No | `10000` | PostgreSQL timeout for distributed KV shipper and poller queries. |
+| `DISTRIBUTED_KV_SYNC_INTERVAL_MS` | No | `30000` | Poll interval for inbound distributed KV replication. |
+| `DISTRIBUTED_KV_POLL_LAG_MS` | No | `30000` | Safety lag before the poller reads recently updated shared rows. |
+| `DISTRIBUTED_KV_SHIP_INTERVAL_MS` | No | `200` | Flush interval for the outbound distributed KV shipper. |
+| `DISTRIBUTED_KV_SHIP_BATCH_SIZE` | No | `1000` | Maximum number of KV rows shipped to PostgreSQL per batch. |
+| `DISTRIBUTED_KV_ACCESS_THROTTLE_MS` | No | `30000` | Minimum interval between replicated access bumps for the same key on one node. |
+| `DISTRIBUTED_KV_TOMBSTONE_RETENTION_DAYS` | No | `7` | How long distributed KV tombstones are kept before purge. |
 | `S3_BUCKET` | Yes | | S3 bucket for module and Gradle cache artifacts. Also used for Xcode cache artifacts when `S3_XCODE_CACHE_BUCKET` is unset. |
 | `S3_XCODE_CACHE_BUCKET` | No | `S3_BUCKET` | Optional dedicated bucket for Xcode cache artifacts. When set, Xcode cache reads and writes use this bucket directly. Useful when you want separate retention policies, storage classes, or cost tracking for Xcode cache artifacts. |
 | `S3_HOST` | Yes | | S3 endpoint hostname (e.g. `s3.us-east-1.amazonaws.com`). |
@@ -185,6 +214,15 @@ graph TD
 
 Once configured, the Tuist CLI will use your self-hosted cache.
 
+## S3 lifecycle policies {#s3-lifecycle-policies}
+
+If you back the cache with S3, configure lifecycle policies on the bucket yourself.
+
+- KV eviction now deletes only SQLite metadata.
+- Background artifact expiration is handled by `DiskEvictionWorker`, `OrphanCleanupWorker`, and your S3 lifecycle rules.
+- The cache service only performs explicit S3 deletes for user-initiated project cleanup flows such as `tuist cache clean --remote`.
+- If you use a dedicated `S3_XCODE_CACHE_BUCKET`, configure lifecycle policies there too.
+
 ## Volumes {#volumes}
 
 The Docker Compose configuration uses three volumes:
@@ -200,7 +238,7 @@ The Docker Compose configuration uses three volumes:
 The cache service runs several background maintenance loops that keep disk and database usage within bounds. You can tune their behavior through the environment variables listed in the [configuration table](#environment-variables) above.
 
 - **CAS disk eviction** — When disk usage exceeds `DISK_HIGH_WATERMARK_PERCENT` (default 85%), the service removes the least-recently-used local artifacts until usage drops to `DISK_TARGET_PERCENT` (default 70%). Evicted artifacts remain in S3.
-- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`.
+- **KV eviction** — Entries not accessed within 30 days are always removed regardless of database size. Additionally, when the KV database exceeds `KEY_VALUE_MAX_DB_SIZE_BYTES` (default 25 GiB), the service removes entries older than `KEY_VALUE_EVICTION_MIN_RETENTION_DAYS` until the database shrinks to `KEY_VALUE_EVICTION_HYSTERESIS_RELEASE_BYTES`. Each pass is capped at `KEY_VALUE_EVICTION_MAX_DURATION_MS`. KV eviction no longer deletes local or S3 artifacts directly.
 - **Orphan cleanup** — Scans the disk storage tree for files without a matching `cache_artifacts` row and removes them. This depends on the primary metadata database, not the KV database.
 
 For a detailed explanation of how each process works internally, see the <LocalizedLink href="/guides/cache/architecture">architecture guide</LocalizedLink>.

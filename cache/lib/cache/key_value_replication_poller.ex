@@ -1,0 +1,218 @@
+defmodule Cache.KeyValueReplicationPoller do
+  @moduledoc false
+
+  use GenServer
+
+  import Ecto.Query
+
+  alias Cache.Config
+  alias Cache.DistributedKV.Entry, as: DistributedEntry
+  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.KeyValueAccessTracker
+  alias Cache.KeyValueEntries
+
+  @completion_event [:cache, :kv, :replication, :poll, :complete]
+  @lag_event [:cache, :kv, :replication, :poll, :lag_ms]
+  @local_store_event [:cache, :kv, :replication, :local_store, :size_bytes]
+  @page_size 1000
+  @bootstrap_page_size 500
+
+  def start_link(_opts) do
+    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+  end
+
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]}
+    }
+  end
+
+  def poll_now do
+    GenServer.call(__MODULE__, :poll, :infinity)
+  end
+
+  @impl true
+  def init(state) do
+    schedule_poll(0)
+    {:ok, state}
+  end
+
+  @impl true
+  def handle_call(:poll, _from, state) do
+    {:reply, poll_once(), state}
+  end
+
+  @impl true
+  def handle_info(:poll, state) do
+    _ = poll_once()
+    schedule_poll(Config.distributed_kv_sync_interval_ms())
+    {:noreply, state}
+  end
+
+  defp poll_once do
+    maybe_bootstrap()
+
+    started_at = System.monotonic_time(:millisecond)
+    lag_cutoff = DateTime.add(DateTime.utc_now(), -Config.distributed_kv_poll_lag_ms(), :millisecond)
+    watermark = KeyValueEntries.distributed_watermark()
+
+    query =
+      DistributedEntry
+      |> where([entry], entry.updated_at < ^lag_cutoff)
+      |> apply_watermark(watermark)
+      |> order_by([entry], asc: entry.updated_at, asc: entry.key)
+      |> limit(^@page_size)
+
+    rows = DistributedRepo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+
+    {materialized_count, deleted_count} =
+      Enum.reduce(rows, {0, 0}, fn row, {materialized_acc, deleted_acc} ->
+        if is_nil(row.deleted_at) do
+          status =
+            KeyValueEntries.materialize_remote_entry(%{
+              key: row.key,
+              json_payload: row.json_payload,
+              last_accessed_at: row.last_accessed_at,
+              source_updated_at: row.source_updated_at,
+              source_node: row.source_node
+            })
+
+          if status in [:inserted, :payload_updated] do
+            Cachex.del(:cache_keyvalue_store, row.key)
+          end
+
+          KeyValueAccessTracker.mark_shared_lineage(row.key)
+          {materialized_acc + 1, deleted_acc}
+        else
+          deleted_rows = KeyValueEntries.delete_local_entry_if_not_pending(row.key)
+
+          Cachex.del(:cache_keyvalue_store, row.key)
+          KeyValueAccessTracker.clear(row.key)
+
+          {materialized_acc, deleted_acc + deleted_rows}
+        end
+      end)
+
+    if rows != [] do
+      last_row = List.last(rows)
+      :ok = KeyValueEntries.put_distributed_watermark(last_row.updated_at, last_row.key)
+      emit_lag(last_row.updated_at)
+    end
+
+    emit_local_store_size()
+
+    :telemetry.execute(
+      @completion_event,
+      %{
+        duration_ms: System.monotonic_time(:millisecond) - started_at,
+        rows_materialized: materialized_count,
+        rows_deleted: deleted_count
+      },
+      %{}
+    )
+
+    :ok
+  end
+
+  defp maybe_bootstrap do
+    if is_nil(KeyValueEntries.distributed_watermark()) do
+      cutoff = latest_cutoff()
+      budget = Application.get_env(:cache, :key_value_max_db_size_bytes, 25 * 1024 * 1024 * 1024)
+      current_size = KeyValueEntries.estimated_size_bytes()
+      bootstrap_rows(current_size, budget, nil)
+
+      if cutoff do
+        :ok = KeyValueEntries.put_distributed_watermark(cutoff.updated_at, cutoff.key)
+      end
+    end
+  end
+
+  defp latest_cutoff do
+    DistributedEntry
+    |> order_by([entry], desc: entry.updated_at, desc: entry.key)
+    |> limit(1)
+    |> DistributedRepo.one(timeout: Config.distributed_kv_database_timeout_ms())
+  end
+
+  defp bootstrap_rows(current_size, budget, _cursor) when current_size >= budget, do: :ok
+
+  defp bootstrap_rows(current_size, budget, cursor) do
+    query =
+      DistributedEntry
+      |> where([entry], is_nil(entry.deleted_at))
+      |> apply_bootstrap_cursor(cursor)
+      |> order_by([entry], desc: entry.last_accessed_at, desc: entry.key)
+      |> limit(^@bootstrap_page_size)
+
+    rows = DistributedRepo.all(query, timeout: Config.distributed_kv_database_timeout_ms())
+
+    case rows do
+      [] ->
+        :ok
+
+      _ ->
+        size_after_page =
+          Enum.reduce_while(rows, current_size, fn row, size_acc ->
+            if size_acc >= budget do
+              {:halt, size_acc}
+            else
+              status =
+                KeyValueEntries.materialize_remote_entry(%{
+                  key: row.key,
+                  json_payload: row.json_payload,
+                  last_accessed_at: row.last_accessed_at,
+                  source_updated_at: row.source_updated_at,
+                  source_node: row.source_node
+                })
+
+              if status in [:inserted, :payload_updated], do: KeyValueAccessTracker.mark_shared_lineage(row.key)
+              {:cont, size_acc + byte_size(row.json_payload)}
+            end
+          end)
+
+        last_row = List.last(rows)
+        bootstrap_rows(size_after_page, budget, {last_row.last_accessed_at, last_row.key})
+    end
+  end
+
+  defp apply_watermark(query, nil), do: query
+
+  defp apply_watermark(query, watermark) do
+    updated_at_value = watermark.updated_at_value || ~U[1970-01-01 00:00:00Z]
+    key_value = watermark.key_value || ""
+
+    from(entry in query,
+      where:
+        entry.updated_at > ^updated_at_value or
+          (entry.updated_at == ^updated_at_value and entry.key > ^key_value)
+    )
+  end
+
+  defp apply_bootstrap_cursor(query, nil), do: query
+
+  defp apply_bootstrap_cursor(query, {last_accessed_at, key}) do
+    from(entry in query,
+      where:
+        entry.last_accessed_at < ^last_accessed_at or
+          (entry.last_accessed_at == ^last_accessed_at and entry.key < ^key)
+    )
+  end
+
+  defp emit_lag(updated_at) do
+    lag_ms = DateTime.diff(DateTime.utc_now(), updated_at, :millisecond)
+    :telemetry.execute(@lag_event, %{lag_ms: lag_ms}, %{})
+  end
+
+  defp emit_local_store_size do
+    :telemetry.execute(
+      @local_store_event,
+      %{size_bytes: KeyValueEntries.estimated_size_bytes()},
+      %{node: Config.distributed_kv_node_name(), region: System.get_env("DEPLOY_REGION") || "unknown"}
+    )
+  end
+
+  defp schedule_poll(interval_ms) do
+    Process.send_after(self(), :poll, interval_ms)
+  end
+end

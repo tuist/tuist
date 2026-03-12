@@ -3,10 +3,14 @@ defmodule Cache.Application do
 
   use Application
 
+  alias Cache.DistributedKV.Repo
+
   require Logger
 
   @impl true
   def start(_type, _args) do
+    Cache.Config.validate_distributed_kv!()
+
     if System.get_env("SKIP_MIGRATIONS") != "true" do
       migrate()
     end
@@ -29,7 +33,6 @@ defmodule Cache.Application do
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
       Cache.S3,
-      Cache.KeyValueStore,
       Cache.MultipartUploads,
       Cache.Registry.Metadata,
       CacheWeb.Endpoint,
@@ -41,12 +44,26 @@ defmodule Cache.Application do
       {Oban, Application.get_env(:cache, Oban)}
     ]
 
+    distributed_children =
+      if Cache.Config.distributed_kv_enabled?() do
+        [
+          Repo,
+          Cache.KeyValueAccessTracker,
+          Cache.KeyValueReplicationShipper,
+          Cache.KeyValueReplicationPoller
+        ]
+      else
+        []
+      end
+
     children =
       if Cache.Config.analytics_enabled?() do
         base_children ++
+          distributed_children ++
+          [Cache.KeyValueStore] ++
           [Cache.XcodeEventsPipeline, Cache.GradleCacheEventsPipeline, Cache.RegistryDownloadEventsPipeline]
       else
-        base_children
+        base_children ++ distributed_children ++ [Cache.KeyValueStore]
       end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
@@ -54,7 +71,7 @@ defmodule Cache.Application do
   end
 
   defp migrate do
-    repos = Application.fetch_env!(:cache, :ecto_repos)
+    repos = [Cache.Repo, Cache.KeyValueRepo] ++ if(Cache.Config.distributed_kv_enabled?(), do: [Repo], else: [])
 
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))

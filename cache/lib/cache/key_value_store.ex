@@ -7,7 +7,11 @@ defmodule Cache.KeyValueStore do
   import Cachex.Spec, only: [expiration: 1, limit: 1]
 
   alias Cache.Config
+  alias Cache.DistributedKV.Entry, as: DistributedEntry
+  alias Cache.DistributedKV.Repo, as: DistributedRepo
+  alias Cache.KeyValueAccessTracker
   alias Cache.KeyValueBuffer
+  alias Cache.KeyValueEntries
   alias Cache.KeyValueEntry
   alias Cache.KeyValueRepo
   alias Cache.SQLiteHelpers
@@ -45,6 +49,7 @@ defmodule Cache.KeyValueStore do
 
     with :ok <- persist_entry(key, json),
          {:ok, _} <- Cachex.put(cache, key, json) do
+      if Config.distributed_kv_enabled?(), do: KeyValueAccessTracker.mark_shared_lineage(key)
       :ok
     end
   end
@@ -74,16 +79,17 @@ defmodule Cache.KeyValueStore do
   defp fetch_entry(key, cache) do
     case Cachex.get(cache, key) do
       {:ok, nil} ->
-        load_from_persistence(key, cache)
+        load_from_persistence_or_remote(key, cache)
 
       {:ok, json} when is_binary(json) ->
+        if Config.distributed_kv_enabled?(), do: maybe_track_access(key)
         {:ok, json}
 
       {:ok, _} ->
         {:error, :not_found}
 
       {:error, _} ->
-        load_from_persistence(key, cache)
+        load_from_persistence_or_remote(key, cache)
     end
   end
 
@@ -91,15 +97,20 @@ defmodule Cache.KeyValueStore do
     :ok = KeyValueBuffer.enqueue(key, json)
   end
 
-  defp load_from_persistence(key, cache) do
+  defp load_from_persistence_or_remote(key, cache) do
     with_repo_busy_timeout(Config.key_value_read_busy_timeout_ms(), fn ->
       case KeyValueRepo.get_by(KeyValueEntry, key: key) do
         nil ->
-          {:error, :not_found}
+          maybe_load_from_remote(key, cache)
 
         record ->
           Cachex.put(cache, key, record.json_payload)
-          KeyValueBuffer.enqueue_access(key)
+
+          if Config.distributed_kv_enabled?() and not is_nil(record.source_updated_at) do
+            KeyValueAccessTracker.mark_shared_lineage(key)
+          end
+
+          maybe_track_access(key)
           {:ok, record.json_payload}
       end
     end)
@@ -115,6 +126,47 @@ defmodule Cache.KeyValueStore do
 
   defp with_repo_busy_timeout(timeout_ms, fun) do
     SQLiteHelpers.with_repo_busy_timeout(KeyValueRepo, timeout_ms, fun)
+  end
+
+  defp maybe_track_access(key) do
+    if Config.distributed_kv_enabled?() do
+      if KeyValueAccessTracker.shared_lineage?(key) and KeyValueAccessTracker.allow_access_bump?(key) do
+        KeyValueBuffer.enqueue_access(key)
+      end
+    else
+      KeyValueBuffer.enqueue_access(key)
+    end
+
+    :ok
+  end
+
+  defp maybe_load_from_remote(key, cache) do
+    if Config.distributed_kv_enabled?() and Config.distributed_kv_remote_fallback_enabled?() do
+      case DistributedRepo.get_by(DistributedEntry, key: key, deleted_at: nil) do
+        %DistributedEntry{} = entry ->
+          materialize_remote_hit(entry, cache)
+
+        nil ->
+          {:error, :not_found}
+      end
+    else
+      {:error, :not_found}
+    end
+  end
+
+  defp materialize_remote_hit(entry, cache) do
+    local_attrs = %{
+      key: entry.key,
+      json_payload: entry.json_payload,
+      last_accessed_at: entry.last_accessed_at,
+      source_updated_at: entry.source_updated_at
+    }
+
+    _ = KeyValueEntries.materialize_remote_entry(local_attrs)
+    :ok = KeyValueAccessTracker.mark_shared_lineage(entry.key)
+    {:ok, _} = Cachex.put(cache, entry.key, entry.json_payload)
+    maybe_track_access(entry.key)
+    {:ok, entry.json_payload}
   end
 
   defp encode_entries(values) do

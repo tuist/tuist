@@ -249,6 +249,29 @@ defmodule Cache.S3 do
     end
   end
 
+  @doc """
+  Deletes objects under a prefix only when their current `Last-Modified`
+  timestamp is at or before the cutoff.
+  """
+  def delete_objects_with_prefix_before(prefix, cutoff, opts \\ []) do
+    type = Keyword.get(opts, :type, :cache)
+    bucket = bucket_for_type(type)
+    safe_cutoff = DateTime.truncate(cutoff, :second)
+
+    {duration, result} = :timer.tc(fn -> list_and_delete_objects_before(bucket, prefix, safe_cutoff) end)
+
+    case result do
+      {:ok, count} ->
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: count}, %{result: :ok})
+        {:ok, count}
+
+      {:error, reason} = error ->
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :error})
+        Logger.error("Failed cutoff-aware delete for prefix #{prefix}: #{inspect(reason)}")
+        error
+    end
+  end
+
   defp list_and_delete_objects(bucket, prefix, acc) do
     bucket
     |> ExAws.S3.list_objects(prefix: prefix)
@@ -266,6 +289,48 @@ defmodule Cache.S3 do
           {:halt, {:error, reason}}
       end
     end)
+  end
+
+  defp list_and_delete_objects_before(nil, _prefix, _cutoff), do: {:ok, 0}
+
+  defp list_and_delete_objects_before(bucket, prefix, cutoff) do
+    bucket
+    |> ExAws.S3.list_objects(prefix: prefix)
+    |> ExAws.stream!()
+    |> Stream.map(& &1.key)
+    |> Enum.reduce_while({:ok, 0}, fn key, {:ok, count} ->
+      case delete_object_if_before(bucket, key, cutoff) do
+        :deleted -> {:cont, {:ok, count + 1}}
+        :skipped -> {:cont, {:ok, count}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp delete_object_if_before(bucket, key, cutoff) do
+    case head_object_response(bucket, key) do
+      {:ok, response} ->
+        case last_modified_from_response(response) do
+          {:ok, last_modified} ->
+            if DateTime.before?(last_modified, cutoff) do
+              case bucket |> ExAws.S3.delete_object(key) |> ExAws.request() do
+                {:ok, _} -> :deleted
+                {:error, reason} -> {:error, reason}
+              end
+            else
+              :skipped
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, {:http_error, 404, _}} ->
+        :skipped
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -378,12 +443,7 @@ defmodule Cache.S3 do
   defp bucket_for_type(:registry), do: Config.registry_bucket()
 
   defp head_object_status(bucket, key, request_opts \\ []) do
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.head_object(key)
-        |> ExAws.request(request_opts)
-      end)
+    {duration, result} = :timer.tc(fn -> head_object_response(bucket, key, request_opts) end)
 
     case result do
       {:ok, _response} ->
@@ -401,6 +461,37 @@ defmodule Cache.S3 do
       {:error, reason} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
         {:error, reason}
+    end
+  end
+
+  defp head_object_response(bucket, key, request_opts \\ []) do
+    bucket
+    |> ExAws.S3.head_object(key)
+    |> ExAws.request(request_opts)
+  end
+
+  defp last_modified_from_response(%{headers: headers}) when is_map(headers) do
+    headers
+    |> Map.get("Last-Modified", Map.get(headers, "last-modified"))
+    |> parse_http_date()
+  end
+
+  defp last_modified_from_response(_response), do: {:error, :missing_last_modified}
+
+  defp parse_http_date(nil), do: {:error, :missing_last_modified}
+
+  defp parse_http_date(value) when is_binary(value) do
+    case :httpd_util.convert_request_date(String.to_charlist(value)) do
+      {{year, month, day}, {hour, minute, second}} ->
+        year
+        |> NaiveDateTime.new(month, day, hour, minute, second)
+        |> case do
+          {:ok, naive} -> DateTime.from_naive(naive, "Etc/UTC")
+          error -> error
+        end
+
+      _ ->
+        {:error, :invalid_last_modified}
     end
   end
 end

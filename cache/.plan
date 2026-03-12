@@ -1,0 +1,140 @@
+# Distributed KV Execution Plan
+
+## Goal
+
+Implement the full distributed key-value store plan from `cache/plan.md`, including Phases 1-5.
+
+## Checklist
+
+- [x] Read `cache/plan.md` and map the affected modules, migrations, config, and tests.
+- [x] Phase 1: remove `key_value_entry_hashes`, simplify eviction, add distributed KV mode/config scaffolding, and extend local SQLite schema.
+- [x] Phase 2: add the distributed Postgres repo, shared schemas/migrations, runtime config, and outbound replication shipper.
+- [x] Phase 3: add inbound replication poller, access-bump replication, bootstrap logic, and Cachex invalidation.
+- [x] Phase 4: implement distributed cleanup coordination, tombstone propagation, and cutoff-aware disk/S3 cleanup.
+- [x] Phase 5: implement tombstone purging and remote miss fallback.
+- [x] Add/update focused tests for the new flows.
+- [x] Run targeted validation commands and record evidence.
+- [x] Write implementation learnings to `cache/learnings.md`.
+
+## Progress Log
+
+### Step 1 - Initial codebase reconnaissance
+
+Status: completed
+
+What I checked:
+- `cache/plan.md`
+- `cache/lib/cache/key_value_store.ex`
+- `cache/lib/cache/key_value_buffer.ex`
+- `cache/lib/cache/key_value_entries.ex`
+- `cache/lib/cache/key_value_entry.ex`
+- `cache/lib/cache/key_value_eviction_worker.ex`
+- `cache/lib/cache/clean_project_worker.ex`
+- `cache/lib/cache/application.ex`
+- `cache/lib/cache/config.ex`
+- `cache/lib/cache/disk.ex`
+- `cache/lib/cache/s3.ex`
+- `cache/config/config.exs`
+- `cache/config/runtime.exs`
+- `cache/mix.exs`
+- existing KV and cleanup tests under `cache/test/cache/`
+
+Evidence:
+- Identified current local-only KV flow: `Cache.KeyValueStore` -> `Cache.KeyValueBuffer` -> `Cache.KeyValueRepo`.
+- Confirmed hash-reference coupling still exists in `Cache.KeyValueEntries` and `Cache.KeyValueEvictionWorker`.
+- Confirmed application startup currently auto-migrates all configured repos and starts only local KV workers.
+- Confirmed cleanup currently uses blunt `rm -rf` disk deletion plus blind S3 prefix deletion.
+
+### Step 2 - Phase 1 groundwork
+
+Status: completed
+
+Changes made:
+- Deleted `Cache.KeyValueEntryHash` and added a SQLite migration to drop `key_value_entry_hashes`.
+- Extended `key_value_entries` with `source_updated_at` and `replication_enqueued_at`.
+- Added the local `distributed_kv_state` table for the poller watermark.
+- Removed eviction-triggered artifact cleanup coupling from `Cache.KeyValueEntries`, `Cache.KeyValueBuffer`, and `Cache.KeyValueEvictionWorker`.
+- Added distributed-mode config helpers in `Cache.Config`.
+
+Evidence:
+- New migrations under `cache/priv/key_value_repo/migrations/20260312110000_drop_key_value_entry_hashes.exs` and `cache/priv/key_value_repo/migrations/20260312111000_add_distributed_kv_fields.exs`.
+- `cache/lib/cache/key_value_eviction_worker.ex` no longer enqueues `XcodeCleanupWorker`.
+- `cache/lib/cache/key_value_entry.ex` now includes distributed replication fields.
+
+### Step 3 - Shared-store repo and outbound replication
+
+Status: completed
+
+Changes made:
+- Added `Cache.DistributedKV.Repo`, `Cache.DistributedKV.Entry`, `Cache.DistributedKV.ProjectCleanup`, and shared Postgres migrations.
+- Added runtime/config wiring for `KEY_VALUE_MODE=distributed` and the distributed KV env vars.
+- Implemented `Cache.KeyValueReplicationShipper` and shared merge logic in `Cache.DistributedKV.Logic`.
+
+Evidence:
+- New files under `cache/lib/cache/distributed_kv/`.
+- New migrations under `cache/priv/distributed_kv_repo/migrations/`.
+- `cache/lib/cache/application.ex` now validates and conditionally starts distributed KV children.
+
+### Step 4 - Inbound replication and remote miss fallback
+
+Status: completed
+
+Changes made:
+- Added `Cache.KeyValueAccessTracker` for shared-lineage tracking and access-bump throttling.
+- Implemented `Cache.KeyValueReplicationPoller` with bootstrap, watermark persistence, and Cachex invalidation on remote payload changes/tombstones.
+- Added remote miss fallback in `Cache.KeyValueStore` so distributed mode can materialize a shared row locally after a local miss.
+
+Evidence:
+- `cache/lib/cache/key_value_store.ex` now falls back to the distributed repo on local miss when distributed mode is enabled.
+- `cache/lib/cache/key_value_replication_poller.ex` persists the poller watermark through `Cache.KeyValueEntries`.
+
+### Step 5 - Cleanup propagation and tombstone purging
+
+Status: completed
+
+Changes made:
+- Implemented `Cache.DistributedKV.Cleanup` for cleanup lease coordination and shared tombstone writes.
+- Updated `Cache.CleanProjectWorker` to reuse one cleanup cutoff across local KV deletion, disk cleanup, S3 cleanup, and shared tombstones.
+- Added cutoff-aware helpers in `Cache.Disk` and `Cache.S3`.
+- Added `Cache.TombstonePurgeWorker` and scheduled it in Oban cron.
+
+Evidence:
+- `cache/lib/cache/clean_project_worker.ex`, `cache/lib/cache/disk.ex`, and `cache/lib/cache/s3.ex` now contain cutoff-aware distributed cleanup paths.
+- `cache/lib/cache/tombstone_purge_worker.ex` adds the Phase 5 purge worker.
+
+### Step 6 - Documentation and intent updates
+
+Status: completed
+
+Changes made:
+- Updated `docs/docs/en/guides/cache/self-host.md` with distributed KV env vars and S3 lifecycle policy guidance.
+- Added `cache/lib/cache/distributed_kv/AGENTS.md` and linked it from `cache/lib/cache/AGENTS.md`.
+
+Evidence:
+- Self-host docs now document `KEY_VALUE_MODE`, distributed Postgres settings, and lifecycle policy expectations.
+
+### Step 7 - Tests and verification
+
+Status: completed
+
+Commands run:
+- `mix deps.get`
+- `mix format`
+- `mix test test/cache/distributed_kv/logic_test.exs test/cache/key_value_replication_shipper_test.exs test/cache/key_value_replication_poller_test.exs test/cache/key_value_entries_test.exs test/cache/sqlite_buffer_test.exs test/cache/key_value_eviction_worker_test.exs test/cache/clean_project_worker_test.exs test/cache/xcode_cleanup_worker_test.exs test/cache/key_value_store_test.exs`
+- `pnpm build` (from `docs/`) - failed because `node_modules` are not installed and `vitepress` is unavailable in this environment.
+
+Additional hardening completed after review:
+- Fixed stale pending-write resurrection by making the shipper consult the latest project cleanup cutoff before shipping.
+- Fixed tombstone handling to always clear local Cachex entries, even when SQLite no longer has the row.
+- Tightened cutoff-aware disk and S3 deletion to be conservative with second-granularity timestamps.
+
+Evidence:
+- Targeted Elixir verification passed: `47 tests, 0 failures`.
+- Docs build could not be completed without installing the docs workspace dependencies first.
+
+### Step 8 - Learnings capture
+
+Status: completed
+
+Evidence:
+- Added `cache/learnings.md` with implementation learnings gathered during the work.
