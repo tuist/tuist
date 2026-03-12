@@ -9,14 +9,6 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 # ========================================
 FROM swift:6.2-bookworm AS swift-builder
 
-RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-RUN swift sdk install https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
-    --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
-
-RUN rm -f /usr/lib/*/libc.a /usr/lib/*/libm.a /usr/lib/*/libm-*.a /usr/lib/*/libcurl.a
-
 WORKDIR /nif
 
 COPY processor/native/xcactivitylog_nif/Package.swift .
@@ -25,12 +17,8 @@ COPY processor/native/xcactivitylog_nif/Sources/ Sources/
 COPY processor/native/xcactivitylog_nif/Tests/ Tests/
 COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then SDK_TARGET="x86_64-swift-linux-musl"; \
-    elif [ "$ARCH" = "aarch64" ]; then SDK_TARGET="aarch64-swift-linux-musl"; \
-    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
-    swift build -c release --replace-scm-with-registry --swift-sdk "$SDK_TARGET" && \
-    cp ".build/$SDK_TARGET/release/libXCActivityLogNIF.so" /nif/libXCActivityLogNIF.so
+RUN swift build -c release --replace-scm-with-registry --static-swift-stdlib && \
+    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so
 
 # ========================================
 # Stage 2: Build Elixir release + NIF bridge
