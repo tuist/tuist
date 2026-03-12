@@ -96,7 +96,13 @@ public struct LaunchAgentService: LaunchAgentServicing {
             try await launchctlController.bootstrap(plistPath: plistPath)
             Logger.current.debug("Bootstrapped LaunchAgent")
         } catch {
-            throw LaunchAgentServiceError.failedToLoadLaunchAgent(error.localizedDescription)
+            var message = error.localizedDescription
+            if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
+               !stderrContent.isEmpty
+            {
+                message += "\nDaemon stderr log:\n\(stderrContent)"
+            }
+            throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
         }
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
