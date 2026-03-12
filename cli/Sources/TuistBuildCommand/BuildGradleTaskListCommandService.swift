@@ -94,7 +94,7 @@ struct BuildGradleTaskListCommandService: BuildGradleTaskListCommandServicing {
                 task.task_path,
                 task.outcome.rawValue,
                 task.cacheable == true ? "Yes" : "No",
-                formatDuration(task.duration_ms),
+                Formatters.formatDuration(task.duration_ms),
             ]
         }
 
@@ -121,23 +121,10 @@ struct BuildGradleTaskListCommandService: BuildGradleTaskListCommandServicing {
                         task.task_path,
                         task.outcome.rawValue,
                         task.cacheable == true ? "Yes" : "No",
-                        formatDuration(task.duration_ms),
+                        Formatters.formatDuration(task.duration_ms),
                     ]
                 }
             }
         )
-    }
-
-    private func formatDuration(_ milliseconds: Int) -> String {
-        if milliseconds < 1000 {
-            return "\(milliseconds)ms"
-        } else if milliseconds < 60000 {
-            let seconds = Double(milliseconds) / 1000.0
-            return String(format: "%.1fs", seconds)
-        } else {
-            let minutes = milliseconds / 60000
-            let seconds = (milliseconds % 60000) / 1000
-            return "\(minutes)m \(seconds)s"
-        }
     }
 }
