@@ -42,9 +42,11 @@ RUN apt-get update -y && apt-get install -y build-essential git \
 
 WORKDIR /app
 
-ENV ELIXIR_ERL_OPTIONS="-noinput"
+# OTP 28 requires -noinput in Docker buildx builders (no TTY → "nouser" crash)
+ENV ERL_FLAGS="-noinput"
 
-RUN mix local.hex --force && mix local.rebar --force
+RUN mix local.hex --force && \
+    mix local.rebar --force
 
 ENV MIX_ENV=prod
 
@@ -83,7 +85,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-    apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates \
+    apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates curl \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
