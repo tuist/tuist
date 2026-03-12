@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-03-12 17:34+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-03-12 17:34+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1076,8 +1076,9 @@ msgstr "不稳定测试 · Tuist"
 msgid "Flaky test integration"
 msgstr "不稳定的测试集成"
 
+#, fuzzy
 msgid "Flaky tests"
-msgstr ""
+msgstr "不规则测试"
 
 #, fuzzy
 msgid "For each flaky test, download the execution data to investigate timing, environment conditions, and logs, so you can reproduce and fix the flakiness."
