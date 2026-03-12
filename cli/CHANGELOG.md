@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.157.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add watch2AppContainer product type for watchOS-only apps by [@BugorBN](https://github.com/BugorBN) in [#9648](https://github.com/tuist/tuist/pull/9648)
+### 🐛 Bug Fixes
+
+* restore generate run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9795](https://github.com/tuist/tuist/pull/9795)
+* handle selectively-pruned targets in --test-targets validation by [@fortmarek](https://github.com/fortmarek) in [#9783](https://github.com/tuist/tuist/pull/9783)
+* include all platform-matching xcframework slices in FRAMEWORK_SEARCH_PATHS by [@ngs](https://github.com/ngs) in [#9730](https://github.com/tuist/tuist/pull/9730)
+
+## New Contributors
+* [@BugorBN](https://github.com/BugorBN) made their first contribution in [#9648](https://github.com/tuist/tuist/pull/9648)
+* [@ngs](https://github.com/ngs) made their first contribution in [#9730](https://github.com/tuist/tuist/pull/9730)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.156.0...4.157.0
+
 ## What's Changed in 4.156.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
