@@ -36,7 +36,7 @@ defmodule Processor.BuildProcessor do
 
     machine_metrics =
       read_machine_metrics(
-        Path.join(temp_dir, "build/machine_metrics.jsonl"),
+        Path.join(temp_dir, "machine_metrics.jsonl"),
         parsed_data["time_started_recording"],
         parsed_data["time_stopped_recording"]
       )
@@ -51,7 +51,7 @@ defmodule Processor.BuildProcessor do
   end
 
   defp find_xcactivitylog(temp_dir) do
-    xcactivitylog_dir = Path.join(temp_dir, "build/xcactivitylog")
+    xcactivitylog_dir = Path.join(temp_dir, "xcactivitylog")
 
     {:ok, files} = File.ls(xcactivitylog_dir)
     file = Enum.find(files, &String.ends_with?(&1, ".xcactivitylog"))

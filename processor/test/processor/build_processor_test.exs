@@ -78,14 +78,14 @@ defmodule Processor.BuildProcessorTest do
 
     files =
       if include_xcactivitylog do
-        [{~c"build/xcactivitylog/test.xcactivitylog", "fake log data"}]
+        [{~c"xcactivitylog/test.xcactivitylog", "fake log data"}]
       else
-        [{~c"build/other_file.txt", "some data"}]
+        [{~c"other_file.txt", "some data"}]
       end
 
     files =
       if manifest do
-        [{~c"build/manifest.json", JSON.encode!(manifest)} | files]
+        [{~c"manifest.json", JSON.encode!(manifest)} | files]
       else
         files
       end

@@ -367,8 +367,29 @@
             }
 
             let zipPath = tempDirectory.appending(component: "build.zip")
-            try await fileSystem.zipFileOrDirectoryContent(at: buildDirectory, to: zipPath)
+            try await createZipFollowingSymlinks(at: buildDirectory, to: zipPath)
             return zipPath
+        }
+
+        private func createZipFollowingSymlinks(at directory: AbsolutePath, to zipPath: AbsolutePath) async throws {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+                process.arguments = ["-r", "-q", zipPath.pathString, "."]
+                process.currentDirectoryURL = URL(fileURLWithPath: directory.pathString)
+                process.terminationHandler = { process in
+                    if process.terminationStatus == 0 {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: InspectBuildCommandServiceError.archiveCreationFailed)
+                    }
+                }
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
         }
 
         private func truncateIssuesIfNeeded(_ issues: [XCActivityIssue]) -> [XCActivityIssue] {
