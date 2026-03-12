@@ -921,7 +921,7 @@ defmodule TuistWeb.API.BuildsController do
         {:ok, build} = build_attrs |> Builds.create_build() |> handle_build_creation_result(params.id)
 
         if build.status == "processing" do
-          storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, build.id)
+          storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, params.id)
 
           %{
             build_id: build.id,
