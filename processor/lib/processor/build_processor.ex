@@ -10,25 +10,11 @@ defmodule Processor.BuildProcessor do
     temp_dir = make_temp_dir()
     build_path = Path.join(temp_dir, "build.zip")
 
-    s3_config = ExAws.Config.new(:s3)
-    presign_config = %{s3_config | host: bucket, port: 443}
-    {:ok, url} = ExAws.S3.presigned_url(presign_config, :get, "", storage_key)
-    Logger.info("S3 downloading from presigned URL: #{url}")
-
     try do
-      case Req.get(url, into: File.stream!(build_path)) do
-        {:ok, %{status: 200}} ->
-          Logger.info("S3 download succeeded")
-          process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
-
-        {:ok, %{status: status, body: body}} ->
-          Logger.error("S3 download failed with status #{status}: #{inspect(body)}")
-          {:error, "s3_download_failed_#{status}"}
-
-        {:error, reason} ->
-          Logger.error("S3 download request failed: #{inspect(reason)}")
-          {:error, reason}
-      end
+      result = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
+      Logger.info("S3 download result: #{inspect(result)}")
+      {:ok, _} = result
+      process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
     after
       cleanup_temp(temp_dir)
     end

@@ -16,19 +16,33 @@ if config_env() == :prod do
     server: true
 
   s3_endpoint = System.get_env("S3_ENDPOINT") || raise "S3_ENDPOINT is required"
-  %{host: s3_host, scheme: s3_scheme, port: s3_port} = URI.parse(s3_endpoint)
+  s3_uri = URI.parse(s3_endpoint)
+  s3_scheme = (s3_uri.scheme || "https") <> "://"
+  s3_host = s3_uri.host
+
+  s3_default_port =
+    case s3_uri.scheme do
+      "https" -> 443
+      "http" -> 80
+      _ -> nil
+    end
+
+  s3_port = if s3_uri.port != s3_default_port, do: s3_uri.port, else: nil
 
   s3_config =
     [
-      scheme: "#{s3_scheme}://",
+      scheme: s3_scheme,
       host: s3_host,
       region: System.get_env("S3_REGION") || "auto"
     ]
-    |> then(&if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port)))
 
+  s3_config = if s3_port, do: Keyword.put(s3_config, :port, s3_port), else: s3_config
+
+  config :ex_aws, :req_opts, []
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
+    region: System.get_env("S3_REGION") || "auto",
     secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
     access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
     http_client: TuistCommon.AWS.Client
