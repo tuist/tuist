@@ -8,7 +8,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
-  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id/files" do
+  describe "GET /api/projects/:account_handle/:project_handle/builds/xcode/:build_id/files" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -33,7 +33,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/files")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/files")
 
       assert %{
                "files" => [],
@@ -73,7 +73,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/files")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/files")
 
       response = json_response(conn, 200)
       assert length(response["files"]) == 1
@@ -116,7 +116,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/files?target=MyTarget"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/files?target=MyTarget"
         )
 
       response = json_response(conn, 200)
@@ -154,7 +154,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/files?type=swift"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/files?type=swift"
         )
 
       response = json_response(conn, 200)
@@ -192,7 +192,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/files?page=2&page_size=10"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/files?page=2&page_size=10"
         )
 
       response = json_response(conn, 200)
@@ -206,7 +206,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
       stub(Builds, :get_build, fn _id -> nil end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{UUIDv7.generate()}/files")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{UUIDv7.generate()}/files")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -217,7 +217,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
 
       stub(Builds, :get_build, fn _id -> build end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/files")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/files")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -227,7 +227,7 @@ defmodule TuistWeb.API.BuildFilesControllerTest do
       conn = Authentication.put_current_user(conn, other_user)
 
       conn =
-        get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/#{UUIDv7.generate()}/files")
+        get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/xcode/#{UUIDv7.generate()}/files")
 
       assert json_response(conn, :forbidden)
     end

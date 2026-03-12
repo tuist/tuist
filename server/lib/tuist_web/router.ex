@@ -416,7 +416,7 @@ defmodule TuistWeb.Router do
           post "/attachments", TestCaseRunAttachmentsController, :create
         end
 
-        scope "/builds" do
+        scope "/builds/xcode" do
           get "/", BuildsController, :index
           get "/:build_id/targets", BuildTargetsController, :index
           get "/:build_id/files", BuildFilesController, :index

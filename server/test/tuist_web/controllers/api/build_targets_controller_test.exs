@@ -8,7 +8,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
-  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id/targets" do
+  describe "GET /api/projects/:account_handle/:project_handle/builds/xcode/:build_id/targets" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -33,7 +33,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/targets")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/targets")
 
       assert %{
                "targets" => [],
@@ -73,7 +73,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/targets")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/targets")
 
       response = json_response(conn, 200)
       assert length(response["targets"]) == 1
@@ -116,7 +116,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/targets?status=failure"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/targets?status=failure"
         )
 
       response = json_response(conn, 200)
@@ -147,7 +147,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/targets?page=2&page_size=10"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/targets?page=2&page_size=10"
         )
 
       response = json_response(conn, 200)
@@ -161,7 +161,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
       stub(Builds, :get_build, fn _id -> nil end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{UUIDv7.generate()}/targets")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{UUIDv7.generate()}/targets")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -172,7 +172,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
 
       stub(Builds, :get_build, fn _id -> build end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/targets")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/targets")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -182,7 +182,7 @@ defmodule TuistWeb.API.BuildTargetsControllerTest do
       conn = Authentication.put_current_user(conn, other_user)
 
       conn =
-        get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/#{UUIDv7.generate()}/targets")
+        get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/xcode/#{UUIDv7.generate()}/targets")
 
       assert json_response(conn, :forbidden)
     end
