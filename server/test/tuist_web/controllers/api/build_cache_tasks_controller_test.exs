@@ -8,7 +8,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistWeb.Authentication
 
-  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id/cache-tasks" do
+  describe "GET /api/projects/:account_handle/:project_handle/builds/xcode/:build_id/cache-tasks" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -33,7 +33,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/cache-tasks")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/cache-tasks")
 
       assert %{
                "tasks" => [],
@@ -75,7 +75,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/cache-tasks")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/cache-tasks")
 
       response = json_response(conn, 200)
       assert length(response["tasks"]) == 1
@@ -122,7 +122,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/cache-tasks?status=miss"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/cache-tasks?status=miss"
         )
 
       response = json_response(conn, 200)
@@ -162,7 +162,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/cache-tasks?type=clang"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/cache-tasks?type=clang"
         )
 
       response = json_response(conn, 200)
@@ -203,7 +203,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/cache-tasks?page=2&page_size=10"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/cache-tasks?page=2&page_size=10"
         )
 
       response = json_response(conn, 200)
@@ -218,7 +218,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       stub(Builds, :get_build, fn _id -> nil end)
 
       conn =
-        get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{UUIDv7.generate()}/cache-tasks")
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{UUIDv7.generate()}/cache-tasks")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -229,7 +229,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
 
       stub(Builds, :get_build, fn _id -> build end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}/cache-tasks")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/xcode/#{build.id}/cache-tasks")
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
     end
@@ -239,7 +239,7 @@ defmodule TuistWeb.API.BuildCacheTasksControllerTest do
       conn = Authentication.put_current_user(conn, other_user)
 
       conn =
-        get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/#{UUIDv7.generate()}/cache-tasks")
+        get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/xcode/#{UUIDv7.generate()}/cache-tasks")
 
       assert json_response(conn, :forbidden)
     end
