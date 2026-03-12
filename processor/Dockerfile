@@ -20,8 +20,10 @@ COPY processor/native/xcactivitylog_nif/Sources/ Sources/
 COPY processor/native/xcactivitylog_nif/Tests/ Tests/
 COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry --static-swift-stdlib && \
-    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so
+RUN swift build -c release --replace-scm-with-registry && \
+    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
+    mkdir -p /nif/swift-libs && \
+    cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
 # ========================================
 # Stage 2: Build Elixir release + NIF bridge
@@ -75,6 +77,10 @@ FROM ${RUNNER_IMAGE}
 RUN apt-get update -y && \
     apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates curl \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
+
+# Swift runtime libraries needed by the NIF
+COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+RUN ldconfig
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 

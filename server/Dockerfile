@@ -21,8 +21,10 @@ COPY processor/native/xcactivitylog_nif/Sources/ Sources/
 COPY processor/native/xcactivitylog_nif/Tests/ Tests/
 COPY processor/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry --static-swift-stdlib && \
-    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so
+RUN swift build -c release --replace-scm-with-registry && \
+    cp .build/release/libXCActivityLogNIF.so /nif/libXCActivityLogNIF.so && \
+    mkdir -p /nif/swift-libs && \
+    cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
 # ========================================
 # Stage 1: NPM dependencies
@@ -186,6 +188,10 @@ COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 # Build with: docker build --target runner-selfhosted .
 # ========================================
 FROM runner-base AS runner-selfhosted
+
+# Swift runtime libraries needed by the NIF
+COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+RUN ldconfig
 
 # Copy compiled NIF .so files into processor priv dir
 COPY --from=nif-bridge-builder /app/_build/prod/rel/tuist/lib/processor-0.1.0/priv/native/ /app/lib/processor-0.1.0/priv/native/
