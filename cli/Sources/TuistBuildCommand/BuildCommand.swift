@@ -20,12 +20,14 @@ public struct BuildCommand: AsyncParsableCommand {
                 BuildListCommand.self,
                 BuildShowCommand.self,
                 BuildXcodeCommand.self,
+                BuildGradleCommand.self,
             ]
         #else
             [
                 BuildListCommand.self,
                 BuildShowCommand.self,
                 BuildXcodeCommand.self,
+                BuildGradleCommand.self,
             ]
         #endif
     }
