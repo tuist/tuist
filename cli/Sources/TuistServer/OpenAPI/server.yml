@@ -177,6 +177,14 @@ components:
       type: object
       x-struct:
       x-validate:
+    BuildCacheTasksIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildCacheTasksIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     ArtifactUploadID:
       description: The upload has been initiated and a ID is returned to upload the various parts using multi-part uploads
       properties:
@@ -213,6 +221,15 @@ components:
       maximum: 500
       minimum: 1
       title: TestCasesIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    BuildCASOutputsIndexPageSize:
+      default: 20
+      description: The maximum number of CAS outputs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildCASOutputsIndexPageSize
       type: integer
       x-struct:
       x-validate:
@@ -260,6 +277,14 @@ components:
       title: CacheArtifactDownloadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CacheArtifactDownloadURL
+      x-validate:
+    ModuleCacheTargetsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: ModuleCacheTargetsPage
+      type: integer
+      x-struct:
       x-validate:
     Tokens:
       description: A list of project tokens.
@@ -366,6 +391,14 @@ components:
       type: string
       x-struct:
       x-validate:
+    BuildFilesIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildFilesIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     CacheActionItemUploadParams:
       properties:
         hash:
@@ -383,6 +416,14 @@ components:
       minimum: 1
       title: CacheRunsIndexPage
       type: integer
+      x-struct:
+      x-validate:
+    BuildFileType:
+      enum:
+        - swift
+        - c
+      title: BuildFileType
+      type: string
       x-struct:
       x-validate:
     ArtifactMultipartUploadPart:
@@ -1084,6 +1125,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Project
       x-validate:
+    TestSuiteRunsPageSize:
+      default: 20
+      description: The maximum number of suite runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestSuiteRunsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     Invitation:
       properties:
         id:
@@ -1126,6 +1176,15 @@ components:
       type: integer
       x-struct:
       x-validate:
+    TestSuiteRunStatus:
+      enum:
+        - success
+        - failure
+        - skipped
+      title: TestSuiteRunStatus
+      type: string
+      x-struct:
+      x-validate:
     GenerationsIndexPage:
       default: 1
       description: The page number to return.
@@ -1152,6 +1211,14 @@ components:
       title: Account
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Account
+      x-validate:
+    TestModuleRunStatus:
+      enum:
+        - success
+        - failure
+      title: TestModuleRunStatus
+      type: string
+      x-struct:
       x-validate:
     OrganizationMember:
       description: An organization member
@@ -1350,12 +1417,46 @@ components:
       type: integer
       x-struct:
       x-validate:
+    BuildIssuesIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildIssuesIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     LatestPreviewResponse:
       properties:
         preview:
           $ref: '#/components/schemas/Preview'
       title: LatestPreviewResponse
       type: object
+      x-struct:
+      x-validate:
+    CASOutputOperation:
+      enum:
+        - download
+        - upload
+      title: CASOutputOperation
+      type: string
+      x-struct:
+      x-validate:
+    BuildIssuesIndexPageSize:
+      default: 20
+      description: The maximum number of issues to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildIssuesIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    BuildCacheTasksIndexPageSize:
+      default: 20
+      description: The maximum number of cache tasks to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildCacheTasksIndexPageSize
+      type: integer
       x-struct:
       x-validate:
     PreviewSupportedPlatform:
@@ -1485,6 +1586,15 @@ components:
       title: TestCase
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.TestCase
+      x-validate:
+    TestRunsIndexPageSize:
+      default: 20
+      description: The maximum number of test runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestRunsIndexPageSize
+      type: integer
+      x-struct:
       x-validate:
     Preview:
       properties:
@@ -2442,6 +2552,22 @@ components:
       title: RunParams
       x-struct:
       x-validate:
+    BuildTargetStatus:
+      enum:
+        - success
+        - failure
+      title: BuildTargetStatus
+      type: string
+      x-struct:
+      x-validate:
+    BuildCASOutputsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildCASOutputsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     RunsIndexPageSize:
       default: 20
       description: The maximum number of runs to return in a single page.
@@ -2543,6 +2669,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Bundle
       x-validate:
+    BuildFileSortBy:
+      default: compilation_duration
+      enum:
+        - compilation_duration
+        - path
+      title: BuildFileSortBy
+      type: string
+      x-struct:
+      x-validate:
     TestCaseRunsByTestCasePageSize:
       default: 20
       description: The maximum number of test case runs to return in a single page.
@@ -2550,6 +2685,14 @@ components:
       minimum: 1
       title: TestCaseRunsByTestCasePageSize
       type: integer
+      x-struct:
+      x-validate:
+    CacheTaskType:
+      enum:
+        - clang
+        - swift
+      title: CacheTaskType
+      type: string
       x-struct:
       x-validate:
     BundleArtifact:
@@ -2962,6 +3105,40 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestModuleRunsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestModuleRunsPage
+      type: integer
+      x-struct:
+      x-validate:
+    TestRunsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestRunsIndexPage
+      type: integer
+      x-struct:
+      x-validate:
+    CacheTaskStatus:
+      enum:
+        - hit_local
+        - hit_remote
+        - miss
+      title: CacheTaskStatus
+      type: string
+      x-struct:
+      x-validate:
+    BuildTargetsIndexPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildTargetsIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
     OrganizationUsage:
       description: The usage of an organization.
       properties:
@@ -2994,6 +3171,66 @@ components:
       type: object
       x-struct:
       x-validate:
+    CASOutputType:
+      enum:
+        - swift
+        - sil
+        - sib
+        - image
+        - dSYM
+        - dependencies
+        - emit-module-dependencies
+        - autolink
+        - swiftmodule
+        - swiftdoc
+        - swiftinterface
+        - object
+        - ast-dump
+        - raw-sil
+        - raw-sib
+        - raw-llvm-ir
+        - llvm-ir
+        - llvm-bc
+        - private-swiftinterface
+        - package-swiftinterface
+        - objc-header
+        - swift-dependencies
+        - dependency-scanner-cache
+        - json-dependencies
+        - json-target-info
+        - json-supported-features
+        - json-module-artifacts
+        - imported-modules
+        - module-trace
+        - index-data
+        - index-unit-output-path
+        - yaml-opt-record
+        - bitstream-opt-record
+        - diagnostics
+        - emit-module-diagnostics
+        - dependency-scan-diagnostics
+        - api-baseline-json
+        - abi-baseline-json
+        - const-values
+        - api-descriptor-json
+        - swift-module-summary
+        - module-semantic-info
+        - cached-diagnostics
+        - json-supported-swift-features
+        - modulemap
+        - pch
+        - pcm
+        - tbd
+        - remap
+        - localization-strings
+        - clang-header
+        - swiftsourceinfo
+        - assembly
+        - unknown
+      title: CASOutputType
+      type: string
+      x-struct:
+      x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
       properties:
@@ -3013,6 +3250,15 @@ components:
       title: ArtifactUploadURL
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadURL
+      x-validate:
+    BuildFilesIndexPageSize:
+      default: 20
+      description: The maximum number of files to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildFilesIndexPageSize
+      type: integer
+      x-struct:
       x-validate:
     TestCaseRunsByTestRunPage:
       default: 1
@@ -3039,6 +3285,23 @@ components:
       title: TestCaseRunsList
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Tests.TestCaseRunsList
+      x-validate:
+    TestModuleRunsPageSize:
+      default: 20
+      description: The maximum number of module runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestModuleRunsPageSize
+      type: integer
+      x-struct:
+      x-validate:
+    BuildTargetsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildTargetsIndexPage
+      type: integer
+      x-struct:
       x-validate:
     DeviceCodeAuthenticationTokens:
       description: Token to authenticate the user with.
@@ -3085,6 +3348,14 @@ components:
           x-validate:
       title: AbsentCacheArtifact
       type: object
+      x-struct:
+      x-validate:
+    BuildIssueType:
+      enum:
+        - warning
+        - error
+      title: BuildIssueType
+      type: string
       x-struct:
       x-validate:
     Error:
@@ -3476,6 +3747,15 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestRunStatus:
+      enum:
+        - success
+        - failure
+        - skipped
+      title: TestRunStatus
+      type: string
+      x-struct:
+      x-validate:
     TestCaseRun:
       description: A single test case run.
       properties:
@@ -3738,6 +4018,15 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
       x-validate:
+    CacheStatus:
+      enum:
+        - miss
+        - local
+        - remote
+      title: CacheStatus
+      type: string
+      x-struct:
+      x-validate:
     GenerationsIndexPageSize:
       default: 20
       description: The maximum number of generations to return in a single page.
@@ -3763,6 +4052,14 @@ components:
       title: BundleSupportedPlatform
       type: string
       x-struct: Elixir.TuistWeb.API.Schemas.BundleSupportedPlatform
+      x-validate:
+    TestSuiteRunsPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestSuiteRunsPage
+      type: integer
+      x-struct:
       x-validate:
     CacheArtifactExistence:
       description: The artifact exists in the cache and can be downloaded
@@ -4521,6 +4818,15 @@ components:
       type: integer
       x-struct:
       x-validate:
+    ModuleCacheTargetsPageSize:
+      default: 20
+      description: The maximum number of targets to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: ModuleCacheTargetsPageSize
+      type: integer
+      x-struct:
+      x-validate:
     AuthenticationTokens:
       description: A pair of access token to authenticate requests and refresh token to generate new access tokens when they expire.
       properties:
@@ -5265,10 +5571,10 @@ paths:
       summary: Create a a new command analytics event
       tags:
         - Analytics
-  /api/projects/{account_handle}/{project_handle}/builds/{build_id}:
+  /api/projects/{account_handle}/{project_handle}/builds/xcode/{build_id}/targets:
     get:
       callbacks: {}
-      operationId: getBuild
+      operationId: listBuildTargets
       parameters:
         - description: The handle of the account.
           in: path
@@ -5294,155 +5600,101 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by target status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: BuildTargetStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildTargetsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildTargetsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
       responses:
         '200':
           content:
             application/json:
               schema:
                 properties:
-                  cacheable_task_local_hits_count:
-                    description: Local cache hits.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  cacheable_task_remote_hits_count:
-                    description: Remote cache hits.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  cacheable_tasks_count:
-                    description: Total cacheable tasks.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  category:
-                    description: Build category.
-                    enum:
-                      - clean
-                      - incremental
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  configuration:
-                    description: The configuration used.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  custom_metadata:
-                    description: Custom metadata for the build run.
-                    properties:
-                      tags:
-                        items:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        build_duration:
+                          description: Build duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        compilation_duration:
+                          description: Compilation duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The target name.
                           type: string
                           x-struct:
                           x-validate:
-                        type: array
-                        x-struct:
-                        x-validate:
-                      values:
-                        additionalProperties:
+                        project:
+                          description: The target's project name.
                           type: string
                           x-struct:
                           x-validate:
-                        type: object
-                        x-struct:
-                        x-validate:
-                    type: object
-                    x-struct:
-                    x-validate:
-                  duration:
-                    description: Build duration in milliseconds.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  git_branch:
-                    description: Git branch.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_commit_sha:
-                    description: Git commit SHA.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_ref:
-                    description: Git ref.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  id:
-                    description: The build ID.
-                    format: uuid
-                    type: string
-                    x-struct:
-                    x-validate:
-                  inserted_at:
-                    description: When the build was created.
-                    format: date-time
-                    type: string
-                    x-struct:
-                    x-validate:
-                  is_ci:
-                    description: Whether the build ran on CI.
-                    type: boolean
-                    x-struct:
-                    x-validate:
-                  macos_version:
-                    description: macOS version.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  model_identifier:
-                    description: Machine model identifier.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  scheme:
-                    description: The scheme that was built.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  status:
-                    description: Build status.
-                    enum:
-                      - success
-                      - failure
-                    type: string
-                    x-struct:
-                    x-validate:
-                  url:
-                    description: URL to view the build in the dashboard.
-                    type: string
-                    x-struct:
-                    x-validate:
-                  xcode_version:
-                    description: Xcode version.
-                    nullable: true
-                    type: string
+                        status:
+                          description: Target build status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - project
+                        - build_duration
+                        - compilation_duration
+                        - status
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                 required:
-                  - id
-                  - duration
-                  - status
-                  - is_ci
-                  - cacheable_tasks_count
-                  - cacheable_task_local_hits_count
-                  - cacheable_task_remote_hits_count
-                  - inserted_at
-                  - url
+                  - targets
+                  - pagination_metadata
                 type: object
                 x-struct:
                 x-validate:
-          description: Build details
+          description: List of build targets
         '403':
           content:
             application/json:
@@ -5455,7 +5707,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Build not found
-      summary: Get a build by ID.
+      summary: List build targets for a given build.
       tags:
         - Builds
   /api/projects/{account_handle}/{project_handle}/previews/start:
@@ -6086,6 +6338,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -6102,28 +6362,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Number of items per page.
-          in: query
-          name: page_size
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The handle of the project.
           in: path
           name: project_handle
           required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Number of items per page.
+          in: query
+          name: page_size
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
       responses:
@@ -6360,6 +6612,363 @@ paths:
       summary: Get a specific device code.
       tags:
         - Authentication
+  /api/projects/{account_handle}/{project_handle}/builds/xcode/{build_id}/files:
+    get:
+      callbacks: {}
+      operationId: listBuildFiles
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by target name.
+          in: query
+          name: target
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by file type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - swift
+              - c
+            title: BuildFileType
+            type: string
+            x-struct:
+            x-validate:
+        - description: Sort by field.
+          in: query
+          name: sort_by
+          required: false
+          schema:
+            default: compilation_duration
+            enum:
+              - compilation_duration
+              - path
+            title: BuildFileSortBy
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of files to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildFilesIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildFilesIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  files:
+                    items:
+                      properties:
+                        compilation_duration:
+                          description: Compilation duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The file path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          description: The project name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The file type.
+                          enum:
+                            - swift
+                            - c
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                        - target
+                        - project
+                        - path
+                        - compilation_duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - files
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build files
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List compiled files for a given build.
+      tags:
+        - Builds
+  /api/projects/{account_handle}/{project_handle}/builds/xcode/{build_id}/issues:
+    get:
+      callbacks: {}
+      operationId: listBuildIssues
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by issue type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - warning
+              - error
+            title: BuildIssueType
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by target name.
+          in: query
+          name: target
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by compilation step type.
+          in: query
+          name: step_type
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildIssuesIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of issues to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildIssuesIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  issues:
+                    items:
+                      properties:
+                        ending_column:
+                          description: The ending column number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        ending_line:
+                          description: The ending line number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        message:
+                          description: The detailed message.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The file path.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        project:
+                          description: The project name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        signature:
+                          description: The issue signature.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        starting_column:
+                          description: The starting column number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        starting_line:
+                          description: The starting line number.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        step_type:
+                          description: The compilation step type.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        target:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        title:
+                          description: The issue title.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The issue type.
+                          enum:
+                            - warning
+                            - error
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                        - target
+                        - project
+                        - title
+                        - signature
+                        - step_type
+                        - starting_line
+                        - ending_line
+                        - starting_column
+                        - ending_column
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - issues
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build issues
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List build issues for a given build.
+      tags:
+        - Builds
   /api/runs/{run_id}/start:
     post:
       callbacks: {}
@@ -7199,812 +7808,7 @@ paths:
       summary: Get the latest preview for a binary.
       tags:
         - Previews
-  /api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url:
-    post:
-      callbacks: {}
-      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-      operationId: generateAnalyticsArtifactMultipartUploadURLProject
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The id of the run.
-          in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                command_event_artifact:
-                  $ref: '#/components/schemas/CommandEventArtifact'
-                multipart_upload_part:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
-              required:
-                - command_event_artifact
-                - multipart_upload_part
-              type: object
-              x-struct:
-              x-validate:
-        description: Artifact to generate a signed URL for
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
-          description: The URL has been generated
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It generates a signed URL for uploading a part
-      tags:
-        - Analytics
-  /api/projects/{account_handle}/{project_handle}/runs/{run_id}/start:
-    post:
-      callbacks: {}
-      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
-      operationId: startAnalyticsArtifactMultipartUploadProject
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The id of the run.
-          in: path
-          name: run_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CommandEventArtifact'
-        description: Artifact to upload
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactUploadID'
-          description: The upload has been started
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The run doesn't exist
-      summary: It initiates a multipart upload for a run artifact
-      tags:
-        - Analytics
-  /api/auth/apple:
-    post:
-      callbacks: {}
-      description: This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
-      operationId: authenticateApple
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                authorization_code:
-                  description: The Apple authorization code.
-                  type: string
-                  x-struct:
-                  x-validate:
-                identity_token:
-                  description: The Apple identity token.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - identity_token
-                - authorization_code
-              type: object
-              x-struct:
-              x-validate:
-        description: Apple authentication params.
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthenticationTokens'
-          description: Successfully authenticated and returned new API tokens.
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid request parameters.
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid Apple identity token or authorization code.
-      summary: Authenticate with Apple identity token.
-      tags:
-        - Authentication
-  /api/auth/oidc/token:
-    post:
-      callbacks: {}
-      description: |
-        Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
-        for a short-lived Tuist access token.
-      operationId: exchangeOIDCToken
-      parameters: []
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                token:
-                  description: The OIDC JWT token from the CI provider.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - token
-              title: OIDCTokenExchangeRequest
-              type: object
-              x-struct:
-              x-validate:
-        description: OIDC token exchange request
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  access_token:
-                    description: The Tuist access token to use for API requests.
-                    type: string
-                    x-struct:
-                    x-validate:
-                  expires_in:
-                    description: Token lifetime in seconds.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                required:
-                  - access_token
-                  - expires_in
-                title: OIDCTokenExchangeResponse
-                type: object
-                x-struct:
-                x-validate:
-          description: Token exchange successful
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Invalid or expired OIDC token
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: No projects linked to the repository
-      summary: Exchange a CI provider OIDC token for a Tuist access token.
-      tags:
-        - OIDC Authentication
-  /api/projects/{account_handle}/{project_handle}/cache/ac:
-    post:
-      callbacks: {}
-      description: The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
-      operationId: uploadCacheActionItem
-      parameters:
-        - description: The name of the account that the project belongs to.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The name of the project to clean cache for
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                hash:
-                  description: The hash of the cache action item.
-                  type: string
-                  x-struct:
-                  x-validate:
-              title: CacheActionItemUploadParams
-              type: object
-              x-struct:
-              x-validate:
-        description: Cache action item upload params
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CacheActionItem'
-          description: The request is valid but the cache action item already exists
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CacheActionItem'
-          description: The action item was cached
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request has missing or invalid parameters
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '402':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The account has an invalid plan
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It uploads a given cache action item.
-      tags:
-        - Cache
-  /api/organizations/{organization_name}:
-    delete:
-      callbacks: {}
-      deprecated: true
-      description: Deletes the organization with the given name.
-      operationId: deleteOrganization
-      parameters:
-        - description: The name of the organization to delete.
-          in: path
-          name: organization_name
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '204':
-          description: The organization was deleted
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization with the given name was not found
-      summary: Deletes an organization
-      tags:
-        - Organizations
-    get:
-      callbacks: {}
-      description: Returns the organization with the given identifier.
-      operationId: showOrganization
-      parameters:
-        - description: The name of the organization to show.
-          in: path
-          name: organization_name
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: The organization
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization with the given name was not found
-      summary: Shows an organization
-      tags:
-        - Organizations
-    patch:
-      callbacks: {}
-      description: Updates an organization with given parameters.
-      operationId: updateOrganization (2)
-      parameters:
-        - description: The name of the organization to update.
-          in: path
-          name: organization_name
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                sso_organization_id:
-                  description: The SSO organization ID to be associated with the SSO provider
-                  nullable: true
-                  type: string
-                  x-struct:
-                  x-validate:
-                sso_provider:
-                  description: The SSO provider to set up for the organization
-                  enum:
-                    - google
-                    - okta
-                    - none
-                  type: string
-                  x-struct:
-                  x-validate:
-              type: object
-              x-struct:
-              x-validate:
-        description: Organization update params
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: The organization
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization could not be updated due to a validation error
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization with the given name was not found
-      summary: Updates an organization
-      tags:
-        - Organizations
-    put:
-      callbacks: {}
-      description: Updates an organization with given parameters.
-      operationId: updateOrganization
-      parameters:
-        - description: The name of the organization to update.
-          in: path
-          name: organization_name
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                sso_organization_id:
-                  description: The SSO organization ID to be associated with the SSO provider
-                  nullable: true
-                  type: string
-                  x-struct:
-                  x-validate:
-                sso_provider:
-                  description: The SSO provider to set up for the organization
-                  enum:
-                    - google
-                    - okta
-                    - none
-                  type: string
-                  x-struct:
-                  x-validate:
-              type: object
-              x-struct:
-              x-validate:
-        description: Organization update params
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Organization'
-          description: The organization
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization could not be updated due to a validation error
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The organization with the given name was not found
-      summary: Updates an organization
-      tags:
-        - Organizations
-  /api/projects/{account_handle}/{project_handle}/previews/generate-url:
-    post:
-      callbacks: {}
-      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
-      operationId: generatePreviewsMultipartUploadURL
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                app_build_id:
-                  description: The id of the app build.
-                  type: string
-                  x-struct:
-                  x-validate:
-                multipart_upload_part:
-                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
-                preview_id:
-                  deprecated: true
-                  description: The id of the preview.
-                  type: string
-                  x-struct:
-                  x-validate:
-              required:
-                - multipart_upload_part
-                - preview_id
-              type: object
-              x-struct:
-              x-validate:
-        description: Artifact to generate a signed URL for
-        required: false
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
-          description: The URL has been generated
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project doesn't exist
-      summary: It generates a signed URL for uploading a part.
-      tags:
-        - Previews
-  /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
-    get:
-      callbacks: {}
-      operationId: getCacheRun
-      parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The ID of the cache run.
-          in: path
-          name: cache_run_id
-          required: true
-          schema:
-            format: uuid
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  cacheable_targets:
-                    description: Cacheable targets.
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  command_arguments:
-                    description: Command arguments used.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  duration:
-                    description: Cache run duration in milliseconds.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  git_branch:
-                    description: Git branch.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_commit_sha:
-                    description: Git commit SHA.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  git_ref:
-                    description: Git ref.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  id:
-                    description: The cache run ID.
-                    format: uuid
-                    type: string
-                    x-struct:
-                    x-validate:
-                  is_ci:
-                    description: Whether the cache run ran on CI.
-                    type: boolean
-                    x-struct:
-                    x-validate:
-                  local_cache_target_hits:
-                    description: Local cache target hits.
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  macos_version:
-                    description: macOS version.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  ran_at:
-                    description: Unix timestamp when the cache run executed.
-                    type: integer
-                    x-struct:
-                    x-validate:
-                  remote_cache_target_hits:
-                    description: Remote cache target hits.
-                    items:
-                      type: string
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                  status:
-                    description: Cache run status.
-                    enum:
-                      - success
-                      - failure
-                    type: string
-                    x-struct:
-                    x-validate:
-                  swift_version:
-                    description: Swift version used.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  tuist_version:
-                    description: Tuist version used.
-                    nullable: true
-                    type: string
-                    x-struct:
-                    x-validate:
-                  url:
-                    description: URL to view the cache run in the dashboard.
-                    type: string
-                    x-struct:
-                    x-validate:
-                required:
-                  - id
-                  - duration
-                  - status
-                  - is_ci
-                  - ran_at
-                  - url
-                type: object
-                x-struct:
-                x-validate:
-          description: Cache run details
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You don't have permission to access this resource
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Cache run not found
-      summary: Get a cache run by ID.
-      tags:
-        - Cache Runs
-  /api/projects/{account_handle}/{project_handle}/builds:
+  /api/projects/{account_handle}/{project_handle}/builds/xcode:
     get:
       callbacks: {}
       operationId: listBuilds
@@ -8931,6 +8735,1321 @@ paths:
       summary: Create a new build.
       tags:
         - Builds
+  /api/projects/{account_handle}/{project_handle}/runs/{run_id}/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+      operationId: generateAnalyticsArtifactMultipartUploadURLProject
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The id of the run.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                command_event_artifact:
+                  $ref: '#/components/schemas/CommandEventArtifact'
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+              required:
+                - command_event_artifact
+                - multipart_upload_part
+              type: object
+              x-struct:
+              x-validate:
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It generates a signed URL for uploading a part
+      tags:
+        - Analytics
+  /api/projects/{account_handle}/{project_handle}/runs/{run_id}/start:
+    post:
+      callbacks: {}
+      description: The endpoint returns an upload ID that can be used to generate URLs for the individual parts and complete the upload.
+      operationId: startAnalyticsArtifactMultipartUploadProject
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The id of the run.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommandEventArtifact'
+        description: Artifact to upload
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactUploadID'
+          description: The upload has been started
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The run doesn't exist
+      summary: It initiates a multipart upload for a run artifact
+      tags:
+        - Analytics
+  /api/auth/apple:
+    post:
+      callbacks: {}
+      description: This endpoint returns API tokens for a given Apple identity token and authorization code from the first-party Tuist iOS app.
+      operationId: authenticateApple
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                authorization_code:
+                  description: The Apple authorization code.
+                  type: string
+                  x-struct:
+                  x-validate:
+                identity_token:
+                  description: The Apple identity token.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - identity_token
+                - authorization_code
+              type: object
+              x-struct:
+              x-validate:
+        description: Apple authentication params.
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationTokens'
+          description: Successfully authenticated and returned new API tokens.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid request parameters.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid Apple identity token or authorization code.
+      summary: Authenticate with Apple identity token.
+      tags:
+        - Authentication
+  /api/auth/oidc/token:
+    post:
+      callbacks: {}
+      description: |
+        Exchange an OIDC token from a supported CI provider (GitHub Actions, CircleCI, or Bitrise)
+        for a short-lived Tuist access token.
+      operationId: exchangeOIDCToken
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                token:
+                  description: The OIDC JWT token from the CI provider.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - token
+              title: OIDCTokenExchangeRequest
+              type: object
+              x-struct:
+              x-validate:
+        description: OIDC token exchange request
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  access_token:
+                    description: The Tuist access token to use for API requests.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  expires_in:
+                    description: Token lifetime in seconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - access_token
+                  - expires_in
+                title: OIDCTokenExchangeResponse
+                type: object
+                x-struct:
+                x-validate:
+          description: Token exchange successful
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Invalid or expired OIDC token
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No projects linked to the repository
+      summary: Exchange a CI provider OIDC token for a Tuist access token.
+      tags:
+        - OIDC Authentication
+  /api/projects/{account_handle}/{project_handle}/cache/ac:
+    post:
+      callbacks: {}
+      description: The endpoint caches a given action item without uploading a file. To upload files, use the multipart upload instead.
+      operationId: uploadCacheActionItem
+      parameters:
+        - description: The name of the account that the project belongs to.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The name of the project to clean cache for
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                hash:
+                  description: The hash of the cache action item.
+                  type: string
+                  x-struct:
+                  x-validate:
+              title: CacheActionItemUploadParams
+              type: object
+              x-struct:
+              x-validate:
+        description: Cache action item upload params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The request is valid but the cache action item already exists
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheActionItem'
+          description: The action item was cached
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request has missing or invalid parameters
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '402':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The account has an invalid plan
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It uploads a given cache action item.
+      tags:
+        - Cache
+  /api/organizations/{organization_name}:
+    delete:
+      callbacks: {}
+      deprecated: true
+      description: Deletes the organization with the given name.
+      operationId: deleteOrganization
+      parameters:
+        - description: The name of the organization to delete.
+          in: path
+          name: organization_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: The organization was deleted
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization with the given name was not found
+      summary: Deletes an organization
+      tags:
+        - Organizations
+    get:
+      callbacks: {}
+      description: Returns the organization with the given identifier.
+      operationId: showOrganization
+      parameters:
+        - description: The name of the organization to show.
+          in: path
+          name: organization_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: The organization
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization with the given name was not found
+      summary: Shows an organization
+      tags:
+        - Organizations
+    patch:
+      callbacks: {}
+      description: Updates an organization with given parameters.
+      operationId: updateOrganization (2)
+      parameters:
+        - description: The name of the organization to update.
+          in: path
+          name: organization_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                sso_organization_id:
+                  description: The SSO organization ID to be associated with the SSO provider
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                sso_provider:
+                  description: The SSO provider to set up for the organization
+                  enum:
+                    - google
+                    - okta
+                    - none
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: Organization update params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: The organization
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization could not be updated due to a validation error
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization with the given name was not found
+      summary: Updates an organization
+      tags:
+        - Organizations
+    put:
+      callbacks: {}
+      description: Updates an organization with given parameters.
+      operationId: updateOrganization
+      parameters:
+        - description: The name of the organization to update.
+          in: path
+          name: organization_name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                sso_organization_id:
+                  description: The SSO organization ID to be associated with the SSO provider
+                  nullable: true
+                  type: string
+                  x-struct:
+                  x-validate:
+                sso_provider:
+                  description: The SSO provider to set up for the organization
+                  enum:
+                    - google
+                    - okta
+                    - none
+                  type: string
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
+        description: Organization update params
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+          description: The organization
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization could not be updated due to a validation error
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The organization with the given name was not found
+      summary: Updates an organization
+      tags:
+        - Organizations
+  /api/projects/{account_handle}/{project_handle}/previews/generate-url:
+    post:
+      callbacks: {}
+      description: Given an upload ID and a part number, this endpoint returns a signed URL that can be used to upload a part of a multipart upload. The URL is short-lived and expires in 120 seconds.
+      operationId: generatePreviewsMultipartUploadURL
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                app_build_id:
+                  description: The id of the app build.
+                  type: string
+                  x-struct:
+                  x-validate:
+                multipart_upload_part:
+                  $ref: '#/components/schemas/ArtifactMultipartUploadPart'
+                preview_id:
+                  deprecated: true
+                  description: The id of the preview.
+                  type: string
+                  x-struct:
+                  x-validate:
+              required:
+                - multipart_upload_part
+                - preview_id
+              type: object
+              x-struct:
+              x-validate:
+        description: Artifact to generate a signed URL for
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactMultipartUploadURL'
+          description: The URL has been generated
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You need to be authenticated to access this resource
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The project doesn't exist
+      summary: It generates a signed URL for uploading a part.
+      tags:
+        - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/modules:
+    get:
+      callbacks: {}
+      operationId: listTestModuleRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by module run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: TestModuleRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestModuleRunsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of module runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestModuleRunsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  modules:
+                    items:
+                      properties:
+                        avg_test_case_duration:
+                          description: Average test case duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the module had flaky tests.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The module name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Module status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_case_count:
+                          description: Number of test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        test_suite_count:
+                          description: Number of test suites.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - modules
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test module runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List test module runs for a test run.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/artifacts:
+    get:
+      callbacks: {}
+      operationId: getBundleArtifactTree
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the bundle.
+          in: path
+          name: bundle_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  artifacts:
+                    items:
+                      properties:
+                        artifact_type:
+                          description: The type of the artifact.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        path:
+                          description: The artifact path.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        size:
+                          description: The artifact size in bytes.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - artifact_type
+                        - path
+                        - size
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  bundle_id:
+                    description: The bundle ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - bundle_id
+                  - artifacts
+                type: object
+                x-struct:
+                x-validate:
+          description: Bundle artifact tree
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bundle not found
+      summary: Get the artifact tree for a bundle.
+      tags:
+        - Bundles
+  /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
+    get:
+      callbacks: {}
+      operationId: getCacheRun
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the cache run.
+          in: path
+          name: cache_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cacheable_targets:
+                    description: Cacheable targets.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  command_arguments:
+                    description: Command arguments used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: Cache run duration in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    description: Git branch.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: Git commit SHA.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    description: Git ref.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The cache run ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    description: Whether the cache run ran on CI.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  local_cache_target_hits:
+                    description: Local cache target hits.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  macos_version:
+                    description: macOS version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ran_at:
+                    description: Unix timestamp when the cache run executed.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  remote_cache_target_hits:
+                    description: Remote cache target hits.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: Cache run status.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  swift_version:
+                    description: Swift version used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: Tuist version used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the cache run in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - duration
+                  - status
+                  - is_ci
+                  - ran_at
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: Cache run details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Cache run not found
+      summary: Get a cache run by ID.
+      tags:
+        - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases/runs/{test_case_run_id}/attachments:
+    get:
+      callbacks: {}
+      operationId: listTestCaseRunAttachments
+      parameters:
+        - description: The handle of the project's account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test case run.
+          in: path
+          name: test_case_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  attachments:
+                    items:
+                      properties:
+                        download_url:
+                          description: Presigned download URL.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        file_name:
+                          description: The file name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The attachment ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The attachment type.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - file_name
+                        - type
+                        - download_url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  test_case_run_id:
+                    description: The test case run ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_case_run_id
+                  - attachments
+                type: object
+                x-struct:
+                x-validate:
+          description: List of attachments
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized to perform this action
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test case run not found
+      summary: List attachments for a test case run.
+      tags:
+        - Tests
+  /api/projects/{account_handle}/{project_handle}/builds/xcode/{build_id}/cache-tasks:
+    get:
+      callbacks: {}
+      operationId: listBuildCacheTasks
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by cache status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - hit_local
+              - hit_remote
+              - miss
+            title: CacheTaskStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by task type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - clang
+              - swift
+            title: CacheTaskType
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of cache tasks to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildCacheTasksIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildCacheTasksIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  tasks:
+                    items:
+                      properties:
+                        cas_output_node_ids:
+                          description: CAS output node IDs associated with this task.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        description:
+                          description: Description of the cacheable task.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        key:
+                          description: The cache key.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        read_duration:
+                          description: Read duration in milliseconds.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: The cache status.
+                          enum:
+                            - hit_local
+                            - hit_remote
+                            - miss
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The task type.
+                          enum:
+                            - clang
+                            - swift
+                          type: string
+                          x-struct:
+                          x-validate:
+                        write_duration:
+                          description: Write duration in milliseconds.
+                          nullable: true
+                          type: number
+                          x-struct:
+                          x-validate:
+                      required:
+                        - type
+                        - status
+                        - key
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - tasks
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of build cache tasks
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List cacheable tasks for a given build.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -9086,6 +10205,14 @@ paths:
                         java_version:
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        requested_tasks:
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
                           x-struct:
                           x-validate:
                         root_project_name:
@@ -9271,6 +10398,16 @@ paths:
                     type: object
                     x-struct:
                     x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+                requested_tasks:
+                  description: The tasks requested by the user (e.g., assembleRelease).
+                  items:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  nullable: true
                   type: array
                   x-struct:
                   x-validate:
@@ -10264,6 +11401,275 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/builds/xcode/{build_id}/cas-outputs:
+    get:
+      callbacks: {}
+      operationId: listBuildCASOutputs
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by CAS operation type.
+          in: query
+          name: operation
+          required: false
+          schema:
+            enum:
+              - download
+              - upload
+            title: CASOutputOperation
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by CAS output type.
+          in: query
+          name: type
+          required: false
+          schema:
+            enum:
+              - swift
+              - sil
+              - sib
+              - image
+              - dSYM
+              - dependencies
+              - emit-module-dependencies
+              - autolink
+              - swiftmodule
+              - swiftdoc
+              - swiftinterface
+              - object
+              - ast-dump
+              - raw-sil
+              - raw-sib
+              - raw-llvm-ir
+              - llvm-ir
+              - llvm-bc
+              - private-swiftinterface
+              - package-swiftinterface
+              - objc-header
+              - swift-dependencies
+              - dependency-scanner-cache
+              - json-dependencies
+              - json-target-info
+              - json-supported-features
+              - json-module-artifacts
+              - imported-modules
+              - module-trace
+              - index-data
+              - index-unit-output-path
+              - yaml-opt-record
+              - bitstream-opt-record
+              - diagnostics
+              - emit-module-diagnostics
+              - dependency-scan-diagnostics
+              - api-baseline-json
+              - abi-baseline-json
+              - const-values
+              - api-descriptor-json
+              - swift-module-summary
+              - module-semantic-info
+              - cached-diagnostics
+              - json-supported-swift-features
+              - modulemap
+              - pch
+              - pcm
+              - tbd
+              - remap
+              - localization-strings
+              - clang-header
+              - swiftsourceinfo
+              - assembly
+              - unknown
+            title: CASOutputType
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of CAS outputs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildCASOutputsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildCASOutputsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  outputs:
+                    items:
+                      properties:
+                        checksum:
+                          description: The checksum of the CAS object.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        compressed_size:
+                          description: The compressed size in bytes.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: The operation duration in milliseconds.
+                          type: number
+                          x-struct:
+                          x-validate:
+                        node_id:
+                          description: The CAS node identifier.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        operation:
+                          description: The CAS operation type.
+                          enum:
+                            - download
+                            - upload
+                          type: string
+                          x-struct:
+                          x-validate:
+                        size:
+                          description: The size in bytes.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        type:
+                          description: The CAS output file type.
+                          enum:
+                            - swift
+                            - sil
+                            - sib
+                            - image
+                            - dSYM
+                            - dependencies
+                            - emit-module-dependencies
+                            - autolink
+                            - swiftmodule
+                            - swiftdoc
+                            - swiftinterface
+                            - object
+                            - ast-dump
+                            - raw-sil
+                            - raw-sib
+                            - raw-llvm-ir
+                            - llvm-ir
+                            - llvm-bc
+                            - private-swiftinterface
+                            - package-swiftinterface
+                            - objc-header
+                            - swift-dependencies
+                            - dependency-scanner-cache
+                            - json-dependencies
+                            - json-target-info
+                            - json-supported-features
+                            - json-module-artifacts
+                            - imported-modules
+                            - module-trace
+                            - index-data
+                            - index-unit-output-path
+                            - yaml-opt-record
+                            - bitstream-opt-record
+                            - diagnostics
+                            - emit-module-diagnostics
+                            - dependency-scan-diagnostics
+                            - api-baseline-json
+                            - abi-baseline-json
+                            - const-values
+                            - api-descriptor-json
+                            - swift-module-summary
+                            - module-semantic-info
+                            - cached-diagnostics
+                            - json-supported-swift-features
+                            - modulemap
+                            - pch
+                            - pcm
+                            - tbd
+                            - remap
+                            - localization-strings
+                            - clang-header
+                            - swiftsourceinfo
+                            - assembly
+                            - unknown
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - node_id
+                        - checksum
+                        - size
+                        - compressed_size
+                        - duration
+                        - operation
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - outputs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of CAS outputs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: List CAS outputs for a given build.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/tests/test-cases/{test_case_id}/runs:
     get:
       callbacks: {}
@@ -10569,6 +11975,199 @@ paths:
       summary: Get cache endpoints.
       tags:
         - Cache
+  /api/projects/{account_handle}/{project_handle}/builds/xcode/{build_id}:
+    get:
+      callbacks: {}
+      operationId: getBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cacheable_task_local_hits_count:
+                    description: Local cache hits.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cacheable_task_remote_hits_count:
+                    description: Remote cache hits.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cacheable_tasks_count:
+                    description: Total cacheable tasks.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  category:
+                    description: Build category.
+                    enum:
+                      - clean
+                      - incremental
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration:
+                    description: The configuration used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  custom_metadata:
+                    description: Custom metadata for the build run.
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: Build duration in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    description: Git branch.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: Git commit SHA.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    description: Git ref.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The build ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    description: When the build was created.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    description: Whether the build ran on CI.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  macos_version:
+                    description: macOS version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  model_identifier:
+                    description: Machine model identifier.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  scheme:
+                    description: The scheme that was built.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: Build status.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the build in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    description: Xcode version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - duration
+                  - status
+                  - is_ci
+                  - cacheable_tasks_count
+                  - cacheable_task_local_hits_count
+                  - cacheable_task_remote_hits_count
+                  - inserted_at
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: Build details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: Get a build by ID.
+      tags:
+        - Builds
   /api/runs/{run_id}/complete:
     post:
       callbacks: {}
@@ -11175,6 +12774,14 @@ paths:
                   java_version:
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  requested_tasks:
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
                     x-struct:
                     x-validate:
                   root_project_name:
@@ -12506,6 +14113,163 @@ paths:
       summary: Updates a member in an organization
       tags:
         - Organizations
+  /api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets:
+    get:
+      callbacks: {}
+      operationId: listModuleCacheTargets
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the command run.
+          in: path
+          name: run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by cache status.
+          in: query
+          name: cache_status
+          required: false
+          schema:
+            enum:
+              - miss
+              - local
+              - remote
+            title: CacheStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: ModuleCacheTargetsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of targets to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: ModuleCacheTargetsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  targets:
+                    items:
+                      properties:
+                        bundle_id:
+                          description: The bundle identifier.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_hash:
+                          description: The cache hash.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        cache_status:
+                          description: The cache status.
+                          enum:
+                            - miss
+                            - local
+                            - remote
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The target name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        product:
+                          description: The product type.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        product_name:
+                          description: The product name.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        subhashes:
+                          additionalProperties:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          description: Non-nil hash components.
+                          type: object
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - targets
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of module cache targets
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Run not found
+      summary: List module cache targets for a run.
+      tags:
+        - Runs
   /api/projects/{account_handle}/{project_handle}/cache-runs:
     get:
       callbacks: {}
@@ -12954,6 +14718,159 @@ paths:
       summary: Uploads a preview icon.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/tests/{test_run_id}/suites:
+    get:
+      callbacks: {}
+      operationId: listTestSuiteRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the test run.
+          in: path
+          name: test_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by module name.
+          in: query
+          name: module_name
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by suite run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - skipped
+            title: TestSuiteRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestSuiteRunsPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of suite runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestSuiteRunsPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  suites:
+                    items:
+                      properties:
+                        avg_test_case_duration:
+                          description: Average test case duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the suite had flaky tests.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        name:
+                          description: The suite name.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Suite status.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        test_case_count:
+                          description: Number of test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - name
+                        - status
+                        - duration
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - suites
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test suite runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Test run not found
+      summary: List test suite runs for a test run.
+      tags:
+        - Tests
   /api/projects/{account_handle}/{project_handle}/previews/complete:
     post:
       callbacks: {}
@@ -13492,6 +15409,189 @@ paths:
       tags:
         - Tests
   /api/projects/{account_handle}/{project_handle}/tests:
+    get:
+      callbacks: {}
+      operationId: listTestRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by test run status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+              - skipped
+            title: TestRunStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by scheme name.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestRunsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of test runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestRunsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  test_runs:
+                    items:
+                      properties:
+                        duration:
+                          description: Duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The test run ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the run was on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        is_flaky:
+                          description: Whether the run was flaky.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: ISO 8601 timestamp.
+                          format: date-time
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_tests:
+                          description: Number of test cases that ran.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: Build scheme.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        skipped_tests:
+                          description: Number of skipped test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Run status.
+                          enum:
+                            - success
+                            - failure
+                            - skipped
+                          type: string
+                          x-struct:
+                          x-validate:
+                        total_test_count:
+                          description: Total number of test cases.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - duration
+                        - status
+                        - is_ci
+                        - is_flaky
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_runs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List test runs for a project.
+      tags:
+        - Tests
     post:
       callbacks: {}
       operationId: createTest
