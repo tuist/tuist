@@ -59,12 +59,12 @@ public struct LaunchAgentService: LaunchAgentServicing {
         }
 
         if try await fileSystem.exists(plistPath) {
-            Logger.current.debug("Existing LaunchAgent found. Unloading...")
+            Logger.current.debug("Existing LaunchAgent found. Booting out...")
             do {
-                try await launchctlController.unload(plistPath: plistPath)
+                try await launchctlController.bootout(label: label)
             } catch {
                 Logger.current.debug(
-                    "Failed to unload existing LaunchAgent: \(error.localizedDescription)"
+                    "Failed to boot out existing LaunchAgent: \(error.localizedDescription)"
                 )
             }
             try await fileSystem.remove(plistPath)
@@ -72,11 +72,20 @@ public struct LaunchAgentService: LaunchAgentServicing {
 
         let fullArguments = [tuistBinaryPath.pathString] + programArguments
 
+        let logDirectory = Environment.current.stateDirectory
+        if try await !fileSystem.exists(logDirectory) {
+            try await fileSystem.makeDirectory(at: logDirectory)
+        }
+        let stdoutLogPath = logDirectory.appending(component: "\(label).stdout.log")
+        let stderrLogPath = logDirectory.appending(component: "\(label).stderr.log")
+
         let plistContent = launchAgentPlist(
             programPath: tuistBinaryPath.pathString,
             programArguments: fullArguments,
             label: label,
-            environmentVariables: environmentVariables
+            environmentVariables: environmentVariables,
+            standardOutPath: stdoutLogPath.pathString,
+            standardErrorPath: stderrLogPath.pathString
         )
 
         try await fileSystem.writeText(plistContent, at: plistPath)
@@ -84,10 +93,16 @@ public struct LaunchAgentService: LaunchAgentServicing {
         Logger.current.debug("Created LaunchAgent plist at: \(plistPath.pathString)")
 
         do {
-            try await launchctlController.load(plistPath: plistPath)
-            Logger.current.debug("Loaded LaunchAgent")
+            try await launchctlController.bootstrap(plistPath: plistPath)
+            Logger.current.debug("Bootstrapped LaunchAgent")
         } catch {
-            throw LaunchAgentServiceError.failedToLoadLaunchAgent(error.localizedDescription)
+            var message = error.localizedDescription
+            if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
+               !stderrContent.isEmpty
+            {
+                message += "\nDaemon stderr log:\n\(stderrContent)"
+            }
+            throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
         }
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
@@ -123,7 +138,9 @@ public struct LaunchAgentService: LaunchAgentServicing {
         programPath: String,
         programArguments: [String],
         label: String,
-        environmentVariables: [String: String] = [:]
+        environmentVariables: [String: String] = [:],
+        standardOutPath: String,
+        standardErrorPath: String
     ) -> String {
         let programArgumentsXML =
             programArguments
@@ -162,6 +179,10 @@ public struct LaunchAgentService: LaunchAgentServicing {
                 \(programArgumentsXML)
             </array>
             \(environmentVariablesXML)
+            <key>StandardOutPath</key>
+            <string>\(standardOutPath)</string>
+            <key>StandardErrorPath</key>
+            <string>\(standardErrorPath)</string>
             <key>RunAtLoad</key>
             <true/>
             <key>KeepAlive</key>
