@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-03-11 18:32+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\n"
-"Language: ja\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-12 17:34+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -941,353 +929,468 @@ msgstr "変更内容に基づく影響のあるテストのみを実行し、フ
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
 msgstr "手動作業を省略し、プロジェクトを自動生成、ビルドを高速化し、組み込み分析機能でインサイトを探索しましょう。"
 
+#, fuzzy
 msgid "A low-latency, layered caching system stores and serves artifacts close to where the compute happens."
-msgstr ""
+msgstr "低遅延の階層型キャッシュシステムは、計算が行われる場所の近くにアーティファクトを保存し提供します。"
 
+#, fuzzy
 msgid "Adopt it easily"
-msgstr ""
+msgstr "簡単に採用してください"
 
+#, fuzzy
 msgid "Analyze test runs to keep your CI fast and reliable"
-msgstr ""
+msgstr "テスト実行を分析し、CIを高速かつ信頼性の高い状態に保つ"
 
+#, fuzzy
 msgid "Automatic PR comments"
-msgstr ""
+msgstr "自動PRコメント"
 
+#, fuzzy
 msgid "Automatic flaky test detection"
-msgstr ""
+msgstr "自動的な不安定なテストの検出"
 
+#, fuzzy
 msgid "Automatically detect and track flaky tests across runs"
-msgstr ""
+msgstr "実行間で不安定なテストを自動的に検出・追跡する"
 
+#, fuzzy
 msgid "Boost productivity."
-msgstr ""
+msgstr "生産性を向上させましょう。"
 
+#, fuzzy
 msgid "Brings the same remote caching to Gradle builds for a unified cross-platform cache."
-msgstr ""
+msgstr "Gradleビルドに同じリモートキャッシュを導入し、統一されたクロスプラットフォームキャッシュを実現します。"
 
+#, fuzzy
 msgid "Build Insights dashboard illustration"
-msgstr ""
+msgstr "Build Insights ダッシュボードの図解"
 
+#, fuzzy
 msgid "Build Insights · Tuist"
-msgstr ""
+msgstr "Build Insights · Tuist"
 
+#, fuzzy
 msgid "Build faster"
-msgstr ""
+msgstr "ビルドを高速化する"
 
+#, fuzzy
 msgid "Build insights are available with a single URL you can share with your team."
-msgstr ""
+msgstr "チームと共有できる単一のURLでインサイトを確認できます。"
 
+#, fuzzy
 msgid "CI & local environment visibility"
-msgstr ""
+msgstr "CIおよびローカル環境の可視性"
 
+#, fuzzy
 msgid "Cache dashboard illustration"
-msgstr ""
+msgstr "キャッシュダッシュボードの図解"
 
+#, fuzzy
 msgid "Cache individual modules as binaries and share them across your team and CI using Tuist's project generation."
-msgstr ""
+msgstr "Tuistのプロジェクト生成機能を使用して、個々のモジュールをバイナリとしてキャッシュし、チーム全体およびCIで共有してください。"
 
+#, fuzzy
 msgid "Cache insights show you how your build graph is performing against the caching infrastructure."
-msgstr ""
+msgstr "キャッシュインサイトは、ビルドグラフがキャッシュインフラストラクチャに対してどのように動作しているかを示します。"
 
+#, fuzzy
 msgid "Cache · Tuist"
-msgstr ""
+msgstr "Cache · Tuist"
 
+#, fuzzy
 msgid "Caching compounds the speed"
-msgstr ""
+msgstr "キャッシュは速度を悪化させる"
 
+#, fuzzy
 msgid "Catch slowdowns before they snowball"
-msgstr ""
+msgstr "遅延が深刻化する前に早期に発見する"
 
+#, fuzzy
 msgid "Change-based test selection"
-msgstr ""
+msgstr "変更に基づくテスト選択"
 
+#, fuzzy
 msgid "Click to run, no CLI needed"
-msgstr ""
+msgstr "クリックで実行、CLI不要"
 
+#, fuzzy
 msgid "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
-msgstr ""
+msgstr "macOSおよびiOS用コンパニオンアプリにより、チームメンバーは選択したデバイスでワンクリックでプレビューを起動できます。"
 
+#, fuzzy
 msgid "Debug with real execution data"
-msgstr ""
+msgstr "実際の実行データでデバッグする"
 
+#, fuzzy
 msgid "Detect flaky tests."
-msgstr ""
+msgstr "不安定なテストを検出する。"
 
+#, fuzzy
 msgid "Detects which modules have changed since the last successful test run and filters the test suite down to only affected test targets."
-msgstr ""
+msgstr "前回の正常なテスト実行以降に変更されたモジュールを検出し、影響を受けたテスト対象のみにテストスイートを絞り込みます。"
 
+#, fuzzy
 msgid "Diagnostic data download"
-msgstr ""
+msgstr "診断データのダウンロード"
 
+#, fuzzy
 msgid "Download the diagnostic data for any flaky run, including logs, screenshots, and timing information"
-msgstr ""
+msgstr "不安定な実行時の診断データ（ログ、スクリーンショット、タイミング情報を含む）をダウンロードしてください"
 
+#, fuzzy
 msgid "Drill into any failed run to see exactly which tests failed and their history, no more scrolling through raw CI logs."
-msgstr ""
+msgstr "失敗した実行を詳細に確認し、どのテストが失敗したかとその履歴を正確に把握できます。生のCIログをスクロールする必要はもうありません。"
 
+#, fuzzy
 msgid "Each build includes environment metadata, so you can see how different setups impact performance."
-msgstr ""
+msgstr "各ビルドには環境メタデータが含まれているため、異なる設定がパフォーマンスに与える影響を確認できます。"
 
+#, fuzzy
 msgid "Each flaky test includes its run history, helping you correlate failures with environments, timing, or resource contention."
-msgstr ""
+msgstr "各不安定なテストには実行履歴が含まれており、失敗を環境、タイミング、またはリソース競合と関連付けるのに役立ちます。"
 
+#, fuzzy
 msgid "Easy to adopt"
-msgstr ""
+msgstr "採用しやすい"
 
+#, fuzzy
 msgid "Failure analysis"
-msgstr ""
+msgstr "失敗分析"
 
+#, fuzzy
 msgid "Faster CI feedback."
-msgstr ""
+msgstr "CIフィードバックの高速化。"
 
+#, fuzzy
 msgid "Flags tests that intermittently pass and fail across runs without code changes. The dashboard surfaces a flaky test list with associated run history."
-msgstr ""
+msgstr "フラグは、コード変更なしに実行ごとに断続的に成功/失敗を繰り返すテストです。ダッシュボードでは、関連する実行履歴付きの不安定なテストリストが表示されます。"
 
+#, fuzzy
 msgid "Flaky Tests dashboard illustration"
-msgstr ""
+msgstr "不安定なテストダッシュボードの図解"
 
+#, fuzzy
 msgid "Flaky Tests · Tuist"
-msgstr ""
+msgstr "不安定なテスト · Tuist"
 
+#, fuzzy
 msgid "Flaky test integration"
-msgstr ""
+msgstr "不安定なテスト統合"
 
+#, fuzzy
 msgid "Flaky tests"
-msgstr ""
+msgstr "不安定なテスト"
 
+#, fuzzy
 msgid "For each flaky test, download the execution data to investigate timing, environment conditions, and logs, so you can reproduce and fix the flakiness."
-msgstr ""
+msgstr "不安定なテストについては、実行データをダウンロードし、タイミング、環境条件、ログを調査して、不安定性を再現・修正できるようにしてください。"
 
+#, fuzzy
 msgid "From red build to root cause in clicks"
-msgstr ""
+msgstr "赤色ビルドから根本原因までをクリックで追跡"
 
+#, fuzzy
 msgid "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
-msgstr ""
+msgstr "チームメンバーが開発ツールチェーンを使用せずに自身のデバイスで実行できるよう、共有可能なビルドURLを生成してください。"
 
+#, fuzzy
 msgid "Generate, build, and analyze — all automated"
-msgstr ""
+msgstr "生成、構築、分析 — すべて自動化"
 
+#, fuzzy
 msgid "Get alerted and let agents fix it"
-msgstr ""
+msgstr "アラートを受け取り、担当者が修正できるようにする"
 
+#, fuzzy
 msgid "Get feedback faster."
-msgstr ""
+msgstr "フィードバックを迅速に得る。"
 
+#, fuzzy
 msgid "Gives unified metrics across developer machines and CI runners, without wading through CI logs."
-msgstr ""
+msgstr "開発者マシンとCIランナー間で統一されたメトリクスを提供し、CIログを精査する必要がありません。"
 
+#, fuzzy
 msgid "Gradle cache"
-msgstr ""
+msgstr "Gradle キャッシュ"
 
+#, fuzzy
 msgid "Granular build time tracking"
-msgstr ""
+msgstr "ビルド時間の詳細な追跡"
 
+#, fuzzy
 msgid "Improve suite reliability."
-msgstr ""
+msgstr "スイートの信頼性を向上させる。"
 
+#, fuzzy
 msgid "Insights are captured automatically with minimal setup, so your test health data starts flowing right away."
-msgstr ""
+msgstr "インサイトは最小限の設定で自動的に収集されるため、テストの健全性データがすぐに流れ始めます。"
 
+#, fuzzy
 msgid "Integrate with a single command or a few lines of configuration - no infrastructure to host or maintain."
-msgstr ""
+msgstr "単一のコマンドまたは数行の設定で統合可能 - ホスティングやメンテナンスが必要なインフラは不要。"
 
+#, fuzzy
 msgid "Integrates with the build toolchains you already use with minimal changes to your scripts, pipelines, and configuration files."
-msgstr ""
+msgstr "既存のビルドツールチェーンと統合され、スクリプト、パイプライン、設定ファイルへの変更は最小限で済みます。"
 
+#, fuzzy
 msgid "Integrates with your existing build toolchain with minimal configuration changes."
-msgstr ""
+msgstr "最小限の設定変更で既存のビルドツールチェーンと統合されます。"
 
+#, fuzzy
 msgid "Keep your CI reliable."
-msgstr ""
+msgstr "CIの信頼性を維持してください。"
 
+#, fuzzy
 msgid "Let AI pinpoint the bottleneck"
-msgstr ""
+msgstr "AIにボトルネックを特定させる"
 
+#, fuzzy
 msgid "Make code review hands-on"
-msgstr ""
+msgstr "コードレビューを実践的に行う"
 
+#, fuzzy
 msgid "Metrics are easily accessible and shareable"
-msgstr ""
+msgstr "メトリクスは簡単にアクセス・共有可能"
 
+#, fuzzy
 msgid "Monitor performance trends."
-msgstr ""
+msgstr "パフォーマンスの傾向を監視する。"
 
+#, fuzzy
 msgid "Multi-channel access"
-msgstr ""
+msgstr "マルチチャネルアクセス"
 
+#, fuzzy
 msgid "Only the tests affected by your changes are executed, skipping everything that hasn't changed."
-msgstr ""
+msgstr "変更が及んだテストのみが実行され、変更のないテストはすべてスキップされます。"
 
+#, fuzzy
 msgid "Optimize your cache usage"
-msgstr ""
+msgstr "キャッシュ使用を最適化してください"
 
+#, fuzzy
 msgid "Organize builds for every audience"
-msgstr ""
+msgstr "すべての対象者向けにビルドを整理する"
 
+#, fuzzy
 msgid "Previews dashboard illustration"
-msgstr ""
+msgstr "プレビューダッシュボードのイラスト"
 
+#, fuzzy
 msgid "Previews · Tuist"
-msgstr ""
+msgstr "プレビュー · Tuist"
 
+#, fuzzy
 msgid "Provides analytics on test selection effectiveness, helping you evaluate filtering accuracy and reorganize test targets to improve selection over time."
-msgstr ""
+msgstr "テスト選択の有効性に関する分析を提供し、フィルタリング精度を評価し、テスト対象を再編成して選択精度を向上させるのに役立ちます。"
 
+#, fuzzy
 msgid "Quickly understand why a run failed by drilling into individual test results, seeing pass/fail history, and correlating failures with specific changes."
-msgstr ""
+msgstr "個々のテスト結果を掘り下げ、合格/不合格の履歴を確認し、失敗を特定の変更と関連付けることで、実行が失敗した理由を素早く把握できます。"
 
+#, fuzzy
 msgid "Read docs"
-msgstr ""
+msgstr "ドキュメントを読む"
 
+#, fuzzy
 msgid "Receive Slack alerts for new flaky tests and use AI agents via the Tuist API to analyze patterns and propose fixes."
-msgstr ""
+msgstr "新しい不安定なテストについてSlackアラートを受け取り、Tuist API経由でAIエージェントを活用してパターンを分析し修正案を提案します。"
 
+#, fuzzy
 msgid "Receive insights via the dashboard, reports, the CLI, the API, and the MCP server."
-msgstr ""
+msgstr "ダッシュボード、レポート、CLI、API、およびMCPサーバーを通じてインサイトを受け取ります。"
 
+#, fuzzy
 msgid "Records execution time for every test run across local and CI environments. Surfaces slow tests and duration trends over time on the Tuist dashboard."
-msgstr ""
+msgstr "ローカル環境およびCI環境における各テスト実行の実行時間を記録します。Tuistダッシュボード上で、遅いテストと時間の経過に伴う実行時間の傾向を表示します。"
 
+#, fuzzy
 msgid "Reduce build times."
-msgstr ""
+msgstr "ビルド時間を短縮する。"
 
+#, fuzzy
 msgid "Route previews into custom-named tracks, so stakeholders always know exactly where to find the right build."
-msgstr ""
+msgstr "ビルドプレビューをカスタム名トラックに振り分け、関係者が常に適切なビルドを正確に特定できるようにする。"
 
+#, fuzzy
 msgid "Run impacted tests."
-msgstr ""
+msgstr "影響を受けたテストを実行する。"
 
+#, fuzzy
 msgid "Run only what matters"
-msgstr ""
+msgstr "必要なものだけ実行する"
 
+#, fuzzy
 msgid "Seamless toolchain integration"
-msgstr ""
+msgstr "シームレスなツールチェーン統合"
 
+#, fuzzy
 msgid "See the health of your test suite at a glance"
-msgstr ""
+msgstr "テストスイートの健全性を一目で確認"
 
+#, fuzzy
 msgid "See when and where it broke"
-msgstr ""
+msgstr "どこで、いつ壊れたかを確認する"
 
+#, fuzzy
 msgid "Selection insights"
-msgstr ""
+msgstr "選択に関する洞察"
 
+#, fuzzy
 msgid "Selective Testing dashboard illustration"
-msgstr ""
+msgstr "選択的テストダッシュボードの図解"
 
+#, fuzzy
 msgid "Selective Testing · Tuist"
-msgstr ""
+msgstr "選択的テスト · Tuist"
 
+#, fuzzy
 msgid "Selective testing pairs with caching to reuse unchanged artifacts and skip unaffected tests."
-msgstr ""
+msgstr "選択的テストはキャッシュと連携し、変更されていない成果物を再利用し、影響を受けないテストをスキップします。"
 
+#, fuzzy
 msgid "Share app previews instantly."
-msgstr ""
+msgstr "アプリプレビューを即座に共有。"
 
+#, fuzzy
 msgid "Speed up CI by testing only what changed"
-msgstr ""
+msgstr "変更点のみをテストしてCIを高速化する"
 
+#, fuzzy
 msgid "Spot slow tests early"
-msgstr ""
+msgstr "テストの遅延を早期に発見する"
 
+#, fuzzy
 msgid "Start tracking with minimal effort"
-msgstr ""
+msgstr "最小限の手間で追跡を開始"
 
+#, fuzzy
 msgid "Stop chasing false failures"
-msgstr ""
+msgstr "偽の失敗を追いかけるのをやめましょう"
 
+#, fuzzy
 msgid "Store and share Xcode compilation artifacts across local, CI, and agentic environments to speed up clean builds."
-msgstr ""
+msgstr "ローカル、CI、エージェント環境間でXcodeコンパイル成果物を保存・共有し、クリーンビルドを高速化します。"
 
+#, fuzzy
 msgid "Test Insights dashboard illustration"
-msgstr ""
+msgstr "テストインサイトダッシュボードの図解"
 
+#, fuzzy
 msgid "Test Insights feeds directly into flaky test detection, automatically surfacing tests whose results oscillate without code changes (see Flaky Tests above)."
-msgstr ""
+msgstr "テストインサイトは不安定なテスト検出に直接連携し、コード変更なしに結果が変動するテストを自動的に抽出します（上記の不安定なテストを参照）。"
 
+#, fuzzy
 msgid "Test Insights · Tuist"
-msgstr ""
+msgstr "テストインサイト・Tuist"
 
+#, fuzzy
 msgid "Test duration tracking"
-msgstr ""
+msgstr "テスト時間追跡"
 
+#, fuzzy
 msgid "The cache runs transparently across local development, CI, and agentic environments without developers noticing it."
-msgstr ""
+msgstr "キャッシュは、開発者が気付かないうちに、ローカル開発環境、CI環境、エージェント環境を横断して透過的に動作します。"
 
+#, fuzzy
 msgid "The dashboard shows test pass rates, duration trends, and flaky tests over time."
-msgstr ""
+msgstr "ダッシュボードには、テストの合格率、所要時間の推移、および不安定なテストの経時的な変化が表示されます。"
 
+#, fuzzy
 msgid "Track build health."
-msgstr ""
+msgstr "ビルドの健全性を追跡する。"
 
+#, fuzzy
 msgid "Track build times over time and spot the moment a change introduces a significant regression."
-msgstr ""
+msgstr "時間の経過に伴うビルド時間を追跡し、変更が重大なリグレッションを引き起こした瞬間を特定する。"
 
+#, fuzzy
 msgid "Track test durations over time and identify tests that are gradually slowing down"
-msgstr ""
+msgstr "時間の経過に伴うテスト実行時間の追跡と、徐々に遅くなっているテストの特定"
 
+#, fuzzy
 msgid "Track test health."
-msgstr ""
+msgstr "トラックの健全性を監視する。"
 
+#, fuzzy
 msgid "Tracks build durations at the module and file level across both local and CI environments."
-msgstr ""
+msgstr "ローカル環境とCI環境の両方で、モジュールおよびファイルレベルでのビルド時間を追跡します。"
 
+#, fuzzy
 msgid "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
-msgstr ""
+msgstr "Tuistは各プルリクエストに自動的に「実行プレビュー」リンクを追加し、レビュアーが変更を承認する前に端末上でテストできるようにします。"
 
+#, fuzzy
 msgid "Tuist automatically detects tests that pass and fail without code changes and flags them in your dashboard."
-msgstr ""
+msgstr "Tuistはコード変更なしで合格/不合格となるテストを自動検出し、ダッシュボードでフラグを立てます。"
 
+#, fuzzy
 msgid "Tuist's MCP server and API expose your dependency graph and build data to AI coding agents"
-msgstr ""
+msgstr "TuistのMCPサーバーとAPIは、依存関係グラフとビルドデータをAIコーディングエージェントに公開します"
 
+#, fuzzy
 msgid "URL-centric collaboration"
-msgstr ""
+msgstr "URL中心の共同作業"
 
+#, fuzzy
 msgid "Understand what impacts your builds"
-msgstr ""
+msgstr "ビルドに影響する要素を理解する"
 
+#, fuzzy
 msgid "Use it everywhere"
-msgstr ""
+msgstr "どこでも使用してください"
 
+#, fuzzy
 msgid "When connected to GitHub, Tuist posts a summary in your PR showing exactly which tests ran and which were safely skipped."
-msgstr ""
+msgstr "GitHubに接続すると、TuistはPRに実行されたテストと安全にスキップされたテストを正確に示す要約を投稿します。"
 
 msgid "Xcode cache"
 msgstr ""
 
+#, fuzzy
 msgid "Builds analyzed in the last 24 hours"
-msgstr ""
+msgstr "過去24時間に分析されたビルド"
 
+#, fuzzy
 msgid "Cache artifacts served in the last 24 hours"
-msgstr ""
+msgstr "過去24時間以内に提供されたキャッシュアーティファクト"
 
+#, fuzzy
 msgid "Flaky tests detected in the last 24 hours"
-msgstr ""
+msgstr "過去24時間に不安定なテストが検出されました"
 
+#, fuzzy
 msgid "Test cases processed in the last 24 hours"
-msgstr ""
+msgstr "過去24時間に処理されたテストケース"
 
+#, fuzzy
 msgid "Test runs in the last 24 hours"
-msgstr ""
+msgstr "過去24時間のテスト実行"
 
+#, fuzzy
 msgid "Get full visibility into your test suite"
-msgstr ""
+msgstr "テストスイートを完全に可視化する"
 
+#, fuzzy
 msgid "Monitor and optimize your build performance"
-msgstr ""
+msgstr "ビルドパフォーマンスを監視し最適化する"
 
+#, fuzzy
 msgid "Run only the tests that matter"
-msgstr ""
+msgstr "必要なテストのみを実行する"
 
+#, fuzzy
 msgid "Share your app instantly with a link"
-msgstr ""
+msgstr "アプリをリンクで即座に共有"
 
+#, fuzzy
 msgid "Speed up your builds with binary caching"
-msgstr ""
+msgstr "バイナリキャッシュでビルドを高速化"
 
+#, fuzzy
 msgid "Stop chasing flaky tests manually"
-msgstr ""
+msgstr "不安定なテストを手動で追跡するのはやめましょう"
 
 msgid "Air"
 msgstr "Air"
