@@ -351,8 +351,10 @@
             for subdirectory in ["nodes", "cas", "keyvalue"] {
                 let sourceDir = stateDir.appending(component: subdirectory)
                 if try await fileSystem.exists(sourceDir) {
-                    let destDir = casMetadataDir.appending(component: subdirectory)
-                    try await fileSystem.copy(sourceDir, to: destDir)
+                    try await fileSystem.createSymbolicLink(
+                        from: casMetadataDir.appending(component: subdirectory),
+                        to: sourceDir
+                    )
                 }
             }
 
