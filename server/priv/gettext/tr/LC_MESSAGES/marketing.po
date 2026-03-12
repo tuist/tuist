@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-05 15:32+0000\n"
-"PO-Revision-Date: 2026-03-11 17:30+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\n"
-"Language: tr\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.16.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2026-03-12 17:11+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -940,353 +928,468 @@ msgstr "Daha hızlı geri bildirim döngüleri ve daha az bekleme süresi için,
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
 msgstr "Manuel adımları atlayın, projeleri otomatik olarak oluşturun, derlemeleri hızlandırın ve yerleşik analitiklerle içgörüler keşfedin."
 
+#, fuzzy
 msgid "A low-latency, layered caching system stores and serves artifacts close to where the compute happens."
-msgstr ""
+msgstr "Düşük gecikmeli, katmanlı önbellek sistemi, hesaplamanın yapıldığı yere yakın bir yerde artefaktları depolar ve sunar."
 
+#, fuzzy
 msgid "Adopt it easily"
-msgstr ""
+msgstr "Kolayca benimseyin"
 
+#, fuzzy
 msgid "Analyze test runs to keep your CI fast and reliable"
-msgstr ""
+msgstr "CI'nızın hızlı ve güvenilir olmasını sağlamak için test çalıştırmalarını analiz edin."
 
+#, fuzzy
 msgid "Automatic PR comments"
-msgstr ""
+msgstr "Otomatik PR yorumları"
 
+#, fuzzy
 msgid "Automatic flaky test detection"
-msgstr ""
+msgstr "Otomatik flaky test algılama"
 
+#, fuzzy
 msgid "Automatically detect and track flaky tests across runs"
-msgstr ""
+msgstr "Çalıştırmalar arasında hatalı testleri otomatik olarak algılayın ve izleyin"
 
+#, fuzzy
 msgid "Boost productivity."
-msgstr ""
+msgstr "Verimliliği artırın."
 
+#, fuzzy
 msgid "Brings the same remote caching to Gradle builds for a unified cross-platform cache."
-msgstr ""
+msgstr "Birleşik bir çapraz platform önbelleği için Gradle derlemelerine aynı uzak önbelleği getirir."
 
+#, fuzzy
 msgid "Build Insights dashboard illustration"
-msgstr ""
+msgstr "Build Insights panosu illüstrasyonu"
 
+#, fuzzy
 msgid "Build Insights · Tuist"
-msgstr ""
+msgstr "Build Insights · Tuist"
 
+#, fuzzy
 msgid "Build faster"
-msgstr ""
+msgstr "Daha hızlı oluşturun"
 
+#, fuzzy
 msgid "Build insights are available with a single URL you can share with your team."
-msgstr ""
+msgstr "Ekip arkadaşlarınızla paylaşabileceğiniz tek bir URL ile içgörüler elde edebilirsiniz."
 
+#, fuzzy
 msgid "CI & local environment visibility"
-msgstr ""
+msgstr "CI ve yerel ortam görünürlüğü"
 
+#, fuzzy
 msgid "Cache dashboard illustration"
-msgstr ""
+msgstr "Önbellek panosu illüstrasyonu"
 
+#, fuzzy
 msgid "Cache individual modules as binaries and share them across your team and CI using Tuist's project generation."
-msgstr ""
+msgstr "Tek tek modülleri ikili dosyalar olarak önbelleğe alın ve Tuist'in proje oluşturma özelliğini kullanarak bunları ekibiniz ve CI ile paylaşın."
 
+#, fuzzy
 msgid "Cache insights show you how your build graph is performing against the caching infrastructure."
-msgstr ""
+msgstr "Önbellek içgörüleri, derleme grafiğinizin önbellek altyapısına göre nasıl performans gösterdiğini gösterir."
 
+#, fuzzy
 msgid "Cache · Tuist"
-msgstr ""
+msgstr "Önbellek · Tuist"
 
+#, fuzzy
 msgid "Caching compounds the speed"
-msgstr ""
+msgstr "Önbellekleme hızı artırır"
 
+#, fuzzy
 msgid "Catch slowdowns before they snowball"
-msgstr ""
+msgstr "Yavaşlamaları, büyümeden önce yakalayın"
 
+#, fuzzy
 msgid "Change-based test selection"
-msgstr ""
+msgstr "Değişiklik tabanlı test seçimi"
 
+#, fuzzy
 msgid "Click to run, no CLI needed"
-msgstr ""
+msgstr "Çalıştırmak için tıklayın, CLI gerekmez"
 
+#, fuzzy
 msgid "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
-msgstr ""
+msgstr "MacOS ve iOS uygulamaları, ekipteki herkesin tek bir tıklama ile seçtikleri cihazda önizlemeleri başlatmasını sağlar."
 
+#, fuzzy
 msgid "Debug with real execution data"
-msgstr ""
+msgstr "Gerçek yürütme verileriyle hata ayıklama"
 
+#, fuzzy
 msgid "Detect flaky tests."
-msgstr ""
+msgstr "Kararsız testleri tespit edin."
 
+#, fuzzy
 msgid "Detects which modules have changed since the last successful test run and filters the test suite down to only affected test targets."
-msgstr ""
+msgstr "Son başarılı test çalışmasından bu yana hangi modüllerin değiştiğini algılar ve test paketini yalnızca etkilenen test hedeflerine göre filtreler."
 
+#, fuzzy
 msgid "Diagnostic data download"
-msgstr ""
+msgstr "Teşhis verilerinin indirilmesi"
 
+#, fuzzy
 msgid "Download the diagnostic data for any flaky run, including logs, screenshots, and timing information"
-msgstr ""
+msgstr "Günlükler, ekran görüntüleri ve zamanlama bilgileri dahil olmak üzere, hatalı çalışan tüm işlemlerin tanılama verilerini indirin."
 
+#, fuzzy
 msgid "Drill into any failed run to see exactly which tests failed and their history, no more scrolling through raw CI logs."
-msgstr ""
+msgstr "Başarısız olan herhangi bir çalışmayı inceleyerek hangi testlerin başarısız olduğunu ve geçmişini tam olarak görün, artık ham CI günlüklerini kaydırmanıza gerek yok."
 
+#, fuzzy
 msgid "Each build includes environment metadata, so you can see how different setups impact performance."
-msgstr ""
+msgstr "Her yapı, ortam meta verilerini içerir, böylece farklı kurulumların performansı nasıl etkilediğini görebilirsiniz."
 
+#, fuzzy
 msgid "Each flaky test includes its run history, helping you correlate failures with environments, timing, or resource contention."
-msgstr ""
+msgstr "Her flaky testi, çalıştırma geçmişini içerir ve bu da hataları ortamlar, zamanlama veya kaynak çekişmeleriyle ilişkilendirmenize yardımcı olur."
 
+#, fuzzy
 msgid "Easy to adopt"
-msgstr ""
+msgstr "Kullanımı kolay"
 
+#, fuzzy
 msgid "Failure analysis"
-msgstr ""
+msgstr "Hata analizi"
 
+#, fuzzy
 msgid "Faster CI feedback."
-msgstr ""
+msgstr "Daha hızlı CI geri bildirimi."
 
+#, fuzzy
 msgid "Flags tests that intermittently pass and fail across runs without code changes. The dashboard surfaces a flaky test list with associated run history."
-msgstr ""
+msgstr "Bayraklar, kod değişikliği olmadan çalıştırmalar arasında aralıklı olarak başarılı ve başarısız olan testleri kontrol eder. Kontrol paneli, ilişkili çalıştırma geçmişiyle birlikte dengesiz testlerin bir listesini gösterir."
 
+#, fuzzy
 msgid "Flaky Tests dashboard illustration"
-msgstr ""
+msgstr "Flaky Tests kontrol paneli illüstrasyonu"
 
+#, fuzzy
 msgid "Flaky Tests · Tuist"
-msgstr ""
+msgstr "Flaky Testleri · Tuist"
 
+#, fuzzy
 msgid "Flaky test integration"
-msgstr ""
+msgstr "Dengesiz test entegrasyonu"
 
+#, fuzzy
 msgid "Flaky tests"
-msgstr ""
+msgstr "Kararsız testler"
 
+#, fuzzy
 msgid "For each flaky test, download the execution data to investigate timing, environment conditions, and logs, so you can reproduce and fix the flakiness."
-msgstr ""
+msgstr "Her bir hatalı test için, zamanlama, ortam koşulları ve günlükleri incelemek üzere yürütme verilerini indirin, böylece hatayı yeniden oluşturabilir ve düzeltebilirsiniz."
 
+#, fuzzy
 msgid "From red build to root cause in clicks"
-msgstr ""
+msgstr "Kırmızı yapıdan kök nedene tıklamalarla ulaşın"
 
+#, fuzzy
 msgid "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
-msgstr ""
+msgstr "Paylaşılabilir bir derleme URL'si oluşturun, böylece ekip arkadaşlarınız geliştirme araç zincirini kullanmadan kendi cihazlarında çalıştırabilirler."
 
+#, fuzzy
 msgid "Generate, build, and analyze — all automated"
-msgstr ""
+msgstr "Oluşturun, geliştirin ve analiz edin — hepsi otomatik olarak"
 
+#, fuzzy
 msgid "Get alerted and let agents fix it"
-msgstr ""
+msgstr "Uyarı alın ve temsilcilerin düzeltmesine izin verin"
 
+#, fuzzy
 msgid "Get feedback faster."
-msgstr ""
+msgstr "Geri bildirimi daha hızlı alın."
 
+#, fuzzy
 msgid "Gives unified metrics across developer machines and CI runners, without wading through CI logs."
-msgstr ""
+msgstr "CI günlüklerini incelemek zorunda kalmadan, geliştirici makineleri ve CI çalıştırıcıları arasında birleşik metrikler sağlar."
 
+#, fuzzy
 msgid "Gradle cache"
-msgstr ""
+msgstr "Gradle önbelleği"
 
+#, fuzzy
 msgid "Granular build time tracking"
-msgstr ""
+msgstr "Ayrıntılı yapı süresi takibi"
 
+#, fuzzy
 msgid "Improve suite reliability."
-msgstr ""
+msgstr "Paketin güvenilirliğini artırın."
 
+#, fuzzy
 msgid "Insights are captured automatically with minimal setup, so your test health data starts flowing right away."
-msgstr ""
+msgstr "İçgörüler, minimum kurulumla otomatik olarak yakalanır, böylece test sağlığı verileriniz hemen akmaya başlar."
 
+#, fuzzy
 msgid "Integrate with a single command or a few lines of configuration - no infrastructure to host or maintain."
-msgstr ""
+msgstr "Tek bir komut veya birkaç satırlık yapılandırma ile entegre edin - barındırma veya bakım gerektiren altyapı yoktur."
 
+#, fuzzy
 msgid "Integrates with the build toolchains you already use with minimal changes to your scripts, pipelines, and configuration files."
-msgstr ""
+msgstr "Zaten kullandığınız derleme araç zincirleriyle entegre olur ve komut dosyalarınızda, ardışık düzenlerde ve yapılandırma dosyalarınızda minimum değişiklik yapar."
 
+#, fuzzy
 msgid "Integrates with your existing build toolchain with minimal configuration changes."
-msgstr ""
+msgstr "Mevcut yapı araç zincirinizle minimum yapılandırma değişikliği ile entegre olur."
 
+#, fuzzy
 msgid "Keep your CI reliable."
-msgstr ""
+msgstr "CI'nizin güvenilirliğini koruyun."
 
+#, fuzzy
 msgid "Let AI pinpoint the bottleneck"
-msgstr ""
+msgstr "AI'nın darboğazı tespit etmesine izin verin"
 
+#, fuzzy
 msgid "Make code review hands-on"
-msgstr ""
+msgstr "Kod incelemesini uygulamalı hale getirin"
 
+#, fuzzy
 msgid "Metrics are easily accessible and shareable"
-msgstr ""
+msgstr "Metriklere kolayca erişilebilir ve paylaşılabilir"
 
+#, fuzzy
 msgid "Monitor performance trends."
-msgstr ""
+msgstr "Performans eğilimlerini izleyin."
 
+#, fuzzy
 msgid "Multi-channel access"
-msgstr ""
+msgstr "Çok kanallı erişim"
 
+#, fuzzy
 msgid "Only the tests affected by your changes are executed, skipping everything that hasn't changed."
-msgstr ""
+msgstr "Yalnızca değişikliklerinizden etkilenen testler yürütülür, değişmeyen her şey atlanır."
 
+#, fuzzy
 msgid "Optimize your cache usage"
-msgstr ""
+msgstr "Önbellek kullanımınızı optimize edin"
 
+#, fuzzy
 msgid "Organize builds for every audience"
-msgstr ""
+msgstr "Her hedef kitle için yapıları düzenleyin"
 
+#, fuzzy
 msgid "Previews dashboard illustration"
-msgstr ""
+msgstr "Önizleme panosu illüstrasyonu"
 
+#, fuzzy
 msgid "Previews · Tuist"
-msgstr ""
+msgstr "Önizlemeler · Tuist"
 
+#, fuzzy
 msgid "Provides analytics on test selection effectiveness, helping you evaluate filtering accuracy and reorganize test targets to improve selection over time."
-msgstr ""
+msgstr "Test seçiminin etkinliği hakkında analizler sunarak, filtreleme doğruluğunu değerlendirmenize ve test hedeflerini yeniden düzenleyerek zaman içinde seçimi iyileştirmenize yardımcı olur."
 
+#, fuzzy
 msgid "Quickly understand why a run failed by drilling into individual test results, seeing pass/fail history, and correlating failures with specific changes."
-msgstr ""
+msgstr "Tek tek test sonuçlarını inceleyerek, başarılı/başarısız geçmişini görerek ve başarısızlıkları belirli değişikliklerle ilişkilendirerek bir çalışmanın neden başarısız olduğunu hızlı bir şekilde anlayın."
 
+#, fuzzy
 msgid "Read docs"
-msgstr ""
+msgstr "Belgeleri okuyun"
 
+#, fuzzy
 msgid "Receive Slack alerts for new flaky tests and use AI agents via the Tuist API to analyze patterns and propose fixes."
-msgstr ""
+msgstr "Yeni hatalı testler için Slack uyarıları alın ve Tuist API aracılığıyla AI ajanlarını kullanarak kalıpları analiz edin ve düzeltmeler önerin."
 
+#, fuzzy
 msgid "Receive insights via the dashboard, reports, the CLI, the API, and the MCP server."
-msgstr ""
+msgstr "Kontrol paneli, raporlar, CLI, API ve MCP sunucusu aracılığıyla içgörüler alın."
 
+#, fuzzy
 msgid "Records execution time for every test run across local and CI environments. Surfaces slow tests and duration trends over time on the Tuist dashboard."
-msgstr ""
+msgstr "Yerel ve CI ortamlarında gerçekleştirilen her testin yürütme süresini kaydeder. Tuist panosunda yavaş testleri ve zaman içindeki süre eğilimlerini gösterir."
 
+#, fuzzy
 msgid "Reduce build times."
-msgstr ""
+msgstr "Oluşturma sürelerini kısaltın."
 
+#, fuzzy
 msgid "Route previews into custom-named tracks, so stakeholders always know exactly where to find the right build."
-msgstr ""
+msgstr "Önizlemeleri özel adlandırılmış parçalara yönlendirin, böylece paydaşlar doğru yapıyı her zaman tam olarak nerede bulacaklarını bilir."
 
+#, fuzzy
 msgid "Run impacted tests."
-msgstr ""
+msgstr "Etkilenen testleri çalıştırın."
 
+#, fuzzy
 msgid "Run only what matters"
-msgstr ""
+msgstr "Sadece önemli olanları çalıştırın"
 
+#, fuzzy
 msgid "Seamless toolchain integration"
-msgstr ""
+msgstr "Sorunsuz araç zinciri entegrasyonu"
 
+#, fuzzy
 msgid "See the health of your test suite at a glance"
-msgstr ""
+msgstr "Test paketinizin durumunu bir bakışta görün"
 
+#, fuzzy
 msgid "See when and where it broke"
-msgstr ""
+msgstr "Nerede ve ne zaman bozulduğunu görün"
 
+#, fuzzy
 msgid "Selection insights"
-msgstr ""
+msgstr "Seçimle ilgili bilgiler"
 
+#, fuzzy
 msgid "Selective Testing dashboard illustration"
-msgstr ""
+msgstr "Seçmeli test panosu illüstrasyonu"
 
+#, fuzzy
 msgid "Selective Testing · Tuist"
-msgstr ""
+msgstr "Seçmeli Testler · Tuist"
 
+#, fuzzy
 msgid "Selective testing pairs with caching to reuse unchanged artifacts and skip unaffected tests."
-msgstr ""
+msgstr "Seçmeli testler, değişmemiş öğeleri yeniden kullanmak ve etkilenmeyen testleri atlamak için önbellekleme ile eşleştirilir."
 
+#, fuzzy
 msgid "Share app previews instantly."
-msgstr ""
+msgstr "Uygulama önizlemelerini anında paylaşın."
 
+#, fuzzy
 msgid "Speed up CI by testing only what changed"
-msgstr ""
+msgstr "Yalnızca değişenleri test ederek CI'yı hızlandırın"
 
+#, fuzzy
 msgid "Spot slow tests early"
-msgstr ""
+msgstr "Yavaş testleri erken tespit edin"
 
+#, fuzzy
 msgid "Start tracking with minimal effort"
-msgstr ""
+msgstr "Minimum çabayla izlemeye başlayın"
 
+#, fuzzy
 msgid "Stop chasing false failures"
-msgstr ""
+msgstr "Yanlış hataları kovalamayı bırakın"
 
+#, fuzzy
 msgid "Store and share Xcode compilation artifacts across local, CI, and agentic environments to speed up clean builds."
-msgstr ""
+msgstr "Temiz derlemeleri hızlandırmak için Xcode derleme çıktılarını yerel, CI ve ajan ortamlarında depolayın ve paylaşın."
 
+#, fuzzy
 msgid "Test Insights dashboard illustration"
-msgstr ""
+msgstr "Test Insights panosu illüstrasyonu"
 
+#, fuzzy
 msgid "Test Insights feeds directly into flaky test detection, automatically surfacing tests whose results oscillate without code changes (see Flaky Tests above)."
-msgstr ""
+msgstr "Test Insights, dengesiz test algılamasına doğrudan beslenir ve kod değişiklikleri olmadan sonuçları dalgalanan testleri otomatik olarak ortaya çıkarır (yukarıdaki Dengesiz Testler bölümüne bakın)."
 
+#, fuzzy
 msgid "Test Insights · Tuist"
-msgstr ""
+msgstr "Test İçgörüleri · Tuist"
 
+#, fuzzy
 msgid "Test duration tracking"
-msgstr ""
+msgstr "Test süresi takibi"
 
+#, fuzzy
 msgid "The cache runs transparently across local development, CI, and agentic environments without developers noticing it."
-msgstr ""
+msgstr "Önbellek, geliştiricilerin farkına varmadan yerel geliştirme, CI ve ajan ortamlarında şeffaf bir şekilde çalışır."
 
+#, fuzzy
 msgid "The dashboard shows test pass rates, duration trends, and flaky tests over time."
-msgstr ""
+msgstr "Kontrol paneli, test geçme oranlarını, süre eğilimlerini ve zaman içindeki hatalı testleri gösterir."
 
+#, fuzzy
 msgid "Track build health."
-msgstr ""
+msgstr "Yapı sağlığını izleyin."
 
+#, fuzzy
 msgid "Track build times over time and spot the moment a change introduces a significant regression."
-msgstr ""
+msgstr "Zaman içinde yapı sürelerini takip edin ve bir değişikliğin önemli bir gerilemeye yol açtığı anı tespit edin."
 
+#, fuzzy
 msgid "Track test durations over time and identify tests that are gradually slowing down"
-msgstr ""
+msgstr "Zaman içinde test sürelerini takip edin ve yavaş yavaş yavaşlayan testleri belirleyin."
 
+#, fuzzy
 msgid "Track test health."
-msgstr ""
+msgstr "Testin durumunu takip edin."
 
+#, fuzzy
 msgid "Tracks build durations at the module and file level across both local and CI environments."
-msgstr ""
+msgstr "Yerel ve CI ortamlarında modül ve dosya düzeyinde derleme sürelerini izler."
 
+#, fuzzy
 msgid "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
-msgstr ""
+msgstr "Tuist, her PR'ye otomatik olarak bir Önizleme Çalıştır bağlantısı ekler ve böylece gözden geçirenler, onaylamadan önce değişiklikleri cihazlarında test edebilirler."
 
+#, fuzzy
 msgid "Tuist automatically detects tests that pass and fail without code changes and flags them in your dashboard."
-msgstr ""
+msgstr "Tuist, kod değişikliği yapmadan geçen ve geçmeyen testleri otomatik olarak algılar ve bunları kontrol panelinizde işaretler."
 
+#, fuzzy
 msgid "Tuist's MCP server and API expose your dependency graph and build data to AI coding agents"
-msgstr ""
+msgstr "Tuist'in MCP sunucusu ve API'si, bağımlılık grafiğinizi ve derleme verilerinizi AI kodlama ajanlarına açıklar."
 
+#, fuzzy
 msgid "URL-centric collaboration"
-msgstr ""
+msgstr "URL merkezli işbirliği"
 
+#, fuzzy
 msgid "Understand what impacts your builds"
-msgstr ""
+msgstr "Derlemelerinizi etkileyen unsurları anlayın"
 
+#, fuzzy
 msgid "Use it everywhere"
-msgstr ""
+msgstr "Her yerde kullanın"
 
+#, fuzzy
 msgid "When connected to GitHub, Tuist posts a summary in your PR showing exactly which tests ran and which were safely skipped."
-msgstr ""
+msgstr "GitHub'a bağlandığında, Tuist PR'nize hangi testlerin çalıştırıldığını ve hangilerinin güvenli bir şekilde atlandığını gösteren bir özet yayınlar."
 
 msgid "Xcode cache"
 msgstr ""
 
+#, fuzzy
 msgid "Builds analyzed in the last 24 hours"
-msgstr ""
+msgstr "Son 24 saatte analiz edilen derlemeler"
 
+#, fuzzy
 msgid "Cache artifacts served in the last 24 hours"
-msgstr ""
+msgstr "Son 24 saat içinde sunulan önbellek öğeleri"
 
+#, fuzzy
 msgid "Flaky tests detected in the last 24 hours"
-msgstr ""
+msgstr "Son 24 saatte tespit edilen hatalı testler"
 
+#, fuzzy
 msgid "Test cases processed in the last 24 hours"
-msgstr ""
+msgstr "Son 24 saat içinde işlenen test vakaları"
 
+#, fuzzy
 msgid "Test runs in the last 24 hours"
-msgstr ""
+msgstr "Son 24 saatteki test çalıştırmaları"
 
+#, fuzzy
 msgid "Get full visibility into your test suite"
-msgstr ""
+msgstr "Test paketinizi tam olarak görünür hale getirin"
 
+#, fuzzy
 msgid "Monitor and optimize your build performance"
-msgstr ""
+msgstr "Derleme performansınızı izleyin ve optimize edin"
 
+#, fuzzy
 msgid "Run only the tests that matter"
-msgstr ""
+msgstr "Sadece önemli testleri çalıştırın."
 
+#, fuzzy
 msgid "Share your app instantly with a link"
-msgstr ""
+msgstr "Uygulamanızı bir bağlantı ile anında paylaşın"
 
+#, fuzzy
 msgid "Speed up your builds with binary caching"
-msgstr ""
+msgstr "İkili önbellekleme ile derlemelerinizi hızlandırın"
 
+#, fuzzy
 msgid "Stop chasing flaky tests manually"
-msgstr ""
+msgstr "Düzensiz testleri manuel olarak takip etmekten vazgeçin"
 
 msgid "Air"
 msgstr "Air"
