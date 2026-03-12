@@ -3,7 +3,7 @@ defmodule Tuist.MCP.Server do
 
   use EMCP.Server,
     name: "tuist",
-    version: "1.5.0",
+    version: "1.6.0",
     tools: [
       Tuist.MCP.Components.Tools.ListXcodeBuilds,
       Tuist.MCP.Components.Tools.GetXcodeBuild,
@@ -12,6 +12,9 @@ defmodule Tuist.MCP.Server do
       Tuist.MCP.Components.Tools.ListXcodeBuildIssues,
       Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks,
       Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs,
+      Tuist.MCP.Components.Tools.ListGradleBuilds,
+      Tuist.MCP.Components.Tools.GetGradleBuild,
+      Tuist.MCP.Components.Tools.ListGradleBuildTasks,
       Tuist.MCP.Components.Tools.ListTestRuns,
       Tuist.MCP.Components.Tools.ListTestModuleRuns,
       Tuist.MCP.Components.Tools.ListTestSuiteRuns,
