@@ -7,8 +7,8 @@ defmodule Cache.OrphanCleanupWorkerTest do
   alias Cache.CacheArtifactsBuffer
   alias Cache.Config
   alias Cache.Disk
-  alias Cache.OrphanScanCursor
   alias Cache.OrphanCleanupWorker
+  alias Cache.OrphanScanCursor
   alias Cache.OrphanScanCursors
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
