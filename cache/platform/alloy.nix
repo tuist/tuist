@@ -270,6 +270,17 @@
         }
       }
 
+      stage.replace {
+        source     = "method"
+        expression = "^(?:GET|HEAD|POST|PUT|DELETE|PATCH|OPTIONS|CONNECT|TRACE|PROPFIND)$"
+        replace    = "{{ .Value }}"
+      }
+      stage.replace {
+        source     = "method"
+        expression = "^(?!GET$|HEAD$|POST$|PUT$|DELETE$|PATCH$|OPTIONS$|CONNECT$|TRACE$|PROPFIND$).+"
+        replace    = "INVALID"
+      }
+
       stage.labels {
         values = {
           method = "",
