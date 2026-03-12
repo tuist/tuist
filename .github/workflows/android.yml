@@ -25,6 +25,7 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 defaults:
   run:

@@ -34,6 +34,7 @@ env:
   PNPM_HOME: ~/.pnpm
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
 
 defaults:
   run:
