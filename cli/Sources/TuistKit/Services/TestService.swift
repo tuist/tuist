@@ -876,6 +876,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     config: config,
                     action: action
                 )
+                // Copy the first platform's bundle for analytics even on failure.
                 if isFirstPlatform, platformsToTest.count > 1,
                    let path = platformResultBundlePath, let runResultBundlePath
                 {
@@ -893,6 +894,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 config: config,
                 action: action
             )
+            // For multi-platform runs, copy the first platform's bundle to the canonical
+            // result-bundle.xcresult location so UploadAnalyticsService can find it.
+            // Each platform's bundle is individually uploaded to the Tuist test analytics
+            // server via inspectResultBundleIfNeeded above.
             if isFirstPlatform, platformsToTest.count > 1,
                let path = platformResultBundlePath, let runResultBundlePath
             {
