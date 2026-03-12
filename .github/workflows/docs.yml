@@ -211,6 +211,8 @@ jobs:
         with:
           path: .build
           key: ${{ steps.spm-cache.outputs.cache-primary-key }}
+      - name: Install system dependencies
+        run: apt-get update && apt-get install -y curl
       - uses: jdx/mise-action@v2
       - name: Deploy to Cloudflare Pages
         env:
