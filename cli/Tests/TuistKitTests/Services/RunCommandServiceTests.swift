@@ -953,6 +953,7 @@ extension RunCommandService {
         clean: Bool = false,
         configuration: String? = nil,
         device: String? = nil,
+        platform: XcodeGraph.Platform? = nil,
         osVersion: String? = nil,
         rosetta: Bool = false,
         arguments: [String] = []
@@ -964,6 +965,7 @@ extension RunCommandService {
             clean: clean,
             configuration: configuration,
             device: device,
+            platform: platform,
             osVersion: osVersion,
             rosetta: rosetta,
             arguments: arguments
