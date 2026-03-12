@@ -3,13 +3,29 @@ defmodule Processor.BuildProcessor do
 
   @apple_reference_date_offset 978_307_200
 
+  require Logger
+
   def process(storage_key, xcode_cache_upload_enabled) do
     bucket = Application.get_env(:processor, :s3_bucket, "tuist")
     temp_dir = make_temp_dir()
     build_path = Path.join(temp_dir, "build.zip")
 
+    s3_config = ExAws.Config.new(:s3)
+
+    Logger.info(
+      "S3 download: bucket=#{inspect(bucket)} key=#{inspect(storage_key)} " <>
+        "host=#{inspect(s3_config[:host])} scheme=#{inspect(s3_config[:scheme])} " <>
+        "port=#{inspect(s3_config[:port])} region=#{inspect(s3_config[:region])} " <>
+        "virtual_host=#{inspect(s3_config[:virtual_host])} bucket_as_host=#{inspect(s3_config[:bucket_as_host])}"
+    )
+
+    presigned_url = ExAws.S3.presigned_url(s3_config, :get, bucket, storage_key)
+    Logger.info("S3 presigned URL would be: #{inspect(presigned_url)}")
+
     try do
-      {:ok, _} = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
+      result = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
+      Logger.info("S3 download result: #{inspect(result)}")
+      {:ok, _} = result
       process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
     after
       cleanup_temp(temp_dir)
