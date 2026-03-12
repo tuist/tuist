@@ -817,6 +817,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         var isFirstPlatform = true
         for buildPlatform in platformsToTest {
+            let platformResultBundlePath: AbsolutePath? = if platformsToTest.count > 1,
+                let path = resultBundlePath
+            {
+                path.parentDirectory.appending(
+                    component: platformSuffixedBundleName(path, platform: buildPlatform)
+                )
+            } else {
+                resultBundlePath
+            }
+
             let destination: XcodeBuildDestination?
 
             if passthroughXcodeBuildArguments.contains("-destination") {
@@ -842,7 +852,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     action: action,
                     rosetta: rosetta,
                     derivedDataPath: derivedDataPath,
-                    resultBundlePath: resultBundlePath,
+                    resultBundlePath: platformResultBundlePath,
                     arguments: buildGraphInspector.buildArguments(
                         project: buildableTarget.project,
                         target: buildableTarget.target,
@@ -857,7 +867,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             } catch {
                 await inspectResultBundleIfNeeded(
-                    resultBundlePath: resultBundlePath,
+                    resultBundlePath: platformResultBundlePath,
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     config: config,
                     action: action
@@ -866,13 +876,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
 
             await inspectResultBundleIfNeeded(
-                resultBundlePath: resultBundlePath,
+                resultBundlePath: platformResultBundlePath,
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action
             )
             isFirstPlatform = false
         }
+    }
+
+    private func platformSuffixedBundleName(_ path: AbsolutePath, platform: XcodeGraph.Platform) -> String {
+        let ext = path.extension.map { "." + $0 } ?? ""
+        let stem = ext.isEmpty ? path.basename : String(path.basename.dropLast(ext.count))
+        return "\(stem)-\(platform.rawValue)\(ext)"
     }
 
     private func inspectResultBundleIfNeeded(
