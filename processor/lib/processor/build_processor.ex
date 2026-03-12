@@ -11,22 +11,23 @@ defmodule Processor.BuildProcessor do
     build_path = Path.join(temp_dir, "build.zip")
 
     s3_config = ExAws.Config.new(:s3)
-
-    Logger.info(
-      "S3 download: bucket=#{inspect(bucket)} key=#{inspect(storage_key)} " <>
-        "host=#{inspect(s3_config[:host])} scheme=#{inspect(s3_config[:scheme])} " <>
-        "port=#{inspect(s3_config[:port])} region=#{inspect(s3_config[:region])} " <>
-        "virtual_host=#{inspect(s3_config[:virtual_host])} bucket_as_host=#{inspect(s3_config[:bucket_as_host])}"
-    )
-
-    presigned_url = ExAws.S3.presigned_url(s3_config, :get, bucket, storage_key)
-    Logger.info("S3 presigned URL would be: #{inspect(presigned_url)}")
+    {:ok, url} = ExAws.S3.presigned_url(s3_config, :get, bucket, storage_key)
+    Logger.info("S3 downloading from presigned URL: #{url}")
 
     try do
-      result = ExAws.S3.download_file(bucket, storage_key, build_path) |> ExAws.request()
-      Logger.info("S3 download result: #{inspect(result)}")
-      {:ok, _} = result
-      process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+      case Req.get(url, into: File.stream!(build_path)) do
+        {:ok, %{status: 200}} ->
+          Logger.info("S3 download succeeded")
+          process_zip(build_path, temp_dir, xcode_cache_upload_enabled)
+
+        {:ok, %{status: status, body: body}} ->
+          Logger.error("S3 download failed with status #{status}: #{inspect(body)}")
+          {:error, "s3_download_failed_#{status}"}
+
+        {:error, reason} ->
+          Logger.error("S3 download request failed: #{inspect(reason)}")
+          {:error, reason}
+      end
     after
       cleanup_temp(temp_dir)
     end
