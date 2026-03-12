@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-03-11 18:32+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.16.2\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-05 17:58+0000\n"
+"PO-Revision-Date: 2026-03-11 18:32+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.16.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -54,30 +66,6 @@ msgstr "Acerca de"
 msgid "Active community members and counting"
 msgstr "Miembros activos de la comunidad y contando"
 
-msgid "Air"
-msgstr "Air"
-
-msgid "All"
-msgstr "Todos"
-
-msgid "All features, no credit card required"
-msgstr "Todas las funcionalidades, sin tarjeta de crédito"
-
-msgid "All systems normal"
-msgstr "Todos los sistemas funcionan con normalidad"
-
-msgid "All the features you need,"
-msgstr "Todo lo que necesitas,"
-
-msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
-msgstr "Analiza los tiempos de compilación por target y archivo con metadatos como entorno, versión de Xcode y commit."
-
-msgid "Base price"
-msgstr "Precio base"
-
-msgid "Best for teams and growing startups."
-msgstr "El mejor para equipos y startups en crecimiento."
-
 msgid "Beyond expectations"
 msgstr "Superando todas las expectativas"
 
@@ -112,9 +100,6 @@ msgid "Bundle Insights"
 msgstr "Análisis de bundles"
 
 msgid "Bundle analysis"
-msgstr "Análisis de bundles"
-
-msgid "Bundle insights"
 msgstr "Análisis de bundles"
 
 msgid "Cache"
@@ -312,9 +297,6 @@ msgstr "Aviso legal"
 msgid "Insights"
 msgstr "Insights"
 
-msgid "Insights from your builds and test runs"
-msgstr "Información sobre sus construcciones y pruebas"
-
 msgid "Instantly share your app using a URL"
 msgstr "Comparte tu aplicación al instante mediante una URL"
 
@@ -371,9 +353,6 @@ msgstr "Iniciar sesión"
 
 msgid "Longevity"
 msgstr "Longevidad"
-
-msgid "Make Xcode projects easier to manage and scale"
-msgstr "Proyectos Xcode más fáciles de gestionar y ampliar"
 
 msgid "Make mobile"
 msgstr "Haz del móvil"
@@ -501,9 +480,6 @@ msgstr "Comparta las versiones de su aplicación con otros usuarios a través de
 msgid "Shared app preview with the team"
 msgstr "Vista previa de la aplicación compartida con el equipo"
 
-msgid "Shrink your app by cleaning up code and assets"
-msgstr "Reduzca su aplicación limpiando el código y los activos"
-
 msgid "Sign up"
 msgstr "Registrarse"
 
@@ -536,18 +512,6 @@ msgstr "Acelere la ejecución de las pruebas omitiendo las suites de pruebas que
 
 msgid "Speed up your builds and test runs."
 msgstr "Acelere sus compilaciones y pruebas."
-
-msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
-msgstr "Acelera las compilaciones mediante la reutilización de binarios compilados, reduciendo los tiempos de compilación tanto en el desarrollo local como en CI."
-
-msgid "Standard support"
-msgstr "Soporte estándar"
-
-msgid "Standard support via Slack and email"
-msgstr "Asistencia estándar a través de Slack y correo electrónico"
-
-msgid "Standards"
-msgstr "Normas"
 
 msgid "Stars on GitHub"
 msgstr "Estrellas en GitHub"
@@ -599,9 +563,6 @@ msgstr "Equipos que utilizan Tuist"
 
 msgid "Terms of service"
 msgstr "Condiciones de servicio"
-
-msgid "Test only the code impacted by the changes"
-msgstr "Probar sólo el código afectado por los cambios"
 
 msgid "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
 msgstr "Por eso existe Tuist, para devolver la alegría del desarrollo a cualquier escala. Mejoramos las herramientas nativas de Apple aportando ideas innovadoras de todo el ecosistema de desarrollo, para que los equipos puedan centrarse en crear aplicaciones excepcionales en lugar de luchar contra su sistema de compilación."
@@ -929,32 +890,8 @@ msgid "App preview interface showing share preview button and platform options"
 msgstr "Interfaz de vista previa de la aplicación que muestra el botón de vista previa compartida y las opciones de plataforma."
 
 #, fuzzy
-msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
-msgstr "Detecta automáticamente las pruebas inestables que fallan sin cambios en el código y reduce el tiempo dedicado a investigar fallos falsos."
-
-#, fuzzy
-msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
-msgstr "Cree un gráfico de información que muestre las métricas de duración de la compilación con los percentiles p90, p99 y promedio."
-
-#, fuzzy
-msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
-msgstr "El panel de control de la tasa de aciertos de la caché muestra una tasa de aciertos del 90 % y un ahorro de 14,2 horas esta semana."
-
-#, fuzzy
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
 msgstr "Comprima conceptualmente las complejidades de los proyectos modulares de Xcode y hágalos más accesibles para mantenerlos y escalarlos."
-
-#, fuzzy
-msgid "Flaky Tests"
-msgstr "Pruebas poco fiables"
-
-#, fuzzy
-msgid "Flaky tests dashboard showing test history and automation creation modal"
-msgstr "Panel de pruebas inestable que muestra el historial de pruebas y el modal de creación de automatizaciones."
-
-#, fuzzy
-msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr "Del código a los comentarios en cuestión de minutos. Las vistas previas instantáneas y las pruebas basadas en IA cierran el ciclo entre la creación y la validación."
 
 #, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
@@ -965,20 +902,12 @@ msgid "Quality assurance"
 msgstr "Control de calidad"
 
 #, fuzzy
-msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
-msgstr "Ejecute solo las pruebas que sean importantes detectando los cambios desde la última ejecución satisfactoria, lo que reducirá los tiempos de prueba tanto en el desarrollo local como en la integración continua."
-
-#, fuzzy
 msgid "Selective Testing"
 msgstr "Selective testing"
 
 #, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
 msgstr "Panel de pruebas selectivas que muestra las pruebas omitidas, con 134/196 pruebas omitidas y 15,8 horas ahorradas esta semana."
-
-#, fuzzy
-msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
-msgstr "Comparte tu aplicación al instante con una URL. Sin retrasos de TestFlight, solo tienes que hacer clic y ejecutarla en cualquier simulador o dispositivo."
 
 #, fuzzy
 msgid "Test Insights"
@@ -991,10 +920,6 @@ msgstr "Información sobre pruebas que muestra ejecuciones de pruebas, pruebas i
 #, fuzzy
 msgid "Tests"
 msgstr "Pruebas"
-
-#, fuzzy
-msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
-msgstr "Realice un seguimiento del rendimiento de las pruebas, detecte rápidamente las pruebas lentas y depure los fallos de CI sin tener que revisar los registros."
 
 #, fuzzy
 msgid "Download only what you need — faster, lighter builds locally and on CI."
@@ -1015,6 +940,441 @@ msgstr "Ejecute solo las pruebas afectadas en función de sus cambios para obten
 #, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
 msgstr "Omita los pasos manuales, genere proyectos automáticamente, acelere las compilaciones y explore información con análisis integrados."
+
+msgid "A low-latency, layered caching system stores and serves artifacts close to where the compute happens."
+msgstr ""
+
+msgid "Adopt it easily"
+msgstr ""
+
+msgid "Analyze test runs to keep your CI fast and reliable"
+msgstr ""
+
+msgid "Automatic PR comments"
+msgstr ""
+
+msgid "Automatic flaky test detection"
+msgstr ""
+
+msgid "Automatically detect and track flaky tests across runs"
+msgstr ""
+
+msgid "Boost productivity."
+msgstr ""
+
+msgid "Brings the same remote caching to Gradle builds for a unified cross-platform cache."
+msgstr ""
+
+msgid "Build Insights dashboard illustration"
+msgstr ""
+
+msgid "Build Insights · Tuist"
+msgstr ""
+
+msgid "Build faster"
+msgstr ""
+
+msgid "Build insights are available with a single URL you can share with your team."
+msgstr ""
+
+msgid "CI & local environment visibility"
+msgstr ""
+
+msgid "Cache dashboard illustration"
+msgstr ""
+
+msgid "Cache individual modules as binaries and share them across your team and CI using Tuist's project generation."
+msgstr ""
+
+msgid "Cache insights show you how your build graph is performing against the caching infrastructure."
+msgstr ""
+
+msgid "Cache · Tuist"
+msgstr ""
+
+msgid "Caching compounds the speed"
+msgstr ""
+
+msgid "Catch slowdowns before they snowball"
+msgstr ""
+
+msgid "Change-based test selection"
+msgstr ""
+
+msgid "Click to run, no CLI needed"
+msgstr ""
+
+msgid "Companion macOS and iOS apps let anyone on the team launch previews on their selected device with a single click."
+msgstr ""
+
+msgid "Debug with real execution data"
+msgstr ""
+
+msgid "Detect flaky tests."
+msgstr ""
+
+msgid "Detects which modules have changed since the last successful test run and filters the test suite down to only affected test targets."
+msgstr ""
+
+msgid "Diagnostic data download"
+msgstr ""
+
+msgid "Download the diagnostic data for any flaky run, including logs, screenshots, and timing information"
+msgstr ""
+
+msgid "Drill into any failed run to see exactly which tests failed and their history, no more scrolling through raw CI logs."
+msgstr ""
+
+msgid "Each build includes environment metadata, so you can see how different setups impact performance."
+msgstr ""
+
+msgid "Each flaky test includes its run history, helping you correlate failures with environments, timing, or resource contention."
+msgstr ""
+
+msgid "Easy to adopt"
+msgstr ""
+
+msgid "Failure analysis"
+msgstr ""
+
+msgid "Faster CI feedback."
+msgstr ""
+
+msgid "Flags tests that intermittently pass and fail across runs without code changes. The dashboard surfaces a flaky test list with associated run history."
+msgstr ""
+
+msgid "Flaky Tests dashboard illustration"
+msgstr ""
+
+msgid "Flaky Tests · Tuist"
+msgstr ""
+
+msgid "Flaky test integration"
+msgstr ""
+
+msgid "Flaky tests"
+msgstr ""
+
+msgid "For each flaky test, download the execution data to investigate timing, environment conditions, and logs, so you can reproduce and fix the flakiness."
+msgstr ""
+
+msgid "From red build to root cause in clicks"
+msgstr ""
+
+msgid "Generate a shareable build URL so teammates can run it on their devices without using the development toolchain."
+msgstr ""
+
+msgid "Generate, build, and analyze — all automated"
+msgstr ""
+
+msgid "Get alerted and let agents fix it"
+msgstr ""
+
+msgid "Get feedback faster."
+msgstr ""
+
+msgid "Gives unified metrics across developer machines and CI runners, without wading through CI logs."
+msgstr ""
+
+msgid "Gradle cache"
+msgstr ""
+
+msgid "Granular build time tracking"
+msgstr ""
+
+msgid "Improve suite reliability."
+msgstr ""
+
+msgid "Insights are captured automatically with minimal setup, so your test health data starts flowing right away."
+msgstr ""
+
+msgid "Integrate with a single command or a few lines of configuration - no infrastructure to host or maintain."
+msgstr ""
+
+msgid "Integrates with the build toolchains you already use with minimal changes to your scripts, pipelines, and configuration files."
+msgstr ""
+
+msgid "Integrates with your existing build toolchain with minimal configuration changes."
+msgstr ""
+
+msgid "Keep your CI reliable."
+msgstr ""
+
+msgid "Let AI pinpoint the bottleneck"
+msgstr ""
+
+msgid "Make code review hands-on"
+msgstr ""
+
+msgid "Metrics are easily accessible and shareable"
+msgstr ""
+
+msgid "Monitor performance trends."
+msgstr ""
+
+msgid "Multi-channel access"
+msgstr ""
+
+msgid "Only the tests affected by your changes are executed, skipping everything that hasn't changed."
+msgstr ""
+
+msgid "Optimize your cache usage"
+msgstr ""
+
+msgid "Organize builds for every audience"
+msgstr ""
+
+msgid "Previews dashboard illustration"
+msgstr ""
+
+msgid "Previews · Tuist"
+msgstr ""
+
+msgid "Provides analytics on test selection effectiveness, helping you evaluate filtering accuracy and reorganize test targets to improve selection over time."
+msgstr ""
+
+msgid "Quickly understand why a run failed by drilling into individual test results, seeing pass/fail history, and correlating failures with specific changes."
+msgstr ""
+
+msgid "Read docs"
+msgstr ""
+
+msgid "Receive Slack alerts for new flaky tests and use AI agents via the Tuist API to analyze patterns and propose fixes."
+msgstr ""
+
+msgid "Receive insights via the dashboard, reports, the CLI, the API, and the MCP server."
+msgstr ""
+
+msgid "Records execution time for every test run across local and CI environments. Surfaces slow tests and duration trends over time on the Tuist dashboard."
+msgstr ""
+
+msgid "Reduce build times."
+msgstr ""
+
+msgid "Route previews into custom-named tracks, so stakeholders always know exactly where to find the right build."
+msgstr ""
+
+msgid "Run impacted tests."
+msgstr ""
+
+msgid "Run only what matters"
+msgstr ""
+
+msgid "Seamless toolchain integration"
+msgstr ""
+
+msgid "See the health of your test suite at a glance"
+msgstr ""
+
+msgid "See when and where it broke"
+msgstr ""
+
+msgid "Selection insights"
+msgstr ""
+
+msgid "Selective Testing dashboard illustration"
+msgstr ""
+
+msgid "Selective Testing · Tuist"
+msgstr ""
+
+msgid "Selective testing pairs with caching to reuse unchanged artifacts and skip unaffected tests."
+msgstr ""
+
+msgid "Share app previews instantly."
+msgstr ""
+
+msgid "Speed up CI by testing only what changed"
+msgstr ""
+
+msgid "Spot slow tests early"
+msgstr ""
+
+msgid "Start tracking with minimal effort"
+msgstr ""
+
+msgid "Stop chasing false failures"
+msgstr ""
+
+msgid "Store and share Xcode compilation artifacts across local, CI, and agentic environments to speed up clean builds."
+msgstr ""
+
+msgid "Test Insights dashboard illustration"
+msgstr ""
+
+msgid "Test Insights feeds directly into flaky test detection, automatically surfacing tests whose results oscillate without code changes (see Flaky Tests above)."
+msgstr ""
+
+msgid "Test Insights · Tuist"
+msgstr ""
+
+msgid "Test duration tracking"
+msgstr ""
+
+msgid "The cache runs transparently across local development, CI, and agentic environments without developers noticing it."
+msgstr ""
+
+msgid "The dashboard shows test pass rates, duration trends, and flaky tests over time."
+msgstr ""
+
+msgid "Track build health."
+msgstr ""
+
+msgid "Track build times over time and spot the moment a change introduces a significant regression."
+msgstr ""
+
+msgid "Track test durations over time and identify tests that are gradually slowing down"
+msgstr ""
+
+msgid "Track test health."
+msgstr ""
+
+msgid "Tracks build durations at the module and file level across both local and CI environments."
+msgstr ""
+
+msgid "Tuist automatically adds a Run Preview link to each PR, letting reviewers test changes on-device before approving."
+msgstr ""
+
+msgid "Tuist automatically detects tests that pass and fail without code changes and flags them in your dashboard."
+msgstr ""
+
+msgid "Tuist's MCP server and API expose your dependency graph and build data to AI coding agents"
+msgstr ""
+
+msgid "URL-centric collaboration"
+msgstr ""
+
+msgid "Understand what impacts your builds"
+msgstr ""
+
+msgid "Use it everywhere"
+msgstr ""
+
+msgid "When connected to GitHub, Tuist posts a summary in your PR showing exactly which tests ran and which were safely skipped."
+msgstr ""
+
+msgid "Xcode cache"
+msgstr ""
+
+msgid "Builds analyzed in the last 24 hours"
+msgstr ""
+
+msgid "Cache artifacts served in the last 24 hours"
+msgstr ""
+
+msgid "Flaky tests detected in the last 24 hours"
+msgstr ""
+
+msgid "Test cases processed in the last 24 hours"
+msgstr ""
+
+msgid "Test runs in the last 24 hours"
+msgstr ""
+
+msgid "Get full visibility into your test suite"
+msgstr ""
+
+msgid "Monitor and optimize your build performance"
+msgstr ""
+
+msgid "Run only the tests that matter"
+msgstr ""
+
+msgid "Share your app instantly with a link"
+msgstr ""
+
+msgid "Speed up your builds with binary caching"
+msgstr ""
+
+msgid "Stop chasing flaky tests manually"
+msgstr ""
+
+msgid "Air"
+msgstr "Air"
+
+msgid "All"
+msgstr "Todos"
+
+msgid "All features, no credit card required"
+msgstr "Todas las funcionalidades, sin tarjeta de crédito"
+
+msgid "All systems normal"
+msgstr "Todos los sistemas funcionan con normalidad"
+
+msgid "All the features you need,"
+msgstr "Todo lo que necesitas,"
+
+msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+msgstr "Analiza los tiempos de compilación por target y archivo con metadatos como entorno, versión de Xcode y commit."
+
+#, fuzzy
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr "Detecta automáticamente las pruebas inestables que fallan sin cambios en el código y reduce el tiempo dedicado a investigar fallos falsos."
+
+msgid "Base price"
+msgstr "Precio base"
+
+msgid "Best for teams and growing startups."
+msgstr "El mejor para equipos y startups en crecimiento."
+
+#, fuzzy
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr "Cree un gráfico de información que muestre las métricas de duración de la compilación con los percentiles p90, p99 y promedio."
+
+#, fuzzy
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr "El panel de control de la tasa de aciertos de la caché muestra una tasa de aciertos del 90 % y un ahorro de 14,2 horas esta semana."
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "Pruebas poco fiables"
+
+#, fuzzy
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr "Panel de pruebas inestable que muestra el historial de pruebas y el modal de creación de automatizaciones."
+
+#, fuzzy
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr "Del código a los comentarios en cuestión de minutos. Las vistas previas instantáneas y las pruebas basadas en IA cierran el ciclo entre la creación y la validación."
+
+#, fuzzy
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr "Ejecute solo las pruebas que sean importantes detectando los cambios desde la última ejecución satisfactoria, lo que reducirá los tiempos de prueba tanto en el desarrollo local como en la integración continua."
+
+#, fuzzy
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr "Comparte tu aplicación al instante con una URL. Sin retrasos de TestFlight, solo tienes que hacer clic y ejecutarla en cualquier simulador o dispositivo."
+
+msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+msgstr "Acelera las compilaciones mediante la reutilización de binarios compilados, reduciendo los tiempos de compilación tanto en el desarrollo local como en CI."
+
+msgid "Standard support"
+msgstr "Soporte estándar"
+
+msgid "Standard support via Slack and email"
+msgstr "Asistencia estándar a través de Slack y correo electrónico"
+
+msgid "Standards"
+msgstr "Normas"
+
+#, fuzzy
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr "Realice un seguimiento del rendimiento de las pruebas, detecte rápidamente las pruebas lentas y depure los fallos de CI sin tener que revisar los registros."
+
+#~ msgid "Bundle insights"
+#~ msgstr "Análisis de bundles"
+
+#~ msgid "Insights from your builds and test runs"
+#~ msgstr "Información sobre sus construcciones y pruebas"
+
+#~ msgid "Make Xcode projects easier to manage and scale"
+#~ msgstr "Proyectos Xcode más fáciles de gestionar y ampliar"
+
+#~ msgid "Shrink your app by cleaning up code and assets"
+#~ msgstr "Reduzca su aplicación limpiando el código y los activos"
+
+#~ msgid "Test only the code impacted by the changes"
+#~ msgstr "Probar sólo el código afectado por los cambios"
 
 #~ msgid "A confirmation email has been sent to your account with further details."
 #~ msgstr "Se ha enviado un correo electrónico de confirmación a su cuenta con más detalles."
