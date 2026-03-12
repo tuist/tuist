@@ -22,7 +22,6 @@ defaults:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  MISE_LOCKED: 1
 
 jobs:
   migration-safety:

@@ -33,7 +33,6 @@ env:
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
-  MISE_LOCKED: 1
 
 concurrency:
   group: docs-${{ github.head_ref }}

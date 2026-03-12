@@ -27,7 +27,6 @@ permissions:
 
 env:
   PNPM_HOME: ~/.pnpm
-  MISE_LOCKED: 1
 
 jobs:
   build-deploy:

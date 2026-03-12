@@ -21,9 +21,6 @@ defaults:
   run:
     working-directory: cache
 
-env:
-  MISE_LOCKED: 1
-
 jobs:
   deploy-canary:
     runs-on: namespace-profile-default

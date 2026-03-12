@@ -29,7 +29,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: "true"
-  MISE_LOCKED: 1
 
 jobs:
   canary:
