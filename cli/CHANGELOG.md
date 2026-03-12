@@ -1,7 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.157.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.157.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9815](https://github.com/tuist/tuist/pull/9815)
+* skip binary cache mapping when graph is empty after selective testing by [@fortmarek](https://github.com/fortmarek) in [#9814](https://github.com/tuist/tuist/pull/9814)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.157.1...4.157.2
+
+## What's Changed in 4.157.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -19,7 +28,7 @@ All notable changes to this project will be documented in this file.
 * [@BugorBN](https://github.com/BugorBN) made their first contribution in [#9648](https://github.com/tuist/tuist/pull/9648)
 * [@ngs](https://github.com/ngs) made their first contribution in [#9730](https://github.com/tuist/tuist/pull/9730)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.156.0...4.157.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.156.0...4.157.1
 
 ## What's Changed in 4.156.0<!-- RELEASE NOTES START -->
 
