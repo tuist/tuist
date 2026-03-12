@@ -364,6 +364,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 platform: platform,
                 action: action,
                 rosetta: rosetta,
+                runResultBundlePath: runResultBundlePath,
                 resultBundlePath: resultBundlePath,
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
@@ -402,6 +403,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         platform: String?,
         action: XcodeBuildTestAction,
         rosetta: Bool,
+        runResultBundlePath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         retryCount: Int,
@@ -458,6 +460,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     platform: platform,
                     action: action,
                     rosetta: rosetta,
+                    runResultBundlePath: runResultBundlePath,
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
@@ -764,6 +767,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         platform: String?,
         action: XcodeBuildTestAction,
         rosetta: Bool,
+        runResultBundlePath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         retryCount: Int,
@@ -872,6 +876,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     config: config,
                     action: action
                 )
+                if isFirstPlatform, platformsToTest.count > 1,
+                   let path = platformResultBundlePath, let runResultBundlePath
+                {
+                    try await copyPlatformResultBundleIfNeeded(
+                        platformResultBundlePath: path,
+                        runResultBundlePath: runResultBundlePath
+                    )
+                }
                 throw error
             }
 
@@ -881,6 +893,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 config: config,
                 action: action
             )
+            if isFirstPlatform, platformsToTest.count > 1,
+               let path = platformResultBundlePath, let runResultBundlePath
+            {
+                try await copyPlatformResultBundleIfNeeded(
+                    platformResultBundlePath: path,
+                    runResultBundlePath: runResultBundlePath
+                )
+            }
             isFirstPlatform = false
         }
     }
@@ -889,6 +909,30 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let ext = path.extension.map { "." + $0 } ?? ""
         let stem = ext.isEmpty ? path.basename : String(path.basename.dropLast(ext.count))
         return "\(stem)-\(platform.rawValue)\(ext)"
+    }
+
+    private func copyPlatformResultBundleIfNeeded(
+        platformResultBundlePath: AbsolutePath,
+        runResultBundlePath: AbsolutePath
+    ) async throws {
+        // xcodebuild appends .xcresult when the path has no extension
+        let actualBundlePath: AbsolutePath =
+            if platformResultBundlePath.extension == "xcresult" {
+                platformResultBundlePath
+            } else {
+                platformResultBundlePath.parentDirectory
+                    .appending(component: platformResultBundlePath.basename + ".xcresult")
+            }
+        guard try await fileSystem.exists(actualBundlePath) else { return }
+        let destination = runResultBundlePath.parentDirectory
+            .appending(component: "\(Constants.resultBundleName).xcresult")
+        if try await !fileSystem.exists(destination.parentDirectory) {
+            try await fileSystem.makeDirectory(at: destination.parentDirectory)
+        }
+        try await fileSystem.copy(
+            try await fileSystem.resolveSymbolicLink(actualBundlePath),
+            to: destination
+        )
     }
 
     private func inspectResultBundleIfNeeded(
