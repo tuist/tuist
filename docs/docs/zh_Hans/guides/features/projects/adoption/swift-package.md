@@ -32,7 +32,7 @@ git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-进入仓库目录后，我们需要安装 Swift Package Manager 的依赖项：
+进入仓库目录后，我们需要安装 Swift Package Manager 依赖项：
 
 ```bash
 tuist install
