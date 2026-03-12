@@ -102,6 +102,41 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Deletes project artifacts only when their current mtime is at or before the cutoff.
+  """
+  def delete_project_before(account_handle, project_handle, cutoff) do
+    path = Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
+    safe_cutoff = DateTime.truncate(cutoff, :second)
+
+    if File.exists?(path) do
+      files =
+        path
+        |> Path.join("**/*")
+        |> Path.wildcard(match_dot: true)
+        |> Enum.filter(&File.regular?/1)
+
+      deleted_count =
+        Enum.reduce(files, 0, fn file_path, deleted_acc ->
+          with {:ok, %File.Stat{mtime: mtime}} <- File.stat(file_path),
+               {:ok, mtime_datetime} <- stat_mtime_to_datetime(mtime),
+               true <- DateTime.before?(mtime_datetime, safe_cutoff),
+               :ok <- File.rm(file_path) do
+            deleted_acc + 1
+          else
+            false -> deleted_acc
+            {:error, :enoent} -> deleted_acc
+            {:error, _reason} -> deleted_acc
+          end
+        end)
+
+      _ = prune_empty_directories(path)
+      {:ok, deleted_count}
+    else
+      {:ok, 0}
+    end
+  end
+
+  @doc """
   Returns disk usage stats for the filesystem that backs the provided path.
   """
   def usage(path) when is_binary(path) do
@@ -235,4 +270,29 @@ defmodule Cache.Disk do
   def format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 2)} KB"
   def format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 2)} MB"
   def format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 2)} GB"
+
+  defp stat_mtime_to_datetime({{year, month, day}, {hour, minute, second}}) do
+    year
+    |> NaiveDateTime.new(month, day, hour, minute, second)
+    |> case do
+      {:ok, naive} -> DateTime.from_naive(naive, "Etc/UTC")
+      error -> error
+    end
+  end
+
+  defp prune_empty_directories(root) do
+    root
+    |> Path.join("**")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.filter(&File.dir?/1)
+    |> Enum.sort_by(&String.length/1, :desc)
+    |> Enum.each(fn dir ->
+      case File.ls(dir) do
+        {:ok, []} -> File.rmdir(dir)
+        _ -> :ok
+      end
+    end)
+
+    :ok
+  end
 end

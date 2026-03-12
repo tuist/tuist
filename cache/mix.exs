@@ -36,6 +36,7 @@ defmodule Cache.MixProject do
       {:off_broadway_memory, "~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ecto_sql, "~> 3.10"},
+      {:postgrex, "~> 0.19"},
       {:ecto_sqlite3, "~> 0.17"},
       {:configparser_ex, "~> 5.0"},
       {:ex_aws, "~> 2.0"},

@@ -1,6 +1,8 @@
 defmodule Cache.Config do
   @moduledoc false
 
+  alias Cache.DistributedKV.Repo
+
   def float_env(name, default) when is_binary(name) do
     name
     |> System.get_env()
@@ -128,6 +130,79 @@ defmodule Cache.Config do
 
   def key_value_eviction_max_duration_ms do
     Application.get_env(:cache, :key_value_eviction_max_duration_ms, 300_000)
+  end
+
+  def key_value_mode do
+    Application.get_env(:cache, :key_value_mode, :local)
+  end
+
+  def distributed_kv_enabled? do
+    key_value_mode() == :distributed
+  end
+
+  def distributed_kv_database_url do
+    Application.get_env(:cache, Repo)[:url]
+  end
+
+  def distributed_kv_pool_size do
+    Application.get_env(:cache, Repo)[:pool_size] || 5
+  end
+
+  def distributed_kv_database_timeout_ms do
+    Application.get_env(:cache, :distributed_kv_database_timeout_ms, 10_000)
+  end
+
+  def distributed_kv_sync_interval_ms do
+    Application.get_env(:cache, :distributed_kv_sync_interval_ms, 30_000)
+  end
+
+  def distributed_kv_poll_lag_ms do
+    Application.get_env(:cache, :distributed_kv_poll_lag_ms, 30_000)
+  end
+
+  def distributed_kv_ship_interval_ms do
+    Application.get_env(:cache, :distributed_kv_ship_interval_ms, 200)
+  end
+
+  def distributed_kv_ship_batch_size do
+    Application.get_env(:cache, :distributed_kv_ship_batch_size, 1_000)
+  end
+
+  def distributed_kv_access_throttle_ms do
+    Application.get_env(:cache, :distributed_kv_access_throttle_ms, 30_000)
+  end
+
+  def distributed_kv_tombstone_retention_days do
+    Application.get_env(:cache, :distributed_kv_tombstone_retention_days, 7)
+  end
+
+  def distributed_kv_remote_fallback_enabled? do
+    Application.get_env(:cache, :distributed_kv_remote_fallback_enabled, true)
+  end
+
+  def distributed_kv_cleanup_lease_ms do
+    Application.get_env(:cache, :distributed_kv_cleanup_lease_ms, 300_000)
+  end
+
+  def distributed_kv_node_name do
+    Application.get_env(:cache, :distributed_kv_node_name) ||
+      System.get_env("DISTRIBUTED_KV_NODE_NAME") ||
+      System.get_env("HOSTNAME") ||
+      cache_endpoint()
+  end
+
+  def validate_distributed_kv! do
+    if distributed_kv_enabled?() do
+      if is_nil(distributed_kv_database_url()) or distributed_kv_database_url() == "" do
+        raise "DISTRIBUTED_KV_DATABASE_URL is required when KEY_VALUE_MODE=distributed"
+      end
+
+      if is_nil(distributed_kv_node_name()) or distributed_kv_node_name() == "" do
+        raise "DISTRIBUTED_KV_NODE_NAME or HOSTNAME is required when KEY_VALUE_MODE=distributed"
+      end
+    end
+
+    :ok
   end
 
   def key_value_read_busy_timeout_ms do
