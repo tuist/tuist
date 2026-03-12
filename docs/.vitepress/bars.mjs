@@ -17,7 +17,6 @@ import {
   gitForgesIcon,
   selfHostingIcon,
   agenticBuildingIcon,
-  qaIcon,
   slackIcon,
   testInsightsIcon,
   flakyTestsIcon,
@@ -638,13 +637,6 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.bundle-size.text",
           )}</span>`,
           link: `/${locale}/guides/features/bundle-size`,
-        },
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${qaIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.develop.items.qa.text",
-          )}</span>`,
-          link: `/${locale}/guides/features/qa`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${previewsIcon()} ${localizedString(

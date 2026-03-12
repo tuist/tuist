@@ -169,10 +169,11 @@ defmodule Noora.Chart do
     """
   )
 
-  attr(:smooth, :boolean,
+  attr(:smooth, :any,
     default: false,
     doc: """
     For line charts, whether to use smooth curves instead of straight lines.
+    Can be a boolean or a number between 0 and 1 to control the smoothing amount.
     """
   )
 

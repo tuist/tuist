@@ -10,7 +10,6 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Projects.VCSConnection
-  alias Tuist.QA.LaunchArgumentGroup
 
   @derive {
     Flop.Schema,
@@ -24,9 +23,6 @@ defmodule Tuist.Projects.Project do
     field :default_branch, :string, default: "main"
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
-    field :qa_app_description, :string, default: ""
-    field :qa_email, :string, default: ""
-    field :qa_password, :string, default: ""
     field :slack_channel_id, :string
     field :slack_channel_name, :string
     field :report_frequency, Ecto.Enum, values: [never: 0, daily: 1], default: :never
@@ -46,7 +42,6 @@ defmodule Tuist.Projects.Project do
 
     has_many :previews, Preview
     has_one :vcs_connection, VCSConnection
-    has_many :qa_launch_argument_groups, LaunchArgumentGroup
 
     has_many :users_with_last_visited_projects, User,
       foreign_key: :last_visited_project_id,
@@ -83,9 +78,6 @@ defmodule Tuist.Projects.Project do
       :default_branch,
       :visibility,
       :default_previews_visibility,
-      :qa_app_description,
-      :qa_email,
-      :qa_password,
       :slack_channel_id,
       :slack_channel_name,
       :report_frequency,
