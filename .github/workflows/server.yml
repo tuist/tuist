@@ -390,8 +390,10 @@ jobs:
           cache: "false"
           working_directory: server
       - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.69.3"
         run: |
-          sudo curl -sfL https://github.com/aquasecurity/trivy/releases/download/v0.63.0/trivy_0.63.0_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
       - name: Restore Mix Cache
