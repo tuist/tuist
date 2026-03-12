@@ -6,9 +6,8 @@ servers:
     proxy: false
     options:
       publish: 4002:4002
-    healthcheck:
-      path: /health
-      port: 4002
+      health-cmd: "curl -f http://localhost:4002/health || exit 1"
+      health-interval: 10s
 
 ssh:
   user: github-actions
