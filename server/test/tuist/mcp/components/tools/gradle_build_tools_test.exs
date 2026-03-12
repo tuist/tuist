@@ -8,26 +8,21 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
   alias Tuist.MCP.Components.Tools.ListGradleBuildTasks
   alias Tuist.Projects
 
-  defp conn_with_subject do
-    %Plug.Conn{assigns: %{current_subject: :subject}}
-  end
+  @pagination_meta %{
+    has_next_page?: false,
+    has_previous_page?: false,
+    total_count: 1,
+    total_pages: 1,
+    current_page: 1,
+    page_size: 20
+  }
 
-  defp pagination_meta(overrides \\ %{}) do
-    Map.merge(
-      %{
-        has_next_page?: false,
-        has_previous_page?: false,
-        total_count: 1,
-        total_pages: 1,
-        current_page: 1,
-        page_size: 20
-      },
-      overrides
-    )
+  setup do
+    %{conn: %Plug.Conn{assigns: %{current_subject: :subject}}}
   end
 
   describe "list_gradle_builds" do
-    test "returns paginated builds" do
+    test "returns paginated builds", %{conn: conn} do
       project = %{id: 1, name: "app"}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
@@ -51,11 +46,11 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
              cacheable_tasks_count: 10,
              inserted_at: ~N[2024-01-01 12:00:00]
            }
-         ], pagination_meta()}
+         ], @pagination_meta}
       end)
 
       result =
-        ListGradleBuilds.call(conn_with_subject(), %{
+        ListGradleBuilds.call(conn, %{
           "account_handle" => "acme",
           "project_handle" => "app"
         })
@@ -70,7 +65,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       assert build["cache_hit_rate"] == 80.0
     end
 
-    test "requires :build_read authorization" do
+    test "requires :build_read authorization", %{conn: conn} do
       project = %{id: 1, name: "app"}
       stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
 
@@ -79,7 +74,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       end)
 
       result =
-        ListGradleBuilds.call(conn_with_subject(), %{
+        ListGradleBuilds.call(conn, %{
           "account_handle" => "acme",
           "project_handle" => "app"
         })
@@ -90,7 +85,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
   end
 
   describe "get_gradle_build" do
-    test "returns build details" do
+    test "returns build details", %{conn: conn} do
       project = %{id: 1, name: "app"}
 
       stub(Gradle, :get_build, fn "gradle-build-1" ->
@@ -123,7 +118,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       stub(Projects, :get_project_by_id, fn 1 -> project end)
       stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
 
-      result = GetGradleBuild.call(conn_with_subject(), %{"build_run_id" => "gradle-build-1"})
+      result = GetGradleBuild.call(conn, %{"build_run_id" => "gradle-build-1"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
@@ -134,10 +129,10 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       assert result["cache_hit_rate"] == 80.0
     end
 
-    test "returns error when build not found" do
+    test "returns error when build not found", %{conn: conn} do
       stub(Gradle, :get_build, fn "nonexistent" -> {:error, :not_found} end)
 
-      result = GetGradleBuild.call(conn_with_subject(), %{"build_run_id" => "nonexistent"})
+      result = GetGradleBuild.call(conn, %{"build_run_id" => "nonexistent"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
       assert text == "Gradle build not found: nonexistent"
@@ -145,7 +140,7 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
   end
 
   describe "list_gradle_build_tasks" do
-    test "returns build tasks" do
+    test "returns build tasks", %{conn: conn} do
       project = %{id: 1, name: "app"}
 
       stub(Gradle, :get_build, fn "gradle-build-1" ->
@@ -168,11 +163,11 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
              cache_artifact_size: 1024,
              started_at: ~N[2024-01-01 12:00:05]
            }
-         ], pagination_meta()}
+         ], @pagination_meta}
       end)
 
       result =
-        ListGradleBuildTasks.call(conn_with_subject(), %{"build_run_id" => "gradle-build-1"})
+        ListGradleBuildTasks.call(conn, %{"build_run_id" => "gradle-build-1"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
@@ -184,11 +179,11 @@ defmodule Tuist.MCP.Components.Tools.GradleBuildToolsTest do
       assert task["duration_ms"] == 12_000
     end
 
-    test "returns error when build not found" do
+    test "returns error when build not found", %{conn: conn} do
       stub(Gradle, :get_build, fn "nonexistent" -> {:error, :not_found} end)
 
       result =
-        ListGradleBuildTasks.call(conn_with_subject(), %{"build_run_id" => "nonexistent"})
+        ListGradleBuildTasks.call(conn, %{"build_run_id" => "nonexistent"})
 
       assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
       assert text == "Gradle build not found: nonexistent"
