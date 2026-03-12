@@ -19,6 +19,7 @@ concurrency:
 env:
   PNPM_HOME: ~/.pnpm
   TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
   check-releases:
@@ -871,18 +872,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/tuist/tuist
-          flavor: |
-            latest=true
-          tags: |
-            type=raw,value=${{ needs.check-releases.outputs.server-next-version-number }}
-            type=raw,value=latest
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -893,8 +882,9 @@ jobs:
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
             MIX_ENV=prod
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}
+            ghcr.io/tuist/tuist:latest
 
       - name: Upload Server artifacts
         id: upload
@@ -965,18 +955,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/tuist/cache
-          flavor: |
-            latest=true
-          tags: |
-            type=raw,value=${{ needs.check-releases.outputs.cache-next-version-number }}
-            type=raw,value=latest
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -986,8 +964,9 @@ jobs:
           build-args: |
             CACHE_VERSION=${{ needs.check-releases.outputs.cache-next-version-number }}
             MIX_ENV=prod
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/tuist/cache:${{ needs.check-releases.outputs.cache-next-version-number }}
+            ghcr.io/tuist/cache:latest
 
       - name: Upload Cache artifacts
         id: upload
@@ -1207,6 +1186,7 @@ jobs:
         with:
           install_args: "erlang elixir node pnpm git-cliff"
           cache: "false"
+          working_directory: noora
 
       - name: Get release notes
         id: release-notes
