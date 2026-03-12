@@ -221,7 +221,7 @@
 
         stage.template {
           source   = "path_group"
-          template = "cas"
+          template = "xcode"
         }
       }
 

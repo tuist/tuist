@@ -58,6 +58,7 @@ defmodule TuistWeb.OverviewLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+    render_async(lv)
 
     assert has_element?(lv, ".tuist-widget span", "50.0%")
   end
@@ -78,6 +79,7 @@ defmodule TuistWeb.OverviewLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}")
+    render_async(lv)
 
     assert has_element?(lv, "div[data-part=average-build-time-chart] span", "1.0s")
   end

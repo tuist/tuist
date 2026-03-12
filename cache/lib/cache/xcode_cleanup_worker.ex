@@ -1,6 +1,6 @@
-defmodule Cache.CASCleanupWorker do
+defmodule Cache.XcodeCleanupWorker do
   @moduledoc """
-  Oban worker that deletes CAS artifacts from disk and metadata.
+  Oban worker that deletes Xcode cache artifacts from disk and metadata.
   Only deletes artifacts that are no longer referenced by any key-value entry.
   Artifacts flow through disk → metadata deletion. Each stage only
   receives keys that the previous stage successfully cleaned up, so a failure
@@ -12,9 +12,9 @@ defmodule Cache.CASCleanupWorker do
     unique: [keys: [:account_handle, :project_handle, :cas_hashes], period: 300]
 
   alias Cache.CacheArtifacts
-  alias Cache.CAS
   alias Cache.Disk
   alias Cache.KeyValueEntries
+  alias Cache.Xcode
 
   require Logger
 
@@ -27,7 +27,7 @@ defmodule Cache.CASCleanupWorker do
         :ok
 
       unreferenced ->
-        keys = Enum.map(unreferenced, &CAS.Disk.key(account_handle, project_handle, &1))
+        keys = Enum.map(unreferenced, &Xcode.Disk.key(account_handle, project_handle, &1))
 
         {deleted_keys, failed_count} = delete_from_disk(keys)
 
@@ -50,7 +50,7 @@ defmodule Cache.CASCleanupWorker do
             {[key | deleted_acc], failed_acc}
 
           {:error, reason} ->
-            Logger.error("Failed to delete CAS artifact from disk #{key}: #{inspect(reason)}")
+            Logger.error("Failed to delete Xcode cache artifact from disk #{key}: #{inspect(reason)}")
             {deleted_acc, failed_acc + 1}
         end
       end)

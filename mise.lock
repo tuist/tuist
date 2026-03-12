@@ -54,7 +54,10 @@ backend = "aqua:orhun/git-cliff"
 [[tools.gradle]]
 version = "8.12.1"
 backend = "aqua:gradle/gradle"
+"platforms.linux-arm64" = { url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"}
+"platforms.linux-x64" = { url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"}
 "platforms.macos-arm64" = { checksum = "blake3:7761b714daf36ba736871d060669a60eb6a728aad96ae817d3972d82f64730e9", url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"}
+"platforms.macos-x64" = { url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"}
 
 [[tools.java]]
 version = "21.0.2"
