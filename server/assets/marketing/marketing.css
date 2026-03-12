@@ -39,6 +39,8 @@ body {
   padding: 0px;
   overflow-x: hidden;
   font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
   & > div[data-part="content"] {
     background: var(--noora-surface-background-primary);
