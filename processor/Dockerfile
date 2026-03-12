@@ -9,6 +9,9 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 # ========================================
 FROM swift:6.2-bookworm AS swift-builder
 
+RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /nif
 
 COPY processor/native/xcactivitylog_nif/Package.swift .
