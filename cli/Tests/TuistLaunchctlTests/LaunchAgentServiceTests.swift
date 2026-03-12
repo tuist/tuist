@@ -183,7 +183,11 @@ struct LaunchAgentServiceTests {
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
 
-        let bootstrapError = CommandError.terminated(78, stderr: "Bootstrap failed: 78: Function not implemented")
+        let bootstrapError = CommandError.terminated(
+            78,
+            stderr: "Bootstrap failed: 78: Function not implemented",
+            command: ["/bin/launchctl", "bootstrap", "gui/501", "/Users/test/Library/LaunchAgents/tuist.test.plist"]
+        )
 
         given(launchctlController)
             .bootstrap(plistPath: .any)
