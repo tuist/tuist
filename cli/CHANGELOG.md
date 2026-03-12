@@ -1,14 +1,59 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.155.3<!-- RELEASE NOTES START -->
+## What's Changed in 4.157.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9815](https://github.com/tuist/tuist/pull/9815)
+* skip binary cache mapping when graph is empty after selective testing by [@fortmarek](https://github.com/fortmarek) in [#9814](https://github.com/tuist/tuist/pull/9814)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.157.1...4.157.2
+
+## What's Changed in 4.157.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add watch2AppContainer product type for watchOS-only apps by [@BugorBN](https://github.com/BugorBN) in [#9648](https://github.com/tuist/tuist/pull/9648)
+### 🐛 Bug Fixes
+
+* resolve missing module dependencies with cached local frameworks by [@pepicrft](https://github.com/pepicrft) in [#9805](https://github.com/tuist/tuist/pull/9805)
+* override SYMROOT in cache warm builds to prevent custom build location mismatch by [@gnejfejf2](https://github.com/gnejfejf2) in [#9803](https://github.com/tuist/tuist/pull/9803)
+* restore generate run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9795](https://github.com/tuist/tuist/pull/9795)
+* handle selectively-pruned targets in --test-targets validation by [@fortmarek](https://github.com/fortmarek) in [#9783](https://github.com/tuist/tuist/pull/9783)
+* include all platform-matching xcframework slices in FRAMEWORK_SEARCH_PATHS by [@ngs](https://github.com/ngs) in [#9730](https://github.com/tuist/tuist/pull/9730)
+
+## New Contributors
+* [@gnejfejf2](https://github.com/gnejfejf2) made their first contribution in [#9803](https://github.com/tuist/tuist/pull/9803)
+* [@BugorBN](https://github.com/BugorBN) made their first contribution in [#9648](https://github.com/tuist/tuist/pull/9648)
+* [@ngs](https://github.com/ngs) made their first contribution in [#9730](https://github.com/tuist/tuist/pull/9730)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.156.0...4.157.1
+
+## What's Changed in 4.156.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track machine metrics by [@fortmarek](https://github.com/fortmarek) in [#9760](https://github.com/tuist/tuist/pull/9760)
+### 🐛 Bug Fixes
+
+* support OIDC account tokens for registry login on CI by [@pepicrft](https://github.com/pepicrft) in [#9769](https://github.com/tuist/tuist/pull/9769)
+* fix build category detection for Xcode 26.3+ with compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9762](https://github.com/tuist/tuist/pull/9762)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.4...4.156.0
+
+## What's Changed in 4.155.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* archive builds for static targets with xcassets by [@Iron-Ham](https://github.com/Iron-Ham) in [#9722](https://github.com/tuist/tuist/pull/9722)
 * prevent multiple commands produce when static product depends on same-named xcframework by [@pepicrft](https://github.com/pepicrft) in [#9758](https://github.com/tuist/tuist/pull/9758)
 * exclude non-test-dependency targets from workspace scheme build action by [@fortmarek](https://github.com/fortmarek) in [#9741](https://github.com/tuist/tuist/pull/9741)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.3
+## New Contributors
+* [@Iron-Ham](https://github.com/Iron-Ham) made their first contribution in [#9722](https://github.com/tuist/tuist/pull/9722)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.155.2...4.155.4
 
 ## What's Changed in 4.155.2<!-- RELEASE NOTES START -->
 

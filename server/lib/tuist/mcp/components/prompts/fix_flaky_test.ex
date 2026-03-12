@@ -1,37 +1,36 @@
 defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
   @moduledoc """
-  Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction.
+  Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL.
   """
 
-  use Anubis.Server.Component, type: :prompt
+  use Tuist.MCP.Prompt,
+    name: "fix_flaky_test",
+    arguments: [
+      %{name: "account_handle", description: "The account handle (organization or user)."},
+      %{name: "project_handle", description: "The project handle."},
+      %{
+        name: "test_case_id",
+        description:
+          "The test case ID or identifier (`Module/Suite/TestCase` or `Module/TestCase`) to fix. " <>
+            "When using an identifier, provide a project URL or account_handle and project_handle."
+      }
+    ]
 
-  alias Anubis.Server.Response
+  @impl EMCP.Prompt
+  def description,
+    do:
+      "Guides you through fixing a flaky test by analyzing failure patterns, identifying the root cause, and applying a targeted correction. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}. They are not needed if test_case_id is a dashboard URL."
 
-  schema do
-    field :account_handle, :string,
-      description: "The account handle (organization or user). Required if project_handle is provided."
+  @impl EMCP.Prompt
+  def template(_conn, args) do
+    {account_handle, project_handle} = PromptSupport.resolve_project_handles(args)
+    test_case_id = Map.get(args, "test_case_id")
 
-    field :project_handle, :string, description: "The project handle. Required if account_handle is provided."
-
-    field :test_case_id, :string,
-      description:
-        "The test case UUID or identifier (`Module/Suite/TestCase` or `Module/TestCase`) to fix. " <>
-          "When using an identifier, provide account_handle and project_handle."
-  end
-
-  @impl true
-  def get_messages(arguments, frame) do
-    account_handle = Map.get(arguments, :account_handle)
-    project_handle = Map.get(arguments, :project_handle)
-    test_case_id = Map.get(arguments, :test_case_id)
-
-    response =
-      Response.user_message(Response.prompt(), %{
-        "type" => "text",
-        "text" => prompt_text(account_handle, project_handle, test_case_id)
-      })
-
-    {:reply, response, frame}
+    %{
+      messages: [
+        %{role: "user", content: %{type: "text", text: prompt_text(account_handle, project_handle, test_case_id)}}
+      ]
+    }
   end
 
   defp prompt_text(account_handle, project_handle, test_case_id) do
@@ -50,6 +49,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
       `test_case_id` is the `id` field returned by `list_test_cases`.
     - **get_test_run**: Get detailed metrics for a test run (requires test_run_id).
     - **get_test_case_run**: Get failure details for a specific test case run (requires test_case_run_id).
+    - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run. Each attachment includes a temporary download URL.
 
     ## Workflow
 
@@ -86,7 +86,14 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - **repetitions**: retry behavior (pass/fail sequence)
     - **test_run_id**: the broader test run this execution belongs to
 
-    ### 5. Read and analyze source code
+    ### 5. Inspect attachments
+
+    Use `list_test_case_run_attachments` to find diagnostic artifacts for the failing run. Each attachment includes a download URL.
+
+    - **Text attachments** (logs, crash reports, JSON, XML, CSV): download and include relevant excerpts inline to aid diagnosis.
+    - **Image attachments** (screenshots, PNGs, JPGs): present the download URL so the developer can view them. Describe what the image likely shows based on its file name and context.
+
+    ### 6. Read and analyze source code
 
     Open the file at the reported path and line number. Read the full test function and its setup/teardown.
 
@@ -111,7 +118,7 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - Implicit ordering between tests. Fix: make each test self-contained.
     - Parallel execution conflicts. Fix: use unique resources per test.
 
-    ### 6. Reproduce the failure before changing code
+    ### 7. Reproduce the failure before changing code
 
     Reproduce at least one failure first in your test environment.
     If you cannot reproduce it, do not claim a fix. Instead:
@@ -120,13 +127,13 @@ defmodule Tuist.MCP.Components.Prompts.FixFlakyTest do
     - compare CI context from MCP data (`is_ci`, branch, commit, scheme)
     - explain what additional signal is needed to proceed
 
-    ### 7. Apply the fix
+    ### 8. Apply the fix
 
     - Apply the smallest fix that addresses the root cause.
     - Do not refactor unrelated code.
     - Reuse existing test utilities before creating new ones.
 
-    ### 8. Verify
+    ### 9. Verify
 
     Run the specific test repeatedly in your test environment until intermittent failures stop appearing.
     Use 50-100 iterations for fast unit tests, and 2-5 iterations for slower integration tests.

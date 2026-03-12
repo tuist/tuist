@@ -193,8 +193,10 @@ extension PBXProductType {
             return .stickerPackExtension
         case .xpcService:
             return .xpc
-        case .watchApp, .watch2App, .watch2AppContainer:
+        case .watchApp, .watch2App:
             return .watch2App
+        case .watch2AppContainer:
+            return .watch2AppContainer
         case .watchExtension, .watch2Extension:
             return .watch2Extension
         case .tvExtension:

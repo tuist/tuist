@@ -316,21 +316,6 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={
-          Project.xcode_project?(@selected_project) and
-            FunWithFlags.enabled?(:qa, for: @selected_account)
-        }
-        label={dgettext("dashboard", "QA")}
-        icon="checkup_list"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
-        selected={
-          String.starts_with?(
-            @current_path,
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/qa"
-          )
-        }
-      />
-      <.sidebar_item
         label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}

@@ -30,6 +30,7 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  MISE_GITHUB_ATTESTATIONS: 0
 
 concurrency:
   group: app-${{ github.head_ref }}
@@ -102,9 +103,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -156,9 +157,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
@@ -201,9 +202,9 @@ jobs:
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
-      - name: Setup Tuist cache
+      - name: Setup Tuist
         if: github.event.pull_request.head.repo.fork != true
-        run: tuist setup cache
+        run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install

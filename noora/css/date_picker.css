@@ -1,0 +1,754 @@
+.noora-date-picker {
+  /* Component-level semantic colors */
+  --noora-datepicker-range-background: light-dark(
+    var(--noora-purple-50),
+    oklch(from var(--noora-purple-500) l c h / 0.24)
+  );
+  --noora-datepicker-selected-background: var(--noora-purple-500);
+  --noora-datepicker-selected-text: var(--noora-neutral-light-50);
+  --noora-datepicker-range-text: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-datepicker-today-marker: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-datepicker-preset-hover-background: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-datepicker-trigger-background: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1100)
+  );
+
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  font: var(--noora-font-body-small);
+
+  /* Trigger button */
+  & [data-part="trigger"] {
+    --background-base: var(--noora-datepicker-trigger-background);
+    --background-gradient-start: light-dark(
+      oklch(78.6% 0.013 248 / 0),
+      oklch(100% 0 0 / 0.08)
+    );
+    --background-gradient-end: light-dark(
+      oklch(78.6% 0.013 248 / 0.13),
+      oklch(100% 0 0 / 0)
+    );
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--noora-spacing-4);
+    cursor: pointer;
+    outline: unset;
+    box-shadow: var(--noora-border-light-default);
+    border: 0;
+    border-radius: var(--noora-radius-medium);
+    background:
+      linear-gradient(
+        180deg,
+        var(--background-gradient-start) 0%,
+        var(--background-gradient-end) 100%
+      ),
+      var(--background-base);
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-body-medium);
+    width: fit-content;
+
+    &:hover:not(:disabled) {
+      --background-gradient-start: light-dark(
+        oklch(78.6% 0.013 248 / 0),
+        oklch(100% 0 0 / 0.04)
+      );
+      --background-gradient-end: light-dark(
+        oklch(78.6% 0.013 248 / 0.26),
+        oklch(100% 0 0 / 0)
+      );
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      color: var(--noora-surface-label-disabled);
+    }
+
+    &[data-state="open"] {
+      box-shadow: var(--noora-border-light-focus);
+    }
+  }
+
+  & [data-part="trigger-label"] {
+    font-weight: var(--noora-font-weight-medium);
+  }
+
+  & [data-part="trigger-icon"] {
+    display: inline-flex;
+    color: var(--noora-button-secondary-label);
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  /* Positioner - Zag handles visibility via hidden attribute */
+  & [data-part="positioner"] {
+    /* Zag sets inline positioning styles */
+    /* Adjust horizontal position to the left */
+    margin-left: calc(-1 * var(--noora-spacing-2));
+
+    /* Prevent flashing of the component before script load */
+    &:not(:has(> [data-state])) {
+      display: none;
+    }
+
+    @media (max-width: 767px) {
+      /* Reset desktop offset and align to available space */
+      margin-left: 0;
+    }
+  }
+
+  /* Ensure hidden attribute works (overrides display: flex on children) */
+  & [data-part="positioner"][hidden],
+  & [data-part="content"][hidden] {
+    display: none;
+  }
+
+  /* Content container (the dropdown panel) */
+  & [data-part="content"] {
+    display: flex;
+    flex-direction: row;
+    background-color: var(--noora-surface-background-tertiary);
+    box-shadow: var(--noora-border-heavy);
+    border-radius: var(--noora-radius-xlarge);
+
+    @media (max-width: 767px) {
+      /* Use Zag's --available-width variable to constrain to parent bounds */
+      flex-direction: column;
+      width: var(--available-width);
+      max-width: min(var(--available-width), 302px);
+      overflow: hidden;
+    }
+  }
+
+  /* Desktop preset sidebar */
+  & [data-part="presets"][data-device="desktop"] {
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-6) var(--noora-spacing-2);
+    width: 140px;
+
+    @media (min-width: 768px) {
+      display: flex;
+    }
+
+    @media (max-width: 767px) {
+      display: none;
+    }
+  }
+
+  /* Mobile preset tabs */
+  & [data-part="presets"][data-device="mobile"] {
+    flex-direction: row;
+    gap: var(--noora-spacing-2);
+    padding: var(--noora-spacing-4);
+    overflow-x: auto;
+
+    /* Hide scrollbar */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    @media (min-width: 768px) {
+      display: none;
+    }
+
+    @media (max-width: 767px) {
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    & [data-part="preset-item"] {
+      @media (max-width: 767px) {
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  /* Preset items */
+  & [data-part="preset-item"] {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border: 0;
+    border-radius: var(--noora-radius-medium);
+    background: transparent;
+    padding: var(--noora-spacing-2) var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    white-space: nowrap;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: var(--noora-datepicker-preset-hover-background);
+    }
+
+    &[data-selected="true"] {
+      background: var(--noora-datepicker-range-background);
+      color: var(--noora-datepicker-range-text);
+    }
+  }
+
+  /* Calendar area container */
+  & [data-part="calendar"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+    overflow: hidden;
+    background-color: var(--noora-surface-background-primary);
+    border-radius: var(--noora-radius-xlarge);
+
+    @media (min-width: 768px) {
+      box-shadow: var(--noora-border-light-default);
+    }
+
+    @media (max-width: 767px) {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      border-top: 1px solid var(--noora-content-divider-line);
+    }
+  }
+
+  /* Months container */
+  & [data-part="months"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  /* Individual month */
+  & [data-part="month"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-6);
+
+    &[data-desktop-only] {
+      @media (min-width: 768px) {
+        display: flex;
+      }
+
+      @media (max-width: 767px) {
+        display: none;
+      }
+    }
+
+    @media (max-width: 767px) {
+      padding: var(--noora-spacing-4);
+    }
+  }
+
+  /* Month navigation header */
+  & [data-part="view-control"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  & [data-part="prev-trigger"],
+  & [data-part="next-trigger"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 0;
+    border-radius: var(--noora-radius-medium);
+    background: transparent;
+    padding: var(--noora-spacing-1);
+    width: var(--noora-icon-size-large);
+    height: var(--noora-icon-size-large);
+    color: var(--noora-surface-label-primary);
+
+    &:hover {
+      background: var(--noora-datepicker-preset-hover-background);
+    }
+
+    &:disabled,
+    &[data-disabled] {
+      visibility: hidden;
+    }
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  & [data-part="view-trigger"] {
+    font: var(--noora-font-body-small);
+    font-weight: var(--noora-font-weight-medium);
+    color: var(--noora-surface-label-primary);
+  }
+
+  /* Calendar table */
+  & [data-part="table"] {
+    border-collapse: collapse;
+    border-spacing: 0;
+
+    @media (max-width: 767px) {
+      width: 100%;
+      table-layout: fixed;
+    }
+  }
+
+  & [data-part="table-head"] {
+    & th {
+      font: var(--noora-font-body-small);
+      font-weight: var(--noora-font-weight-medium);
+      color: var(--noora-surface-label-secondary);
+      padding: var(--noora-spacing-2);
+      width: 30px;
+      height: 30px;
+      text-align: center;
+
+      @media (max-width: 767px) {
+        width: auto;
+        padding: var(--noora-spacing-1);
+      }
+    }
+  }
+
+  & [data-part="table-body"] {
+    & td {
+      padding: var(--noora-spacing-2);
+      position: relative;
+
+      @media (max-width: 767px) {
+        padding: var(--noora-spacing-1);
+      }
+    }
+  }
+
+  /* Day cell */
+  & [data-part="table-cell"] {
+    position: relative;
+  }
+
+  /* Range/hover-range background - shown behind cells in range or during hover preview */
+  /* Uses :has() to target td when its child button has data-in-range or data-in-hover-range */
+  /* Excludes cells with hidden/outside-range/disabled children */
+  &
+    [data-part="table-cell"]:has([data-in-range]):not(
+      :has([data-outside-range])
+    ):not([data-hidden])::before,
+  &
+    [data-part="table-cell"]:has([data-in-hover-range]):not(
+      :has([data-outside-range])
+    ):not(:has([data-disabled])):not(:has([data-selected]))::before {
+    content: "";
+    position: absolute;
+    height: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 0;
+    right: 0;
+    background: var(--noora-datepicker-range-background);
+
+    @media (max-width: 767px) {
+      /* Extend slightly to prevent subpixel gaps between cells */
+      left: -1px;
+      right: -1px;
+    }
+  }
+
+  /* Range start (non-selected) - add rounded left corners and left padding */
+  &
+    [data-part="table-cell"]:has(
+      [data-range-start]:not([data-selected])
+    )::before {
+    left: var(--noora-spacing-2);
+    border-top-left-radius: var(--noora-radius-medium);
+    border-bottom-left-radius: var(--noora-radius-medium);
+  }
+
+  /* Range end (non-selected) - add rounded right corners and right padding */
+  &
+    [data-part="table-cell"]:has(
+      [data-range-end]:not([data-selected])
+    )::before {
+    right: var(--noora-spacing-2);
+    border-top-right-radius: var(--noora-radius-medium);
+    border-bottom-right-radius: var(--noora-radius-medium);
+  }
+
+  /* Selected cells - collapse ::before to zero width by default, no radius */
+  &
+    [data-part="table-cell"]:has([data-in-range]):has([data-selected]):not(
+      :has([data-outside-range])
+    ):not([data-hidden])::before {
+    left: 50%;
+    right: 50%;
+    border-radius: 0;
+  }
+
+  /* Selected with hover-range-start (not hover-range-end) - show right half */
+  &
+    [data-part="table-cell"]:has(
+      [data-selected][data-hover-range-start]:not([data-hover-range-end])
+    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    right: 0;
+  }
+
+  /* Selected with hover-range-end (not hover-range-start) - show left half */
+  &
+    [data-part="table-cell"]:has(
+      [data-selected][data-hover-range-end]:not([data-hover-range-start])
+    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    left: 0;
+  }
+
+  /* Selected range-start (not also range-end, no hover attrs) - show right half */
+  &
+    [data-part="table-cell"]:has(
+      [data-selected][data-range-start]:not([data-range-end]):not(
+          [data-hover-range-start]
+        ):not([data-hover-range-end])
+    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    right: 0;
+  }
+
+  /* Selected range-end (not also range-start, no hover attrs) - show left half */
+  &
+    [data-part="table-cell"]:has(
+      [data-selected][data-range-end]:not([data-range-start]):not(
+          [data-hover-range-start]
+        ):not([data-hover-range-end])
+    ):not(:has([data-outside-range])):not([data-hidden])::before {
+    left: 0;
+  }
+
+  /* First cell in row that's in range/hover-range - add rounded left corners and left padding */
+  &
+    [data-part="table-cell"]:first-child:has([data-in-range]):not(
+      :has([data-outside-range])
+    ):not([data-hidden])::before,
+  &
+    [data-part="table-cell"]:first-child:has([data-in-hover-range]):not(
+      :has([data-outside-range])
+    ):not(:has([data-disabled])):not(:has([data-selected]))::before {
+    left: var(--noora-spacing-2);
+    border-top-left-radius: var(--noora-radius-medium);
+    border-bottom-left-radius: var(--noora-radius-medium);
+  }
+
+  /* Cell preceded by hidden cell - treat as first visible, add rounded left corners and left padding */
+  &
+    [data-part="day-table-cell"][data-hidden]
+    + [data-part="table-cell"]:has([data-in-range]):not([data-hidden])::before {
+    left: var(--noora-spacing-2);
+    border-top-left-radius: var(--noora-radius-medium);
+    border-bottom-left-radius: var(--noora-radius-medium);
+  }
+
+  /* Last cell in row that's in range/hover-range - add rounded right corners and right padding */
+  &
+    [data-part="table-cell"]:last-child:has([data-in-range]):not(
+      :has([data-outside-range])
+    ):not([data-hidden])::before,
+  &
+    [data-part="table-cell"]:last-child:has([data-in-hover-range]):not(
+      :has([data-outside-range])
+    ):not(:has([data-disabled])):not(:has([data-selected]))::before {
+    right: var(--noora-spacing-2);
+    border-top-right-radius: var(--noora-radius-medium);
+    border-bottom-right-radius: var(--noora-radius-medium);
+  }
+
+  /* Cell followed by hidden cell - treat as last visible, add rounded right corners and right padding */
+  &
+    [data-part="table-cell"]:has([data-in-range]):not([data-hidden]):has(
+      + [data-part="day-table-cell"][data-hidden]
+    )::before {
+    right: var(--noora-spacing-2);
+    border-top-right-radius: var(--noora-radius-medium);
+    border-bottom-right-radius: var(--noora-radius-medium);
+  }
+
+  /* First hover-range cell in row - add rounded left corners and left padding */
+  &
+    [data-part="table-cell"]:has(
+      [data-in-hover-range]:not([data-outside-range]):not([data-disabled]):not(
+          [data-selected]
+        )
+    )::before {
+    left: var(--noora-spacing-2);
+    border-top-left-radius: var(--noora-radius-medium);
+    border-bottom-left-radius: var(--noora-radius-medium);
+  }
+
+  /* Override: hover-range cells preceded by another hover-range - remove left padding/radius */
+  &
+    [data-part="table-cell"]:has([data-in-hover-range])
+    + [data-part="table-cell"]:has(
+      [data-in-hover-range]:not([data-outside-range]):not([data-disabled]):not(
+          [data-selected]
+        )
+    )::before {
+    left: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  /* Hover range end - add rounded right corners and right padding */
+  &
+    [data-part="table-cell"]:has([data-hover-range-end]):not(
+      :has([data-outside-range])
+    )::before {
+    right: var(--noora-spacing-2);
+    border-top-right-radius: var(--noora-radius-medium);
+    border-bottom-right-radius: var(--noora-radius-medium);
+  }
+
+  /* Day cell trigger (button) */
+  & [data-part="table-cell-trigger"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    border: 0;
+    border-radius: var(--noora-radius-medium);
+    background: transparent;
+    width: 30px;
+    height: 30px;
+    font: var(--noora-font-body-small);
+    color: var(--noora-surface-label-secondary);
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease;
+
+    &:hover:not([data-disabled]):not([data-unavailable]):not(
+        [data-selected]
+      ):not([data-hidden]) {
+      background: var(--noora-datepicker-preset-hover-background);
+    }
+
+    /* Hidden cells */
+    &[data-hidden] {
+      cursor: default;
+    }
+
+    /* In range state (confirmed selection) */
+    &[data-in-range]:not([data-selected]) {
+      color: var(--noora-datepicker-range-text);
+    }
+
+    /* Hover range state (hover preview during range selection) */
+    &[data-in-hover-range]:not([data-selected]):not([data-disabled]) {
+      color: var(--noora-datepicker-range-text);
+    }
+
+    /* Selected state (start/end of range) */
+    &[data-selected] {
+      background: var(--noora-datepicker-selected-background);
+      color: var(--noora-datepicker-selected-text);
+      box-shadow: var(--noora-button-border-primary);
+    }
+
+    /* Today marker */
+    &[data-today]::after {
+      content: "";
+      position: absolute;
+      bottom: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 8px;
+      height: 2px;
+      background: var(--noora-datepicker-today-marker);
+      border-radius: var(--noora-radius-max);
+    }
+
+    &[data-today][data-selected]::after {
+      background: var(--noora-datepicker-selected-text);
+    }
+
+    /* Disabled state */
+    &[data-disabled],
+    &[data-unavailable] {
+      color: var(--noora-surface-label-disabled);
+      cursor: not-allowed;
+    }
+
+    /* Outside current month - hide completely */
+    &[data-outside-range] {
+      visibility: hidden;
+    }
+  }
+
+  /* Disable trigger hover background when in range selection mode (except for selected elements) */
+  &[data-selecting-range]
+    [data-part="table-cell-trigger"]:hover:not([data-disabled]):not(
+      [data-unavailable]
+    ):not([data-selected]) {
+    background-color: transparent;
+  }
+
+  /* Disable trigger hover background for in-range cells (except range start/end) */
+  &
+    [data-part="table-cell-trigger"][data-in-range]:not([data-range-start]):not(
+      [data-range-end]
+    ):hover {
+    background-color: transparent;
+  }
+
+  /* Footer section */
+  & [data-part="footer"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--noora-spacing-6);
+
+    @media (max-width: 767px) {
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+      padding: var(--noora-spacing-4);
+    }
+
+    & [data-part="actions"] {
+      @media (max-width: 767px) {
+        display: flex;
+        flex-direction: row;
+        width: 100%;
+        justify-content: flex-end;
+        gap: var(--noora-spacing-3);
+      }
+    }
+  }
+
+  /* Range display */
+  & [data-part="range-display"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    @media (max-width: 767px) {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  & [data-part="date-display"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-1);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-1);
+
+    &:focus-within {
+      box-shadow: var(--noora-border-light-focus);
+    }
+  }
+
+  & [data-part="date-input"] {
+    border: 0;
+    background: transparent;
+    padding: var(--noora-spacing-1);
+    font: var(--noora-font-body-small);
+    color: var(--noora-surface-label-primary);
+    text-align: center;
+
+    &[data-field="day"],
+    &[data-field="month"] {
+      width: 24px;
+    }
+
+    &[data-field="year"] {
+      width: 40px;
+    }
+
+    &::placeholder {
+      color: var(--noora-surface-label-tertiary);
+    }
+
+    &:focus {
+      outline: none;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      color: var(--noora-surface-label-disabled);
+    }
+  }
+
+  & [data-part="date-separator"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & [data-part="arrow"] {
+    color: var(--noora-surface-label-secondary);
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+
+    & svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  /* Actions */
+  & [data-part="actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="cancel"],
+  & [data-part="apply"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--noora-spacing-1);
+    cursor: pointer;
+    border: 0;
+    border-radius: var(--noora-radius-medium);
+    padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    font: var(--noora-font-body-small);
+    font-weight: var(--noora-font-weight-medium);
+    transition: background-color 0.15s ease;
+  }
+
+  & [data-part="cancel"] {
+    background: var(--noora-button-background-secondary);
+    box-shadow: var(--noora-button-border-secondary);
+    color: var(--noora-button-secondary-label);
+
+    &:hover {
+      background: var(--noora-button-background-secondary-hover);
+    }
+  }
+
+  & [data-part="apply"] {
+    background: var(--noora-button-background-primary);
+    box-shadow: var(--noora-button-border-primary);
+    color: var(--noora-button-primary-label);
+
+    &:hover {
+      background: var(--noora-button-background-primary-hover);
+      box-shadow: var(--noora-button-border-primary-hover);
+    }
+  }
+}

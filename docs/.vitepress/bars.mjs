@@ -17,7 +17,6 @@ import {
   gitForgesIcon,
   selfHostingIcon,
   agenticBuildingIcon,
-  qaIcon,
   slackIcon,
   testInsightsIcon,
   flakyTestsIcon,
@@ -583,16 +582,16 @@ export async function guidesSidebar(locale) {
             locale,
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
-          link: `/${locale}/guides/features/insights`,
+          link: `/${locale}/guides/features/build-insights`,
           collapsed: true,
           items: [
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/xcode-icon.png" alt="Xcode" width="16" height="16" />Xcode</span>`,
-              link: `/${locale}/guides/features/insights/xcode-cache`,
+              link: `/${locale}/guides/features/build-insights/xcode`,
             },
             {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;"><img src="/images/guides/features/gradle-icon.svg" alt="Gradle" width="16" height="16" />Gradle</span>`,
-              link: `/${locale}/guides/features/insights/gradle-cache`,
+              link: `/${locale}/guides/features/build-insights/gradle`,
             },
           ],
         },
@@ -638,13 +637,6 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.bundle-size.text",
           )}</span>`,
           link: `/${locale}/guides/features/bundle-size`,
-        },
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${qaIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.develop.items.qa.text",
-          )}</span>`,
-          link: `/${locale}/guides/features/qa`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${previewsIcon()} ${localizedString(

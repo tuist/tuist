@@ -1,84 +1,89 @@
 defmodule Tuist.MCP.Components.Tools.GetTestCase do
   @moduledoc """
-  Get detailed information about a test case including reliability and flakiness metrics.
+  Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: https://tuist.dev/{account_handle}/{project_handle}.
   """
 
-  use Anubis.Server.Component, type: :tool
+  use Tuist.MCP.Tool,
+    name: "get_test_case",
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_case_id" => %{
+          "type" => "string",
+          "description" => "The ID of the test case. Required when not using identifier lookup."
+        },
+        "account_handle" => %{
+          "type" => "string",
+          "description" => "The account handle (organization or user). Required for identifier lookup."
+        },
+        "project_handle" => %{
+          "type" => "string",
+          "description" => "The project handle. Required for identifier lookup."
+        },
+        "identifier" => %{
+          "type" => "string",
+          "description" =>
+            "Test case identifier in Module/Suite/TestCase or Module/TestCase format. " <>
+              "Required when not using test_case_id. Must be combined with account_handle and project_handle."
+        }
+      }
+    }
 
-  alias Anubis.Server.Response
-  alias Tuist.MCP.Components.ToolSupport
+  alias Tuist.MCP.Tool, as: MCPTool
   alias Tuist.Tests
   alias Tuist.Tests.Analytics
 
   @authorization_action :read
   @authorization_category :test
 
-  schema do
-    field :test_case_id, :string, description: "The UUID of the test case. Required when not using identifier lookup."
+  @impl EMCP.Tool
+  def description,
+    do:
+      "Get detailed information about a test case including reliability and flakiness metrics. The account_handle and project_handle can be extracted from a Tuist dashboard URL: #{Tuist.Environment.app_url()}/{account_handle}/{project_handle}."
 
-    field :account_handle, :string,
-      description: "The account handle (organization or user). Required when looking up by identifier."
-
-    field :project_handle, :string, description: "The project handle. Required when looking up by identifier."
-
-    field :identifier, :string,
-      description:
-        "Test case identifier in Module/Suite/TestCase or Module/TestCase format. " <>
-          "Required when not using test_case_id. Must be combined with account_handle and project_handle."
+  @impl EMCP.Tool
+  def call(conn, %{"test_case_id" => test_case_id}) when is_binary(test_case_id) do
+    case MCPTool.load_and_authorize(
+           Tests.get_test_case_by_id(test_case_id),
+           conn.assigns,
+           @authorization_action,
+           @authorization_category,
+           "Test case not found: #{test_case_id}"
+         ) do
+      {:ok, test_case, _project} -> reply_with_test_case(test_case)
+      {:error, message} -> EMCP.Tool.error(message)
+    end
   end
 
-  @impl true
-  def execute(%{test_case_id: test_case_id}, frame) when is_binary(test_case_id) do
-    with {:ok, test_case} <-
-           ToolSupport.load_resource(
-             Tests.get_test_case_by_id(test_case_id),
-             "Test case not found: #{test_case_id}",
-             frame
-           ),
-         {:ok, _project} <-
-           ToolSupport.authorize_project_by_id(
-             frame,
-             test_case.project_id,
+  def call(conn, %{"identifier" => identifier} = args) when is_binary(identifier) do
+    with {:ok, {module_name, suite_name, name}} <- parse_identifier(identifier),
+         {:ok, project} <-
+           MCPTool.resolve_and_authorize_project(
+             args,
+             conn.assigns,
              @authorization_action,
              @authorization_category
-           ) do
-      reply_with_test_case(test_case, frame)
-    end
-  end
-
-  def execute(%{account_handle: account_handle, project_handle: project_handle, identifier: identifier}, frame)
-      when is_binary(account_handle) and is_binary(project_handle) and is_binary(identifier) do
-    with {:ok, {module_name, suite_name, name}} <- parse_identifier(identifier, frame),
-         {:ok, project} <-
-           ToolSupport.load_and_authorize_project_by_handle(
-             account_handle,
-             project_handle,
-             frame,
-             @authorization_action,
-             @authorization_category,
-             "You do not have access to project: #{account_handle}/#{project_handle}"
            ),
-         {:ok, test_case} <- find_test_case_by_name(project.id, module_name, suite_name, name, frame) do
-      reply_with_test_case(test_case, frame)
+         {:ok, test_case} <- find_test_case_by_name(project.id, module_name, suite_name, name) do
+      reply_with_test_case(test_case)
+    else
+      {:error, message} -> EMCP.Tool.error(message)
     end
   end
 
-  def execute(_arguments, frame) do
-    ToolSupport.invalid_params(
-      "Provide either test_case_id or identifier with account_handle and project_handle.",
-      frame
-    )
+  def call(_conn, _args) do
+    EMCP.Tool.error("Provide either test_case_id, or identifier with account_handle and project_handle.")
   end
 
-  defp parse_identifier(identifier, frame) do
+  defp parse_identifier(identifier) do
     case String.split(identifier, "/") do
       [module_name, suite_name, name] -> {:ok, {module_name, suite_name, name}}
       [module_name, name] -> {:ok, {module_name, nil, name}}
-      _ -> ToolSupport.invalid_params("Invalid identifier format. Use Module/Suite/TestCase or Module/TestCase.", frame)
+      _ -> {:error, "Invalid identifier format. Use Module/Suite/TestCase or Module/TestCase."}
     end
   end
 
-  defp find_test_case_by_name(project_id, module_name, suite_name, name, frame) do
+  defp find_test_case_by_name(project_id, module_name, suite_name, name) do
     filters =
       [
         %{field: :module_name, op: :==, value: module_name},
@@ -94,11 +99,11 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
 
     case test_cases do
       [test_case | _] -> {:ok, test_case}
-      [] -> ToolSupport.invalid_params("Test case not found: #{module_name}/#{suite_name || name}", frame)
+      [] -> {:error, "Test case not found: #{module_name}/#{suite_name || name}"}
     end
   end
 
-  defp reply_with_test_case(test_case, frame) do
+  defp reply_with_test_case(test_case) do
     analytics = Analytics.test_case_analytics_by_id(test_case.id)
     reliability_rate = Analytics.test_case_reliability_by_id(test_case.id, "main")
     flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
@@ -119,6 +124,6 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
       failed_runs: analytics.failed_count
     }
 
-    {:reply, Response.json(Response.tool(), data), frame}
+    MCPTool.json_response(data)
   end
 end

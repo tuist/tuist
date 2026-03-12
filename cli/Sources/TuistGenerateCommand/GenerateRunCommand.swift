@@ -17,6 +17,7 @@
         public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "run",
+                _superCommandName: "generate",
                 abstract: "Generates an Xcode workspace to start working on the project.",
                 discussion:
                 "Use 'tuist generate list' and 'tuist generate show' to inspect generation runs."

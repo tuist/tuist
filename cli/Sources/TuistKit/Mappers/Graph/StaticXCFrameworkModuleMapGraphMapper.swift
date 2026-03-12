@@ -72,14 +72,12 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             if !staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
                 settings["FRAMEWORK_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithoutLibrariesLinkedByDynamicXCFrameworkDependencies
-                        .compactMap {
-                            if let library = $0.infoPlist.libraries
-                                .first(where: { target.supportedPlatforms.contains($0.platform.graphPlatform) })
-                            {
-                                return "\"$(SRCROOT)/\($0.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
-                            } else {
-                                return nil
-                            }
+                        .flatMap { xcframework in
+                            xcframework.infoPlist.libraries
+                                .filter { target.supportedPlatforms.contains($0.platform.graphPlatform) }
+                                .map { library in
+                                    "\"$(SRCROOT)/\(xcframework.path.appending(component: library.identifier).relative(to: project.path).pathString)\""
+                                }
                         }
                 )
             }

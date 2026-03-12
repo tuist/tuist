@@ -1,20 +1,22 @@
 defmodule Cache.KeyValueStoreTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Mimic
+  use Oban.Testing, repo: Cache.Repo
 
   import Ecto.Query
+  import ExUnit.CaptureLog
 
   alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueEvictionWorker
+  alias Cache.KeyValueRepo
   alias Cache.KeyValueStore
-  alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
   setup :set_mimic_from_context
 
   setup context do
-    :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
 
     context = Cache.BufferTestHelpers.setup_key_value_buffer(context)
     suffix = context.unique_suffix
@@ -412,6 +414,71 @@ defmodule Cache.KeyValueStoreTest do
                )
     end
 
+    test "returns not found and emits contention telemetry when SQLite remains busy", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      parent = self()
+      ref = make_ref()
+      handler_id = "kv-store-contention-#{System.unique_integer([:positive])}"
+
+      expect(KeyValueRepo, :get_by, fn KeyValueEntry, [key: _key] ->
+        raise %Exqlite.Error{message: "database is locked"}
+      end)
+
+      Cachex.clear(cache_name)
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          [:cache, :kv, :get, :contention],
+          fn event, measurements, metadata, _config ->
+            send(parent, {ref, event, measurements, metadata})
+          end,
+          nil
+        )
+
+      try do
+        capture_log(fn ->
+          assert {:error, :not_found} =
+                   KeyValueStore.get_key_value(
+                     cas_id,
+                     account_handle,
+                     project_handle,
+                     cache_name: cache_name
+                   )
+        end)
+
+        assert_receive {^ref, [:cache, :kv, :get, :contention], %{count: 1}, %{}}
+      after
+        :telemetry.detach(handler_id)
+      end
+    end
+
+    test "propagates unexpected DB errors", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      expect(KeyValueRepo, :get_by, fn KeyValueEntry, [key: _key] ->
+        raise %RuntimeError{message: "unexpected failure"}
+      end)
+
+      Cachex.clear(cache_name)
+
+      assert_raise RuntimeError, "unexpected failure", fn ->
+        KeyValueStore.get_key_value(
+          cas_id,
+          account_handle,
+          project_handle,
+          cache_name: cache_name
+        )
+      end
+    end
+
     test "returns {:error, :not_found} for nonexistent account", %{
       cache_name: cache_name,
       account_handle: account_handle,
@@ -486,7 +553,7 @@ defmodule Cache.KeyValueStoreTest do
       :ok = KeyValueBuffer.flush()
 
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert record.json_payload == Jason.encode!(%{entries: [%{"value" => "value1"}, %{"value" => "value2"}]})
     end
 
@@ -548,7 +615,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
@@ -565,7 +632,7 @@ defmodule Cache.KeyValueStoreTest do
 
       :ok = KeyValueBuffer.flush()
 
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert DateTime.after?(record.last_accessed_at, old_time)
     end
 
@@ -591,7 +658,7 @@ defmodule Cache.KeyValueStoreTest do
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
       old_time = DateTime.add(DateTime.utc_now(), -120, :second)
 
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
@@ -606,7 +673,7 @@ defmodule Cache.KeyValueStoreTest do
 
       :ok = KeyValueBuffer.flush()
 
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
 
       assert DateTime.truncate(record.last_accessed_at, :second) ==
                DateTime.truncate(old_time, :second)
@@ -618,6 +685,8 @@ defmodule Cache.KeyValueStoreTest do
       project_handle: project_handle,
       cas_id: cas_id
     } do
+      :ok = Sandbox.checkout(Cache.Repo)
+
       values = ["value1"]
 
       assert :ok =
@@ -632,7 +701,7 @@ defmodule Cache.KeyValueStoreTest do
       :ok = KeyValueBuffer.flush()
 
       key = "keyvalue:#{account_handle}:#{project_handle}:#{cas_id}"
-      record = Repo.get_by!(KeyValueEntry, key: key)
+      record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert record.last_accessed_at
 
       Cachex.clear(cache_name)
@@ -647,19 +716,28 @@ defmodule Cache.KeyValueStoreTest do
 
       :ok = KeyValueBuffer.flush()
 
-      updated_record = Repo.get_by!(KeyValueEntry, key: key)
+      updated_record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
       assert DateTime.compare(updated_record.last_accessed_at, record.last_accessed_at) != :lt
 
       old_time = DateTime.add(DateTime.utc_now(), -31, :day)
 
-      Repo.update_all(
+      KeyValueRepo.update_all(
         from(e in KeyValueEntry, where: e.key == ^key),
         set: [last_accessed_at: old_time]
       )
 
       KeyValueEvictionWorker.perform(%Oban.Job{})
 
-      assert Repo.get_by(KeyValueEntry, key: key) == nil
+      assert KeyValueRepo.get_by(KeyValueEntry, key: key) == nil
+
+      assert_enqueued(
+        worker: Cache.XcodeCleanupWorker,
+        args: %{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          cas_hashes: values
+        }
+      )
     end
   end
 end

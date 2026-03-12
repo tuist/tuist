@@ -24,6 +24,7 @@ defmodule Tuist do
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
       Marketing.Customers,
+      Marketing.Stats,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -79,13 +80,6 @@ defmodule Tuist do
       Projects,
       Projects.Project,
       Projects.Workers.CleanProjectWorker,
-      QA,
-      QA.Run,
-      QA.Step,
-      QA.Screenshot,
-      QA.Log,
-      QA.Logs.Buffer,
-      QA.Workers.TestWorker,
       Apple,
       Xcode,
       Xcode.XcodeGraph,
@@ -94,8 +88,6 @@ defmodule Tuist do
       Loops,
       Namespace,
       Namespace.JWTToken,
-      QA,
-      QA.LaunchArgumentGroup,
       VCS.GitHubAppInstallation,
       Alerts,
       Alerts.Alert,

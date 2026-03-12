@@ -20,6 +20,7 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("org.tomlj:tomlj:1.1.1")
+    implementation("net.java.dev.jna:jna:5.14.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
@@ -41,7 +42,9 @@ tasks.shadowJar {
     relocate("com.google.gson", "dev.tuist.shadow.gson")
     relocate("org.tomlj", "dev.tuist.shadow.tomlj")
     relocate("org.antlr", "dev.tuist.shadow.antlr")
-    minimize()
+    minimize {
+        exclude(dependency("net.java.dev.jna:.*"))
+    }
 }
 
 tasks.jar {
@@ -57,6 +60,7 @@ listOf(configurations.apiElements, configurations.runtimeElements).forEach { con
 
 tasks.test {
     useJUnitPlatform()
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
 }
 
 gradlePlugin {

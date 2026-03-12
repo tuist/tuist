@@ -26,6 +26,8 @@ extension Product {
         //            return .watchApp
         case .watch2App:
             return .watch2App
+        case .watch2AppContainer:
+            return .watch2AppContainer
         //        case .watchExtension:
         //            return .watchExtension
         case .watch2Extension:

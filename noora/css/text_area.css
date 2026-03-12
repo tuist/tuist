@@ -1,0 +1,85 @@
+.noora-text-area {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--noora-spacing-3);
+
+  & > [data-part="wrapper"] {
+    padding: var(--noora-spacing-5);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-medium);
+    background: var(--noora-surface-background-primary);
+    display: flex;
+    position: relative;
+  }
+
+  &[disabled] > [data-part="wrapper"] {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  &:not([disabled]) {
+    & > [data-part="wrapper"] {
+      cursor: text;
+
+      &:hover,
+      &:focus {
+        background: var(--noora-surface-background-secondary);
+        box-shadow: var(--noora-light-border-focus);
+      }
+    }
+  }
+
+  &[data-error] > [data-part="wrapper"] {
+    box-shadow: var(--noora-border-light-error);
+
+    &:hover {
+      box-shadow: var(--noora-border-light-error-focus);
+    }
+  }
+
+  & textarea {
+    flex-grow: 1;
+    outline: none;
+    border: none;
+    background: none;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    &::-webkit-resizer {
+      background-image: url('data:image/svg+xml;utf8,<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.11111 2L2 9.11111M10 6.44444L6.44444 10" stroke="%23848F9A"/></svg>');
+      background-position: bottom;
+      background-repeat: no-repeat;
+    }
+
+    &:not(:disabled)::placeholder {
+      color: var(--noora-surface-label-tertiary);
+    }
+
+    &:disabled::placeholder {
+      color: var(--noora-surface-label-disabled);
+    }
+  }
+
+  &[data-error] textarea::-webkit-resizer {
+    background-image: url('data:image/svg+xml;utf8,<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.11111 2L2 9.11111M10 6.44444L6.44444 10" stroke="%23E34935"/></svg>');
+  }
+
+  &[disabled] textarea::-webkit-resizer {
+    background-image: url('data:image/svg+xml;utf8,<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.11111 2L2 9.11111M10 6.44444L6.44444 10" stroke="%23C0C6D0"/></svg>');
+  }
+
+  & [data-part="character-count"] {
+    position: absolute;
+    bottom: var(--noora-spacing-5);
+    right: 30px;
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+    color: var(--noora-surface-label-secondary);
+  }
+
+  &[data-error] [data-part="character-count"] {
+    color: var(--noora-surface-label-destructive);
+  }
+
+  &[disabled] [data-part="character-count"] {
+    color: var(--noora-surface-label-disabled);
+  }
+}

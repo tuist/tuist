@@ -5,6 +5,7 @@ import TuistHTTP
 
 #if canImport(TuistXCActivityLog)
     import TuistCI
+    import TuistMachineMetrics
     import TuistSupport
     import TuistXCActivityLog
 
@@ -38,7 +39,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild
     }
 
@@ -104,7 +106,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild {
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
@@ -174,6 +177,8 @@ import TuistHTTP
                             is_ci: isCI,
                             issues: issues
                                 .map(Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload.init),
+                            machine_metrics: machineMetrics
+                                .map(Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload.init),
                             macos_version: macOSVersion,
                             model_identifier: modelIdentifier,
                             scheme: scheme,
@@ -389,6 +394,21 @@ import TuistHTTP
                 operation: operation,
                 size: casOutput.size,
                 _type: type
+            )
+        }
+    }
+
+    extension Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload {
+        fileprivate init(_ sample: MachineMetricSample) {
+            self.init(
+                cpu_usage_percent: sample.cpuUsagePercent,
+                disk_bytes_read: sample.diskBytesRead,
+                disk_bytes_written: sample.diskBytesWritten,
+                memory_total_bytes: sample.memoryTotalBytes,
+                memory_used_bytes: sample.memoryUsedBytes,
+                network_bytes_in: sample.networkBytesIn,
+                network_bytes_out: sample.networkBytesOut,
+                timestamp: sample.timestamp
             )
         }
     }

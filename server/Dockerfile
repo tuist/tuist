@@ -16,9 +16,16 @@ COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
+# Build noora static assets (JS + CSS) from source
+COPY noora /noora
+WORKDIR /noora
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
+RUN npx esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js && \
+    npx esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css
+WORKDIR /app
+
 # ========================================
 # Stage 2: Base dependencies builder
-# Compiles all dependencies including runner as a dependency
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
@@ -38,64 +45,19 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
-# Only runner's mix.exs needed for deps.get to work
-COPY server/runner/mix.exs runner/mix.exs
-
-# Copy tuist_common for path dependency
+# Copy path dependencies
 COPY tuist_common /tuist_common
+COPY noora /noora
 
 RUN mix deps.get --only $MIX_ENV
 
 # Config files must be present before compiling dependencies
 COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 
-# Minimal runner source needed for compilation
-COPY server/runner/lib runner/lib
-
 RUN mix deps.compile
 
 # ========================================
-# Stage 3: Runner binary builder
-# Builds the runner binary using compiled deps from deps-builder
-# ========================================
-FROM ${BUILDER_IMAGE} AS runner-binary-builder
-
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git xz-utils p7zip-full wget \
-  && apt-get clean && rm -f /var/lib/apt/lists/*_*
-
-# Zig is not available via apt-get
-RUN wget -q https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz \
-  && tar -xf zig-x86_64-linux-0.14.1.tar.xz \
-  && mv zig-x86_64-linux-0.14.1 /usr/local/zig \
-  && ln -s /usr/local/zig/zig /usr/local/bin/zig \
-  && rm zig-x86_64-linux-0.14.1.tar.xz
-
-WORKDIR /app
-
-RUN mix local.hex --force && \
-  mix local.rebar --force
-
-ARG MIX_ENV=prod
-ENV MIX_ENV=$MIX_ENV
-ARG TUIST_HOSTED=1
-ENV TUIST_HOSTED=$TUIST_HOSTED
-
-# Reuse compiled dependencies from deps-builder
-COPY --from=deps-builder /app/mix.* ./
-COPY --from=deps-builder /app/deps deps
-COPY --from=deps-builder /app/_build _build
-COPY --from=deps-builder /app/config config
-COPY --from=deps-builder /tuist_common /tuist_common
-
-COPY server/runner runner
-
-WORKDIR /app/runner
-RUN mix deps.get --only $MIX_ENV
-RUN MIX_ENV=prod mix release runner
-RUN mkdir -p /app/build && cp burrito_out/runner_macos /app/build/runner
-
-# ========================================
-# Stage 4: Main application builder
+# Stage 3: Main application builder
 # ========================================
 FROM deps-builder AS builder
 
@@ -119,12 +81,13 @@ COPY server/config/runtime.exs config/
 COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
+COPY --from=npm-deps /noora/priv/static /noora/priv/static
 RUN mix assets.deploy
 
 RUN mix release
 
 # ========================================
-# Stage 5: Final runtime image
+# Stage 4: Final runtime image
 # ========================================
 FROM ${RUNNER_IMAGE}
 
@@ -181,8 +144,6 @@ RUN if [ "$EMBED_CLICKHOUSE" = "true" ]; then \
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
 COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
-
-COPY --from=runner-binary-builder /app/build/runner /app/bin/runner
 
 USER nobody
 

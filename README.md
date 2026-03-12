@@ -251,6 +251,11 @@ Some companies support our community and open source efforts with contributions 
           <img src="assets/companies/kolesa_group.png" alt="kolesa_group_logo" height="75"/>
         </a>
       </td>
+      <td width="20%" align="center">
+        <a href="https://musa.kz/superapp" target="_blank">
+          <img src="assets/companies/musa_logo.png" alt="musa_logo" height="75"/>
+        </a>
+      </td>
       <td width="20%"></td>
       <td width="20%"></td>
       <td width="20%"></td>

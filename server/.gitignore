@@ -63,5 +63,3 @@ config.d
 .opencode/
 .claude/
 minio/
-
-burrito_out

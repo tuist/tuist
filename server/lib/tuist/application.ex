@@ -10,7 +10,6 @@ defmodule Tuist.Application do
   alias Tuist.Environment
   alias Tuist.Gradle
   alias Tuist.Gradle.Build.Buffer
-  alias Tuist.QA.Logs
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
@@ -26,6 +25,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
+    EMCP.SessionStore.ETS.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -113,7 +113,6 @@ defmodule Tuist.Application do
         Tuist.IngestRepo,
         Supervisor.child_spec(CommandEvents.Buffer, id: CommandEvents.Buffer),
         Supervisor.child_spec(Build.Buffer, id: Build.Buffer),
-        Supervisor.child_spec(Logs.Buffer, id: Logs.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
@@ -127,8 +126,6 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         {Guardian.DB.Sweeper, [interval: 60 * 60 * 1000]},
-        Anubis.Server.Registry,
-        {Tuist.MCP.Server, transport: {:streamable_http, start: true}},
         TuistWeb.Telemetry,
         TuistWeb.Endpoint
       ]
@@ -175,6 +172,13 @@ defmodule Tuist.Application do
           {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
         ],
         else: []
+    )
+    # Marketing.Stats polls ClickHouse on init. Skip it in test where
+    # ClickHouse tables may not exist when the app boots for migrations.
+    |> Kernel.++(
+      if Environment.test?(),
+        do: [],
+        else: [Tuist.Marketing.Stats]
     )
   end
 

@@ -360,9 +360,6 @@
                         },
                         "bundle-size": {
                             "text": "套件分析"
-                        },
-                        "qa": {
-                            "text": "QA"
                         }
                     }
                 },
