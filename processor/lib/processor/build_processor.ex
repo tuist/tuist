@@ -45,7 +45,12 @@ defmodule Processor.BuildProcessor do
         parsed_data["time_stopped_recording"]
       )
 
-    {:ok, Map.put(parsed_data, "machine_metrics", machine_metrics)}
+    parsed_data =
+      parsed_data
+      |> Map.drop(["time_started_recording", "time_stopped_recording"])
+      |> Map.put("machine_metrics", machine_metrics)
+
+    {:ok, parsed_data}
   end
 
   defp make_temp_dir do
