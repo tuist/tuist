@@ -1,5 +1,5 @@
 ARG ELIXIR_VERSION=1.19.1
-ARG OTP_VERSION=28.1
+ARG OTP_VERSION=27.3.4
 ARG DEBIAN_VERSION=bookworm-20251020-slim
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
@@ -41,9 +41,6 @@ RUN apt-get update -y && apt-get install -y build-essential git \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 WORKDIR /app
-
-# OTP 28 requires -noinput in Docker buildx builders (no TTY → "nouser" crash)
-ENV ERL_FLAGS="-noinput"
 
 RUN mix local.hex --force && \
     mix local.rebar --force
