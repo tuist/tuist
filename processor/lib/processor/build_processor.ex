@@ -11,7 +11,8 @@ defmodule Processor.BuildProcessor do
     build_path = Path.join(temp_dir, "build.zip")
 
     s3_config = ExAws.Config.new(:s3)
-    {:ok, url} = ExAws.S3.presigned_url(s3_config, :get, bucket, storage_key)
+    presign_config = Map.put(s3_config, :host, bucket)
+    {:ok, url} = ExAws.S3.presigned_url(presign_config, :get, bucket, storage_key, virtual_host: true)
     Logger.info("S3 downloading from presigned URL: #{url}")
 
     try do
