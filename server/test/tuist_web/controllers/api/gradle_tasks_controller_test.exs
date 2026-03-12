@@ -7,7 +7,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
-  describe "GET /api/projects/:account_handle/:project_handle/gradle/builds/:build_id/tasks" do
+  describe "GET /api/projects/:account_handle/:project_handle/builds/gradle/:build_id/tasks" do
     setup %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -40,7 +40,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
         )
 
       conn =
-        get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}/tasks")
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{build_id}/tasks")
 
       response = json_response(conn, 200)
       assert length(response["tasks"]) == 2
@@ -67,7 +67,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
         )
 
       conn =
-        get(conn, "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}/tasks")
+        get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{build_id}/tasks")
 
       response = json_response(conn, 200)
       assert response["tasks"] == []
@@ -87,7 +87,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}/tasks?outcome=executed"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{build_id}/tasks?outcome=executed"
         )
 
       response = json_response(conn, 200)
@@ -99,7 +99,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{UUIDv7.generate()}/tasks"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{UUIDv7.generate()}/tasks"
         )
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
@@ -118,7 +118,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/gradle/builds/#{build_id}/tasks"
+          "/api/projects/#{user.account.name}/#{project.name}/builds/gradle/#{build_id}/tasks"
         )
 
       assert %{"message" => "Build not found."} = json_response(conn, 404)
@@ -131,7 +131,7 @@ defmodule TuistWeb.API.GradleTasksControllerTest do
       conn =
         get(
           conn,
-          "/api/projects/#{project.account.name}/#{project.name}/gradle/builds/#{UUIDv7.generate()}/tasks"
+          "/api/projects/#{project.account.name}/#{project.name}/builds/gradle/#{UUIDv7.generate()}/tasks"
         )
 
       assert json_response(conn, :forbidden)

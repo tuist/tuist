@@ -8949,7 +8949,7 @@ paths:
       summary: List test module runs for a test run.
       tags:
         - Tests
-  /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks:
+  /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks:
     get:
       callbacks: {}
       operationId: listGradleBuildTasks

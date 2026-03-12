@@ -445,6 +445,10 @@ defmodule TuistWeb.Router do
           post "/upload/start", BuildsController, :multipart_start
           post "/upload/generate-url", BuildsController, :multipart_generate_url
           post "/upload/complete", BuildsController, :multipart_complete
+
+          scope "/gradle" do
+            get "/:build_id/tasks", GradleTasksController, :index
+          end
         end
 
         scope "/xcode" do
@@ -463,7 +467,6 @@ defmodule TuistWeb.Router do
         scope "/gradle" do
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
-          get "/builds/:build_id/tasks", GradleTasksController, :index
           get "/builds/:build_id", GradleController, :get_build
         end
 

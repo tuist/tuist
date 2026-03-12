@@ -5217,15 +5217,15 @@ public struct Client: APIProtocol {
     }
     /// List tasks for a Gradle build.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks/get(listGradleBuildTasks)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
     public func listGradleBuildTasks(_ input: Operations.listGradleBuildTasks.Input) async throws -> Operations.listGradleBuildTasks.Output {
         try await client.send(
             input: input,
             forOperation: Operations.listGradleBuildTasks.id,
             serializer: { input in
                 let path = try converter.renderedPath(
-                    template: "/api/projects/{}/{}/gradle/builds/{}/tasks",
+                    template: "/api/projects/{}/{}/builds/gradle/{}/tasks",
                     parameters: [
                         input.path.account_handle,
                         input.path.project_handle,

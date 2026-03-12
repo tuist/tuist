@@ -257,8 +257,8 @@ public protocol APIProtocol: Sendable {
     func getBundleArtifactTree(_ input: Operations.getBundleArtifactTree.Input) async throws -> Operations.getBundleArtifactTree.Output
     /// List tasks for a Gradle build.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks/get(listGradleBuildTasks)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
     func listGradleBuildTasks(_ input: Operations.listGradleBuildTasks.Input) async throws -> Operations.listGradleBuildTasks.Output
     /// Get a cache run by ID.
     ///
@@ -1186,8 +1186,8 @@ extension APIProtocol {
     }
     /// List tasks for a Gradle build.
     ///
-    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks`.
-    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/gradle/builds/{build_id}/tasks/get(listGradleBuildTasks)`.
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/builds/gradle/{build_id}/tasks/get(listGradleBuildTasks)`.
     public func listGradleBuildTasks(
         path: Operations.listGradleBuildTasks.Input.Path,
         query: Operations.listGradleBuildTasks.Input.Query = .init(),
