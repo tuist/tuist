@@ -23,7 +23,7 @@ projektu</LocalizedLink>, do świata pakietów.
 
 ::: info ROOT DIRECTORY
 <!-- -->
-Polecenia Tuist wymagają określonej
+Polecenia Tuist oczekują określonej
 <LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">struktury
 katalogów</LocalizedLink>, której katalog główny jest identyfikowany przez
 katalog `Tuist` lub `.git`.
