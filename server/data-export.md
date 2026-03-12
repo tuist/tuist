@@ -6,7 +6,7 @@ This document outlines all data that Tuist can export for customers upon legal r
 
 Data is provided in a single compressed archive containing:
 - **Database data**: JSON files with account information, projects, command events, and analytics
-- **Binary files**: All uploaded files (cache artifacts, app previews, icons, QA screenshots)
+- **Binary files**: All uploaded files (cache artifacts, app previews, icons)
 - **Manifest**: Index of all included files and data
 
 Sensitive authentication data (passwords, tokens) are excluded from exports.
@@ -31,7 +31,6 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 ### App Previews & Builds
 - Preview metadata (versions, platforms, git info)
 - App build information
-- QA test runs and screenshots
 
 ### Alerts & Monitoring
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration)
@@ -48,7 +47,6 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard sessions** (`shard_sessions` table): Test sharding session data including session ID, shard count, granularity, shard assignments (test targets per shard with estimated durations), and upload status
 - **Test runs** (`test_runs` table): Includes `shard_session_id` and `shard_index` fields linking test results to their shard context
 - Build performance metrics
-- QA testing logs and results
 
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
@@ -58,7 +56,6 @@ The following data is stored in ClickHouse for analytics purposes:
 All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
-- **QA screenshots**: Test run screenshots and reports
 - **Shard bundles**: Per-shard filtered `.xctestrun` files and shared `.xctestproducts` bundles stored at `{account}/{project}/shards/{session_id}/`
 
 ## Export Process

@@ -363,9 +363,6 @@
                         },
                         "bundle-size": {
                             "text": "Análisis de bundles"
-                        },
-                        "qa": {
-                            "text": "QA"
                         }
                     }
                 },

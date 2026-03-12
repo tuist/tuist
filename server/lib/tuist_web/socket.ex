@@ -4,8 +4,6 @@ defmodule TuistWeb.Socket do
 
   alias Tuist.Authentication
 
-  channel("qa_logs:*", TuistWeb.QALogChannel)
-
   def connect(%{"token" => token}, socket, _connect_info) do
     case authenticate_socket(token) do
       {:ok, subject} ->

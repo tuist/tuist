@@ -212,11 +212,6 @@ defmodule TuistWeb.Router do
              TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},
              private: private
-
-        live Path.join(locale_path_prefix, "/qa"),
-             TuistWeb.Marketing.MarketingQALive,
-             metadata: %{type: :marketing},
-             private: private
       end
 
       get locale_path_prefix, MarketingController, :home,
@@ -440,24 +435,6 @@ defmodule TuistWeb.Router do
           delete "/:preview_id", PreviewsController, :delete
         end
 
-        scope "/qa" do
-          post "/runs/:qa_run_id/steps", QAController, :create_step
-          patch "/runs/:qa_run_id/steps/:step_id", QAController, :update_step
-          patch "/runs/:qa_run_id", QAController, :update_run
-
-          post "/runs/:qa_run_id/screenshots", QAController, :create_screenshot
-
-          post "/runs/:qa_run_id/recordings/upload/start", QAController, :start_recording_upload
-
-          post "/runs/:qa_run_id/recordings/upload/generate-url",
-               QAController,
-               :generate_recording_upload_url
-
-          post "/runs/:qa_run_id/recordings/upload/complete",
-               QAController,
-               :complete_recording_upload
-        end
-
         scope "/tokens" do
           post "/", ProjectTokensController, :create
           get "/", ProjectTokensController, :index
@@ -575,17 +552,6 @@ defmodule TuistWeb.Router do
         style: :csp_nonce,
         script: :csp_nonce
       }
-
-    live_session :ops_qa,
-      layout: {TuistWeb.Layouts, :ops},
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Authorization, [:current_user, :read, :ops]},
-        {TuistWeb.LayoutLive, :ops}
-      ] do
-      live "/qa", TuistWeb.OpsQALive
-      live "/qa/:qa_run_id/logs", TuistWeb.OpsQALogsLive
-    end
 
     live_session :ops_cache,
       layout: {TuistWeb.Layouts, :ops},
@@ -706,16 +672,6 @@ defmodule TuistWeb.Router do
     get "/:id/icon.png", PreviewController, :download_icon
   end
 
-  scope "/:account_handle/:project_handle/qa/runs/:qa_run_id/screenshots", TuistWeb do
-    pipe_through [
-      :open_api,
-      :browser_app_image,
-      :analytics
-    ]
-
-    get "/:screenshot_id", QAController, :download_screenshot
-  end
-
   scope "/:account_handle/:project_handle/previews/:id", TuistWeb do
     pipe_through [
       :open_api,
@@ -823,9 +779,6 @@ defmodule TuistWeb.Router do
       live "/builds/build-runs", BuildRunsLive
       live "/builds/build-runs/:build_run_id", BuildRunLive
       live "/previews", PreviewsLive
-      live "/qa", QALive
-      live "/qa/:qa_run_id", QARunLive, :overview
-      live "/qa/:qa_run_id/logs", QARunLive, :logs
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
 
@@ -837,7 +790,6 @@ defmodule TuistWeb.Router do
       live "/settings/automations", ProjectAutomationsLive
       live "/settings/bundles", ProjectBundleSettingsLive
       live "/settings/notifications", ProjectNotificationsLive
-      live "/settings/qa", QASettingsLive
     end
 
     # Redirects for renamed routes

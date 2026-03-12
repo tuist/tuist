@@ -2,7 +2,7 @@ name: Server — Render Preview
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, reopened]
     paths:
       - server/**
       - tuist_common/**

@@ -50,6 +50,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}

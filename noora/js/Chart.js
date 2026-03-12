@@ -61,6 +61,15 @@ const formatters = {
       month: "short",
     });
   },
+  toLocaleTime: (el) => (value, _) => {
+    const date = new Date(value);
+    return date.toLocaleTimeString(navigator.language, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  },
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },

@@ -46,6 +46,7 @@ permissions:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  MISE_GITHUB_ATTESTATIONS: 0
 
 concurrency:
   group: cli-${{ github.head_ref }}
@@ -219,6 +220,7 @@ jobs:
       - name: Run TuistAutomationAcceptanceTests
         run: tuist test TuistAutomationAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
       - name: Save cache
+        if: github.ref == 'refs/heads/main'
         id: cache-save
         uses: actions/cache/save@v4
         with:
@@ -268,6 +270,7 @@ jobs:
       - name: Run TuistDependenciesAcceptanceTests
         run: tuist test TuistDependenciesAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
       - name: Save cache
+        if: github.ref == 'refs/heads/main'
         id: cache-save
         uses: actions/cache/save@v4
         with:
@@ -310,6 +313,7 @@ jobs:
       - name: Run TuistGeneratorAcceptanceTests
         run: tuist test TuistGeneratorAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
       - name: Save cache
+        if: github.ref == 'refs/heads/main'
         id: cache-save
         uses: actions/cache/save@v4
         with:
@@ -350,6 +354,7 @@ jobs:
       - name: Run TuistKitAcceptanceTests
         run: tuist test TuistKitAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
       - name: Save cache
+        if: github.ref == 'refs/heads/main'
         id: cache-save
         uses: actions/cache/save@v4
         with:
@@ -374,6 +379,7 @@ jobs:
       - name: Build tuist CLI
         run: swift build --target tuist --replace-scm-with-registry
       - name: Save cache
+        if: github.ref == 'refs/heads/main'
         id: cache-save
         uses: actions/cache/save@v4
         with:
@@ -398,6 +404,7 @@ jobs:
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
       - name: Save cache
+        if: github.ref == 'refs/heads/main'
         id: cache-save
         uses: actions/cache/save@v4
         with:
