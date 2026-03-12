@@ -354,13 +354,13 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * sum(rate(tuist_cache_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval])) / sum(rate(tuist_cache_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "100 * sum(rate(tuist_cache_xcode_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval])) / sum(rate(tuist_cache_xcode_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
           "instant": true,
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "Module Disk Hit %",
+      "title": "Xcode Module Disk Hit %",
       "type": "stat",
       "description": "Share of successful module downloads served from local disk."
     },
@@ -2850,7 +2850,7 @@
       },
       "id": 31,
       "panels": [],
-      "title": "Module Reads",
+      "title": "Xcode Module Reads",
       "type": "row"
     },
     {
@@ -2994,7 +2994,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "Total Hits - {{instance}}",
           "range": true,
           "refId": "A"
@@ -3002,7 +3002,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "Disk Hit - {{instance}}",
           "range": true,
           "refId": "B"
@@ -3010,7 +3010,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_disk_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_disk_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "Disk Miss - {{instance}}",
           "range": true,
           "refId": "C"
@@ -3018,7 +3018,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "S3 Hit - {{instance}}",
           "range": true,
           "refId": "D"
@@ -3026,13 +3026,13 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "S3 Miss - {{instance}}",
           "range": true,
           "refId": "E"
         }
       ],
-      "title": "Module Download Rate",
+      "title": "Xcode Module Download Rate",
       "type": "timeseries"
     },
     {
@@ -3091,12 +3091,12 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "100 * sum(rate(tuist_cache_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval])) / sum(rate(tuist_cache_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "100 * sum(rate(tuist_cache_xcode_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval])) / sum(rate(tuist_cache_xcode_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Module Disk Cache Hit Rate",
+      "title": "Xcode Module Disk Cache Hit Rate",
       "type": "gauge"
     },
     {
@@ -3155,12 +3155,12 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(rate(tuist_cache_module_download_errors_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum(rate(tuist_cache_xcode_module_download_errors_total{instance=~\"$instance\"}[$__rate_interval]))",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Module Download Error Rate",
+      "title": "Xcode Module Download Error Rate",
       "type": "gauge"
     },
     {
@@ -3243,7 +3243,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_disk_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_disk_bytes{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "Disk - {{instance}}",
           "range": true,
           "refId": "A"
@@ -3251,13 +3251,13 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_bytes{instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "S3 - {{instance}}",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Module Download Throughput",
+      "title": "Xcode Module Download Throughput",
       "type": "timeseries"
     },
     {
@@ -3322,7 +3322,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -3332,7 +3332,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -3342,7 +3342,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -3352,7 +3352,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_xcode_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
           "format": "table",
           "instant": true,
           "legendFormat": "{{instance}}",
@@ -3360,7 +3360,7 @@
           "refId": "D"
         }
       ],
-      "title": "Module Download Artifact Size Distribution",
+      "title": "Xcode Module Download Artifact Size Distribution",
       "transformations": [
         {
           "id": "merge",
@@ -3938,7 +3938,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "sum by (instance) (rate(tuist_cache_module_multipart_starts_total{instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_starts_total{instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "Starts - {{instance}}",
               "range": true,
               "refId": "A"
@@ -3946,7 +3946,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "sum by (instance) (rate(tuist_cache_module_multipart_parts_total{instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_parts_total{instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "Parts - {{instance}}",
               "range": true,
               "refId": "B"
@@ -3954,13 +3954,13 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "sum by (instance) (rate(tuist_cache_module_multipart_completions_total{instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_completions_total{instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "Completions - {{instance}}",
               "range": true,
               "refId": "C"
             }
           ],
-          "title": "Module Multipart Upload Rate",
+          "title": "Xcode Module Multipart Upload Rate",
           "type": "timeseries"
         },
         {
@@ -4043,7 +4043,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "sum by (instance) (rate(tuist_cache_module_multipart_parts_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_parts_bytes{instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "Parts - {{instance}}",
               "range": true,
               "refId": "A"
@@ -4051,13 +4051,13 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "sum by (instance) (rate(tuist_cache_module_multipart_completed_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+              "expr": "sum by (instance) (rate(tuist_cache_xcode_module_multipart_completed_bytes{instance=~\"$instance\"}[$__rate_interval]))",
               "legendFormat": "Completed - {{instance}}",
               "range": true,
               "refId": "B"
             }
           ],
-          "title": "Module Upload Throughput",
+          "title": "Xcode Module Upload Throughput",
           "type": "timeseries"
         },
         {
@@ -4122,7 +4122,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+              "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
               "format": "table",
               "instant": true,
               "legendFormat": "{{instance}}",
@@ -4132,7 +4132,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+              "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
               "format": "table",
               "instant": true,
               "legendFormat": "{{instance}}",
@@ -4142,7 +4142,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+              "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
               "format": "table",
               "instant": true,
               "legendFormat": "{{instance}}",
@@ -4152,7 +4152,7 @@
             {
               "datasource": "$datasource",
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+              "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_xcode_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
               "format": "table",
               "instant": true,
               "legendFormat": "{{instance}}",
@@ -4160,7 +4160,7 @@
               "refId": "D"
             }
           ],
-          "title": "Module Upload Artifact Size Distribution",
+          "title": "Xcode Module Upload Artifact Size Distribution",
           "transformations": [
             {
               "id": "merge",
@@ -4197,7 +4197,7 @@
           "type": "table"
         }
       ],
-      "title": "Module Writes",
+      "title": "Xcode Module Writes",
       "type": "row"
     },
     {
@@ -4524,8 +4524,8 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
-          "legendFormat": "Module S3 Hits - {{instance}}",
+          "expr": "sum by (instance) (rate(tuist_cache_xcode_module_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Xcode Module S3 Hits - {{instance}}",
           "range": true,
           "refId": "B"
         }

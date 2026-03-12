@@ -33,7 +33,7 @@ defmodule Cache.MultipartUploads do
     upload_id = UUIDv7.generate()
 
     assembly_path =
-      Cache.Module.Disk.assembly_path(account_handle, project_handle, category, hash, name, upload_id)
+      Cache.XcodeModule.Disk.assembly_path(account_handle, project_handle, category, hash, name, upload_id)
 
     with :ok <- Disk.ensure_directory(assembly_path) do
       GenServer.call(

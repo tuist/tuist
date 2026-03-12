@@ -1,8 +1,8 @@
-defmodule Cache.GradleCacheEventsPipelineTest do
+defmodule Cache.Gradle.EventsPipelineTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Cache.GradleCacheEventsPipeline
+  alias Cache.Gradle.EventsPipeline
 
   describe "handle_batch/4" do
     test "skips sending events when API key is not configured" do
@@ -24,7 +24,7 @@ defmodule Cache.GradleCacheEventsPipelineTest do
       reject(&Req.request/1)
 
       result =
-        GradleCacheEventsPipeline.handle_batch(
+        EventsPipeline.handle_batch(
           :http,
           [message],
           %{batch_key: :default},
@@ -97,7 +97,7 @@ defmodule Cache.GradleCacheEventsPipelineTest do
       end)
 
       result =
-        GradleCacheEventsPipeline.handle_batch(
+        EventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},

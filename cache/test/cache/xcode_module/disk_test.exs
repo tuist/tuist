@@ -1,10 +1,10 @@
-defmodule Cache.Module.DiskTest do
+defmodule Cache.XcodeModule.DiskTest do
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
 
   alias Cache.Disk
-  alias Cache.Module.Disk, as: ModuleDisk
+  alias Cache.XcodeModule
 
   defp unique_hash(prefix) do
     "#{prefix}#{:erlang.unique_integer([:positive, :monotonic])}"
@@ -15,7 +15,7 @@ defmodule Cache.Module.DiskTest do
   end
 
   defp dest_path_for(account, project, category, hash, name) do
-    Disk.artifact_path(ModuleDisk.key(account, project, category, hash, name))
+    Disk.artifact_path(XcodeModule.Disk.key(account, project, category, hash, name))
   end
 
   defp cleanup_project(account_handle, project_handle) do
@@ -37,7 +37,9 @@ defmodule Cache.Module.DiskTest do
       on_exit(fn -> cleanup_project(account, "project") end)
 
       hash = unique_hash("abcd")
-      assert :ok = ModuleDisk.put_from_parts(account, "project", "builds", hash, "test.zip", [part1, part2, part3])
+
+      assert :ok =
+               XcodeModule.Disk.put_from_parts(account, "project", "builds", hash, "test.zip", [part1, part2, part3])
 
       dest_path = dest_path_for(account, "project", "builds", hash, "test.zip")
       assert File.exists?(dest_path)
@@ -52,7 +54,7 @@ defmodule Cache.Module.DiskTest do
       on_exit(fn -> cleanup_project(account, "project") end)
 
       hash = unique_hash("efgh")
-      assert :ok = ModuleDisk.put_from_parts(account, "project", "builds", hash, "single.zip", [part1])
+      assert :ok = XcodeModule.Disk.put_from_parts(account, "project", "builds", hash, "single.zip", [part1])
 
       dest_path = dest_path_for(account, "project", "builds", hash, "single.zip")
       assert File.exists?(dest_path)
@@ -73,7 +75,7 @@ defmodule Cache.Module.DiskTest do
       on_exit(fn -> cleanup_project(account, "project") end)
 
       hash = unique_hash("ijkl")
-      assert :ok = ModuleDisk.put_from_parts(account, "project", "builds", hash, "binary.zip", [part1, part2])
+      assert :ok = XcodeModule.Disk.put_from_parts(account, "project", "builds", hash, "binary.zip", [part1, part2])
 
       dest_path = dest_path_for(account, "project", "builds", hash, "binary.zip")
       assert File.read!(dest_path) == binary1 <> binary2
@@ -91,7 +93,8 @@ defmodule Cache.Module.DiskTest do
       {:ok, part1} = Briefly.create()
       File.write!(part1, "new content")
 
-      assert {:error, :exists} = ModuleDisk.put_from_parts(account, "project", "builds", hash, "existing.zip", [part1])
+      assert {:error, :exists} =
+               XcodeModule.Disk.put_from_parts(account, "project", "builds", hash, "existing.zip", [part1])
 
       assert File.read!(dest_path) == "existing content"
     end
@@ -106,7 +109,9 @@ defmodule Cache.Module.DiskTest do
       log =
         capture_log(fn ->
           assert {:error, :enoent} =
-                   ModuleDisk.put_from_parts(account, "project", "builds", hash, "missing.zip", ["/nonexistent/part"])
+                   XcodeModule.Disk.put_from_parts(account, "project", "builds", hash, "missing.zip", [
+                     "/nonexistent/part"
+                   ])
         end)
 
       assert log =~ "Failed to assemble artifact to #{dest_path}"
@@ -120,7 +125,7 @@ defmodule Cache.Module.DiskTest do
       on_exit(fn -> cleanup_project(account, "project") end)
 
       hash = unique_hash("uvwx")
-      assert :ok = ModuleDisk.put_from_parts(account, "project", "tests", hash, "new.zip", [part1])
+      assert :ok = XcodeModule.Disk.put_from_parts(account, "project", "tests", hash, "new.zip", [part1])
 
       dest_path = dest_path_for(account, "project", "tests", hash, "new.zip")
       assert File.exists?(dest_path)

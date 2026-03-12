@@ -1,8 +1,8 @@
-defmodule Cache.Module.Disk do
+defmodule Cache.XcodeModule.Disk do
   @moduledoc """
-  Local disk storage backend for Module cache artifacts.
+  Local disk storage backend for Xcode module cache artifacts.
 
-  Stores Module cache artifacts on the local filesystem with two-level directory sharding
+  Stores Xcode module cache artifacts on the local filesystem with two-level directory sharding
   to prevent ext4 directory index overflow.
   """
 
@@ -11,14 +11,14 @@ defmodule Cache.Module.Disk do
   require Logger
 
   @doc """
-  Constructs a sharded module cache key from account handle, project handle, category, hash, and name.
+  Constructs a sharded Xcode module cache key from account handle, project handle, category, hash, and name.
 
   Uses a two-level directory sharding based on the first 4 characters of the hash
   to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
 
   ## Examples
 
-      iex> Cache.Module.Disk.key("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
+      iex> Cache.XcodeModule.Disk.key("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
       "account/project/module/builds/AB/CD/ABCD1234/MyModule.xcframework.zip"
   """
   def key(account_handle, project_handle, category, hash, name) do
@@ -27,11 +27,11 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
-  Checks if a module artifact exists on disk.
+  Checks if a Xcode module artifact exists on disk.
 
   ## Examples
 
-      iex> Cache.Module.Disk.exists?("account", "project", "builds", "abc123", "MyModule.xcframework.zip")
+      iex> Cache.XcodeModule.Disk.exists?("account", "project", "builds", "abc123", "MyModule.xcframework.zip")
       true
   """
   def exists?(account_handle, project_handle, category, hash, name) do
@@ -42,7 +42,7 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
-  Writes module artifact data to disk.
+  Writes Xcode module artifact data to disk.
 
   Accepts either binary data or a file path tuple.
   """
@@ -62,7 +62,7 @@ defmodule Cache.Module.Disk do
       :ok
     else
       {:error, reason} = error ->
-        Logger.error("Failed to write module artifact to #{path}: #{inspect(reason)}")
+        Logger.error("Failed to write Xcode module artifact to #{path}: #{inspect(reason)}")
         error
     end
   end
@@ -78,7 +78,7 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
-  Assembles multiple part files into a single module artifact.
+  Assembles multiple part files into a single Xcode module artifact.
 
   Creates the artifact from ordered part files using efficient file copying.
   Returns {:error, :exists} if the artifact already exists.
@@ -169,11 +169,11 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
-  Returns file stat information for a module artifact.
+  Returns file stat information for a Xcode module artifact.
 
   ## Examples
 
-      iex> Cache.Module.Disk.stat("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
+      iex> Cache.XcodeModule.Disk.stat("account", "project", "builds", "ABCD1234", "MyModule.xcframework.zip")
       {:ok, %File.Stat{size: 1024, ...}}
   """
   def stat(account_handle, project_handle, category, hash, name) do
@@ -184,10 +184,10 @@ defmodule Cache.Module.Disk do
   end
 
   @doc """
-  Build the internal X-Accel-Redirect path for a module artifact.
+  Build the internal X-Accel-Redirect path for a Xcode module artifact.
 
   The returned path maps to the nginx internal location that aliases the
-  physical module storage directory.
+  physical Xcode module storage directory.
   """
   def local_accel_path(account_handle, project_handle, category, hash, name) do
     Disk.local_base_path() <> key(account_handle, project_handle, category, hash, name)
